@@ -1,4 +1,4 @@
-# 🧠 Kage: Enterprise Agent Memory Setup Guide
+# 🧠 Kage: Cross-Functional Agent Memory as Code
 
 Welcome to **Kage** (the shared Agent Memory framework). This architecture solves the "Isolated Agent" problem by using Git and Markdown files to synchronize crucial architectural insights, framework bugs, and repository context across an entire engineering team and their AI tools (Cursor, Claude, AntiGravity).
 
