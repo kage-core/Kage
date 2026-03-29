@@ -159,6 +159,7 @@ For every single application repository your team actively develops in:
 Humans hate writing documentation, so we automate it. This repository includes two background tools in `/.agent_memory/scripts/` to invisibly track agent sessions and write memory.
 
 *   **The Session Watcher (`session_watcher.py`)**: A daemon that permanently runs in the background. It reads the raw chat transcripts from AntiGravity or Claude. When you solve a complex bug with AI, the Watcher realizes it, extracts a "Stack Overflow" style lesson, creates the Markdown file, and seamlessly appends the hyperlink to your `index.md` map.
+    *   **Windows Auto-Start Setup**: Any developer joining the team can simply execute `./.agent_memory/scripts/setup_daemon.ps1`. This dynamically generates a silent VBScript in their local Windows Startup folder. The daemon will now launch invisibly via `pythonw.exe` every time they turn on their computer.
 *   **The Routing Rules**: The Distiller script asks the LLM: *"Is this highly specific to this app, or a global framework rule?"* 
     *   If Local: It saves to `.agent_memory/` on the current Git branch.
     *   If Global: It saves to `.global_memory/` and bypasses the local branch by pushing directly to the `main` branch of the global submodule repo instantly syncing it to every other engineer in the company.
