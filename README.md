@@ -1,6 +1,6 @@
-# 🧠 Agent Memory as Code: Enterprise Setup Guide
+# 🧠 Kage: Enterprise Agent Memory Setup Guide
 
-Welcome to the "Memory as Code" framework. This architecture solves the "Isolated Agent" problem by using Git and Markdown files to synchronize crucial architectural insights, framework bugs, and repository context across an entire engineering team and their AI tools (Cursor, Claude, AntiGravity).
+Welcome to **Kage** (the shared Agent Memory framework). This architecture solves the "Isolated Agent" problem by using Git and Markdown files to synchronize crucial architectural insights, framework bugs, and repository context across an entire engineering team and their AI tools (Cursor, Claude, AntiGravity).
 
 This guide explains how an entire Organization goes from zero to a fully synchronized, two-tiered Memory Hive-Mind.
 
