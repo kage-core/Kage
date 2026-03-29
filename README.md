@@ -71,6 +71,50 @@ graph TD
     MobileSocketIdx -->|Reads Link| Node3
 ```
 
+### Deep Dive: How the Agent Navigates the Graph
+
+The magic of Kage is that it relies purely on native relative pathing. There is no custom semantic search or API indexing required.
+
+Here is exactly what the file structure looks like for **Node B (The 15-minute JWT Policy)**, and how Kage structurally ensures both the Frontend and Backend agents read it securely in real-time:
+
+#### 1. The Central Node (The Knowledge Base)
+The background Distiller script synthesizes the raw chat transcript into a contextless, clinical Stack Overflow answer. It writes this physical file to a safe, centralized location in the graph:
+
+**File:** `/.global_memory/nodes/jwt_15_min_policy.md`
+```markdown
+# 15-Minute JWT Token Expiration
+**Category**: Architecture
+**Tags**: [auth, security, tokens]
+
+**Rule**: Based on the new SOC2 compliance standards, all JWT Auth Tokens must expire in exactly 15 minutes. 
+- *Frontend*: You must securely store the refresh token in an HttpOnly cookie and silently request a new JWT at the 14-minute mark.
+- *Backend*: The API gateway must reject any token with an `exp` claim older than 15 minutes with a `401 Unauthorized`.
+```
+
+#### 2. The Multi-Path Hyperlinks (The Index Edges)
+Because this single rule deeply impacts the `frontend/auth` routing layout as well as the `backend/api` logic, the Distiller appends a standard markdown hyperlink to **both** distinct index files pointing back to the central Node.
+
+**File:** `/.global_memory/frontend/auth/index.md`
+```markdown
+# Frontend Auth UI Rules
+* [React Hydration Error fixes](../../nodes/react_hydration.md)
+* [15-Minute JWT Token Expiration](../../nodes/jwt_15_min_policy.md)
+```
+
+**File:** `/.global_memory/backend/api/index.md`
+```markdown
+# Backend API Layer Architecture
+* [15-Minute JWT Token Expiration](../../nodes/jwt_15_min_policy.md)
+```
+
+#### 3. The Retrieval (The Next Agent's Session)
+Two weeks later, an engineer asks a brand new Cursor IDE agent: *"I need to write the middleware for the backend API to validate logins."*
+
+1.  **The Trigger**: Cursor reads the repo's `.cursorrules`, which explicitly states: *"You MUST read `/.global_memory/index.md` before coding."*
+2.  **Breadcrumb 1**: Cursor opens the root `index.md`, reads the table of contents, and clicks the file path to `backend/index.md`.
+3.  **Breadcrumb 2**: Cursor clicks inward to the `api/index.md` router map.
+4.  **The Payload**: Cursor hits the native markdown edge `../../nodes/jwt_15_min_policy.md`. It physically climbs the file system to read the target node and absorbs the strict 15-minute validation rule—guaranteeing compliance on the very first try without any custom database integrations!
+
 ---
 
 ## 🚀 Org-Wide Implementation Steps
