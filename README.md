@@ -33,42 +33,51 @@ When Kage extracts these, it creates three central **Nodes**, but constructs a m
 
 ```mermaid
 graph TD
-    %% Define Styles
-    classDef root fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef index fill:#bbf,stroke:#333,stroke-width:1px;
-    classDef node fill:#bfb,stroke:#333,stroke-width:2px;
+    %% Define Styles (Soft pastels for high contrast readability)
+    classDef root fill:#dbeafe,stroke:#1e40af,stroke-width:2px,color:#0f172a,font-weight:bold;
+    classDef l1 fill:#f3e8ff,stroke:#6b21a8,stroke-width:1px,color:#0f172a;
+    classDef l2 fill:#dcfce7,stroke:#15803d,stroke-width:1px,color:#0f172a;
+    classDef l3 fill:#ffedd5,stroke:#c2410c,stroke-width:1px,color:#0f172a;
+    classDef node fill:#fef08a,stroke:#b45309,stroke-width:2px,color:#0f172a,font-weight:bold;
 
     %% Level 0
     Root[index.md]:::root
 
-    %% Level 1 Indexes
-    Root -->|Level 0 Link| FrontIdx(frontend/index.md):::index
-    Root -->|Level 0 Link| BackIdx(backend/index.md):::index
-    Root -->|Level 0 Link| MobileIdx(mobile/index.md):::index
+    %% Level 1 Indexes (Domains)
+    Root --> FrontIdx(frontend/index.md):::l1
+    Root --> BackIdx(backend/index.md):::l1
+    Root --> MobileIdx(mobile/index.md):::l1
 
-    %% Level 2 Indexes
-    FrontIdx -->|Level 1 Link| AuthUIIdx(frontend/auth/index.md):::index
-    FrontIdx -->|Level 1 Link| SocketUIIdx(frontend/websockets/index.md):::index
+    %% Level 2 Indexes (Features)
+    FrontIdx --> AuthUIIdx(frontend/auth/index.md):::l2
+    FrontIdx --> SocketUIIdx(frontend/websockets/index.md):::l2
     
-    BackIdx -->|Level 1 Link| ApiIdx(backend/api/index.md):::index
-    BackIdx -->|Level 1 Link| SocketSrvIdx(backend/websockets/index.md):::index
+    BackIdx --> ApiIdx(backend/api/index.md):::l2
+    BackIdx --> SocketSrvIdx(backend/websockets/index.md):::l2
 
-    MobileIdx -->|Level 1 Link| MobileSocketIdx(mobile/websockets/index.md):::index
+    MobileIdx --> MobileSocketIdx(mobile/websockets/index.md):::l2
 
-    %% The Memory Nodes (The Knowledge Base)
-    Node1[Node: react_hydration.md]:::node
-    Node2[Node: jwt_15_min_policy.md]:::node
-    Node3[Node: socket_backoff.md]:::node
+    %% Level 3 Indexes (Deep Routing)
+    ApiIdx --> ApiV2Idx(backend/api/v2/index.md):::l3
+    SocketUIIdx --> DashSocketIdx(frontend/websockets/dashboard/index.md):::l3
 
-    %% The Multi-Path Edges (Standard Markdown Hyperlinks)
-    AuthUIIdx -->|Reads Link| Node1
-    AuthUIIdx -->|Reads Link| Node2
+    %% The Memory Nodes (Central Knowledge Base)
+    Node1[react_hydration.md]:::node
+    Node2[jwt_15_min_policy.md]:::node
+    Node3[socket_backoff_strategy.md]:::node
+    Node4[v2_api_rate_limiting.md]:::node
+
+    %% The Multi-Path Edges (Markdown Links)
+    AuthUIIdx -.->|Reads Link| Node1
+    AuthUIIdx -.->|Reads Link| Node2
     
-    ApiIdx -->|Reads Link| Node2
+    ApiIdx -.->|Reads Link| Node2
+    ApiV2Idx -.->|Reads Link| Node4
+    ApiV2Idx -.->|Reads Link| Node2
     
-    SocketUIIdx -->|Reads Link| Node3
-    SocketSrvIdx -->|Reads Link| Node3
-    MobileSocketIdx -->|Reads Link| Node3
+    DashSocketIdx -.->|Reads Link| Node3
+    SocketSrvIdx -.->|Reads Link| Node3
+    MobileSocketIdx -.->|Reads Link| Node3
 ```
 
 ### Deep Dive: How the Agent Navigates the Graph
