@@ -1,0 +1,2 @@
+# Global AI Rules
+For historical context, known bugs, or architectural decisions, you must read the file `/.agent_memory/index.md` before suggesting any code changes or assuming framework behaviors. Follow any structural warnings found in the memory nodes exactly as written.
