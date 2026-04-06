@@ -1,13 +1,20 @@
 # Kage Agent Memory
 
-Before suggesting any code changes, architectural decisions, or framework usage, you MUST read the memory indexes below. Follow any rules found in those nodes exactly.
+Do NOT read `.agent_memory/` files directly. Use the `kage-memory` sub-agent instead.
 
-- Read [.agent_memory/index.md](.agent_memory/index.md) for repo-specific context
-- If `.global_memory/index.md` exists, read it for org-wide rules
+Before making architectural decisions, implementing a pattern, or working in a specific domain (auth, API, frontend, etc.), call the `kage-memory` sub-agent with a short description of what you are about to do. It navigates the memory index hierarchy and returns only relevant rules and known issues — keeping your context clean.
+
+Example: *use kage-memory to check for rules about authentication middleware*
 
 ## Saving New Memories
 
-When you resolve a non-trivial bug, establish an architectural rule, or uncover a hidden requirement, save it to memory by running:
+When you resolve a non-trivial bug or establish an architectural rule, save it:
+
+```bash
+python3 kage.py save
+```
+
+Or use the full CLI for scripted saves:
 
 ```bash
 python3 .agent_memory/scripts/distiller_tool.py \
@@ -18,4 +25,4 @@ python3 .agent_memory/scripts/distiller_tool.py \
   --paths "backend,frontend/api"
 ```
 
-Use `--paths` to route the memory to the correct domain indexes (e.g. `backend`, `frontend`, `frontend/auth`).
+Memories are staged in `.agent_memory/pending/` by default. Run `python3 kage.py review` to approve them.

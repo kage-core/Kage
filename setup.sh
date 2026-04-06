@@ -47,6 +47,7 @@ mkdir -p "$TARGET_REPO/.agent_memory/nodes"
 mkdir -p "$TARGET_REPO/.agent_memory/pending"
 mkdir -p "$TARGET_REPO/.agent_memory/deprecated"
 mkdir -p "$TARGET_REPO/.agent_memory/scripts"
+mkdir -p "$TARGET_REPO/.claude/agents"
 
 # Copy scripts
 cp "$SCRIPT_DIR/.agent_memory/scripts/distiller_tool.py"  "$TARGET_REPO/.agent_memory/scripts/"
@@ -55,6 +56,10 @@ cp "$SCRIPT_DIR/.agent_memory/scripts/session_watcher.py" "$TARGET_REPO/.agent_m
 cp "$SCRIPT_DIR/.agent_memory/scripts/post-commit.sh"     "$TARGET_REPO/.agent_memory/scripts/"
 cp "$SCRIPT_DIR/.agent_memory/scripts/pii_scrubber.py"    "$TARGET_REPO/.agent_memory/scripts/"
 cp "$SCRIPT_DIR/.agent_memory/scripts/llm_client.py"      "$TARGET_REPO/.agent_memory/scripts/"
+
+# Copy Claude Code sub-agent
+cp "$SCRIPT_DIR/.claude/agents/kage-memory.md" "$TARGET_REPO/.claude/agents/kage-memory.md"
+echo "Installed: .claude/agents/kage-memory.md"
 
 # Copy CLI and config to target repo root
 cp "$SCRIPT_DIR/kage.py" "$TARGET_REPO/kage.py"
@@ -80,17 +85,24 @@ fi
 # ── 4. CLAUDE.md ─────────────────────────────────────────────────────────────
 KAGE_CLAUDE_BLOCK='## Kage Agent Memory
 
-Before suggesting code changes or architectural decisions:
-1. Read [.agent_memory/SUMMARY.md](.agent_memory/SUMMARY.md) — compact overview of all rules
-2. For domain-specific detail, follow links to the relevant index (e.g. .agent_memory/backend/index.md)
+Do NOT read .agent_memory/ files directly. Instead, use the kage-memory sub-agent:
 
-Use the Kage CLI to manage memory:
+  Before making architectural decisions, implementing a pattern, or working in a
+  specific domain (auth, API, frontend, etc.), call the kage-memory sub-agent
+  with a short description of what you are about to do. It will navigate the
+  memory graph and return only the relevant rules and known issues.
+
+  Example: use kage-memory to check for rules about authentication middleware
+
+The sub-agent navigates the index hierarchy efficiently and returns only what
+is relevant — keeping your context window clean.
+
+Kage CLI (memory management):
   python3 kage.py save            # save a new learning interactively
   python3 kage.py review          # approve/reject AI-staged memories
   python3 kage.py prune           # deprecate stale nodes
   python3 kage.py check-links     # validate memory graph links
-  python3 kage.py digest          # regenerate SUMMARY.md
-  python3 kage.py rebuild-indexes # fix index.md merge conflicts'
+  python3 kage.py rebuild-indexes # fix index.md merge conflicts after git pull'
 
 if [ ! -f "$TARGET_REPO/CLAUDE.md" ]; then
   echo "$KAGE_CLAUDE_BLOCK" > "$TARGET_REPO/CLAUDE.md"

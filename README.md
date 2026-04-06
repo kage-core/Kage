@@ -38,11 +38,13 @@ git clone https://github.com/Kage18/Kage.git $env:TEMP\Kage
 |------|----------------|
 | 1 | Installs Python SDK for your chosen provider |
 | 2 | Scaffolds `.agent_memory/` with indexes, scripts, pending/, deprecated/ |
-| 3 | Copies `kage.py` CLI and `kage.config.json` to repo root |
-| 4 | Creates `CLAUDE.md` so Claude Code reads memory on every session |
-| 5 | Creates `.cursorrules` for Cursor IDE |
-| 6 | Installs a `.git/hooks/post-commit` hook to auto-distill each commit |
-| 7 | Starts a background daemon that watches Claude Code sessions every 5 minutes |
+| 3 | Installs `.claude/agents/kage-memory.md` — the retrieval sub-agent |
+| 4 | Copies `kage.py` CLI and `kage.config.json` to repo root |
+| 5 | Creates `CLAUDE.md` telling the main agent to delegate to `kage-memory` |
+| 6 | Creates `.cursorrules` for Cursor IDE |
+| 7 | Installs `.git/hooks/post-commit` to auto-distill each commit |
+| 8 | Installs `.git/hooks/post-merge` to auto-rebuild indexes after pulls |
+| 9 | Starts a background daemon watching Claude Code sessions every 5 minutes |
 
 After setup, **everything is automatic** — just code normally and Kage captures the knowledge.
 
@@ -123,15 +125,24 @@ python3 kage.py check-links
 # BROKEN frontend/index.md -> ../nodes/missing_file.md
 ```
 
-### Context Window Efficiency
-As the memory graph grows, loading every `index.md` and following all links burns thousands of tokens before the AI can even start coding. `SUMMARY.md` solves this — a flat, one-liner-per-node digest that the AI reads first, only diving into specific domain indexes when relevant:
+### Context Window Efficiency — `kage-memory` Sub-Agent
 
-```bash
-python3 kage.py digest
-# Digest written: .agent_memory/SUMMARY.md (12 nodes)
+The main agent never loads memory files directly. Instead, `CLAUDE.md` instructs it to delegate to the `kage-memory` sub-agent whenever it needs to check rules:
+
+```
+Main agent: "about to implement JWT auth middleware"
+    ↓
+kage-memory sub-agent:
+  reads .agent_memory/index.md          → sees "backend" domain
+  reads .agent_memory/backend/index.md  → sees JWT policy link
+  reads .agent_memory/nodes/jwt_policy.md
+    ↓
+Main agent receives: 1 relevant node, zero index navigation overhead
 ```
 
-`CLAUDE.md` and `.cursorrules` are pre-configured to read `SUMMARY.md` first. The digest is regenerated automatically after every `git pull` via the post-merge hook.
+The sub-agent is installed at `.claude/agents/kage-memory.md` and is automatically available in Claude Code. The hierarchical index is navigated by the sub-agent, not the main agent — so it never bloats the working context.
+
+`SUMMARY.md` is still generated for Cursor IDE and human browsing, but is not the primary retrieval path for Claude Code.
 
 ### Merge Conflict Resolution
 When multiple developers commit memories simultaneously, `index.md` files can get merge conflicts. Indexes are derived artifacts — never hand-edit them. Instead:
@@ -317,7 +328,7 @@ Because the Memory is just plain-text Markdown tracked over Git, it integrates a
 
 *   **Cursor IDE:** Fully automatic. `Composer` naturally follows the `.cursorrules` file instructions and hyperlinks.
 *   **AntiGravity:** Included in this repo is a custom workflow (`.agents/workflows/save-memory.md`). Just type `/save-memory` in the chat, and AntiGravity will act as the Distiller Agent, parsing and saving the memory manually.
-*   **Claude Code (CLI):** The `setup.sh` / `setup.ps1` script creates a `CLAUDE.md` at the repo root. Claude Code automatically reads this file at the start of every session, loading the memory indexes before touching any code.
+*   **Claude Code (CLI):** The `setup.sh` / `setup.ps1` script installs a `kage-memory` sub-agent (`.claude/agents/kage-memory.md`) and a `CLAUDE.md` that instructs the main agent to delegate all memory lookups to it. Zero context bloat — memory only enters the working context when it's actually relevant.
 *   **GitHub Copilot Workspace:** The Markdown files are natively indexed by GitHub's semantic search. Asking Copilot chat an architectural question will automatically surface the memory nodes.
 
 ---
