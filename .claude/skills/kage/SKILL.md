@@ -14,7 +14,7 @@ Review pending memory nodes awaiting human approval.
 
 1. Find all pending nodes:
    - Glob `.agent_memory/pending/*.md` (project tier)
-   - Glob `~/.agent_memory/pending/*.md` (personal tier)
+   - Bash `ls $HOME/.agent_memory/pending/*.md 2>/dev/null` (personal tier — use Bash, not Glob, because Glob does not expand `~` or `$HOME`)
 
 2. If none found: "No pending nodes to review."
 
@@ -69,7 +69,9 @@ Review pending memory nodes awaiting human approval.
 
 Deprecate old or outdated memory nodes.
 
-1. List all approved nodes in `.agent_memory/nodes/` and `~/.agent_memory/nodes/`:
+1. List all approved nodes:
+   - Glob `.agent_memory/nodes/*.md` (project tier)
+   - Bash `ls $HOME/.agent_memory/nodes/*.md 2>/dev/null` (personal tier — Bash required, Glob does not expand `~`)
    ```
    [1] Title — category — date (project)
    [2] Title — category — date (personal)
@@ -107,7 +109,7 @@ Regenerate `SUMMARY.md` compact overview at each tier.
    ...
    ```
 
-4. Do the same for `~/.agent_memory/` (personal tier) if it has nodes
+4. Do the same for personal tier: Bash `ls $HOME/.agent_memory/nodes/*.md 2>/dev/null` — if nodes exist, regenerate `$HOME/.agent_memory/SUMMARY.md`. (Use Bash, not Glob, for `$HOME` paths.)
 
 5. Report token estimate: "SUMMARY.md is approximately N lines (~X tokens)"
 

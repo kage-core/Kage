@@ -138,9 +138,9 @@ If yes:
 
 This project uses Kage v2 for persistent agent memory.
 
-- Use the `kage-memory` sub-agent before implementing auth, API patterns, database operations, or any domain-specific feature
+- Invoke `kage-distiller` **immediately** when you fix a bug, make a design decision, figure out a setup step, discover a pattern, or map an integration — do not wait for session end
+- Invoke `kage-memory` before implementing auth, API patterns, database operations, or any domain-specific feature
 - Memory is organized in `.agent_memory/` — do NOT read these files directly
-- After completing significant work, memory is auto-distilled at session end
 - Review pending nodes with `/kage review`
 - Team members share memory automatically via git
 ```

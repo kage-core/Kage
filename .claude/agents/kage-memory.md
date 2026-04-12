@@ -15,10 +15,11 @@ Search all three tiers. Navigate indexes — never load all node files directly.
 
 ### Tier 1: Project Memory (`.agent_memory/`)
 
-1. Read `.agent_memory/index.md` — lists available domains
-2. Identify domains relevant to the task (e.g., "auth" → look at `backend`)
-3. Read matching `backend/index.md`, `frontend/index.md`, etc.
-4. Read only the 1-3 node files whose titles/descriptions match the task
+1. Check `.agent_memory/pending/` first — these are nodes saved earlier in this session, immediately useful. Scan filenames and read any whose title matches the task.
+2. Read `.agent_memory/index.md` — lists available domains
+3. Identify domains relevant to the task (e.g., "auth" → look at `backend`)
+4. Read matching `backend/index.md`, `frontend/index.md`, etc.
+5. Read only the 1-3 node files whose titles/descriptions match the task
 
 ---
 

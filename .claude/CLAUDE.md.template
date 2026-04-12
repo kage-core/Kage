@@ -1,0 +1,50 @@
+# Kage Memory — Always Active
+
+## When to invoke `kage-distiller` (save memory)
+
+Invoke the `kage-distiller` sub-agent **immediately** — inline, during the session — whenever you:
+
+- Fix a bug (save: what broke, why, and the fix)
+- Make a design or architecture decision (save: what was decided and why)
+- Figure out how to set up, run, or deploy something (save: the exact steps)
+- Discover a pattern or convention in the codebase (save: how it works, where)
+- Map an external integration (save: API shape, connection pattern, gotchas)
+- Resolve a non-obvious constraint or requirement (save: what the constraint is and why)
+
+**Do not wait for session end.** Save it the moment it's established. Pass the specific insight — not a transcript.
+
+### Which tier?
+
+Ask: **"Does this knowledge expire when I leave this project?"**
+
+| If the insight... | Save to |
+|---|---|
+| References this project's specific files, APIs, configs, schemas, env vars | **project** `.agent_memory/` |
+| Is a convention or pattern specific to this codebase | **project** `.agent_memory/` |
+| Is about a tool, language, or framework anyone could use (React, Postgres, Claude Code, shell) | **personal** `~/.agent_memory/` |
+| Is about Claude Code's own behavior or limitations | **personal** `~/.agent_memory/` |
+| Spans or references multiple projects | **personal** `~/.agent_memory/` |
+| Contains names, emails, or credentials that shouldn't be in git | **personal** `~/.agent_memory/` |
+
+**Default to project tier.** When in doubt, project is safer — it's scoped, reviewable, and won't leak cross-project.
+
+Example invocation:
+```
+insight: Claude Code's Glob tool does not expand ~ or $HOME. Use Bash `ls $HOME/...` for personal tier path lookups.
+project_dir: /Users/kushaljain/new/Kage
+tier: personal
+```
+
+## When to invoke `kage-memory` (retrieve memory)
+
+Invoke `kage-memory` before:
+- Implementing auth, API patterns, or database operations
+- Making an architectural decision
+- Setting up or configuring something in the project
+- Working in a domain you haven't touched yet this session
+
+## Rules
+
+- Do NOT read `.agent_memory/` files directly — delegate to `kage-memory`
+- Saved nodes go to `pending/` and require `/kage review` to approve
+- Approved nodes in `nodes/` are committed to git and shared with the team
