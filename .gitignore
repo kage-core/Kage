@@ -1,5 +1,11 @@
-# Kage v2 — gitignore
+# Kage — gitignore
 .agent_memory/pending/
 .agent_memory/distiller.log
+.agent_memory/watcher.log
+.agent_memory/watcher.error.log
+.agent_memory/.processed_sessions
+.agent_memory/scripts/__pycache__/
 .claude/kage/.processed_sessions
 .claude/kage/distill.log
+__pycache__/
+*.pyc

@@ -1,10 +1,10 @@
 ---
 name: kage
-description: Manage the Kage v2 agent memory system. Subcommands: review (approve/reject pending nodes), prune (deprecate old nodes), digest (regenerate SUMMARY.md), submit (contribute a node to the global graph), search (search the global graph), publish (prepare project as a shareable pack), rebuild-indexes.
+description: Manage the Kage agent memory system. Subcommands: review (approve/reject pending nodes), prune (deprecate old nodes), digest (regenerate SUMMARY.md), submit (contribute a node to the global graph), search (search the global graph), publish (prepare project as a shareable pack), rebuild-indexes.
 allowed-tools: Read, Write, Glob, Grep, Bash, WebFetch
 ---
 
-You are managing the **Kage v2** agent memory system. Parse the user's subcommand from `$ARGUMENTS` and execute it.
+You are managing the **Kage** agent memory system. Parse the user's subcommand from `$ARGUMENTS` and execute it.
 
 ---
 
@@ -246,7 +246,7 @@ Reconstruct all `index.md` files from node frontmatter (resolves merge conflicts
 
 Show help:
 ```
-Kage v2 — Agent Memory System
+Kage — Agent Memory System
 
 Usage: /kage <subcommand>
 

@@ -1,13 +1,11 @@
 {
   "name": "kage",
-  "version": "2.0.0",
-  "description": "Kage v2 — daemon-free, Claude Code-native agent memory system. Automatic session distillation, 3-tier memory (project/personal/packs), and community sharing.",
+  "version": "1.0.0",
+  "description": "Kage — daemon-free, Claude Code-native agent memory system. Inline session distillation, 3-tier memory (project/personal/community), and a live global knowledge graph.",
   "tags": ["agent-memory", "claude-code", "memory-graph", "knowledge-capture", "developer-tools"],
   "homepage": "https://github.com/Kage18/Kage",
   "repository": "https://github.com/Kage18/Kage",
   "domains": [],
   "node_count": 0,
-  "global_node_count": 0,
-  "min_kage_version": "2.0.0",
   "created": "2026-04-12"
 }

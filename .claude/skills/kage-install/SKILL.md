@@ -1,10 +1,10 @@
 ---
 name: kage-install
-description: Install Kage v2 — the Claude Code-native agent memory system. Sets up automatic session distillation, memory retrieval sub-agent, and the /kage management skill. Zero pip, zero daemon, zero API keys needed beyond Claude Code's own auth.
+description: Install Kage — the Claude Code-native agent memory system. Sets up inline session distillation, 3-tier memory retrieval, and the /kage management skill. Zero pip, zero daemon, zero API keys beyond Claude Code's own auth.
 allowed-tools: Read, Write, Bash, Glob
 ---
 
-You are installing **Kage v2** — a daemon-free, Claude Code-native agent memory system.
+You are installing **Kage** — a daemon-free, Claude Code-native agent memory system that gives Claude persistent memory across sessions and projects.
 
 Parse arguments from `$ARGUMENTS`:
 - If a GitHub URL or `org/repo` is given, clone that repo as the Kage source before installing
@@ -19,7 +19,6 @@ Walk the user through each step, confirming before writing to system directories
 ### Step 1 — Verify Prerequisites
 
 ```bash
-which python3 && python3 --version
 which git && git --version
 claude --version
 ```
@@ -41,10 +40,11 @@ mkdir -p ~/.agent_memory/packs
 
 ### Step 3 — Write Core Agent Files
 
-Write `~/.claude/agents/kage-distiller.md` — the distillation sub-agent (replaces the daemon).
+Write `~/.claude/agents/kage-distiller.md` — the inline memory writer sub-agent.
 Write `~/.claude/agents/kage-memory.md` — the 3-tier retrieval sub-agent.
+Write `~/.claude/agents/kage-graph.md` — the live community graph fetcher sub-agent.
 
-Use the canonical content from the Kage v2 repository.
+Use the canonical content from the Kage repository.
 
 ### Step 4 — Write Hook Scripts
 
@@ -55,7 +55,7 @@ Write `~/.claude/kage/hooks/stop.sh`:
 - Launches: `nohup claude --agent kage-distiller --print "$TASK" --permission-mode bypassPermissions --no-session-persistence >> ~/.claude/kage/distill.log 2>&1 &`
 
 Write `~/.claude/kage/hooks/session-start.sh`:
-- Detects available memory tiers
+- Detects available memory tiers (project, personal, community graph)
 - Outputs `systemMessage` JSON telling Claude which tiers are available
 
 ```bash
@@ -65,7 +65,7 @@ chmod +x ~/.claude/kage/hooks/session-start.sh
 
 ### Step 5 — Patch `~/.claude/settings.json`
 
-Read the current settings.json. Add Kage hooks to the `Stop` and `SessionStart` arrays (non-destructively — keep existing hooks like clauditor):
+Read the current settings.json. Add Kage hooks to the `Stop` and `SessionStart` arrays (non-destructively — keep existing hooks):
 
 ```json
 "Stop": [
@@ -117,7 +117,6 @@ Write `~/.agent_memory/SUMMARY.md` if it doesn't exist:
 Write `~/.claude/kage.json` if it doesn't exist:
 ```json
 {
-  "version": "2.0.0",
   "packs": []
 }
 ```
@@ -130,17 +129,17 @@ If yes:
 - Create `.agent_memory/{nodes,pending,deprecated}/`
 - Write `.agent_memory/index.md` (project root index)
 - Write `.agent_memory/SUMMARY.md` (empty digest)
-- Create `.claude/kage.json` with `{"version":"2.0.0","packs":[]}`
+- Create `.claude/kage.json` with `{"packs":[]}`
 - Append to `CLAUDE.md` (or create it):
 
 ```markdown
 ## Kage Memory
 
-This project uses Kage v2 for persistent agent memory.
+This project uses Kage for persistent agent memory.
 
 - Invoke `kage-distiller` **immediately** when you fix a bug, make a design decision, figure out a setup step, discover a pattern, or map an integration — do not wait for session end
 - Invoke `kage-memory` before implementing auth, API patterns, database operations, or any domain-specific feature
-- Memory is organized in `.agent_memory/` — do NOT read these files directly
+- Memory is organized in `.agent_memory/` — do NOT read these files directly, delegate to `kage-memory`
 - Review pending nodes with `/kage review`
 - Team members share memory automatically via git
 ```
@@ -157,12 +156,13 @@ This project uses Kage v2 for persistent agent memory.
 Print a summary:
 
 ```
-✓ Kage v2 installed successfully!
+✓ Kage installed successfully!
 
-  Agents:  ~/.claude/agents/kage-distiller.md
-           ~/.claude/agents/kage-memory.md
+  Agents:  ~/.claude/agents/kage-distiller.md   ← inline memory writer
+           ~/.claude/agents/kage-memory.md       ← 3-tier retrieval
+           ~/.claude/agents/kage-graph.md        ← community graph
 
-  Hooks:   Stop → distills sessions automatically (no daemon)
+  Hooks:   Stop → safety-net distillation at session end
            SessionStart → injects memory context
 
   Skills:  /kage review | prune | digest | add | publish | search
@@ -172,16 +172,8 @@ Print a summary:
 
 How it works:
   1. You work normally in Claude Code
-  2. At session end, kage-distiller analyzes the transcript
-  3. Valuable learnings go to pending/ for your review
-  4. Run /kage review to approve — approved nodes are committed with your project
-  5. Teammates get your knowledge on git pull
-  6. Share patterns globally with /kage publish + /kage add
-```
-
-If this replaced a v1 daemon installation, also suggest:
-```
-To remove the old v1 daemon:
-  launchctl unload ~/Library/LaunchAgents/com.kage.session-watcher.plist
-  rm ~/Library/LaunchAgents/com.kage.session-watcher.plist
+  2. Claude captures insights inline as they happen → pending/
+  3. Run /kage review to approve — approved nodes commit with your project
+  4. Teammates get your knowledge on git pull
+  5. Share patterns globally with /kage publish → /kage add
 ```

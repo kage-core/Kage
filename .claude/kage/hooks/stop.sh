@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Kage v2 Stop Hook
+# Kage Stop Hook
 # Fires at session end. Invokes kage-distiller if the session is substantive.
 # Exits 0 immediately so the session closes cleanly; distiller runs in background.
 

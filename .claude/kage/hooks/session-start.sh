@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Kage v2 SessionStart Hook
+# Kage SessionStart Hook
 # Injects a system message telling Claude which memory tiers are available.
 
 set -euo pipefail
