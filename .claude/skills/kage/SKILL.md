@@ -120,8 +120,8 @@ Contribute an approved local node to the global Kage Knowledge Graph at `kage-co
 
 2. Validate required fields for global submission:
    - `title`, `tags`, `date` — required
-   - `domain` — must match one of: `auth`, `database`, `deployment`, `frontend`, `testing`, `api-design`, `ai-agents`, `payments`, `storage`, `email`
-   - If `domain` is missing: ask the user to choose one
+   - `domain` — must match one of the domains in the catalog. Fetch `catalog.json` to get the current list. Known domains: `auth`, `database`, `deployment`, `frontend`, `testing`, `api-design`, `ai-agents`, `payments`, `storage`, `email`, `security`, `performance`, `observability`, `mobile`, `infrastructure`, `tooling`, `data`
+   - If `domain` is missing or doesn't match: show the domain list and ask the user to choose one
    - `stack` — recommended (specific versions this applies to); warn if missing
 
 3. Check the graph catalog to see if a similar node already exists:
