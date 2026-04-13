@@ -138,7 +138,7 @@ The filter: *would a new team member need to know this to work effectively?* Def
 
 **One-time bootstrap** (copies the `/kage-install` skill to Claude Code):
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Kage18/Kage/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/kage-core/Kage/main/install.sh | bash
 ```
 
 **Complete installation** (run inside Claude Code):
