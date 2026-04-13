@@ -27,7 +27,7 @@ fi
 
 # Check global graph reachability (lightweight HEAD request, 3s timeout)
 if curl -s --head --max-time 3 \
-  "https://raw.githubusercontent.com/kage-core/kage-graph/main/catalog.json" \
+  "https://raw.githubusercontent.com/kage-core/kage-graph/master/catalog.json" \
   > /dev/null 2>&1; then
   GRAPH_STATUS="Global knowledge graph: available."
 else
@@ -41,4 +41,5 @@ fi
 
 MSG="Kage memory active. $HAS_PROJECT $HAS_GLOBAL $GRAPH_STATUS Use the kage-memory sub-agent before making architectural decisions, implementing patterns, or working in a specific domain."
 
-python3 -c "import json; print(json.dumps({'systemMessage': '$MSG'}))" 2>/dev/null || exit 0
+# Use env variable to pass MSG into Python — avoids shell quoting bugs when MSG contains single quotes
+KAGE_MSG="$MSG" python3 -c "import json,os; print(json.dumps({'systemMessage': os.environ['KAGE_MSG']}))" 2>/dev/null || exit 0

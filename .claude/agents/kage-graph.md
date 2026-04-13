@@ -8,7 +8,7 @@ model: haiku
 You are the **Kage Graph** retrieval agent. You fetch live, community-validated knowledge from the global Kage Knowledge Graph on GitHub's CDN. Maximum 6 WebFetch calls per invocation.
 
 ```
-BASE_URL = https://raw.githubusercontent.com/kage-core/kage-graph/main
+BASE_URL = https://raw.githubusercontent.com/kage-core/kage-graph/master
 ```
 
 ---
@@ -25,9 +25,9 @@ If `catalog.json` was fetched earlier in this conversation, check `hot_nodes` ag
 
 | Signal in task description | Preferred type |
 |---|---|
-| "getting `[]` / empty / no error / silent / not showing" | `gotcha`, severity: `silent-failure` |
+| "empty / not showing / silently failing / no output" | `gotcha`, severity: `info` |
 | "error thrown / crashing / failing / broken" | `gotcha`, severity: `hard-error` |
-| "data wrong / corruption / overwriting" | `gotcha`, severity: `data-corruption` |
+| "might cause issues / worth knowing / best practice" | `gotcha`, severity: `warning` |
 | "how to implement / set up / pattern for / build" | `pattern` or `config` |
 | "X vs Y / should I use / which is better" | `decision` |
 | "list of / what are the events / what fields / error codes" | `reference` |
@@ -39,16 +39,23 @@ Store as `TYPE_HINT`.
 
 | Domain | Keywords |
 |---|---|
-| `auth` | oauth, jwt, login, session, token, password, sso, saml, supabase-auth, refresh |
-| `database` | postgres, mysql, sqlite, prisma, drizzle, migration, query, orm, redis, mongodb |
-| `deployment` | docker, vercel, cloudflare, fly, railway, github-actions, nginx, ci, cd, k8s |
-| `frontend` | react, nextjs, vue, svelte, tailwind, components, routing, ssr, hydration, app-router |
-| `testing` | jest, vitest, playwright, cypress, testing, mock, fixtures, e2e, unit |
-| `api-design` | rest, graphql, trpc, webhook, rate-limit, pagination, openapi, endpoint |
+| `auth` | oauth, jwt, login, session, token, password, sso, saml, supabase-auth, refresh, passkey |
+| `database` | postgres, mysql, sqlite, prisma, drizzle, migration, query, orm, redis, mongodb, neon |
+| `deployment` | docker, vercel, cloudflare, fly, railway, github-actions, nginx, ci, cd, k8s, ecs |
+| `frontend` | react, nextjs, vue, svelte, tailwind, components, routing, ssr, hydration, app-router, remix |
+| `testing` | jest, vitest, playwright, cypress, testing, mock, fixtures, e2e, unit, msw |
+| `api-design` | rest, graphql, trpc, webhook, rate-limit, pagination, openapi, endpoint, idempotency |
 | `ai-agents` | claude, claude-code, langchain, rag, embeddings, vector, llm, prompt, tool-use, hook, agent |
-| `payments` | stripe, paddle, billing, subscription, webhook, invoice, checkout |
-| `storage` | s3, r2, gcs, upload, cdn, blob, files, bucket |
-| `email` | smtp, sendgrid, resend, transactional, template, bounce |
+| `payments` | stripe, paddle, billing, subscription, webhook, invoice, checkout, refund |
+| `storage` | s3, r2, gcs, upload, cdn, blob, files, bucket, presigned |
+| `email` | smtp, sendgrid, resend, postmark, transactional, template, bounce, deliverability |
+| `security` | cors, csp, xss, csrf, injection, owasp, headers, input-validation, rate-limit, secrets |
+| `performance` | caching, bundle-size, web-vitals, lazy-loading, lighthouse, ttfb, lcp, profiling |
+| `observability` | logging, metrics, tracing, sentry, datadog, opentelemetry, alerting, monitoring |
+| `mobile` | react-native, expo, ios, android, push-notifications, deep-links, offline, fastlane |
+| `infrastructure` | terraform, pulumi, aws, gcp, azure, iam, networking, secrets-manager, vpc |
+| `tooling` | typescript, eslint, webpack, vite, esbuild, tsconfig, monorepo, turborepo, nx |
+| `data` | etl, kafka, queues, pipelines, analytics, clickhouse, bigquery, dbt, airflow |
 
 **C. Technology tags** — extract specific library/service names (e.g., `supabase`, `stripe`, `nextjs`, `drizzle`).
 

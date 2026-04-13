@@ -25,10 +25,11 @@ This project uses Kage for persistent agent memory.
 ## Commands
 
 ```
-/kage review          — approve/reject pending nodes
-/kage prune           — deprecate outdated nodes
-/kage digest          — regenerate SUMMARY.md
-/kage submit <file>   — contribute a node to the global graph
-/kage search <query>  — search the global knowledge graph
-/kage fetch <id>      — fetch a specific node from the global graph
+/kage review             — approve/reject pending nodes
+/kage prune              — deprecate outdated nodes
+/kage digest             — regenerate SUMMARY.md
+/kage submit <file>      — contribute a node to the global graph
+/kage search <query>     — search the global knowledge graph
+/kage fetch <id>         — fetch a specific node from the global graph
+/kage rebuild-indexes    — reconstruct indexes from node frontmatter
 ```

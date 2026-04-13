@@ -48,9 +48,9 @@ Kage makes Claude remember — at the project level, across your personal projec
                                          ↓
                                teammates get it on git pull
                                          ↓
-                              /kage publish → kage-graph
+                              /kage submit → kage-core/kage-graph PR
                                          ↓
-                          anyone installs with /kage add
+                          live on CDN for everyone, no install needed
 ```
 
 ---
@@ -206,7 +206,7 @@ Claude installs everything using its own auth — agents, hooks, memory director
     ├── hooks/
     │   ├── stop.sh            ← session-end safety net
     │   └── session-start.sh   ← injects memory context on start
-    └── kage.json              ← installed packs registry
+    └── distill.log            ← background distiller run log
 
 ~/.agent_memory/               ← personal memory root
     ├── index.md

@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# Kage v2 Bootstrap
+# Kage Bootstrap
 # Drops the /kage-install skill into ~/.claude/skills/, then you run /kage-install in Claude Code.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/Kage18/Kage/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/kage-core/Kage/master/install.sh | bash
 
 set -euo pipefail
 
-REPO="https://raw.githubusercontent.com/Kage18/Kage/main"
+REPO="https://raw.githubusercontent.com/kage-core/Kage/master"
 SKILL_DIR="$HOME/.claude/skills/kage-install"
 
-echo "Kage v2 — Bootstrap"
-echo "-------------------"
+echo "Kage — Bootstrap"
+echo "----------------"
 
 # Check Claude Code is installed
 if ! command -v claude &>/dev/null; then

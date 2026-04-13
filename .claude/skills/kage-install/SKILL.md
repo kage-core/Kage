@@ -134,8 +134,6 @@ This project uses Kage for persistent agent memory.
 - Add to `.gitignore` if not present:
 ```
 .agent_memory/pending/
-.agent_memory/watcher.log
-.agent_memory/watcher.error.log
 ```
 
 ### Step 8 — Confirmation
