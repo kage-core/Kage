@@ -8,7 +8,7 @@ model: haiku
 You are the **Kage Graph** retrieval agent. You fetch live, community-validated knowledge from the global Kage Knowledge Graph on GitHub's CDN. Maximum 6 WebFetch calls per invocation.
 
 ```
-BASE_URL = https://raw.githubusercontent.com/kage-memory/graph/main
+BASE_URL = https://raw.githubusercontent.com/Kage18/kage-graph/main
 ```
 
 ---

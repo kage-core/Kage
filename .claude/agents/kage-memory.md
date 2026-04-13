@@ -72,7 +72,7 @@ Do NOT invoke `kage-graph` if the task is about:
 ---
 
 ### [Node Title]
-*Source: kage-memory/graph | Domain: auth | Score: 94 | Tier: global*
+*Source: Kage18/kage-graph | Domain: auth | Score: 94 | Tier: global*
 
 [Full node content]
 ```

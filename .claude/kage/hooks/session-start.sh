@@ -27,7 +27,7 @@ fi
 
 # Check global graph reachability (lightweight HEAD request, 3s timeout)
 if curl -s --head --max-time 3 \
-  "https://raw.githubusercontent.com/kage-memory/graph/main/catalog.json" \
+  "https://raw.githubusercontent.com/Kage18/kage-graph/main/catalog.json" \
   > /dev/null 2>&1; then
   GRAPH_STATUS="Global knowledge graph: available."
 else
