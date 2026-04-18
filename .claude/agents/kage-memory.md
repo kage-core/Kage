@@ -14,17 +14,17 @@ Search all tiers in order. Stop as soon as you find 2+ relevant nodes. Each tier
 ## Tier 1: Project Memory (`.agent_memory/`)
 
 1. Check `.agent_memory/pending/` first — nodes saved earlier this session, immediately useful. Scan filenames; read any whose title matches the task.
-2. Read `.agent_memory/index.md` — lists available domains.
-3. Read matching domain indexes (e.g., `backend/index.md`, `frontend/index.md`).
-4. Read only the 1-3 node files whose titles match the task.
+2. Read `.agent_memory/index.md` — lists available domains with one-line descriptions. Pick the 1-2 domains most likely to contain relevant knowledge.
+3. Read those domain indexes — each entry is `[Title — <key specifics>](path)`. Use the specifics (model names, framework names, token types, env vars, route paths) to decide which nodes to open **without reading them yet**.
+4. Open only the 1-3 nodes whose title + specifics clearly match the task. If specifics already answer the question, return them directly without opening the file.
 
 ---
 
 ## Tier 2: Personal Memory (`~/.agent_memory/`)
 
 1. Bash `ls $HOME/.agent_memory/index.md 2>/dev/null` — if missing, skip this tier.
-2. Same navigation: root index → domain indexes → matching nodes.
-3. Bash `ls $HOME/.agent_memory/nodes/*.md 2>/dev/null` if no domain indexes exist.
+2. Same navigation: root index → domain indexes → matching nodes. Use the one-line specifics in each index entry to decide path without opening files.
+3. Bash `ls $HOME/.agent_memory/nodes/*.md 2>/dev/null` if no domain indexes exist — fall back to scanning filenames.
 
 ---
 

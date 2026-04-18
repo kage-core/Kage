@@ -42,10 +42,16 @@ mkdir -p ~/.agent_memory/deprecated
 Write `~/.claude/agents/kage-distiller.md` — the inline memory writer sub-agent.
 Write `~/.claude/agents/kage-memory.md` — the 3-tier retrieval sub-agent.
 Write `~/.claude/agents/kage-graph.md` — the live community graph fetcher sub-agent.
+Write `~/.claude/agents/kage-indexer.md` — the repo codebase indexer sub-agent.
 
 Use the canonical content from the Kage repository at `kage-core/Kage`.
 
 ### Step 4 — Write Hook Scripts
+
+Write `~/.claude/kage/hooks/post-tool-use.sh`:
+- Fires after every Write/Edit tool call
+- Checks if the written file is a high-signal file (schema.prisma, package.json, routes, auth middleware, Dockerfile, .env.example, README.md)
+- If so, appends the file path to `~/.claude/kage/reindex-queue.txt`
 
 Write `~/.claude/kage/hooks/stop.sh`:
 - Reads Stop hook stdin JSON
@@ -60,6 +66,7 @@ Write `~/.claude/kage/hooks/session-start.sh`:
 ```bash
 chmod +x ~/.claude/kage/hooks/stop.sh
 chmod +x ~/.claude/kage/hooks/session-start.sh
+chmod +x ~/.claude/kage/hooks/post-tool-use.sh
 ```
 
 ### Step 5 — Patch `~/.claude/settings.json`
@@ -81,6 +88,14 @@ Read the current settings.json. Add Kage hooks to the `Stop` and `SessionStart` 
     "type": "command",
     "command": "bash ~/.claude/kage/hooks/session-start.sh",
     "timeout": 10
+  }
+],
+"PostToolUse": [
+  { ...existing hooks... },
+  {
+    "type": "command",
+    "command": "bash ~/.claude/kage/hooks/post-tool-use.sh",
+    "timeout": 5
   }
 ]
 ```
@@ -136,7 +151,20 @@ This project uses Kage for persistent agent memory.
 .agent_memory/pending/
 ```
 
-### Step 8 — Confirmation
+### Step 8 — Index This Repo (if in a git repo)
+
+If CWD is a git repo, offer to index it now:
+
+```
+Kage is installed! Would you like to index this repo now?
+This creates compressed knowledge nodes from your README, schema, routes, auth, and config.
+Future Claude sessions will start already knowing your codebase. (y/n)
+```
+
+If yes: invoke the `kage-indexer` agent with `project_dir=<CWD> force=false`.
+Report the result (which nodes were created).
+
+### Step 9 — Confirmation
 
 Print a summary:
 
@@ -146,11 +174,13 @@ Print a summary:
   Agents:  ~/.claude/agents/kage-distiller.md   ← inline memory writer
            ~/.claude/agents/kage-memory.md       ← 3-tier retrieval
            ~/.claude/agents/kage-graph.md        ← global graph fetcher
+           ~/.claude/agents/kage-indexer.md      ← repo codebase indexer
 
   Hooks:   Stop → safety-net distillation at session end
-           SessionStart → injects memory context
+           SessionStart → injects memory context + processes reindex queue
+           PostToolUse → watches high-signal file changes for re-indexing
 
-  Skills:  /kage review | prune | digest | submit | search | fetch
+  Skills:  /kage review | prune | digest | index | submit | search | fetch
 
   Memory:  Personal: ~/.agent_memory/
            Project:  .agent_memory/  [if in git repo]
@@ -161,5 +191,6 @@ How it works:
   2. Claude captures insights inline the moment they happen → pending/
   3. /kage review → approve → nodes committed with your project
   4. Teammates get your knowledge on git pull
-  5. Contribute to the global graph with /kage submit
+  5. Run /kage index to index your codebase — Claude will know it from session start
+  6. Contribute to the global graph with /kage submit
 ```

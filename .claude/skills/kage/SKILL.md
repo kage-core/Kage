@@ -1,7 +1,7 @@
 ---
 name: kage
-description: Manage the Kage agent memory system. Subcommands: review (approve/reject pending nodes), prune (deprecate old nodes), digest (regenerate SUMMARY.md), submit (contribute a node to the global graph), search (search the global graph), fetch (fetch a specific global node), rebuild-indexes.
-allowed-tools: Read, Write, Glob, Grep, Bash, WebFetch
+description: Manage the Kage agent memory system. Subcommands: review (approve/reject pending nodes), prune (deprecate old nodes), digest (regenerate SUMMARY.md), index (index this repo's codebase), submit (contribute a node to the global graph), search (search the global graph), fetch (fetch a specific global node), rebuild-indexes.
+allowed-tools: Read, Write, Glob, Grep, Bash, WebFetch, Agent
 ---
 
 You are managing the **Kage** agent memory system. Parse the user's subcommand from `$ARGUMENTS` and execute it.
@@ -126,8 +126,8 @@ Contribute an approved local node to the global Kage Knowledge Graph at `kage-co
 
 3. Check the graph catalog to see if a similar node already exists:
    ```
-   WebFetch: https://raw.githubusercontent.com/kage-core/kage-graph/main/catalog.json
-   WebFetch: https://raw.githubusercontent.com/kage-core/kage-graph/main/domains/{domain}/index.json
+   WebFetch: https://raw.githubusercontent.com/kage-core/kage-graph/master/catalog.json
+   WebFetch: https://raw.githubusercontent.com/kage-core/kage-graph/master/domains/{domain}/index.json
    ```
    If a very similar node exists: show it and ask "Update existing or submit as new?"
 
@@ -170,18 +170,41 @@ Contribute an approved local node to the global Kage Knowledge Graph at `kage-co
 
 ## `/kage search <query>`
 
+If `--local` flag is present: search local memory tiers only.
+Otherwise: search the live global knowledge graph.
+
+### `/kage search --local <query>`
+
+Search project and personal memory nodes without touching the network.
+
+1. Invoke the `kage-memory` sub-agent with the query as input.
+2. Display results exactly as returned by kage-memory:
+   ```
+   Local memory results for: "<query>"
+
+   [1] Auth System — JWT, 15min access token, httpOnly refresh cookie, bcrypt
+       Source: .agent_memory/nodes/auth-system.md | Tier: project
+
+       <full node content>
+
+   [2] ...
+   ```
+3. If nothing found: "No local nodes match '<query>'. Try /kage search <query> to check the global graph."
+
+### `/kage search <query>` (global)
+
 Search the live global knowledge graph.
 
 1. Fetch the catalog:
    ```
-   WebFetch: https://raw.githubusercontent.com/kage-core/kage-graph/main/catalog.json
+   WebFetch: https://raw.githubusercontent.com/kage-core/kage-graph/master/catalog.json
    ```
 
 2. Match query against domain `top_tags` to identify relevant domains.
 
 3. For each matched domain (max 2), fetch its index:
    ```
-   WebFetch: https://raw.githubusercontent.com/kage-core/kage-graph/main/domains/{domain}/index.json
+   WebFetch: https://raw.githubusercontent.com/kage-core/kage-graph/master/domains/{domain}/index.json
    ```
 
 4. Filter nodes by tag overlap with query terms. Show top 5:
@@ -206,10 +229,53 @@ Search the live global knowledge graph.
 Fetch and display a specific node from the global graph.
 
 ```
-WebFetch: https://raw.githubusercontent.com/kage-core/kage-graph/main/domains/{domain}/nodes/{id}.md
+WebFetch: https://raw.githubusercontent.com/kage-core/kage-graph/master/domains/{domain}/nodes/{id}.md
 ```
 
 Display the full node content.
+
+---
+
+## `/kage index`
+
+Index this repo's codebase so Claude knows the architecture, tech stack, database schema, auth system, API routes, and env vars without reading files.
+
+Parse arguments:
+- No args → index current repo (skip if already indexed)
+- `--force` → re-index even if nodes already exist
+- `status` → show index status (what's indexed, when, node count)
+
+### `/kage index status`
+
+1. Check `<CWD>/.agent_memory/nodes/` for files with `source: kage-indexer` in frontmatter
+2. Display:
+   ```
+   Kage Repo Index Status
+
+   Project: <name from package.json or dir name>
+   Indexed: <date of most recent auto node>
+   Nodes:   N auto-generated nodes
+
+   <list of node filenames with one-line description>
+
+   Estimated token savings: ~X tokens/session
+   Last updated: <date>
+   ```
+3. If not indexed: "This repo has not been indexed. Run /kage index to start."
+
+### `/kage index` and `/kage index --force`
+
+1. Confirm the current working directory
+2. Invoke the `kage-indexer` sub-agent with task:
+   ```
+   project_dir=<CWD> force=<true if --force else false>
+   ```
+3. Stream the agent's output to the user
+4. On completion: offer to commit the new nodes:
+   ```
+   Indexing complete. Commit these nodes to git so teammates get them on pull? (y/n)
+   ```
+   If yes: `git add .agent_memory/ && git commit -m "kage: index repo — N nodes"`
 
 ---
 
@@ -238,8 +304,10 @@ Usage: /kage <subcommand>
   prune                Deprecate outdated nodes
   digest               Regenerate SUMMARY.md overview
   submit <node-file>   Contribute a node to the global knowledge graph
+  search --local <q>   Search local project + personal memory nodes
   search <query>       Search the global knowledge graph
   fetch <domain/id>    Fetch a specific node from the global graph
+  index                Index this repo's codebase (--force to refresh, status to check)
   rebuild-indexes      Reconstruct indexes from node frontmatter
 
 Memory tiers:

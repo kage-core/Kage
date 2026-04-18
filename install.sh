@@ -23,6 +23,10 @@ fi
 mkdir -p "$SKILL_DIR"
 curl -fsSL "$REPO/.claude/skills/kage-install/SKILL.md" -o "$SKILL_DIR/SKILL.md"
 
+# Pre-download the kage-indexer agent so /kage-install can reference it
+mkdir -p "$HOME/.claude/agents"
+curl -fsSL "$REPO/.claude/agents/kage-indexer.md" -o "$HOME/.claude/agents/kage-indexer.md"
+
 echo ""
 echo "✓ /kage-install skill ready."
 echo ""
