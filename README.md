@@ -2,7 +2,7 @@
 
 Kage gives Claude Code a persistent memory that compounds over time — across sessions, projects, and your entire team.
 
-Every bug fixed, design decision made, and pattern discovered gets saved to a searchable knowledge graph. Committed to git. Shared with teammates on `git pull`. Extended by a live community graph anyone can contribute to.
+Every bug fixed, design decision made, and pattern discovered gets saved to a searchable knowledge graph. The repo indexer scans your entire codebase on install, so Claude starts every session already knowing your architecture, schema, routes, and conventions — without reading a single file. Committed to git. Shared with teammates on `git pull`. Extended by a live community graph anyone can contribute to.
 
 No background process. No external API key. No pip install.
 
@@ -19,30 +19,31 @@ Kage makes Claude remember — at the project level, across your personal projec
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│              Claude Code Session             │
-│                                             │
-│  SessionStart hook                          │
-│  → tells Claude which memory tiers exist    │
-│                                             │
-│  Main Agent                                 │
-│    ↓ before any domain-specific decision    │
-│  kage-memory sub-agent                      │
-│    ├── .agent_memory/pending/   (same session, instant)
-│    ├── .agent_memory/           (project tier, git)
-│    ├── ~/.agent_memory/         (personal tier, local)
-│    └── kage-graph sub-agent     (global graph, live HTTP)
-│                                             │
-│  Claude fixes bug / makes decision          │
-│    ↓ immediately                            │
-│  kage-distiller sub-agent                   │
-│    → writes node to pending/                │
-│    → available for rest of session          │
-│                                             │
-│  Stop hook (session end)                    │
-│  → kage-distiller runs in background        │
-│  → catches anything not yet saved           │
-└─────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                   Claude Code Session                    │
+│                                                          │
+│  SessionStart hook                                       │
+│  → tells Claude which memory tiers exist                 │
+│  → reports indexed node count from kage-indexer          │
+│                                                          │
+│  Main Agent                                              │
+│    ↓ before any domain-specific decision                 │
+│  kage-memory sub-agent                                   │
+│    ├── .agent_memory/pending/   (same session, instant)  │
+│    ├── .agent_memory/           (project tier, git)      │
+│    ├── ~/.agent_memory/         (personal tier, local)   │
+│    └── kage-graph sub-agent     (global graph, live HTTP)│
+│                                                          │
+│  Claude fixes bug / makes decision                       │
+│    ↓ immediately                                         │
+│  kage-distiller sub-agent                                │
+│    → writes node to pending/                             │
+│    → available for rest of session                       │
+│                                                          │
+│  Stop hook (session end)                                 │
+│  → kage-distiller runs in background                     │
+│  → catches anything not yet saved                        │
+└──────────────────────────────────────────────────────────┘
          ↓
   /kage review → approve → nodes/ → git commit
                                          ↓
@@ -52,6 +53,56 @@ Kage makes Claude remember — at the project level, across your personal projec
                                          ↓
                           live on CDN for everyone, no install needed
 ```
+
+---
+
+## Repo Indexer
+
+Run `/kage index` once (or on install) and Claude knows your entire codebase.
+
+The `kage-indexer` agent explores the full directory tree, reads actual code — not just filenames — and creates compressed knowledge nodes for every meaningful domain it finds. The set of nodes is not fixed; it depends entirely on what's in your repo.
+
+**What gets indexed** (dynamically discovered, not a hardcoded list):
+
+| Domain | Example node |
+|---|---|
+| Project overview | What it is, how to run it, key commands |
+| Tech stack | Runtime, framework, key deps, scripts |
+| Environment config | All env vars and what each does |
+| Data layer | Schema, models, relations, migrations |
+| Auth system | Strategy, token flow, middleware, session storage |
+| API routes | All endpoints, HTTP methods, auth requirements |
+| Business logic | Domain services, core workflows |
+| Background jobs | Queue system, workers, job types |
+| External integrations | Stripe, SendGrid, S3, AI — connection patterns and gotchas |
+| Caching layer | Redis, what's cached, TTLs |
+| Real-time / WebSocket | Event types, channels, auth |
+| Monorepo packages | Each package gets its own node |
+| Testing conventions | How tests are structured, fixtures, patterns |
+| Deployment / infra | Docker, CI/CD, services, ports |
+
+A 5-file script gets 2–3 nodes. A large monorepo might get 15+.
+
+### Connections and Architecture Graph
+
+After writing domain nodes, the indexer maps how they connect to each other and writes an `architecture-graph.md` node containing:
+
+- **Mermaid diagram** — the full system rendered as a graph: clients, services, databases, queues, external APIs, and all the edges between them
+- **Data flows** — the 2–3 most important request paths described in plain English
+- **Architectural boundaries** — where API ends, where async begins, how layers communicate
+- **Node map** — table of all domain nodes for quick navigation
+
+Each domain node also has a `## Connections` section listing verified relationships with other nodes (`uses`, `called-by`, `reads`, `writes`, `triggers`, `integrates`). Only connections seen in actual imports and calls are listed.
+
+```
+/kage index          — index this repo (skips if already indexed)
+/kage index --force  — re-index from scratch
+/kage index status   — show what's indexed, when, and node count
+```
+
+### Incremental Updates
+
+The PostToolUse hook watches writes to key files (`schema.prisma`, `package.json`, route files, middleware, `.env.example`). If any change during a session, they're queued. At the next SessionStart, Claude is notified to re-run `/kage index --force` for the affected domains.
 
 ---
 
@@ -74,6 +125,7 @@ The `kage-memory` sub-agent is invoked by Claude before architectural decisions.
 **Tier 1 — Project** (`.agent_memory/`)
 - Checks `pending/` first — nodes from earlier in the same session are immediately useful
 - Navigates `index.md` → domain index → specific node files
+- Index entries carry one-line hooks ("JWT, 15min token, bcrypt, /api/auth/*") so the agent decides relevance without opening files
 - Never loads all nodes — always index-first
 
 **Tier 2 — Personal** (`~/.agent_memory/`)
@@ -86,7 +138,7 @@ The `kage-memory` sub-agent is invoked by Claude before architectural decisions.
 - Returns community-validated nodes with scores, freshness signals, and edge citations
 - Maximum 6 HTTP calls per query
 
-Result: 3 reads for any project query, regardless of how many nodes exist. Claude gets the right context without loading the entire memory into its context window.
+Result: 3 reads for any project query, regardless of how many nodes exist.
 
 ---
 
@@ -115,6 +167,10 @@ tags: ["stripe", "webhooks", "nginx"]
 paths: "backend"
 date: "2026-04-13"
 source: "kage-distiller"
+connections:
+  - slug: "api-routes"
+    rel: "called-by"
+    note: "webhook endpoint defined in api-routes"
 pending: true
 ---
 
@@ -123,6 +179,10 @@ pending: true
 Stripe validates the raw request body but nginx re-encodes it by default.
 Set `proxy_set_header Content-Type application/octet-stream` and disable
 body buffering with `proxy_request_buffering off`.
+
+## Connections
+
+- **api-routes** (`called-by`): webhook endpoint `/api/webhooks/stripe` defined there
 ```
 
 ### Directory structure
@@ -132,11 +192,12 @@ body buffering with `proxy_request_buffering off`.
 ├── index.md              ← root index: lists domains
 ├── SUMMARY.md            ← compact digest
 ├── nodes/                ← approved nodes (committed to git)
+│   ├── architecture-graph.md   ← Mermaid diagram + data flows
 │   └── <slug>.md
 ├── pending/              ← awaiting /kage review (gitignored)
 ├── deprecated/           ← retired nodes
 └── <domain>/
-    └── index.md          ← domain index
+    └── index.md          ← domain index with one-line hooks
 ```
 
 ---
@@ -159,6 +220,23 @@ Nodes are scored by community votes + usage. Stale nodes (past TTL) are automati
 
 Contribute a node: open a PR to `kage-core/kage-graph`. CI validates schema, detects conflicts, rebuilds indexes on merge.
 
+### MCP server
+
+Use kage-graph from Claude Desktop, Cursor, Windsurf, or any MCP-compatible client:
+
+```json
+{
+  "mcpServers": {
+    "kage-graph": {
+      "command": "npx",
+      "args": ["@kage-core/kage-graph-mcp"]
+    }
+  }
+}
+```
+
+No install beyond `npx`. Tools exposed: `kage_search`, `kage_fetch`, `kage_list_domains`.
+
 ---
 
 ## What Gets Captured
@@ -180,33 +258,33 @@ The filter: *would a new team member need to know this to work effectively?* Def
 
 ## Install
 
-**Step 1 — Bootstrap** (one-time, in your terminal):
+One command:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kage-core/Kage/master/install.sh | bash
 ```
 
-**Step 2 — Complete setup** (inside Claude Code):
-```
-/kage-install
-```
-
-Claude installs everything using its own auth — agents, hooks, memory directories, settings patches. No pip, no brew, no API keys, no daemon.
+Or paste the URL into Claude Code and say "install Kage" — Claude reads the install script and executes each step using its own tools. No curl needed.
 
 **What gets installed:**
+
 ```
 ~/.claude/
 ├── agents/
 │   ├── kage-distiller.md     ← inline memory writer
 │   ├── kage-memory.md        ← 3-tier retrieval
-│   └── kage-graph.md         ← live global graph fetcher
+│   ├── kage-graph.md         ← live global graph fetcher
+│   └── kage-indexer.md       ← codebase scanner + graph builder
 ├── skills/
 │   ├── kage/SKILL.md         ← /kage management commands
-│   └── kage-install/SKILL.md ← bootstrap (already there from curl)
+│   └── kage-install/SKILL.md ← bootstrap skill
 └── kage/
     ├── hooks/
-    │   ├── stop.sh            ← session-end safety net
-    │   └── session-start.sh   ← injects memory context on start
-    └── distill.log            ← background distiller run log
+    │   ├── stop.sh               ← session-end safety net
+    │   ├── session-start.sh      ← injects memory context + update check
+    │   ├── post-tool-use.sh      ← watches key file writes for re-index queue
+    │   └── user-prompt-submit.sh ← enforces kage-memory usage
+    └── distill.log               ← background distiller run log
 
 ~/.agent_memory/               ← personal memory root
     ├── index.md
@@ -214,7 +292,19 @@ Claude installs everything using its own auth — agents, hooks, memory director
     └── pending/
 ```
 
-Plus per-project `.agent_memory/` setup if you're in a git repo, and hooks registered in `~/.claude/settings.json`.
+Plus per-project `.agent_memory/` setup if you're in a git repo, and all four hooks registered in `~/.claude/settings.json`.
+
+### Upgrades
+
+Kage checks for updates weekly at session start. When a new version is available:
+
+```
+Kage update available: 1.0.0 → 1.1.0. Run /kage update to upgrade.
+```
+
+```
+/kage update   — download and apply latest version
+```
 
 ---
 
@@ -223,12 +313,17 @@ Plus per-project `.agent_memory/` setup if you're in a git repo, and hooks regis
 Claude handles distillation and retrieval automatically. You manage the review cycle:
 
 ```
-/kage review          — approve or reject pending nodes
-/kage prune           — deprecate outdated nodes
-/kage digest          — regenerate SUMMARY.md
-/kage submit <file>   — contribute a node to the global graph
-/kage search <query>  — search the global knowledge graph
-/kage fetch <id>      — fetch a specific node from the global graph
+/kage review                — approve or reject pending nodes
+/kage prune                 — deprecate outdated nodes
+/kage digest                — regenerate SUMMARY.md
+/kage index                 — index this repo's codebase
+/kage index --force         — re-index from scratch
+/kage index status          — show what's indexed and node count
+/kage submit <file>         — contribute a node to the global graph
+/kage search <query>        — search the global knowledge graph
+/kage search --local <q>    — search local project + personal nodes
+/kage fetch <domain/id>     — fetch a specific node from the global graph
+/kage update                — upgrade to the latest version
 ```
 
 ---
@@ -252,19 +347,21 @@ When a node you've approved locally is generic enough to help others, contribute
 /kage submit .agent_memory/nodes/my-node.md
 ```
 
-This validates the node against the global schema, adds the required fields (`type`, `id`, `score`, `ttl_days`), and opens a PR to `kage-core/kage-graph`. Once merged, any Claude Code agent running Kage anywhere in the world can find it via `kage-memory`.
-
-No install needed on the consumer side. The global graph is fetched live over HTTP — there's nothing to clone or sync.
+This validates the node against the global schema, adds the required fields (`type`, `id`, `score`, `ttl_days`), and opens a PR to `kage-core/kage-graph`. Once merged, any Claude agent running Kage anywhere in the world can find it — no install needed on the consumer side.
 
 ---
 
 ## Hooks
 
-Two Claude Code hooks power the automatic behavior:
+Four Claude Code hooks power the automatic behavior:
 
-**SessionStart** — fires when a session opens. Reads which memory tiers are available and injects a system message so Claude knows to invoke `kage-memory` before decisions.
+**SessionStart** — fires when a session opens. Reads which memory tiers are available, how many indexed nodes exist, and injects a system message so Claude knows to use `kage-memory`. Also checks for Kage updates weekly.
 
-**Stop** — fires when a session closes. Launches `kage-distiller` in the background against the full session transcript. The hook exits in under a second; the distiller runs detached. This is a safety net — inline capture during the session is the primary path.
+**Stop** — fires when a session closes. Launches `kage-distiller` in the background against the full session transcript. The hook exits in under a second; the distiller runs detached. Safety net — inline capture during the session is the primary path.
+
+**PostToolUse** — fires after every file write. Watches for changes to key files (`schema.prisma`, `package.json`, routes, middleware, `.env.example`). Queues changed files for re-indexing at the next session.
+
+**UserPromptSubmit** — fires before every user message. When a project has indexed memory, reminds Claude to use `kage-memory` before answering domain-specific questions.
 
 ---
 
@@ -272,9 +369,11 @@ Two Claude Code hooks power the automatic behavior:
 
 **`kage-distiller`** — memory writer. The main agent calls this inline the moment an insight is established. Takes a description of the learning, chooses the right tier, formats and writes the node. Also runs in background mode from the Stop hook.
 
-**`kage-memory`** — memory reader. Navigates the 3-tier index hierarchy to find relevant nodes without loading everything. Returns at most 3 nodes. Delegates to `kage-graph` if Tiers 1–2 have nothing.
+**`kage-memory`** — memory reader. Navigates the 3-tier index hierarchy using one-line hooks to find relevant nodes without loading everything. Returns at most 3 nodes. Delegates to `kage-graph` if Tiers 1–2 have nothing.
 
-**`kage-graph`** — global graph fetcher. WebFetch-only, haiku model, 6-call budget. Fetches `catalog.json`, routes to the right domain index, fetches matching nodes, auto-follows `requires` edges. Returns community knowledge with type badges, scores, and conflict warnings.
+**`kage-graph`** — global graph fetcher. WebFetch-only, 6-call budget. Fetches `catalog.json`, routes to the right domain index, fetches matching nodes, auto-follows `requires` edges. Returns community knowledge with type badges, scores, and conflict warnings.
+
+**`kage-indexer`** — codebase scanner. Explores the full directory tree, reads actual code, and writes compressed knowledge nodes for every meaningful domain. Builds a `architecture-graph.md` node with a Mermaid diagram, data flows, and cross-node connection mapping.
 
 ---
 
@@ -285,15 +384,19 @@ Two Claude Code hooks power the automatic behavior:
 ├── agents/
 │   ├── kage-distiller.md
 │   ├── kage-memory.md
-│   └── kage-graph.md
+│   ├── kage-graph.md
+│   └── kage-indexer.md
 ├── skills/
 │   ├── kage/SKILL.md
 │   └── kage-install/SKILL.md
 └── kage/
     ├── hooks/stop.sh
-    └── hooks/session-start.sh
+    ├── hooks/session-start.sh
+    ├── hooks/post-tool-use.sh
+    └── hooks/user-prompt-submit.sh
 
-install.sh         ← curl bootstrap
-CLAUDE.md          ← copy to your project to enable Kage
-kage-pack.json     ← pack metadata
+mcp/                   ← @kage-core/kage-graph-mcp (npm)
+install.sh             ← one-command bootstrap
+VERSION                ← current version
+CLAUDE.md              ← copy to your project to enable Kage
 ```
