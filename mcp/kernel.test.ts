@@ -236,6 +236,45 @@ func ListTasks(ctx context.Context) []string {
   assert.equal(graph.imports.some((edge) => edge.from_path === "app/service.py" && edge.specifier === "pkg.store"), true);
 });
 
+test("code graph consumes Tree-sitter, SCIP, and LSP index artifacts when present", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  mkdirSync(join(project, ".agent_memory", "code_index"), { recursive: true });
+  writeFileSync(join(project, "src", "worker.py"), "def fallback_name():\n    return True\n", "utf8");
+  writeFileSync(
+    join(project, ".agent_memory", "code_index", "tree-sitter.json"),
+    JSON.stringify({
+      symbols: [{ path: "src/worker.py", name: "treeSitterSymbol", kind: "function", line: 1, signature: "def treeSitterSymbol()" }],
+    }),
+    "utf8"
+  );
+  writeFileSync(
+    join(project, ".agent_memory", "code_index", "scip.json"),
+    JSON.stringify({
+      imports: [{ from_path: "src/worker.py", specifier: "src.worker", to_path: "src/worker.py", kind: "import", line: 1 }],
+    }),
+    "utf8"
+  );
+  writeFileSync(
+    join(project, ".agent_memory", "code_index", "lsp-symbols.json"),
+    JSON.stringify({
+      documents: [
+        {
+          path: "src/worker.py",
+          symbols: [{ name: "LspWorker", kind: "class", range: { start: { line: 0 } }, detail: "class LspWorker" }],
+        },
+      ],
+    }),
+    "utf8"
+  );
+
+  const graph = buildCodeGraph(project);
+  assert.equal(graph.symbols.some((symbol) => symbol.name === "treeSitterSymbol" && symbol.parser === "tree-sitter"), true);
+  assert.equal(graph.symbols.some((symbol) => symbol.name === "LspWorker" && symbol.parser === "lsp"), true);
+  assert.equal(graph.imports.some((edge) => edge.parser === "scip" && edge.specifier === "src.worker"), true);
+  assert.equal(graph.files.find((file) => file.path === "src/worker.py")?.parser, "scip");
+});
+
 test("code graph query returns routes, symbols, and tests", () => {
   const project = tempProject();
   mkdirSync(join(project, "src"), { recursive: true });
