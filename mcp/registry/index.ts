@@ -52,6 +52,14 @@ export interface PublicCandidate {
   homepage_url?: string;
   source_url?: string;
   source_refs: Array<Record<string, string>>;
+  trust_level: "community";
+  review_status: "needs_public_review";
+  reviewer_count: number;
+  uses_30d: number;
+  credit_count: number;
+  contributor_handle?: string;
+  contributor_org?: string;
+  contribution_url?: string;
   content_sha256: string;
 }
 
@@ -93,11 +101,28 @@ export interface OrgRegistryEntry {
   manifest_sha256?: string;
   source_url?: string;
   homepage_url?: string;
+  trust_level: "community";
+  review_status: "needs_public_review";
+  reviewer_count: number;
+  uses_30d: number;
+  credit_count: number;
+  contributor_handle?: string;
+  contributor_org?: string;
+  contribution_url?: string;
+}
+
+export interface OrgRegistryMetrics {
+  entry_count: number;
+  bundle_count: number;
+  by_type: Record<string, number>;
+  reviewed_count: number;
+  community_count: number;
 }
 
 export interface OrgRegistryPayload {
   org: string;
   registry_version: string;
+  metrics: OrgRegistryMetrics;
   entries: OrgRegistryEntry[];
 }
 
@@ -213,6 +238,9 @@ export function sanitizePublicCandidate(input: PublicCandidateInput): Validation
   const stack = stringArrayField(input.stack, "stack", errors);
   const homepageUrl = optionalUrlField(input.homepage_url, "homepage_url", errors);
   const sourceUrl = optionalUrlField(input.source_url, "source_url", errors);
+  const contributorHandle = typeof input.contributor_handle === "string" ? input.contributor_handle.trim().slice(0, 80) : undefined;
+  const contributorOrg = typeof input.contributor_org === "string" ? input.contributor_org.trim().slice(0, 80) : undefined;
+  const contributionUrl = optionalUrlField(input.contribution_url, "contribution_url", errors);
   const sourceRefs = sanitizeSourceRefs(input.source_refs, warnings);
   const secretMatches = scanPublicCandidateSecrets(input);
 
@@ -256,6 +284,14 @@ export function sanitizePublicCandidate(input: PublicCandidateInput): Validation
     license,
     ...(homepageUrl ? { homepage_url: homepageUrl } : {}),
     ...(sourceUrl ? { source_url: sourceUrl } : {}),
+    trust_level: "community" as const,
+    review_status: "needs_public_review" as const,
+    reviewer_count: 0,
+    uses_30d: 0,
+    credit_count: contributorHandle || contributorOrg ? 1 : 0,
+    ...(contributorHandle ? { contributor_handle: contributorHandle } : {}),
+    ...(contributorOrg ? { contributor_org: contributorOrg } : {}),
+    ...(contributionUrl ? { contribution_url: contributionUrl } : {}),
     source_refs: sourceRefs,
   };
 
@@ -332,9 +368,17 @@ export function generateOrgRegistryManifest(input: GenerateOrgRegistryManifestIn
   const entries = new Map<string, OrgRegistryEntry>();
 
   for (const item of input.bundles) {
+    if ("payload" in item) {
+      const verified = verifySignedManifest(item);
+      if (!verified.ok) throw new Error(`Invalid signed bundle: ${verified.errors.join(", ")}`);
+    }
     const bundle = "payload" in item ? item.payload : item;
     const manifestSha256 = "payload" in item ? sha256Hex(canonicalJson(item)) : undefined;
     for (const candidate of bundle.candidates) {
+      const existing = entries.get(candidate.id);
+      if (existing && existing.content_sha256 !== candidate.content_sha256) {
+        throw new Error(`Conflicting duplicate registry entry: ${candidate.id}`);
+      }
       entries.set(candidate.id, {
         id: candidate.id,
         title: candidate.title,
@@ -347,14 +391,32 @@ export function generateOrgRegistryManifest(input: GenerateOrgRegistryManifestIn
         ...(manifestSha256 ? { manifest_sha256: manifestSha256 } : {}),
         ...(candidate.source_url ? { source_url: candidate.source_url } : {}),
         ...(candidate.homepage_url ? { homepage_url: candidate.homepage_url } : {}),
+        trust_level: candidate.trust_level,
+        review_status: candidate.review_status,
+        reviewer_count: candidate.reviewer_count,
+        uses_30d: candidate.uses_30d,
+        credit_count: candidate.credit_count,
+        ...(candidate.contributor_handle ? { contributor_handle: candidate.contributor_handle } : {}),
+        ...(candidate.contributor_org ? { contributor_org: candidate.contributor_org } : {}),
+        ...(candidate.contribution_url ? { contribution_url: candidate.contribution_url } : {}),
       });
     }
   }
 
+  const sortedEntries = [...entries.values()].sort((a, b) => a.id.localeCompare(b.id));
+  const byType: Record<string, number> = {};
+  for (const entry of sortedEntries) byType[entry.type] = (byType[entry.type] ?? 0) + 1;
   const payload: OrgRegistryPayload = {
     org: input.org,
     registry_version: input.version,
-    entries: [...entries.values()].sort((a, b) => a.id.localeCompare(b.id)),
+    metrics: {
+      entry_count: sortedEntries.length,
+      bundle_count: input.bundles.length,
+      by_type: Object.fromEntries(Object.entries(byType).sort(([a], [b]) => a.localeCompare(b))),
+      reviewed_count: sortedEntries.filter((entry) => entry.reviewer_count > 0).length,
+      community_count: sortedEntries.filter((entry) => entry.trust_level === "community").length,
+    },
+    entries: sortedEntries,
   };
 
   return createSignedManifest({

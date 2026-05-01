@@ -84,15 +84,22 @@ and learned memory separate, then recalls across both when assembling context.
 Use `kage metrics --project <repo>` or the `kage_metrics` MCP tool to inspect
 whether the harness is actually carrying its weight. Metrics include language
 and parser coverage, code graph counts, evidence coverage, approved vs pending
-memory, validation status, and a readiness score.
+memory, validation status, estimated tokens saved per recall, duplicate
+candidates, average memory quality, and a readiness score.
+
+Review artifacts include memory quality reasons, risks, duplicate candidates,
+and estimated token savings so reviewers can approve, reject, or merge pending
+memory with less manual inspection.
 
 ## Local Graph Viewer
 
-Open `mcp/viewer/index.html` in a browser, choose
-`.agent_memory/graph/graph.json` or `.agent_memory/code_graph/graph.json`, and
-inspect the local graph without running a server or installing dependencies. The
-viewer renders nodes and relations in SVG, supports search, filters by type and
-relation, and shows details for the selected node or edge.
+Open `mcp/viewer/index.html` in a browser, choose one or more JSON files such as
+`.agent_memory/graph/graph.json`, `.agent_memory/code_graph/graph.json`, or a
+`kage metrics --json` export, and inspect the local graph without running a
+server or installing dependencies. The viewer renders nodes and relations in
+SVG, supports memory/code/combined modes, filters by type and relation, displays
+metrics, and marks review risks such as low-confidence or missing-evidence
+edges.
 
 ## MCP Tools
 

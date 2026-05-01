@@ -328,6 +328,14 @@ export interface KageMetrics {
     edges: number;
     evidence_backed_edges: number;
     evidence_coverage_percent: number;
+    average_quality_score: number;
+    duplicate_candidate_pairs: number;
+  };
+  savings: {
+    estimated_indexed_source_tokens: number;
+    estimated_memory_tokens: number;
+    estimated_recall_context_tokens: number;
+    estimated_tokens_saved_per_recall: number;
   };
   harness: {
     policy_installed: boolean;
@@ -656,6 +664,101 @@ function summarize(body: string): string {
     .replace(/\s+/g, " ")
     .trim();
   return text.slice(0, 220) || "Legacy memory imported from Markdown.";
+}
+
+function estimateTokens(text: string): number {
+  return Math.max(1, Math.ceil(text.length / 4));
+}
+
+function packetText(packet: Pick<MemoryPacket, "title" | "summary" | "body" | "tags" | "paths" | "type">): string {
+  return `${packet.title}\n${packet.summary}\n${packet.body}\n${packet.type}\n${packet.tags.join(" ")}\n${packet.paths.join(" ")}`;
+}
+
+function tokenSet(text: string): Set<string> {
+  return new Set(tokenize(text).filter((term) => term.length > 2));
+}
+
+function jaccard(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  let intersection = 0;
+  for (const value of a) if (b.has(value)) intersection += 1;
+  return intersection / (a.size + b.size - intersection);
+}
+
+function duplicateCandidates(projectDir: string, packet: MemoryPacket, threshold = 0.58): Array<{ id: string; title: string; score: number; status: string }> {
+  const current = tokenSet(packetText(packet));
+  return [...loadApprovedPackets(projectDir), ...loadPendingPackets(projectDir)]
+    .filter((candidate) => candidate.id !== packet.id)
+    .map((candidate) => ({ packet: candidate, score: jaccard(current, tokenSet(packetText(candidate))) }))
+    .filter((entry) => entry.score >= threshold)
+    .sort((a, b) => b.score - a.score || a.packet.title.localeCompare(b.packet.title))
+    .slice(0, 5)
+    .map((entry) => ({
+      id: entry.packet.id,
+      title: entry.packet.title,
+      score: Number(entry.score.toFixed(2)),
+      status: entry.packet.status,
+    }));
+}
+
+function evaluateMemoryQuality(projectDir: string, packet: MemoryPacket): Record<string, unknown> {
+  const reasons: string[] = [];
+  const risks: string[] = [];
+  let score = 45;
+  const bodyTokens = tokenize(packet.body);
+  const hasEvidence = packet.source_refs.length > 0;
+  const hasPaths = packet.paths.length > 0;
+  const highValueType = ["runbook", "bug_fix", "decision", "convention", "workflow", "gotcha", "policy"].includes(packet.type);
+
+  if (highValueType) {
+    score += 14;
+    reasons.push("high-value memory type");
+  }
+  if (hasEvidence) {
+    score += 12;
+    reasons.push("has source evidence");
+  }
+  if (hasPaths) {
+    score += 10;
+    reasons.push("grounded to repo paths");
+  }
+  if (packet.tags.length) {
+    score += 5;
+    reasons.push("tagged");
+  }
+  if (bodyTokens.length >= 12 && bodyTokens.length <= 180) {
+    score += 10;
+    reasons.push("concise but substantive");
+  }
+  if (/(verified by|evidence:|because|root cause|rationale|decision|run|command|avoid|prefer)/i.test(packet.body)) {
+    score += 8;
+    reasons.push("actionable rationale or verification");
+  }
+  if (packet.body.length < 60) {
+    score -= 18;
+    risks.push("too short to be useful");
+  }
+  if (!hasPaths && !["repo_map", "reference", "policy"].includes(packet.type)) {
+    score -= 10;
+    risks.push("not grounded to paths");
+  }
+  if (!hasEvidence) {
+    score -= 12;
+    risks.push("missing source evidence");
+  }
+  const duplicates = duplicateCandidates(projectDir, packet);
+  if (duplicates.length) {
+    score -= 18;
+    risks.push("possible duplicate memory");
+  }
+
+  return {
+    score: Math.max(0, Math.min(100, score)),
+    reasons,
+    risks,
+    duplicate_candidates: duplicates,
+    estimated_tokens_saved: Math.max(40, estimateTokens(packet.body) * 2),
+  };
 }
 
 function mapLegacyType(category: unknown): MemoryType {
@@ -1176,6 +1279,13 @@ const CODE_EXTENSIONS = new Set([
 ]);
 const CONFIG_NAMES = new Set([
   "package.json",
+  "pyproject.toml",
+  "requirements.txt",
+  "go.mod",
+  "Cargo.toml",
+  "pom.xml",
+  "build.gradle",
+  "build.gradle.kts",
   "tsconfig.json",
   "vite.config.js",
   "vite.config.ts",
@@ -1236,6 +1346,7 @@ function codeFileKind(path: string): CodeFileNode["kind"] {
   ) return "test";
   if (CONFIG_NAMES.has(name) || path.startsWith(".github/workflows/")) return "config";
   if (name === "package.json") return "manifest";
+  if (["pyproject.toml", "requirements.txt", "go.mod", "Cargo.toml", "pom.xml", "build.gradle", "build.gradle.kts"].includes(name)) return "manifest";
   if (extensionOf(path) === ".md") return "doc";
   return "source";
 }
@@ -1679,16 +1790,51 @@ function extractTests(path: string, text: string, symbols: CodeSymbolNode[], imp
 }
 
 function extractPackages(projectDir: string): CodeGraph["packages"] {
-  const packagePath = join(projectDir, "package.json");
-  if (!existsSync(packagePath)) return [];
-  const pkg = readJson<Record<string, unknown>>(packagePath);
   const packages: CodeGraph["packages"] = [];
-  for (const [field, kind] of [["dependencies", "dependency"], ["devDependencies", "devDependency"]] as const) {
-    const deps = pkg[field] && typeof pkg[field] === "object" ? pkg[field] as Record<string, unknown> : {};
-    for (const [name, version] of Object.entries(deps)) packages.push({ name, version: String(version), kind });
+  const add = (name: string, version: string, kind: "dependency" | "devDependency" | "script") => {
+    if (name && !packages.some((item) => item.name === name && item.kind === kind)) packages.push({ name, version, kind });
+  };
+
+  const packagePath = join(projectDir, "package.json");
+  if (existsSync(packagePath)) {
+    const pkg = readJson<Record<string, unknown>>(packagePath);
+    for (const [field, kind] of [["dependencies", "dependency"], ["devDependencies", "devDependency"]] as const) {
+      const deps = pkg[field] && typeof pkg[field] === "object" ? pkg[field] as Record<string, unknown> : {};
+      for (const [name, version] of Object.entries(deps)) add(name, String(version), kind);
+    }
+    const scripts = pkg.scripts && typeof pkg.scripts === "object" ? pkg.scripts as Record<string, unknown> : {};
+    for (const [name, command] of Object.entries(scripts)) add(name, String(command), "script");
   }
-  const scripts = pkg.scripts && typeof pkg.scripts === "object" ? pkg.scripts as Record<string, unknown> : {};
-  for (const [name, command] of Object.entries(scripts)) packages.push({ name, version: String(command), kind: "script" });
+
+  const requirementsPath = join(projectDir, "requirements.txt");
+  if (existsSync(requirementsPath)) {
+    for (const line of readFileSync(requirementsPath, "utf8").split(/\r?\n/)) {
+      const match = line.trim().match(/^([A-Za-z0-9_.-]+)\s*([=<>!~].*)?$/);
+      if (match) add(match[1], match[2]?.trim() || "requirements.txt", "dependency");
+    }
+  }
+
+  const goModPath = join(projectDir, "go.mod");
+  if (existsSync(goModPath)) {
+    for (const line of readFileSync(goModPath, "utf8").split(/\r?\n/)) {
+      const match = line.trim().match(/^([A-Za-z0-9_.\/-]+\.[A-Za-z0-9_.\/-]+)\s+([^\s]+)/);
+      if (match) add(match[1], match[2], "dependency");
+    }
+  }
+
+  const cargoPath = join(projectDir, "Cargo.toml");
+  if (existsSync(cargoPath)) {
+    let inDeps = false;
+    for (const line of readFileSync(cargoPath, "utf8").split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (/^\[/.test(trimmed)) inDeps = /^\[(dev-)?dependencies/.test(trimmed);
+      else if (inDeps) {
+        const match = trimmed.match(/^([A-Za-z0-9_-]+)\s*=\s*(.+)$/);
+        if (match) add(match[1], match[2].replace(/["']/g, "").trim(), "dependency");
+      }
+    }
+  }
+
   return packages.sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
 }
 
@@ -2458,6 +2604,15 @@ export function kageMetrics(projectDir: string): KageMetrics {
   const sourceFiles = codeGraph.files.filter((file) => file.kind === "source" || file.kind === "test");
   const indexedSourceFiles = sourceFiles.filter((file) => file.parser !== "metadata");
   const coverage = percent(indexedSourceFiles.length, sourceFiles.length);
+  const allPackets = [...loadPacketsFromDir(packetsDir(projectDir)), ...loadPacketsFromDir(pendingDir(projectDir))];
+  const qualityScores = allPackets
+    .map((packet) => Number((packet.quality as Record<string, unknown>).score ?? evaluateMemoryQuality(projectDir, packet).score))
+    .filter((score) => Number.isFinite(score));
+  const duplicatePairs = allPackets.reduce((sum, packet) => sum + duplicateCandidates(projectDir, packet).length, 0);
+  const indexedSourceTokens = Math.ceil(sourceFiles.reduce((sum, file) => sum + file.size_bytes, 0) / 4);
+  const memoryTokens = allPackets.reduce((sum, packet) => sum + estimateTokens(packetText(packet)), 0);
+  const recallContextTokens = Math.max(250, Math.min(1800, codeGraph.symbols.length * 12 + codeGraph.routes.length * 10 + knowledgeGraph.edges.length * 14 + 180));
+  const tokensSaved = Math.max(0, indexedSourceTokens + memoryTokens - recallContextTokens);
   const readinessScore = Math.max(
     0,
     Math.min(
@@ -2499,6 +2654,14 @@ export function kageMetrics(projectDir: string): KageMetrics {
       edges: knowledgeGraph.edges.length,
       evidence_backed_edges: evidenceBackedEdges,
       evidence_coverage_percent: percent(evidenceBackedEdges, knowledgeGraph.edges.length),
+      average_quality_score: qualityScores.length ? Math.round(qualityScores.reduce((sum, score) => sum + score, 0) / qualityScores.length) : 0,
+      duplicate_candidate_pairs: duplicatePairs,
+    },
+    savings: {
+      estimated_indexed_source_tokens: indexedSourceTokens,
+      estimated_memory_tokens: memoryTokens,
+      estimated_recall_context_tokens: recallContextTokens,
+      estimated_tokens_saved_per_recall: tokensSaved,
     },
     harness: {
       policy_installed: policyInstalled,
@@ -2603,6 +2766,10 @@ export function capture(input: CaptureInput): CaptureResult {
 
   const validation = validatePacket(packet);
   if (!validation.ok) return { ok: false, errors: validation.errors };
+  packet.quality = {
+    ...packet.quality,
+    ...evaluateMemoryQuality(input.projectDir, packet),
+  };
   const path = writePacket(input.projectDir, packet, "pending");
   return { ok: true, packet, path, errors: [] };
 }
@@ -2841,18 +3008,27 @@ export function createReviewArtifact(projectDir: string): ReviewArtifactResult {
       "```",
       "",
     ]),
-    ...pending.flatMap((packet, index) => [
-      `## ${index + 1}. ${packet.title}`,
-      "",
-      `- ID: \`${packet.id}\``,
-      `- Type: \`${packet.type}\``,
-      `- Tags: ${packet.tags.join(", ") || "(none)"}`,
-      `- Paths: ${packet.paths.join(", ") || "(none)"}`,
-      `- Summary: ${packet.summary}`,
-      "",
-      packet.body,
-      "",
-    ]),
+    ...pending.flatMap((packet, index) => {
+      const quality = evaluateMemoryQuality(projectDir, packet);
+      const duplicates = quality.duplicate_candidates as Array<{ id: string; title: string; score: number; status: string }>;
+      return [
+        `## ${index + 1}. ${packet.title}`,
+        "",
+        `- ID: \`${packet.id}\``,
+        `- Type: \`${packet.type}\``,
+        `- Tags: ${packet.tags.join(", ") || "(none)"}`,
+        `- Paths: ${packet.paths.join(", ") || "(none)"}`,
+        `- Summary: ${packet.summary}`,
+        `- Quality score: ${quality.score}/100`,
+        `- Quality reasons: ${(quality.reasons as string[]).join(", ") || "(none)"}`,
+        `- Review risks: ${(quality.risks as string[]).join(", ") || "(none)"}`,
+        `- Estimated tokens saved: ${quality.estimated_tokens_saved}`,
+        `- Duplicate candidates: ${duplicates.length ? duplicates.map((item) => `${item.title} (${item.score}, ${item.status})`).join("; ") : "(none)"}`,
+        "",
+        packet.body,
+        "",
+      ];
+    }),
   ];
   const path = join(reviewDir(projectDir), "memory-review.md");
   ensureDir(dirname(path));
@@ -2874,8 +3050,20 @@ export function exportPublicBundle(projectDir: string): PublicBundleResult {
   );
   if (!manifest.ok || !manifest.value) return { ok: false, packetCount: 0, errors: manifest.errors };
   const bundlePath = join(publicBundleDir(projectDir), "bundle.json");
+  const digest = manifest.value.signature.payload_sha256.slice(0, 16);
+  const immutableBundlePath = join(publicBundleDir(projectDir), `bundle.${digest}.json`);
+  const immutableCatalogPath = join(publicBundleDir(projectDir), `catalog.${digest}.json`);
   writeJson(bundlePath, manifest.value);
+  writeJson(immutableBundlePath, manifest.value);
   writeJson(join(publicBundleDir(projectDir), "catalog.json"), manifest.value);
+  writeJson(immutableCatalogPath, manifest.value);
+  writeJson(join(publicBundleDir(projectDir), "latest.json"), {
+    schema_version: 1,
+    bundle: relative(publicBundleDir(projectDir), immutableBundlePath),
+    catalog: relative(publicBundleDir(projectDir), immutableCatalogPath),
+    payload_sha256: manifest.value.signature.payload_sha256,
+    generated_at: manifest.value.generated_at,
+  });
   return { ok: true, path: bundlePath, packetCount: manifest.value.payload.candidates.length, errors: [] };
 }
 
@@ -2926,6 +3114,10 @@ export function validateProject(projectDir: string): ValidationResult {
         errors.push(...validation.errors);
         warnings.push(...validation.warnings);
         warnings.push(...packetGroundingWarnings(projectDir, packet, relative(projectDir, packetPath)));
+        const quality = evaluateMemoryQuality(projectDir, packet);
+        if (Number(quality.score) < 55) warnings.push(`${relative(projectDir, packetPath)}: low memory quality score ${quality.score}`);
+        const duplicates = quality.duplicate_candidates as Array<{ title: string; score: number }> | undefined;
+        if (duplicates?.length) warnings.push(`${relative(projectDir, packetPath)}: possible duplicate of ${duplicates[0].title} (${duplicates[0].score})`);
         const findings = scanSensitiveText(`${packet.title}\n${packet.summary}\n${packet.body}`);
         if (findings.length) errors.push(`${relative(projectDir, packetPath)}: ${label} contains sensitive content: ${findings.join(", ")}`);
       } catch (error) {

@@ -275,6 +275,13 @@ async function main(): Promise<void> {
     console.log(`  Entities: ${result.memory_graph.entities}`);
     console.log(`  Edges: ${result.memory_graph.edges}`);
     console.log(`  Evidence coverage: ${result.memory_graph.evidence_coverage_percent}%`);
+    console.log(`  Average quality: ${result.memory_graph.average_quality_score}/100`);
+    console.log(`  Duplicate candidates: ${result.memory_graph.duplicate_candidate_pairs}`);
+    console.log("\nToken savings:");
+    console.log(`  Indexed source tokens: ${result.savings.estimated_indexed_source_tokens}`);
+    console.log(`  Memory tokens: ${result.savings.estimated_memory_tokens}`);
+    console.log(`  Recall context tokens: ${result.savings.estimated_recall_context_tokens}`);
+    console.log(`  Estimated tokens saved per recall: ${result.savings.estimated_tokens_saved_per_recall}`);
     return;
   }
 

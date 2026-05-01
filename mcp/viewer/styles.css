@@ -104,7 +104,7 @@ button {
 .toolbar {
   grid-area: toolbar;
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 180px 200px auto;
+  grid-template-columns: minmax(220px, 1fr) 150px 180px 200px auto;
   gap: 12px;
   align-items: end;
   padding: 14px;
@@ -308,6 +308,43 @@ button:focus,
   stroke: var(--accent);
   stroke-width: 3;
   opacity: 1;
+}
+
+.edge-line.review-low-confidence {
+  stroke-dasharray: 5 4;
+}
+
+.edge-line.review-missing-evidence {
+  opacity: 0.55;
+}
+
+.edge-line.review-invalidated {
+  stroke: #9ca3af;
+  stroke-dasharray: 2 5;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0 0 18px;
+}
+
+.metric {
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-soft);
+}
+
+.metric strong {
+  display: block;
+  font-size: 15px;
+}
+
+.metric span {
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .edge-hit {
