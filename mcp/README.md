@@ -107,6 +107,22 @@ Public graph tools:
 
 ## Codex MCP Configuration
 
+Fast path from the repo you want Kage to remember:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kage-core/Kage/master/codex-setup.sh | bash
+```
+
+This clones/updates Kage under `~/.kage/Kage`, builds this MCP package, writes
+the `mcp_servers.kage` block to `~/.codex/config.toml`, and runs `kage init` for
+the current repo. Restart Codex after it completes.
+
+Local development path:
+
+```bash
+/path/to/Kage/codex-setup.sh --project /path/to/repo
+```
+
 After building the package, add the local stdio server to Codex.
 
 `~/.codex/config.toml`:
