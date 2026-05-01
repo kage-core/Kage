@@ -302,6 +302,42 @@ export interface CodeGraphQueryResult {
   tests: CodeTestEdge[];
 }
 
+export interface KageMetrics {
+  schema_version: 1;
+  project_dir: string;
+  repo_key: string;
+  generated_at: string;
+  code_graph: {
+    files: number;
+    symbols: number;
+    imports: number;
+    calls: number;
+    routes: number;
+    tests: number;
+    packages_and_scripts: number;
+    languages: Record<string, number>;
+    parsers: Record<string, number>;
+    source_symbols_by_parser: Record<string, number>;
+    indexer_coverage_percent: number;
+  };
+  memory_graph: {
+    approved_packets: number;
+    pending_packets: number;
+    episodes: number;
+    entities: number;
+    edges: number;
+    evidence_backed_edges: number;
+    evidence_coverage_percent: number;
+  };
+  harness: {
+    policy_installed: boolean;
+    validation_ok: boolean;
+    warnings: number;
+    errors: number;
+    readiness_score: number;
+  };
+}
+
 export interface BranchOverlay {
   schema_version: 1;
   project_dir: string;
@@ -378,9 +414,10 @@ Before making code changes, answering repo-specific implementation questions, de
 
 1. Call \`kage_validate\` for this repo.
 2. Call \`kage_recall\` with the user's task as the query.
-3. Call \`kage_graph\` with the user's task as the query.
-4. Use returned memory only when it is relevant, source-backed, and not stale.
-5. Prefer repo memory over public/community memory when they conflict.
+3. Call \`kage_code_graph\` when the task mentions files, APIs, routes, symbols, tests, dependencies, or code flow.
+4. Call \`kage_graph\` with the user's task as the query when the task depends on decisions, bugs, workflows, commands, or conventions.
+5. Use returned memory only when it is relevant, source-backed, and not stale.
+6. Prefer repo memory over public/community memory when they conflict.
 
 Do this without waiting for the user to ask. Kage should feel like ambient repo memory, not a manual search command.
 
@@ -425,12 +462,13 @@ For normal coding tasks:
 
 1. \`kage_validate\`
 2. \`kage_recall\`
-3. \`kage_graph\`
-4. Work on the task
-5. \`kage_learn\` for concrete learnings
-6. \`kage_propose_from_diff\` before the final response to update branch review
+3. \`kage_code_graph\` for source flow, routes, symbols, tests, and dependencies
+4. \`kage_graph\` for remembered decisions, bugs, workflows, and conventions
+5. Work on the task
+6. \`kage_learn\` for concrete learnings
+7. \`kage_propose_from_diff\` before the final response to update branch review
 
-For quick factual questions, \`kage_recall\` alone is enough.
+For quick factual questions, \`kage_recall\` alone is enough. For status or demo requests, call \`kage_metrics\`.
 ${AGENTS_POLICY_END}
 `;
 const STOPWORDS = new Set([
@@ -2110,6 +2148,15 @@ function unique<T>(values: T[]): T[] {
   return [...new Set(values)];
 }
 
+function countBy<T>(values: T[], key: (value: T) => string): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const value of values) {
+    const name = key(value);
+    counts[name] = (counts[name] ?? 0) + 1;
+  }
+  return Object.fromEntries(Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)));
+}
+
 function sourceLabel(packet: MemoryPacket): string {
   const refs = packet.source_refs
     .map((ref) => {
@@ -2237,42 +2284,65 @@ export function recall(projectDir: string, query: string, limit = 5): RecallResu
   };
 }
 
-function scoreText(terms: string[], text: string): number {
+function scoreText(terms: string[], text: string, boosts: string[] = []): number {
   const haystack = text.toLowerCase();
-  return terms.reduce((sum, term) => sum + (haystack.includes(term) ? 1 : 0), 0);
+  let score = 0;
+  for (const term of terms) {
+    if (!term) continue;
+    const firstIndex = haystack.indexOf(term);
+    if (firstIndex === -1) continue;
+    const occurrences = haystack.split(term).length - 1;
+    score += 1 + Math.min(occurrences, 4);
+    if (firstIndex < 80) score += 1;
+    if (boosts.some((boost) => boost.toLowerCase().includes(term) || term.includes(boost.toLowerCase()))) score += 2;
+  }
+  if (terms.length > 1 && terms.every((term) => haystack.includes(term))) score += 3;
+  return score;
 }
 
 export function queryCodeGraph(projectDir: string, query: string, limit = 10): CodeGraphQueryResult {
   const graph = buildCodeGraph(projectDir);
   const terms = tokenize(query);
   const files = graph.files
-    .map((file) => ({ file, score: scoreText(terms, `${file.path} ${file.kind} ${file.language}`) }))
+    .map((file) => ({ file, score: scoreText(terms, `${file.path} ${file.kind} ${file.language} ${file.parser}`, [file.path, file.language]) }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score || a.file.path.localeCompare(b.file.path))
     .slice(0, limit)
     .map((entry) => entry.file);
   const symbols = graph.symbols
-    .map((symbol) => ({ symbol, score: scoreText(terms, `${symbol.name} ${symbol.kind} ${symbol.path} ${symbol.signature}`) }))
+    .map((symbol) => ({ symbol, score: scoreText(terms, `${symbol.name} ${symbol.kind} ${symbol.path} ${symbol.language} ${symbol.signature}`, [symbol.name, symbol.path]) }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score || a.symbol.path.localeCompare(b.symbol.path) || a.symbol.line - b.symbol.line)
     .slice(0, limit)
     .map((entry) => entry.symbol);
   const routes = graph.routes
-    .map((route) => ({ route, score: scoreText(terms, `route routes endpoint api handler ${route.method} ${route.path} ${route.file_path} ${route.framework}`) }))
+    .map((route) => ({ route, score: scoreText(terms, `route routes endpoint api handler ${route.method} ${route.path} ${route.file_path} ${route.framework}`, [route.path, route.file_path]) }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score || a.route.path.localeCompare(b.route.path))
     .slice(0, limit)
     .map((entry) => entry.route);
   const tests = graph.tests
-    .map((test) => ({ test, score: scoreText(terms, `${test.title} ${test.test_path} ${test.covers_symbol ?? ""} ${test.covers_path ?? ""}`) }))
+    .map((test) => ({ test, score: scoreText(terms, `${test.title} ${test.test_path} ${test.covers_symbol ?? ""} ${test.covers_path ?? ""}`, [test.title, test.test_path]) }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score || a.test.test_path.localeCompare(b.test.test_path) || a.test.line - b.test.line)
     .slice(0, limit)
     .map((entry) => entry.test);
+  const relevantPaths = new Set([
+    ...files.map((file) => file.path),
+    ...symbols.map((symbol) => symbol.path),
+    ...routes.map((route) => route.file_path),
+    ...tests.flatMap((test) => [test.test_path, test.covers_path].filter(Boolean) as string[]),
+  ]);
   const imports = graph.imports
-    .filter((item) => files.some((file) => file.path === item.from_path || file.path === item.to_path) || terms.some((term) => item.specifier.toLowerCase().includes(term)))
+    .map((item) => ({
+      item,
+      score: scoreText(terms, `${item.specifier} ${item.from_path} ${item.to_path ?? ""} ${item.kind} ${item.imported.join(" ")}`, [item.specifier, item.from_path]),
+    }))
+    .filter((entry) => entry.score > 0 || relevantPaths.has(entry.item.from_path) || Boolean(entry.item.to_path && relevantPaths.has(entry.item.to_path)))
+    .sort((a, b) => b.score - a.score || a.item.from_path.localeCompare(b.item.from_path) || a.item.line - b.item.line)
     .slice(0, limit);
   const symbolIds = new Set(symbols.map((symbol) => symbol.id));
+  const symbolNameById = new Map(graph.symbols.map((symbol) => [symbol.id, `${symbol.name} (${symbol.path}:${symbol.line})`]));
   const calls = graph.calls
     .filter((call) => symbolIds.has(call.to_symbol) || Boolean(call.from_symbol && symbolIds.has(call.from_symbol)))
     .slice(0, limit);
@@ -2284,12 +2354,18 @@ export function queryCodeGraph(projectDir: string, query: string, limit = 10): C
     "",
     files.length || symbols.length || routes.length || tests.length ? "## Code Facts" : "No related source-derived code facts found.",
     ...routes.map((route, index) => `${index + 1}. [route] ${route.method} ${route.path} in ${route.file_path}:${route.line}`),
-    ...symbols.map((symbol, index) => `${index + 1}. [symbol] ${symbol.kind} ${symbol.name} in ${symbol.path}:${symbol.line}`),
+    ...symbols.map((symbol, index) => `${index + 1}. [symbol] ${symbol.kind} ${symbol.name} in ${symbol.path}:${symbol.line} (${symbol.language}, ${symbol.parser})`),
     ...tests.map((test, index) => `${index + 1}. [test] ${test.title} in ${test.test_path}:${test.line}${test.covers_symbol ? ` covers ${test.covers_symbol}` : ""}`),
-    ...files.slice(0, 5).map((file, index) => `${index + 1}. [file] ${file.path} (${file.kind}, ${file.language})`),
+    ...files.slice(0, 5).map((file, index) => `${index + 1}. [file] ${file.path} (${file.kind}, ${file.language}, ${file.parser})`),
+    imports.length ? "" : "",
+    imports.length ? "## Imports" : "",
+    ...imports.map(({ item }, index) => `${index + 1}. ${item.from_path}:${item.line} ${item.kind} ${item.specifier}${item.to_path ? ` -> ${item.to_path}` : ""}`),
+    calls.length ? "" : "",
+    calls.length ? "## Calls" : "",
+    ...calls.map((call, index) => `${index + 1}. ${call.from_symbol ? symbolNameById.get(call.from_symbol) ?? call.from_symbol : call.path} calls ${symbolNameById.get(call.to_symbol) ?? call.to_symbol} at ${call.path}:${call.line}`),
   ];
 
-  return { query, context_block: lines.join("\n"), files, symbols, imports, calls, routes, tests };
+  return { query, context_block: lines.join("\n"), files, symbols, imports: imports.map((entry) => entry.item), calls, routes, tests };
 }
 
 export function queryGraph(projectDir: string, query: string, limit = 10): GraphQueryResult {
@@ -2298,16 +2374,18 @@ export function queryGraph(projectDir: string, query: string, limit = 10): Graph
   const entityScores = new Map<string, number>();
   for (const entity of graph.entities) {
     const text = `${entity.name} ${entity.type} ${entity.summary} ${entity.aliases.join(" ")}`.toLowerCase();
-    const score = terms.reduce((sum, term) => sum + (text.includes(term) ? 1 : 0), 0);
+    const score = scoreText(terms, text, [entity.name, entity.type]);
     if (score > 0) entityScores.set(entity.id, score);
   }
 
   const edges = graph.edges
     .map((edge) => {
       const text = `${edge.relation} ${edge.fact}`.toLowerCase();
-      const textScore = terms.reduce((sum, term) => sum + (text.includes(term) ? 1 : 0), 0);
+      const textScore = scoreText(terms, text, [edge.relation]);
       const graphScore = (entityScores.get(edge.from) ?? 0) + (entityScores.get(edge.to) ?? 0);
-      return { edge, score: textScore + graphScore };
+      const evidenceScore = edge.evidence.length ? 1 : 0;
+      const temporalPenalty = edge.invalidated_at ? -4 : 0;
+      return { edge, score: textScore + graphScore + evidenceScore + temporalPenalty };
     })
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score || a.edge.fact.localeCompare(b.edge.fact))
@@ -2359,6 +2437,76 @@ export function graphMermaid(projectDir: string, limit = 40): GraphVisualResult 
     mermaid: lines.join("\n"),
     entities: selectedEntities.length,
     edges: selectedEdges.length,
+  };
+}
+
+function percent(numerator: number, denominator: number): number {
+  if (denominator <= 0) return 100;
+  return Math.round((numerator / denominator) * 100);
+}
+
+export function kageMetrics(projectDir: string): KageMetrics {
+  ensureMemoryDirs(projectDir);
+  const codeGraph = buildCodeGraph(projectDir);
+  const knowledgeGraph = buildKnowledgeGraph(projectDir);
+  const validation = validateProject(projectDir);
+  const approvedPackets = loadPacketsFromDir(packetsDir(projectDir)).length;
+  const pendingPackets = loadPacketsFromDir(pendingDir(projectDir)).length;
+  const evidenceBackedEdges = knowledgeGraph.edges.filter((edge) => edge.evidence.length > 0).length;
+  const policyPath = join(projectDir, "AGENTS.md");
+  const policyInstalled = existsSync(policyPath) && readFileSync(policyPath, "utf8").includes(AGENTS_POLICY_MARKER);
+  const sourceFiles = codeGraph.files.filter((file) => file.kind === "source" || file.kind === "test");
+  const indexedSourceFiles = sourceFiles.filter((file) => file.parser !== "metadata");
+  const coverage = percent(indexedSourceFiles.length, sourceFiles.length);
+  const readinessScore = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        coverage * 0.35 +
+          percent(evidenceBackedEdges, knowledgeGraph.edges.length) * 0.25 +
+          (approvedPackets > 0 ? 20 : 0) +
+          (policyInstalled ? 15 : 0) +
+          (validation.ok ? 5 : -20) -
+          validation.warnings.length * 2
+      )
+    )
+  );
+
+  return {
+    schema_version: 1,
+    project_dir: projectDir,
+    repo_key: repoKey(projectDir),
+    generated_at: nowIso(),
+    code_graph: {
+      files: codeGraph.files.length,
+      symbols: codeGraph.symbols.length,
+      imports: codeGraph.imports.length,
+      calls: codeGraph.calls.length,
+      routes: codeGraph.routes.length,
+      tests: codeGraph.tests.length,
+      packages_and_scripts: codeGraph.packages.length,
+      languages: countBy(codeGraph.files, (file) => file.language),
+      parsers: countBy(codeGraph.files, (file) => file.parser),
+      source_symbols_by_parser: countBy(codeGraph.symbols, (symbol) => symbol.parser),
+      indexer_coverage_percent: coverage,
+    },
+    memory_graph: {
+      approved_packets: approvedPackets,
+      pending_packets: pendingPackets,
+      episodes: knowledgeGraph.episodes.length,
+      entities: knowledgeGraph.entities.length,
+      edges: knowledgeGraph.edges.length,
+      evidence_backed_edges: evidenceBackedEdges,
+      evidence_coverage_percent: percent(evidenceBackedEdges, knowledgeGraph.edges.length),
+    },
+    harness: {
+      policy_installed: policyInstalled,
+      validation_ok: validation.ok,
+      warnings: validation.warnings.length,
+      errors: validation.errors.length,
+      readiness_score: readinessScore,
+    },
   };
 }
 
@@ -2821,7 +2969,7 @@ export function initProject(projectDir: string): { index: IndexResult; validatio
 
 export function doctorProject(projectDir: string): DoctorResult {
   ensureMemoryDirs(projectDir);
-  const expectedIndexes = ["catalog.json", "by-path.json", "by-tag.json", "by-type.json", "graph.json"];
+  const expectedIndexes = ["catalog.json", "by-path.json", "by-tag.json", "by-type.json", "graph.json", "code-graph.json"];
   const present = expectedIndexes.filter((name) => existsSync(join(indexesDir(projectDir), name)));
   const missing = expectedIndexes.filter((name) => !present.includes(name));
   const validation = validateProject(projectDir);

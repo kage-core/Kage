@@ -15,6 +15,7 @@ import {
   initProject,
   indexProject,
   installAgentPolicy,
+  kageMetrics,
   learn,
   loadPendingPackets,
   MEMORY_TYPES,
@@ -39,6 +40,7 @@ Usage:
   kage policy --project <dir>
   kage doctor --project <dir>
   kage branch --project <dir> [--json]
+  kage metrics --project <dir> [--json]
   kage code-graph --project <dir> [--json]
   kage code-graph "<query>" --project <dir> [--json]
   kage graph --project <dir> [--json]
@@ -243,6 +245,36 @@ async function main(): Promise<void> {
       console.log(`Changed files: ${result.changed_files.join(", ") || "(none)"}`);
       console.log(`Pending packets: ${result.pending_packet_ids.length}`);
     }
+    return;
+  }
+
+  if (command === "metrics") {
+    const result = kageMetrics(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage Metrics: ${result.project_dir}`);
+    console.log(`Readiness score: ${result.harness.readiness_score}/100`);
+    console.log(`Validation: ${result.harness.validation_ok ? "passed" : "failed"} (${result.harness.errors} errors, ${result.harness.warnings} warnings)`);
+    console.log(`Policy installed: ${result.harness.policy_installed ? "yes" : "no"}`);
+    console.log("\nCode graph:");
+    console.log(`  Files: ${result.code_graph.files}`);
+    console.log(`  Symbols: ${result.code_graph.symbols}`);
+    console.log(`  Imports: ${result.code_graph.imports}`);
+    console.log(`  Calls: ${result.code_graph.calls}`);
+    console.log(`  Routes: ${result.code_graph.routes}`);
+    console.log(`  Tests: ${result.code_graph.tests}`);
+    console.log(`  Indexer coverage: ${result.code_graph.indexer_coverage_percent}%`);
+    console.log(`  Languages: ${Object.entries(result.code_graph.languages).map(([name, count]) => `${name}=${count}`).join(", ") || "(none)"}`);
+    console.log(`  Parsers: ${Object.entries(result.code_graph.parsers).map(([name, count]) => `${name}=${count}`).join(", ") || "(none)"}`);
+    console.log("\nMemory graph:");
+    console.log(`  Approved packets: ${result.memory_graph.approved_packets}`);
+    console.log(`  Pending packets: ${result.memory_graph.pending_packets}`);
+    console.log(`  Episodes: ${result.memory_graph.episodes}`);
+    console.log(`  Entities: ${result.memory_graph.entities}`);
+    console.log(`  Edges: ${result.memory_graph.edges}`);
+    console.log(`  Evidence coverage: ${result.memory_graph.evidence_coverage_percent}%`);
     return;
   }
 
