@@ -17,20 +17,20 @@
   };
 
   var palette = {
-    repo: "#167a68",
-    memory: "#6d5bd0",
-    path: "#c65353",
-    tag: "#b87514",
-    package: "#2474a6",
-    command: "#5d7780",
-    memory_type: "#32865a",
-    file: "#167a68",
-    symbol: "#6d5bd0",
-    route: "#c65353",
-    test: "#b87514",
-    external: "#64748b",
-    script: "#2474a6",
-    default: "#64748b"
+    repo: "#41ff8f",
+    memory: "#b88cff",
+    path: "#ff6b6b",
+    tag: "#ffd166",
+    package: "#6ad7ff",
+    command: "#9be7c0",
+    memory_type: "#41ff8f",
+    file: "#6ad7ff",
+    symbol: "#b88cff",
+    route: "#ff8fab",
+    test: "#ffd166",
+    external: "#93a4a0",
+    script: "#6ad7ff",
+    default: "#9be7c0"
   };
 
   var els = {
@@ -323,35 +323,29 @@
 
   function layoutGraph() {
     state.positions = new Map();
-    var width = 1000;
-    var height = 660;
-    var clusters = [
-      { kind: "memory", x: 325, y: 330 },
-      { kind: "code", x: 705, y: 330 },
-      { kind: "unknown", x: 500, y: 330 }
+    var lanes = [
+      { name: "memory", x: 190, y: 86, step: 62, match: function (entity) { return entity.graph_kind === "memory"; } },
+      { name: "files", x: 480, y: 78, step: 60, match: function (entity) { return entity.graph_kind === "code" && entity.type === "file"; } },
+      { name: "flow", x: 700, y: 88, step: 58, match: function (entity) { return entity.graph_kind === "code" && ["symbol", "route", "test"].indexOf(entity.type) !== -1; } },
+      { name: "external", x: 895, y: 110, step: 64, match: function (entity) { return entity.graph_kind === "code" && ["external", "script"].indexOf(entity.type) !== -1; } },
+      { name: "other", x: 700, y: 570, step: 58, match: function (entity) { return ["memory", "code"].indexOf(entity.graph_kind) === -1 || (entity.graph_kind === "code" && ["file", "symbol", "route", "test", "external", "script"].indexOf(entity.type) === -1); } }
     ];
-    clusters.forEach(function (cluster) {
+    lanes.forEach(function (lane) {
       var bucket = state.entities.filter(function (entity) {
-        return (entity.graph_kind || "unknown") === cluster.kind;
+        return lane.match(entity);
       }).sort(function (a, b) {
         return degreeOf(b.id) - degreeOf(a.id) || displayName(a).localeCompare(displayName(b));
       });
       if (!bucket.length) return;
-      var rings = Math.ceil(bucket.length / 14);
       bucket.forEach(function (entity, index) {
-        var ring = Math.floor(index / 14);
-        var ringIndex = index % 14;
-        var ringSize = Math.min(14, bucket.length - ring * 14);
-        var radius = Math.max(48, 74 + ring * 82);
-        var angle = (Math.PI * 2 * ringIndex) / Math.max(ringSize, 1) - Math.PI / 2 + ring * 0.32;
-        if (index === 0) {
-          state.positions.set(entity.id, { x: cluster.x, y: cluster.y });
-        } else {
-          state.positions.set(entity.id, {
-            x: clamp(cluster.x + Math.cos(angle) * radius, 54, width - 54),
-            y: clamp(cluster.y + Math.sin(angle) * radius, 54, height - 54)
-          });
-        }
+        var column = Math.floor(index / 8);
+        var row = index % 8;
+        var xOffset = column * 168;
+        var yJitter = column % 2 ? 18 : 0;
+        state.positions.set(entity.id, {
+          x: lane.x + xOffset,
+          y: lane.y + row * lane.step + yJitter
+        });
       });
     });
   }
@@ -419,18 +413,12 @@
       var group = svgEl("g");
       var visible = state.visibleEdgeIds.has(edge.id);
       var connected = selectedEdgeId === edge.id || connectedIds.edges.has(edge.id);
-      var line = svgEl("line", {
-        x1: from.x,
-        y1: from.y,
-        x2: to.x,
-        y2: to.y,
+      var line = svgEl("path", {
+        d: edgePath(from, to),
         class: classNames("edge-line", "review-" + reviewStatus(edge).replace(/\s+/g, "-"), !visible && "filtered", connected && "connected", selectedEdgeId === edge.id && "selected")
       });
-      var hit = svgEl("line", {
-        x1: from.x,
-        y1: from.y,
-        x2: to.x,
-        y2: to.y,
+      var hit = svgEl("path", {
+        d: edgePath(from, to),
         class: "edge-hit"
       });
       hit.addEventListener("click", function () {
@@ -456,15 +444,33 @@
         class: classNames("node", "graph-" + (entity.graph_kind || "unknown"), !visible && "filtered", selected && "selected", connected && "connected"),
         transform: "translate(" + pos.x + " " + pos.y + ")"
       });
-      var circle = svgEl("circle", {
-        r: selected ? 23 : connected ? 20 : 16,
+      var dims = nodeDimensions(entity);
+      var rect = svgEl("rect", {
+        x: -dims.width / 2,
+        y: -dims.height / 2,
+        width: dims.width,
+        height: dims.height,
+        class: "node-body"
+      });
+      var port = svgEl("circle", {
+        cx: -dims.width / 2 + 10,
+        cy: 0,
+        r: selected ? 4 : 3,
+        class: "node-port",
         fill: palette[entity.type] || palette.default
       });
-      var text = svgEl("text", {
-        x: 24,
-        y: 4
+      var titleText = svgEl("text", {
+        x: -dims.width / 2 + 22,
+        y: -4,
+        class: "node-title"
       });
-      text.textContent = shortName(displayName(entity), selected || connected ? 34 : 22);
+      titleText.textContent = shortName(displayName(entity), dims.labelMax);
+      var typeText = svgEl("text", {
+        x: -dims.width / 2 + 22,
+        y: 13,
+        class: "node-type"
+      });
+      typeText.textContent = nodeKindLabel(entity);
       var title = svgEl("title");
       title.textContent = displayName(entity) + "\n" + (entity.summary || "");
       group.addEventListener("click", function () {
@@ -475,8 +481,10 @@
         event.stopPropagation();
       });
       group.appendChild(title);
-      group.appendChild(circle);
-      group.appendChild(text);
+      group.appendChild(rect);
+      group.appendChild(port);
+      group.appendChild(titleText);
+      group.appendChild(typeText);
       els.nodeLayer.appendChild(group);
     });
   }
@@ -713,15 +721,15 @@
     }
     var xs = points.map(function (point) { return point.x; });
     var ys = points.map(function (point) { return point.y; });
-    var minX = Math.min.apply(null, xs) - 90;
-    var maxX = Math.max.apply(null, xs) + 130;
-    var minY = Math.min.apply(null, ys) - 80;
-    var maxY = Math.max.apply(null, ys) + 80;
+    var minX = Math.min.apply(null, xs) - 130;
+    var maxX = Math.max.apply(null, xs) + 150;
+    var minY = Math.min.apply(null, ys) - 82;
+    var maxY = Math.max.apply(null, ys) + 82;
     state.viewBox = {
       x: clamp(minX, -160, 1000),
       y: clamp(minY, -120, 660),
-      width: Math.max(360, Math.min(940, maxX - minX)),
-      height: Math.max(280, Math.min(650, maxY - minY))
+      width: Math.max(520, Math.min(1120, maxX - minX)),
+      height: Math.max(360, Math.min(700, maxY - minY))
     };
   }
 
@@ -801,6 +809,27 @@
   function displayName(entity) {
     if (!entity) return "Unknown";
     return entity.name || entity.title || entity.path || entity.id || "Unknown";
+  }
+
+  function edgePath(from, to) {
+    var dx = Math.max(60, Math.abs(to.x - from.x) * 0.48);
+    var x1 = from.x + (to.x >= from.x ? 72 : -72);
+    var x2 = to.x + (to.x >= from.x ? -72 : 72);
+    return "M " + x1 + " " + from.y + " C " + (x1 + (to.x >= from.x ? dx : -dx)) + " " + from.y + ", " + (x2 - (to.x >= from.x ? dx : -dx)) + " " + to.y + ", " + x2 + " " + to.y;
+  }
+
+  function nodeDimensions(entity) {
+    var name = displayName(entity);
+    var width = clamp(116 + Math.min(name.length, 26) * 4.5, 142, entity.graph_kind === "memory" ? 210 : 190);
+    return {
+      width: width,
+      height: 42,
+      labelMax: width > 180 ? 28 : 22
+    };
+  }
+
+  function nodeKindLabel(entity) {
+    return (entity.graph_kind || "graph") + " / " + (entity.type || "node");
   }
 
   function searchableText(value) {

@@ -3,14 +3,14 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Kage Memory Control Plane</title>
-    <link rel="stylesheet" href="./styles.css?v=2">
+    <title>Kage Memory Terminal</title>
+    <link rel="stylesheet" href="./styles.css?v=3">
   </head>
   <body>
     <header class="app-header">
       <div class="brand-block">
-        <span class="eyebrow">Kage</span>
-        <h1>Memory Control Plane</h1>
+        <span class="eyebrow">kage://repo-memory</span>
+        <h1>Memory Terminal</h1>
         <p id="graphSummary">Load memory, code, and metrics graphs to inspect what agents know and why.</p>
       </div>
       <div id="statusStrip" class="status-strip" aria-label="Graph health"></div>
@@ -24,18 +24,18 @@
       <section class="graph-panel" aria-label="Graph rendering">
         <div class="graph-toolbar">
           <div>
-            <h2>Knowledge Graph</h2>
+            <h2>Graph Console</h2>
             <p id="graphSubhead">Combined repo memory and source graph.</p>
           </div>
           <div class="graph-actions" aria-label="Graph view controls">
-            <span class="interaction-hint">Drag canvas. Wheel to zoom.</span>
+            <span class="interaction-hint">drag canvas / wheel zoom / click node</span>
             <button id="zoomOut" type="button">-</button>
             <button id="fitView" type="button">Fit</button>
             <button id="zoomIn" type="button">+</button>
           </div>
         </div>
         <svg id="graphSvg" viewBox="0 0 1000 660" role="img" aria-labelledby="graphTitle graphDescription">
-          <title id="graphTitle">Kage local memory and code graph</title>
+          <title id="graphTitle">Kage local memory and code graph terminal view</title>
           <desc id="graphDescription">Entities and relationships from loaded Kage memory and code graph JSON files.</desc>
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -83,9 +83,9 @@
         </label>
         <button id="resetView" type="button">Reset</button>
         <div class="legend" aria-label="Legend">
-          <span><i class="dot memory-dot"></i>Memory</span>
-          <span><i class="dot code-dot"></i>Code</span>
-          <span><i class="line sample-line"></i>Relation</span>
+          <span><i class="dot memory-dot"></i>memory packet</span>
+          <span><i class="dot code-dot"></i>code artifact</span>
+          <span><i class="line sample-line"></i>relation</span>
         </div>
       </aside>
 
@@ -114,6 +114,6 @@
       </section>
     </main>
 
-    <script src="./app.js?v=2"></script>
+    <script src="./app.js?v=3"></script>
   </body>
 </html>
