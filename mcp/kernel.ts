@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
+import * as ts from "typescript";
 import { createPublicCandidateBundleManifest } from "./registry/index.js";
 
 export const PACKET_SCHEMA_VERSION = 2;
@@ -215,6 +216,7 @@ export interface CodeFileNode {
   id: string;
   path: string;
   language: string;
+  parser: "typescript-ast" | "generic-static" | "metadata";
   kind: "source" | "test" | "config" | "manifest" | "doc";
   size_bytes: number;
   line_count: number;
@@ -226,6 +228,8 @@ export interface CodeSymbolNode {
   name: string;
   kind: "function" | "class" | "method" | "constant" | "route" | "test";
   path: string;
+  language: string;
+  parser: "typescript-ast" | "generic-static";
   export: boolean;
   line: number;
   end_line: number | null;
@@ -237,7 +241,8 @@ export interface CodeImportEdge {
   to_path: string | null;
   specifier: string;
   imported: string[];
-  kind: "import" | "require" | "export";
+  kind: "import" | "require" | "export" | "include" | "use";
+  parser: "typescript-ast" | "generic-static";
   line: number;
 }
 
@@ -1112,7 +1117,25 @@ function npmScriptCommands(projectDir: string): string[] {
   return Object.keys(scripts).sort().map((script) => `npm run ${script}`);
 }
 
-const CODE_EXTENSIONS = new Set([".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts"]);
+const TS_AST_EXTENSIONS = new Set([".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts"]);
+const CODE_EXTENSIONS = new Set([
+  ...TS_AST_EXTENSIONS,
+  ".py",
+  ".go",
+  ".rs",
+  ".java",
+  ".kt",
+  ".kts",
+  ".rb",
+  ".php",
+  ".cs",
+  ".c",
+  ".h",
+  ".cc",
+  ".cpp",
+  ".hpp",
+  ".swift",
+]);
 const CONFIG_NAMES = new Set([
   "package.json",
   "tsconfig.json",
@@ -1140,14 +1163,39 @@ function codeLanguage(path: string): string {
   const extension = extensionOf(path);
   if (extension === ".ts" || extension === ".tsx" || extension === ".mts" || extension === ".cts") return "typescript";
   if (extension === ".js" || extension === ".jsx" || extension === ".mjs" || extension === ".cjs") return "javascript";
+  if (extension === ".py") return "python";
+  if (extension === ".go") return "go";
+  if (extension === ".rs") return "rust";
+  if (extension === ".java") return "java";
+  if (extension === ".kt" || extension === ".kts") return "kotlin";
+  if (extension === ".rb") return "ruby";
+  if (extension === ".php") return "php";
+  if (extension === ".cs") return "csharp";
+  if ([".c", ".h", ".cc", ".cpp", ".hpp"].includes(extension)) return "cpp";
+  if (extension === ".swift") return "swift";
   if (extension === ".json") return "json";
   if (extension === ".md") return "markdown";
   return "unknown";
 }
 
+function codeParser(path: string): CodeFileNode["parser"] {
+  const extension = extensionOf(path);
+  if (TS_AST_EXTENSIONS.has(extension)) return "typescript-ast";
+  if (CODE_EXTENSIONS.has(extension)) return "generic-static";
+  return "metadata";
+}
+
 function codeFileKind(path: string): CodeFileNode["kind"] {
   const name = basename(path);
-  if (/(\.|\/)(test|spec)\.[cm]?[jt]sx?$/.test(path) || path.startsWith("test/") || path.includes("/test/") || path.includes("/__tests__/")) return "test";
+  if (
+    /(\.|\/)(test|spec)\.[cm]?[jt]sx?$/.test(path) ||
+    /(_test|_spec)\.(py|go|rb|php|rs|java|kt|cs)$/.test(path) ||
+    path.startsWith("test/") ||
+    path.startsWith("tests/") ||
+    path.includes("/test/") ||
+    path.includes("/tests/") ||
+    path.includes("/__tests__/")
+  ) return "test";
   if (CONFIG_NAMES.has(name) || path.startsWith(".github/workflows/")) return "config";
   if (name === "package.json") return "manifest";
   if (extensionOf(path) === ".md") return "doc";
@@ -1192,15 +1240,6 @@ function findBlockEndLine(text: string, startOffset: number): number | null {
   return null;
 }
 
-function parseImportedNames(raw: string): string[] {
-  const names = new Set<string>();
-  for (const match of raw.matchAll(/\b([A-Za-z_$][\w$]*)\b/g)) {
-    const name = match[1];
-    if (!["import", "from", "as", "type"].includes(name)) names.add(name);
-  }
-  return [...names].sort();
-}
-
 function resolveImportPath(projectDir: string, fromRelativePath: string, specifier: string, knownFiles: Set<string>): string | null {
   if (!specifier.startsWith(".")) return null;
   const base = join(dirname(join(projectDir, fromRelativePath)), specifier);
@@ -1216,76 +1255,298 @@ function resolveImportPath(projectDir: string, fromRelativePath: string, specifi
   return null;
 }
 
+function scriptKind(path: string): ts.ScriptKind {
+  const extension = extensionOf(path);
+  if (extension === ".tsx") return ts.ScriptKind.TSX;
+  if (extension === ".ts" || extension === ".mts" || extension === ".cts") return ts.ScriptKind.TS;
+  if (extension === ".jsx") return ts.ScriptKind.JSX;
+  if (extension === ".js" || extension === ".mjs" || extension === ".cjs") return ts.ScriptKind.JS;
+  return ts.ScriptKind.Unknown;
+}
+
+function sourceFileFor(path: string, text: string): ts.SourceFile {
+  return ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, scriptKind(path));
+}
+
+function lineForNode(sourceFile: ts.SourceFile, node: ts.Node): number {
+  return sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+}
+
+function endLineForNode(sourceFile: ts.SourceFile, node: ts.Node): number {
+  return sourceFile.getLineAndCharacterOfPosition(node.getEnd()).line + 1;
+}
+
+function hasExportModifier(node: ts.Node): boolean {
+  return Boolean(ts.canHaveModifiers(node) && ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword));
+}
+
+function propertyOrIdentifierName(expression: ts.Expression): string | null {
+  if (ts.isIdentifier(expression)) return expression.text;
+  if (ts.isPropertyAccessExpression(expression)) return expression.name.text;
+  return null;
+}
+
+function stringLiteralValue(node: ts.Node | undefined): string | null {
+  return node && ts.isStringLiteralLike(node) ? node.text : null;
+}
+
+function importedNamesFromClause(clause: ts.ImportClause | undefined): string[] {
+  if (!clause) return [];
+  const names = new Set<string>();
+  if (clause.name) names.add(clause.name.text);
+  const named = clause.namedBindings;
+  if (named && ts.isNamespaceImport(named)) names.add(named.name.text);
+  if (named && ts.isNamedImports(named)) {
+    for (const element of named.elements) names.add(element.name.text);
+  }
+  return [...names].sort();
+}
+
 function extractSymbols(path: string, text: string): CodeSymbolNode[] {
+  const sourceFile = sourceFileFor(path, text);
   const symbols: CodeSymbolNode[] = [];
-  const addSymbol = (name: string, kind: CodeSymbolNode["kind"], offset: number, exported: boolean, signature: string) => {
-    const line = lineForOffset(text, offset);
+  const addSymbol = (name: string, kind: CodeSymbolNode["kind"], node: ts.Node, exported: boolean, signature?: string) => {
+    const line = lineForNode(sourceFile, node);
     symbols.push({
       id: symbolId(path, name, kind, line),
       name,
       kind,
       path,
+      language: codeLanguage(path),
+      parser: "typescript-ast",
       export: exported,
       line,
-      end_line: findBlockEndLine(text, offset),
+      end_line: endLineForNode(sourceFile, node),
+      signature: (signature ?? node.getText(sourceFile).split(/\r?\n/)[0] ?? "").trim().slice(0, 180),
+    });
+  };
+
+  const visit = (node: ts.Node) => {
+    if (ts.isFunctionDeclaration(node) && node.name) {
+      addSymbol(node.name.text, "function", node, hasExportModifier(node));
+    } else if (ts.isClassDeclaration(node) && node.name) {
+      addSymbol(node.name.text, "class", node, hasExportModifier(node));
+    } else if (ts.isMethodDeclaration(node) && ts.isIdentifier(node.name)) {
+      addSymbol(node.name.text, "method", node, hasExportModifier(node));
+    } else if (ts.isVariableStatement(node)) {
+      const exported = hasExportModifier(node);
+      for (const declaration of node.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name)) continue;
+        const initializer = declaration.initializer;
+        const kind = initializer && (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) ? "function" : "constant";
+        addSymbol(declaration.name.text, kind, declaration, exported, node.getText(sourceFile).split(/\r?\n/)[0]);
+      }
+    } else if (codeFileKind(path) === "test" && ts.isCallExpression(node)) {
+      const callee = propertyOrIdentifierName(node.expression);
+      const first = stringLiteralValue(node.arguments[0]);
+      if (first && (callee === "test" || callee === "it")) addSymbol(first, "test", node, false, first);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+
+  return symbols.sort((a, b) => a.line - b.line || a.name.localeCompare(b.name));
+}
+
+function extractGenericSymbols(path: string, text: string): CodeSymbolNode[] {
+  const symbols: CodeSymbolNode[] = [];
+  const language = codeLanguage(path);
+  const addSymbol = (name: string, kind: CodeSymbolNode["kind"], line: number, signature: string, exported = true) => {
+    symbols.push({
+      id: symbolId(path, name, kind, line),
+      name,
+      kind,
+      path,
+      language,
+      parser: "generic-static",
+      export: exported,
+      line,
+      end_line: null,
       signature: signature.trim().slice(0, 180),
     });
   };
 
-  for (const match of text.matchAll(/(^|\n)\s*(export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\([^)]*\)/g)) {
-    addSymbol(match[3], "function", match.index ?? 0, Boolean(match[2]), lineTextAt(text, lineForOffset(text, match.index ?? 0)));
-  }
-  for (const match of text.matchAll(/(^|\n)\s*(export\s+)?class\s+([A-Za-z_$][\w$]*)\b/g)) {
-    addSymbol(match[3], "class", match.index ?? 0, Boolean(match[2]), lineTextAt(text, lineForOffset(text, match.index ?? 0)));
-  }
-  for (const match of text.matchAll(/(^|\n)\s*(export\s+)?const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>/g)) {
-    addSymbol(match[3], "function", match.index ?? 0, Boolean(match[2]), lineTextAt(text, lineForOffset(text, match.index ?? 0)));
-  }
-  for (const match of text.matchAll(/(^|\n)\s*(export\s+)?const\s+([A-Za-z_$][\w$]*)\s*=/g)) {
-    if (symbols.some((symbol) => symbol.path === path && symbol.name === match[3] && symbol.line === lineForOffset(text, match.index ?? 0))) continue;
-    addSymbol(match[3], "constant", match.index ?? 0, Boolean(match[2]), lineTextAt(text, lineForOffset(text, match.index ?? 0)));
-  }
-  if (codeFileKind(path) === "test") {
-    for (const match of text.matchAll(/\b(?:test|it)\s*\(\s*["'`]([^"'`]+)["'`]/g)) {
-      const title = match[1];
-      addSymbol(title, "test", match.index ?? 0, false, title);
+  const lines = text.split(/\r?\n/);
+  lines.forEach((lineText, index) => {
+    const line = index + 1;
+    const trimmed = lineText.trim();
+    if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("//")) return;
+
+    let match: RegExpMatchArray | null = null;
+    if (language === "python") {
+      match = trimmed.match(/^(?:async\s+)?def\s+([A-Za-z_][\w]*)\s*\(/);
+      if (match) return addSymbol(match[1], "function", line, trimmed);
+      match = trimmed.match(/^class\s+([A-Za-z_][\w]*)\b/);
+      if (match) return addSymbol(match[1], "class", line, trimmed);
     }
-  }
+    if (language === "go") {
+      match = trimmed.match(/^func\s+(?:\([^)]+\)\s*)?([A-Za-z_][\w]*)\s*\(/);
+      if (match) return addSymbol(match[1], "function", line, trimmed);
+      match = trimmed.match(/^type\s+([A-Za-z_][\w]*)\s+(?:struct|interface)\b/);
+      if (match) return addSymbol(match[1], "class", line, trimmed);
+    }
+    if (language === "rust") {
+      match = trimmed.match(/^(?:pub\s+)?(?:async\s+)?fn\s+([A-Za-z_][\w]*)\s*[<(]/);
+      if (match) return addSymbol(match[1], "function", line, trimmed, /^pub\b/.test(trimmed));
+      match = trimmed.match(/^(?:pub\s+)?(?:struct|enum|trait)\s+([A-Za-z_][\w]*)\b/);
+      if (match) return addSymbol(match[1], "class", line, trimmed, /^pub\b/.test(trimmed));
+    }
+    if (language === "ruby") {
+      match = trimmed.match(/^def\s+(?:self\.)?([A-Za-z_][\w!?=]*)/);
+      if (match) return addSymbol(match[1], "function", line, trimmed);
+      match = trimmed.match(/^class\s+([A-Za-z_:][\w:]*)\b/);
+      if (match) return addSymbol(match[1], "class", line, trimmed);
+    }
+    if (language === "php") {
+      match = trimmed.match(/^(?:public|private|protected|static|\s)*function\s+([A-Za-z_][\w]*)\s*\(/);
+      if (match) return addSymbol(match[1], "function", line, trimmed);
+      match = trimmed.match(/^(?:final\s+|abstract\s+)?class\s+([A-Za-z_][\w]*)\b/);
+      if (match) return addSymbol(match[1], "class", line, trimmed);
+    }
+    if (["java", "kotlin", "csharp", "cpp", "swift"].includes(language)) {
+      match = trimmed.match(/^(?:public|private|protected|internal|static|final|open|override|async|virtual|inline|constexpr|\s)+[\w:<>,\[\]?&*\s]+\s+([A-Za-z_][\w]*)\s*\([^;]*\)\s*(?:\{|=>|throws\b)?/);
+      if (match && !["if", "for", "while", "switch", "catch"].includes(match[1])) return addSymbol(match[1], "function", line, trimmed);
+      match = trimmed.match(/^(?:public|private|protected|internal|static|final|open|abstract|sealed|\s)*(?:class|interface|struct|enum)\s+([A-Za-z_][\w]*)\b/);
+      if (match) return addSymbol(match[1], "class", line, trimmed);
+    }
+  });
+
   return symbols.sort((a, b) => a.line - b.line || a.name.localeCompare(b.name));
 }
 
 function extractImports(projectDir: string, path: string, text: string, knownFiles: Set<string>): CodeImportEdge[] {
+  const sourceFile = sourceFileFor(path, text);
   const imports: CodeImportEdge[] = [];
-  for (const match of text.matchAll(/\bimport\s+([\s\S]*?)\s+from\s+["']([^"']+)["']/g)) {
+
+  const visit = (node: ts.Node) => {
+    if (ts.isImportDeclaration(node)) {
+      const specifier = stringLiteralValue(node.moduleSpecifier);
+      if (specifier) {
+        imports.push({
+          from_path: path,
+          to_path: resolveImportPath(projectDir, path, specifier, knownFiles),
+          specifier,
+          imported: importedNamesFromClause(node.importClause),
+          kind: "import",
+          parser: "typescript-ast",
+          line: lineForNode(sourceFile, node),
+        });
+      }
+    } else if (ts.isExportDeclaration(node)) {
+      const specifier = stringLiteralValue(node.moduleSpecifier);
+      if (specifier) {
+        imports.push({
+          from_path: path,
+          to_path: resolveImportPath(projectDir, path, specifier, knownFiles),
+          specifier,
+          imported: [],
+          kind: "export",
+          parser: "typescript-ast",
+          line: lineForNode(sourceFile, node),
+        });
+      }
+    } else if (ts.isCallExpression(node) && propertyOrIdentifierName(node.expression) === "require") {
+      const specifier = stringLiteralValue(node.arguments[0]);
+      if (specifier) {
+        imports.push({
+          from_path: path,
+          to_path: resolveImportPath(projectDir, path, specifier, knownFiles),
+          specifier,
+          imported: [],
+          kind: "require",
+          parser: "typescript-ast",
+          line: lineForNode(sourceFile, node),
+        });
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+
+  return imports.sort((a, b) => a.line - b.line || a.specifier.localeCompare(b.specifier));
+}
+
+function resolveGenericImportPath(projectDir: string, fromRelativePath: string, specifier: string, knownFiles: Set<string>): string | null {
+  const normalized = specifier.replace(/\\/g, "/");
+  const candidates = new Set<string>();
+  if (normalized.startsWith(".")) {
+    const base = join(dirname(join(projectDir, fromRelativePath)), normalized);
+    candidates.add(relative(projectDir, base).replace(/\\/g, "/"));
+    for (const extension of CODE_EXTENSIONS) candidates.add(relative(projectDir, `${base}${extension}`).replace(/\\/g, "/"));
+    for (const extension of CODE_EXTENSIONS) candidates.add(relative(projectDir, join(base, `index${extension}`)).replace(/\\/g, "/"));
+  } else {
+    const slashPath = normalized.replace(/\./g, "/");
+    for (const extension of CODE_EXTENSIONS) {
+      candidates.add(`${slashPath}${extension}`);
+      candidates.add(join("src", `${slashPath}${extension}`).replace(/\\/g, "/"));
+    }
+  }
+  for (const candidate of candidates) {
+    if (knownFiles.has(candidate)) return candidate;
+  }
+  return null;
+}
+
+function extractGenericImports(projectDir: string, path: string, text: string, knownFiles: Set<string>): CodeImportEdge[] {
+  const imports: CodeImportEdge[] = [];
+  const language = codeLanguage(path);
+  const addImport = (specifier: string, line: number, kind: CodeImportEdge["kind"] = "import", imported: string[] = []) => {
     imports.push({
       from_path: path,
-      to_path: resolveImportPath(projectDir, path, match[2], knownFiles),
-      specifier: match[2],
-      imported: parseImportedNames(match[1]),
-      kind: "import",
-      line: lineForOffset(text, match.index ?? 0),
+      to_path: resolveGenericImportPath(projectDir, path, specifier, knownFiles),
+      specifier,
+      imported,
+      kind,
+      parser: "generic-static",
+      line,
     });
-  }
-  for (const match of text.matchAll(/\brequire\(\s*["']([^"']+)["']\s*\)/g)) {
-    imports.push({
-      from_path: path,
-      to_path: resolveImportPath(projectDir, path, match[1], knownFiles),
-      specifier: match[1],
-      imported: [],
-      kind: "require",
-      line: lineForOffset(text, match.index ?? 0),
-    });
-  }
-  for (const match of text.matchAll(/\bexport\s+.*?\s+from\s+["']([^"']+)["']/g)) {
-    imports.push({
-      from_path: path,
-      to_path: resolveImportPath(projectDir, path, match[1], knownFiles),
-      specifier: match[1],
-      imported: [],
-      kind: "export",
-      line: lineForOffset(text, match.index ?? 0),
-    });
-  }
+  };
+
+  const lines = text.split(/\r?\n/);
+  lines.forEach((lineText, index) => {
+    const line = index + 1;
+    const trimmed = lineText.trim();
+    if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("//")) return;
+    let match: RegExpMatchArray | null = null;
+
+    if (language === "python") {
+      match = trimmed.match(/^from\s+([A-Za-z_][\w.]*)\s+import\s+(.+)$/);
+      if (match) return addImport(match[1], line, "import", match[2].split(",").map((item) => item.trim().split(/\s+/)[0]).filter(Boolean));
+      match = trimmed.match(/^import\s+(.+)$/);
+      if (match) return addImport(match[1].split(",")[0].trim().split(/\s+/)[0], line);
+    }
+    if (language === "go") {
+      match = trimmed.match(/^import\s+(?:\w+\s+)?["`]([^"`]+)["`]$/);
+      if (match) return addImport(match[1], line);
+    }
+    if (language === "rust") {
+      match = trimmed.match(/^use\s+([^;]+);/);
+      if (match) return addImport(match[1], line, "use");
+      match = trimmed.match(/^mod\s+([A-Za-z_][\w]*);/);
+      if (match) return addImport(match[1], line, "use");
+    }
+    if (language === "ruby") {
+      match = trimmed.match(/^require(?:_relative)?\s+["']([^"']+)["']/);
+      if (match) return addImport(match[1], line, "require");
+    }
+    if (language === "php") {
+      match = trimmed.match(/^use\s+([^;]+);/);
+      if (match) return addImport(match[1].replace(/\\/g, "/"), line, "use");
+      match = trimmed.match(/^(?:require|include)(?:_once)?\s*\(?\s*["']([^"']+)["']/);
+      if (match) return addImport(match[1], line, "include");
+    }
+    if (["java", "kotlin", "swift"].includes(language)) {
+      match = trimmed.match(/^import\s+([^;]+);?/);
+      if (match) return addImport(match[1].trim(), line);
+    }
+    if (["csharp", "cpp"].includes(language)) {
+      match = trimmed.match(/^using\s+([^;]+);/);
+      if (match) return addImport(match[1].trim(), line, "use");
+      match = trimmed.match(/^#include\s+[<"]([^>"]+)[>"]/);
+      if (match) return addImport(match[1], line, "include");
+    }
+  });
+
   return imports.sort((a, b) => a.line - b.line || a.specifier.localeCompare(b.specifier));
 }
 
@@ -1296,19 +1557,32 @@ function symbolAtLine(symbols: CodeSymbolNode[], path: string, line: number): Co
 }
 
 function extractCalls(path: string, text: string, symbols: CodeSymbolNode[], symbolByName: Map<string, CodeSymbolNode[]>): CodeCallEdge[] {
+  const sourceFile = sourceFileFor(path, text);
   const calls: CodeCallEdge[] = [];
-  for (const match of text.matchAll(/\b([A-Za-z_$][\w$]*)\s*\(/g)) {
-    const name = match[1];
-    if (["if", "for", "while", "switch", "catch", "function", "return", "test", "it", "describe"].includes(name)) continue;
+  const visit = (node: ts.Node) => {
+    if (!ts.isCallExpression(node)) {
+      ts.forEachChild(node, visit);
+      return;
+    }
+    const name = propertyOrIdentifierName(node.expression);
+    if (!name || ["test", "it", "describe"].includes(name)) {
+      ts.forEachChild(node, visit);
+      return;
+    }
     const targets = symbolByName.get(name);
-    if (!targets?.length) continue;
-    const line = lineForOffset(text, match.index ?? 0);
+    if (!targets?.length) {
+      ts.forEachChild(node, visit);
+      return;
+    }
+    const line = lineForNode(sourceFile, node);
     const caller = symbolAtLine(symbols, path, line);
     for (const target of targets.slice(0, 3)) {
       if (target.path === path && target.line === line) continue;
       calls.push({ from_symbol: caller?.id ?? null, to_symbol: target.id, path, line });
     }
-  }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
   return calls.sort((a, b) => a.line - b.line || a.to_symbol.localeCompare(b.to_symbol));
 }
 
@@ -1400,14 +1674,18 @@ export function buildCodeGraph(projectDir: string): CodeGraph {
       id: `file:${slugify(rel)}`,
       path: rel,
       language: codeLanguage(rel),
+      parser: codeParser(rel),
       kind: codeFileKind(rel),
       size_bytes: Buffer.byteLength(content),
       line_count: content.split(/\r?\n/).length,
       hash: createHash("sha256").update(content).digest("hex").slice(0, 16),
     });
-    if (CODE_EXTENSIONS.has(extensionOf(rel))) {
+    if (TS_AST_EXTENSIONS.has(extensionOf(rel))) {
       symbols.push(...extractSymbols(rel, content));
       imports.push(...extractImports(projectDir, rel, content, knownFiles));
+    } else if (CODE_EXTENSIONS.has(extensionOf(rel))) {
+      symbols.push(...extractGenericSymbols(rel, content));
+      imports.push(...extractGenericImports(projectDir, rel, content, knownFiles));
     }
   }
 
@@ -1422,7 +1700,7 @@ export function buildCodeGraph(projectDir: string): CodeGraph {
   const routes: CodeRouteNode[] = [];
   const tests: CodeTestEdge[] = [];
   for (const [rel, content] of contents) {
-    if (!CODE_EXTENSIONS.has(extensionOf(rel))) continue;
+    if (!TS_AST_EXTENSIONS.has(extensionOf(rel))) continue;
     const fileSymbols = symbols.filter((symbol) => symbol.path === rel);
     const fileImports = imports.filter((item) => item.from_path === rel);
     calls.push(...extractCalls(rel, content, symbols, symbolByName));
