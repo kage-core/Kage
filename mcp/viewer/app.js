@@ -11,7 +11,9 @@
     visibleEntityIds: new Set(),
     visibleEdgeIds: new Set(),
     selected: null,
-    metrics: null
+    metrics: null,
+    viewBox: { x: 0, y: 0, width: 1000, height: 660 },
+    pan: null
   };
 
   var palette = {
@@ -34,11 +36,18 @@
   var els = {
     graphFile: document.getElementById("graphFile"),
     graphSummary: document.getElementById("graphSummary"),
+    statusStrip: document.getElementById("statusStrip"),
+    workspaceMode: document.getElementById("workspaceMode"),
+    graphSubhead: document.getElementById("graphSubhead"),
+    selectionStatus: document.getElementById("selectionStatus"),
     searchInput: document.getElementById("searchInput"),
     viewMode: document.getElementById("viewMode"),
     typeFilter: document.getElementById("typeFilter"),
     relationFilter: document.getElementById("relationFilter"),
     resetView: document.getElementById("resetView"),
+    zoomOut: document.getElementById("zoomOut"),
+    zoomIn: document.getElementById("zoomIn"),
+    fitView: document.getElementById("fitView"),
     svg: document.getElementById("graphSvg"),
     nodeLayer: document.getElementById("nodeLayer"),
     edgeLayer: document.getElementById("edgeLayer"),
@@ -56,12 +65,21 @@
   els.viewMode.addEventListener("change", render);
   els.typeFilter.addEventListener("change", render);
   els.relationFilter.addEventListener("change", render);
+  els.zoomOut.addEventListener("click", function () { zoomView(1.18); });
+  els.zoomIn.addEventListener("click", function () { zoomView(0.84); });
+  els.fitView.addEventListener("click", function () { fitView(); renderSvg(); });
+  els.svg.addEventListener("mousedown", startPan);
+  els.svg.addEventListener("click", handleSvgClick);
+  els.svg.addEventListener("wheel", handleWheelZoom, { passive: false });
+  window.addEventListener("mousemove", continuePan);
+  window.addEventListener("mouseup", endPan);
   els.resetView.addEventListener("click", function () {
     els.searchInput.value = "";
     els.viewMode.value = "combined";
     els.typeFilter.value = "";
     els.relationFilter.value = "";
     state.selected = null;
+    fitView();
     render();
   });
   loadFromUrlParams();
@@ -112,6 +130,7 @@
 
     populateFilters();
     layoutGraph();
+    fitView();
     els.emptyState.classList.add("hidden");
     els.graphSummary.textContent = fileName + " loaded: " + entities.length + " nodes, " + edges.length + " relations.";
     render();
@@ -306,28 +325,33 @@
     state.positions = new Map();
     var width = 1000;
     var height = 660;
-    var centerX = width / 2;
-    var centerY = height / 2;
-    var types = unique(state.entities.map(function (entity) {
-      return entity.type || "unknown";
-    })).sort();
-    var typeRadius = Math.min(width, height) * 0.36;
-
-    types.forEach(function (type, typeIndex) {
+    var clusters = [
+      { kind: "memory", x: 325, y: 330 },
+      { kind: "code", x: 705, y: 330 },
+      { kind: "unknown", x: 500, y: 330 }
+    ];
+    clusters.forEach(function (cluster) {
       var bucket = state.entities.filter(function (entity) {
-        return (entity.type || "unknown") === type;
+        return (entity.graph_kind || "unknown") === cluster.kind;
+      }).sort(function (a, b) {
+        return degreeOf(b.id) - degreeOf(a.id) || displayName(a).localeCompare(displayName(b));
       });
-      var typeAngle = (Math.PI * 2 * typeIndex) / Math.max(types.length, 1) - Math.PI / 2;
-      var typeCenterX = centerX + Math.cos(typeAngle) * typeRadius * 0.48;
-      var typeCenterY = centerY + Math.sin(typeAngle) * typeRadius * 0.48;
-      var bucketRadius = Math.max(54, Math.min(155, 34 + bucket.length * 10));
-
+      if (!bucket.length) return;
+      var rings = Math.ceil(bucket.length / 14);
       bucket.forEach(function (entity, index) {
-        var angle = (Math.PI * 2 * index) / Math.max(bucket.length, 1) + typeAngle;
-        state.positions.set(entity.id, {
-          x: clamp(typeCenterX + Math.cos(angle) * bucketRadius, 70, width - 70),
-          y: clamp(typeCenterY + Math.sin(angle) * bucketRadius, 55, height - 55)
-        });
+        var ring = Math.floor(index / 14);
+        var ringIndex = index % 14;
+        var ringSize = Math.min(14, bucket.length - ring * 14);
+        var radius = Math.max(48, 74 + ring * 82);
+        var angle = (Math.PI * 2 * ringIndex) / Math.max(ringSize, 1) - Math.PI / 2 + ring * 0.32;
+        if (index === 0) {
+          state.positions.set(entity.id, { x: cluster.x, y: cluster.y });
+        } else {
+          state.positions.set(entity.id, {
+            x: clamp(cluster.x + Math.cos(angle) * radius, 54, width - 54),
+            y: clamp(cluster.y + Math.sin(angle) * radius, 54, height - 54)
+          });
+        }
       });
     });
   }
@@ -381,6 +405,7 @@
   function renderSvg() {
     els.edgeLayer.textContent = "";
     els.nodeLayer.textContent = "";
+    els.svg.setAttribute("viewBox", [state.viewBox.x, state.viewBox.y, state.viewBox.width, state.viewBox.height].join(" "));
 
     var selectedEntityId = state.selected && state.selected.kind === "entity" ? state.selected.id : null;
     var selectedEdgeId = state.selected && state.selected.kind === "edge" ? state.selected.id : null;
@@ -412,6 +437,9 @@
         state.selected = { kind: "edge", id: edge.id };
         render();
       });
+      hit.addEventListener("mousedown", function (event) {
+        event.stopPropagation();
+      });
       group.appendChild(line);
       group.appendChild(hit);
       els.edgeLayer.appendChild(group);
@@ -425,22 +453,28 @@
       var selected = selectedEntityId === entity.id;
       var connected = connectedIds.entities.has(entity.id);
       var group = svgEl("g", {
-        class: classNames("node", !visible && "filtered", selected && "selected", connected && "connected"),
+        class: classNames("node", "graph-" + (entity.graph_kind || "unknown"), !visible && "filtered", selected && "selected", connected && "connected"),
         transform: "translate(" + pos.x + " " + pos.y + ")"
       });
       var circle = svgEl("circle", {
-        r: selected ? 16 : 13,
+        r: selected ? 23 : connected ? 20 : 16,
         fill: palette[entity.type] || palette.default
       });
       var text = svgEl("text", {
-        x: 19,
+        x: 24,
         y: 4
       });
-      text.textContent = displayName(entity);
+      text.textContent = shortName(displayName(entity), selected || connected ? 34 : 22);
+      var title = svgEl("title");
+      title.textContent = displayName(entity) + "\n" + (entity.summary || "");
       group.addEventListener("click", function () {
         state.selected = { kind: "entity", id: entity.id };
         render();
       });
+      group.addEventListener("mousedown", function (event) {
+        event.stopPropagation();
+      });
+      group.appendChild(title);
       group.appendChild(circle);
       group.appendChild(text);
       els.nodeLayer.appendChild(group);
@@ -495,6 +529,7 @@
     if (!state.selected) {
       els.selectionDetails.className = "details-empty";
       els.selectionDetails.textContent = "Select an entity or edge.";
+      els.selectionStatus.textContent = "No selection";
       return;
     }
 
@@ -517,6 +552,7 @@
     kind.textContent = state.selected.kind === "entity" ? (item.type || "unknown") : "edge";
     var rows = document.createElement("dl");
     rows.appendChild(detailRow("ID", item.id));
+    els.selectionStatus.textContent = state.selected.kind === "entity" ? "Node" : reviewStatus(item);
 
     if (state.selected.kind === "entity") {
       rows.appendChild(detailRow("Summary", item.summary || ""));
@@ -608,6 +644,36 @@
       div.querySelector("span").textContent = metric[0];
       els.metricsSummary.appendChild(div);
     });
+    renderStatusStrip(visibleEntities, visibleEdges, official);
+    els.workspaceMode.textContent = (els.viewMode.value || "combined").replace(/^./, function (letter) { return letter.toUpperCase(); });
+    els.graphSubhead.textContent = visibleEntities.length + " visible nodes and " + visibleEdges.length + " visible relations.";
+  }
+
+  function renderStatusStrip(visibleEntities, visibleEdges, official) {
+    if (!els.statusStrip) return;
+    var memoryCount = visibleEntities.filter(function (entity) { return entity.graph_kind === "memory"; }).length;
+    var codeCount = visibleEntities.filter(function (entity) { return entity.graph_kind === "code"; }).length;
+    var reviewFlags = visibleEdges.filter(function (edge) { return reviewStatus(edge) !== "ok"; }).length;
+    var pills = official ? [
+      ["Readiness", official.harness.readiness_score + "/100", ""],
+      ["Tokens saved", official.savings ? String(official.savings.estimated_tokens_saved_per_recall) : "n/a", "warn"],
+      ["Quality", official.memory_graph.average_quality_score + "/100", "memory"],
+      ["Parser coverage", official.code_graph.indexer_coverage_percent + "%", "code"]
+    ] : [
+      ["Memory", String(memoryCount), "memory"],
+      ["Code", String(codeCount), "code"],
+      ["Relations", String(visibleEdges.length), ""],
+      ["Review flags", String(reviewFlags), reviewFlags ? "warn" : ""]
+    ];
+    els.statusStrip.textContent = "";
+    pills.forEach(function (pill) {
+      var span = document.createElement("span");
+      span.className = classNames("status-pill", pill[2]);
+      span.innerHTML = "<strong></strong><span></span>";
+      span.querySelector("strong").textContent = pill[1];
+      span.querySelector("span").textContent = pill[0];
+      els.statusStrip.appendChild(span);
+    });
   }
 
   function connectedEntityIds(entityId, edgeId) {
@@ -630,6 +696,108 @@
     return { entities: entities, edges: edges };
   }
 
+  function degreeOf(id) {
+    return state.edges.reduce(function (sum, edge) {
+      return sum + (edge.from === id || edge.to === id ? 1 : 0);
+    }, 0);
+  }
+
+  function fitView() {
+    var visible = state.entities.filter(function (entity) {
+      return state.visibleEntityIds.size === 0 || state.visibleEntityIds.has(entity.id);
+    });
+    var points = visible.map(function (entity) { return state.positions.get(entity.id); }).filter(Boolean);
+    if (!points.length) {
+      state.viewBox = { x: 0, y: 0, width: 1000, height: 660 };
+      return;
+    }
+    var xs = points.map(function (point) { return point.x; });
+    var ys = points.map(function (point) { return point.y; });
+    var minX = Math.min.apply(null, xs) - 90;
+    var maxX = Math.max.apply(null, xs) + 130;
+    var minY = Math.min.apply(null, ys) - 80;
+    var maxY = Math.max.apply(null, ys) + 80;
+    state.viewBox = {
+      x: clamp(minX, -160, 1000),
+      y: clamp(minY, -120, 660),
+      width: Math.max(360, Math.min(940, maxX - minX)),
+      height: Math.max(280, Math.min(650, maxY - minY))
+    };
+  }
+
+  function zoomView(factor) {
+    var box = state.viewBox;
+    var nextWidth = clamp(box.width * factor, 260, 1400);
+    var nextHeight = clamp(box.height * factor, 210, 950);
+    state.viewBox = {
+      x: box.x + (box.width - nextWidth) / 2,
+      y: box.y + (box.height - nextHeight) / 2,
+      width: nextWidth,
+      height: nextHeight
+    };
+    renderSvg();
+  }
+
+  function startPan(event) {
+    if (event.button !== 0) return;
+    state.pan = {
+      x: event.clientX,
+      y: event.clientY,
+      viewBox: Object.assign({}, state.viewBox),
+      moved: false
+    };
+    els.svg.classList.add("dragging");
+  }
+
+  function continuePan(event) {
+    if (!state.pan) return;
+    var rect = els.svg.getBoundingClientRect();
+    var dx = (event.clientX - state.pan.x) / Math.max(rect.width, 1) * state.pan.viewBox.width;
+    var dy = (event.clientY - state.pan.y) / Math.max(rect.height, 1) * state.pan.viewBox.height;
+    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) state.pan.moved = true;
+    state.viewBox = {
+      x: state.pan.viewBox.x - dx,
+      y: state.pan.viewBox.y - dy,
+      width: state.pan.viewBox.width,
+      height: state.pan.viewBox.height
+    };
+    renderSvg();
+  }
+
+  function endPan() {
+    if (!state.pan) return;
+    window.setTimeout(function () {
+      state.pan = null;
+    }, 0);
+    els.svg.classList.remove("dragging");
+  }
+
+  function handleSvgClick(event) {
+    if (state.pan && state.pan.moved) return;
+    if (event.target !== els.svg) return;
+    state.selected = null;
+    render();
+  }
+
+  function handleWheelZoom(event) {
+    event.preventDefault();
+    var rect = els.svg.getBoundingClientRect();
+    var pointX = state.viewBox.x + (event.clientX - rect.left) / Math.max(rect.width, 1) * state.viewBox.width;
+    var pointY = state.viewBox.y + (event.clientY - rect.top) / Math.max(rect.height, 1) * state.viewBox.height;
+    var factor = event.deltaY > 0 ? 1.12 : 0.88;
+    var nextWidth = clamp(state.viewBox.width * factor, 260, 1400);
+    var nextHeight = clamp(state.viewBox.height * factor, 210, 950);
+    var rx = (pointX - state.viewBox.x) / state.viewBox.width;
+    var ry = (pointY - state.viewBox.y) / state.viewBox.height;
+    state.viewBox = {
+      x: pointX - nextWidth * rx,
+      y: pointY - nextHeight * ry,
+      width: nextWidth,
+      height: nextHeight
+    };
+    renderSvg();
+  }
+
   function displayName(entity) {
     if (!entity) return "Unknown";
     return entity.name || entity.title || entity.path || entity.id || "Unknown";
@@ -637,6 +805,11 @@
 
   function searchableText(value) {
     return normalize(JSON.stringify(value || {}));
+  }
+
+  function shortName(value, max) {
+    var text = String(value || "");
+    return text.length > max ? text.slice(0, Math.max(1, max - 1)) + "..." : text;
   }
 
   function normalize(value) {

@@ -3,23 +3,60 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Kage Graph Viewer</title>
-    <link rel="stylesheet" href="./styles.css">
+    <title>Kage Memory Control Plane</title>
+    <link rel="stylesheet" href="./styles.css?v=2">
   </head>
   <body>
     <header class="app-header">
-      <div>
-        <h1>Kage Graph Viewer</h1>
-        <p id="graphSummary">Load <code>.agent_memory/graph/graph.json</code> or <code>.agent_memory/code_graph/graph.json</code>.</p>
+      <div class="brand-block">
+        <span class="eyebrow">Kage</span>
+        <h1>Memory Control Plane</h1>
+        <p id="graphSummary">Load memory, code, and metrics graphs to inspect what agents know and why.</p>
       </div>
+      <div id="statusStrip" class="status-strip" aria-label="Graph health"></div>
       <label class="file-picker">
-        <span>Load JSON graph</span>
+        <span>Load Graph JSON</span>
         <input id="graphFile" type="file" accept=".json,application/json" multiple>
       </label>
     </header>
 
     <main class="layout">
-      <section class="toolbar" aria-label="Graph controls">
+      <section class="graph-panel" aria-label="Graph rendering">
+        <div class="graph-toolbar">
+          <div>
+            <h2>Knowledge Graph</h2>
+            <p id="graphSubhead">Combined repo memory and source graph.</p>
+          </div>
+          <div class="graph-actions" aria-label="Graph view controls">
+            <span class="interaction-hint">Drag canvas. Wheel to zoom.</span>
+            <button id="zoomOut" type="button">-</button>
+            <button id="fitView" type="button">Fit</button>
+            <button id="zoomIn" type="button">+</button>
+          </div>
+        </div>
+        <svg id="graphSvg" viewBox="0 0 1000 660" role="img" aria-labelledby="graphTitle graphDescription">
+          <title id="graphTitle">Kage local memory and code graph</title>
+          <desc id="graphDescription">Entities and relationships from loaded Kage memory and code graph JSON files.</desc>
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z"></path>
+            </marker>
+          </defs>
+          <g id="edgeLayer"></g>
+          <g id="nodeLayer"></g>
+        </svg>
+        <div id="emptyState" class="empty-state">
+          <strong>No graph loaded</strong>
+          <span>Choose Kage graph JSON files or open with graph, code, and metrics URL params.</span>
+        </div>
+      </section>
+
+      <aside class="control-panel" aria-label="Graph controls">
+        <div class="panel-heading compact">
+          <h2>Workspace</h2>
+          <span id="workspaceMode">Combined</span>
+        </div>
+        <div id="metricsSummary" class="metrics-grid"></div>
         <label>
           <span>Search</span>
           <input id="searchInput" type="search" placeholder="Entity, edge, type, tag, path...">
@@ -45,30 +82,18 @@
           </select>
         </label>
         <button id="resetView" type="button">Reset</button>
-      </section>
-
-      <section class="graph-panel" aria-label="Graph rendering">
-        <svg id="graphSvg" viewBox="0 0 1000 660" role="img" aria-labelledby="graphTitle graphDescription">
-          <title id="graphTitle">Kage local memory graph</title>
-          <desc id="graphDescription">Entities and relationships from a loaded Kage graph JSON file.</desc>
-          <defs>
-            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z"></path>
-            </marker>
-          </defs>
-          <g id="edgeLayer"></g>
-          <g id="nodeLayer"></g>
-        </svg>
-        <div id="emptyState" class="empty-state">
-          <strong>No graph loaded</strong>
-          <span>Choose a Kage memory graph or code graph JSON file.</span>
+        <div class="legend" aria-label="Legend">
+          <span><i class="dot memory-dot"></i>Memory</span>
+          <span><i class="dot code-dot"></i>Code</span>
+          <span><i class="line sample-line"></i>Relation</span>
         </div>
-      </section>
+      </aside>
 
       <aside class="details-panel" aria-label="Selection details">
-        <h2>Metrics</h2>
-        <div id="metricsSummary" class="metrics-grid"></div>
-        <h2>Selection</h2>
+        <div class="panel-heading compact">
+          <h2>Inspector</h2>
+          <span id="selectionStatus">No selection</span>
+        </div>
         <div id="selectionDetails" class="details-empty">Select an entity or edge.</div>
       </aside>
 
@@ -89,6 +114,6 @@
       </section>
     </main>
 
-    <script src="./app.js"></script>
+    <script src="./app.js?v=2"></script>
   </body>
 </html>

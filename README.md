@@ -1,8 +1,8 @@
 # Kage
 
-Kage gives Claude Code a persistent memory that compounds over time — across sessions, projects, and your entire team.
+Kage gives Codex, Claude Code, and other coding agents a persistent memory that compounds over time — across sessions, projects, and your entire team.
 
-Every bug fixed, design decision made, and pattern discovered gets saved to a searchable knowledge graph. The repo indexer scans your entire codebase on install, so Claude starts every session already knowing your architecture, schema, routes, and conventions — without reading a single file. Committed to git. Shared with teammates on `git pull`. Extended by a live community graph anyone can contribute to.
+Every bug fixed, design decision made, and pattern discovered gets saved to a searchable knowledge graph. The repo indexer scans your codebase on install, so agents start each session with architecture, routes, symbols, tests, conventions, runbooks, and known pitfalls already indexed. Committed to git. Shared with teammates on `git pull`. Designed for a future community graph anyone can contribute to.
 
 No background process. No external API key. No pip install.
 
@@ -114,6 +114,21 @@ For deeper code intelligence, Kage can ingest external Tree-sitter, SCIP, LSIF,
 and LSP symbol artifacts from `.agent_memory/code_index/` or common root-level
 dump names. These enrich the code graph without making native parsers mandatory
 for every install.
+
+### Visual Memory Control Plane
+
+The zero-dependency graph viewer lives at `mcp/viewer/index.html`. It can load
+memory graph, code graph, and metrics JSON files together, or auto-load them from
+URL params:
+
+```text
+mcp/viewer/index.html?graph=/repo/.agent_memory/graph/graph.json&code=/repo/.agent_memory/code_graph/graph.json&metrics=/repo/.agent_memory/metrics.json
+```
+
+The viewer is built for live demos and review: combined/memory/code modes, graph
+search, type and relation filters, click-to-inspect nodes and edges, review risk
+markers, readiness and token-savings metrics, drag-to-pan, wheel zoom, and fit
+controls.
 
 ### Codex
 

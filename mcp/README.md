@@ -114,6 +114,17 @@ SVG, supports memory/code/combined modes, filters by type and relation, displays
 metrics, and marks review risks such as low-confidence or missing-evidence
 edges.
 
+For demos or local docs, the viewer also accepts URL params:
+
+```text
+mcp/viewer/index.html?graph=/repo/.agent_memory/graph/graph.json&code=/repo/.agent_memory/code_graph/graph.json&metrics=/repo/.agent_memory/metrics.json
+```
+
+The graph canvas supports drag-to-pan, wheel zoom, explicit zoom buttons,
+fit-to-view, click selection, and background deselect. This keeps review
+interactive enough to explain how repo facts, learned memory, evidence,
+confidence, and token-savings metrics connect.
+
 ## MCP Tools
 
 Local repo tools:
