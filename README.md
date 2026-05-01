@@ -12,6 +12,31 @@ No background process. No external API key. No pip install.
 
 Kage now includes a TypeScript repo-recall kernel in `mcp/`.
 
+### Codex one-command setup
+
+From the repo you want Kage to remember, ask Codex:
+
+```text
+Set up Kage in this repo. Run the official Codex installer:
+curl -fsSL https://raw.githubusercontent.com/kage-core/Kage/master/codex-setup.sh | bash
+```
+
+Codex can execute that command itself. The installer clones/updates Kage under
+`~/.kage/Kage`, builds the MCP package, adds the Kage stdio server to
+`~/.codex/config.toml`, and runs `kage init` for the current repo. Restart Codex
+afterward so the new MCP server is loaded.
+
+If you already cloned Kage locally:
+
+```bash
+/path/to/Kage/codex-setup.sh --project /path/to/your/repo
+```
+
+The lower-friction future path is a hosted/deep-link installer that asks Codex
+for approval and runs this same script. For now, the one-command shell installer
+is the most reliable cross-platform path for Codex because MCP servers still
+need local config.
+
 ```bash
 cd mcp
 npm install
