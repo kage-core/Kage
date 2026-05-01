@@ -70,6 +70,7 @@
 #     mkdir -p .agent_memory/{nodes,pending,deprecated}
 #     Write .agent_memory/index.md (if missing): # Project Memory Index\n## Domains
 #     Write .agent_memory/SUMMARY.md (if missing): # Project Memory Summary\n*No nodes yet.*
+#     Write AGENTS.md Kage policy block (if missing) so Codex uses Kage automatically
 #     Append ".agent_memory/pending/" to .gitignore (if not already present)
 #     Append Kage block to CLAUDE.md (or create it):
 #       ## Kage Memory
@@ -211,6 +212,46 @@ if git rev-parse --git-dir > /dev/null 2>&1; then
     grep -q "Kage Memory" CLAUDE.md || printf '\n%s\n' "$KAGE_BLOCK" >> CLAUDE.md
   else
     printf '%s\n' "$KAGE_BLOCK" > CLAUDE.md
+  fi
+
+  AGENTS_POLICY='<!-- KAGE_MEMORY_POLICY_V1 -->
+# Kage Memory Harness
+
+This repo uses Kage as an automatic memory harness for coding agents.
+
+## Automatic Recall
+
+Before making code changes, answering repo-specific implementation questions, debugging failures, or proposing architecture:
+
+1. Call `kage_validate` for this repo.
+2. Call `kage_recall` with the user task as the query.
+3. Call `kage_graph` with the user task as the query.
+4. Use returned memory only when it is relevant, source-backed, and not stale.
+5. Prefer repo memory over public/community memory when they conflict.
+
+Do this without waiting for the user to ask. Kage should feel like ambient repo memory, not a manual search command.
+
+## Automatic Capture
+
+When you learn something reusable, create a pending memory packet with `kage_capture`.
+
+## End-Of-Task Proposal
+
+Before finishing a task that changed files, call `kage_propose_from_diff`.
+
+This writes a branch review summary only. It does not create recallable memory.
+
+## Safety
+
+- Never approve, publish, or promote memory automatically.
+- Never auto-install recommended MCPs, skills, or registry assets.
+- Do not store secrets, private credentials, customer data, raw tokens, or private URLs in memory.
+<!-- END_KAGE_MEMORY_POLICY_V1 -->'
+
+  if [ -f AGENTS.md ]; then
+    grep -q "KAGE_MEMORY_POLICY_V1" AGENTS.md || printf '\n%s\n' "$AGENTS_POLICY" >> AGENTS.md
+  else
+    printf '%s\n' "$AGENTS_POLICY" > AGENTS.md
   fi
 fi
 

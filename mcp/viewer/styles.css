@@ -1,0 +1,366 @@
+:root {
+  color-scheme: light;
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-soft: #eef4f2;
+  --text: #182024;
+  --muted: #66747b;
+  --line: #d7dee2;
+  --accent: #167a68;
+  --accent-strong: #0f5f52;
+  --edge: #8c9ba3;
+  --shadow: 0 10px 30px rgba(24, 32, 36, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+h2 {
+  font-size: 15px;
+}
+
+.app-header p {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.file-picker,
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.file-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+button {
+  background: #fff;
+  color: var(--accent-strong);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-rows: auto minmax(430px, 1fr) minmax(220px, 30vh);
+  grid-template-areas:
+    "toolbar toolbar"
+    "graph details"
+    "entities edges";
+  gap: 16px;
+  padding: 16px;
+  height: calc(100vh - 76px);
+}
+
+.toolbar {
+  grid-area: toolbar;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 180px 200px auto;
+  gap: 12px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+label span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+input,
+select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 10px;
+  background: #fff;
+  color: var(--text);
+}
+
+input:focus,
+select:focus,
+button:focus,
+.file-picker:focus-within {
+  outline: 3px solid rgba(22, 122, 104, 0.22);
+  outline-offset: 1px;
+}
+
+.graph-panel,
+.details-panel,
+.table-panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.graph-panel {
+  grid-area: graph;
+  position: relative;
+  min-height: 430px;
+  overflow: hidden;
+}
+
+#graphSvg {
+  width: 100%;
+  height: 100%;
+  min-height: 430px;
+  display: block;
+  background:
+    linear-gradient(rgba(24, 32, 36, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(24, 32, 36, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.empty-state {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  color: var(--muted);
+  text-align: center;
+  pointer-events: none;
+}
+
+.empty-state.hidden {
+  display: none;
+}
+
+.details-panel {
+  grid-area: details;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px;
+}
+
+.details-panel h2,
+.panel-heading {
+  margin-bottom: 12px;
+}
+
+.details-empty {
+  color: var(--muted);
+}
+
+.detail-title {
+  margin-bottom: 8px;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.detail-kind {
+  display: inline-flex;
+  margin-bottom: 10px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.detail-row {
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.detail-row dt {
+  margin: 0 0 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.detail-row dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.entities-panel {
+  grid-area: entities;
+}
+
+.edges-panel {
+  grid-area: edges;
+}
+
+.table-panel {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 0;
+}
+
+.panel-heading span {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.list {
+  height: calc(100% - 43px);
+  overflow: auto;
+  padding: 0 8px 10px;
+}
+
+.list-item {
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  padding: 9px 8px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.list-item:hover,
+.list-item.selected {
+  background: var(--surface-soft);
+}
+
+.item-title {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.item-meta {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.edge-line {
+  stroke: var(--edge);
+  stroke-width: 1.7;
+  marker-end: url(#arrow);
+}
+
+.edge-line.filtered {
+  opacity: 0.14;
+}
+
+.edge-line.selected,
+.edge-line.connected {
+  stroke: var(--accent);
+  stroke-width: 3;
+  opacity: 1;
+}
+
+.edge-hit {
+  stroke: transparent;
+  stroke-width: 14;
+  cursor: pointer;
+}
+
+.node circle {
+  stroke: #fff;
+  stroke-width: 2.5;
+  cursor: pointer;
+}
+
+.node text {
+  fill: var(--text);
+  font-size: 12px;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.node.filtered {
+  opacity: 0.2;
+}
+
+.node.selected circle,
+.node.connected circle {
+  stroke: var(--accent-strong);
+  stroke-width: 4;
+}
+
+@media (max-width: 900px) {
+  .app-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .layout {
+    height: auto;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(420px, 60vh) auto 300px 300px;
+    grid-template-areas:
+      "toolbar"
+      "graph"
+      "details"
+      "entities"
+      "edges";
+  }
+
+  .toolbar {
+    grid-template-columns: 1fr;
+  }
+}

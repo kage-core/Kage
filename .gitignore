@@ -1,5 +1,13 @@
 # Kage — gitignore
+.DS_Store
 .agent_memory/pending/
+.agent_memory/branches/
+.agent_memory/code_graph/
+.agent_memory/graph/
+.agent_memory/indexes/
+.agent_memory/public-bundle/
+.agent_memory/public-candidates/
+.agent_memory/review/
 .agent_memory/distiller.log
 .agent_memory/watcher.log
 .agent_memory/watcher.error.log
@@ -9,3 +17,7 @@
 .claude/kage/distill.log
 __pycache__/
 *.pyc
+node_modules/
+dist/
+mcp/viewer/graphs/*.json
+*.tgz

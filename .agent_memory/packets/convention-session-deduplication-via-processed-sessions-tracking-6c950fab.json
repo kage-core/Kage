@@ -1,0 +1,44 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:convention:session-deduplication-via-processed-sessions-tracking-processed-sessions-trackin",
+  "title": "Session deduplication via .processed_sessions tracking",
+  "summary": "Problem The stop.sh hook can fire multiple times for the same session e.g., when the user stops the session, or due to timeout/crash recovery . Without deduplication, kage distiller would process the same transcript mult",
+  "body": "## Problem\n\nThe `stop.sh` hook can fire multiple times for the same session (e.g., when the user stops the session, or due to timeout/crash recovery). Without deduplication, `kage-distiller` would process the same transcript multiple times, creating duplicate memory nodes.\n\n## Solution\n\nKage v2 uses a `.processed_sessions` file stored at `~/.claude/kage/.processed_sessions` to track which session IDs have already been distilled.\n\n**Workflow:**\n\n1. **Before launching distiller** — `stop.sh` reads `~/.claude/kage/.processed_sessions` and checks if the current `session_id` is already listed\n2. **If already processed** — skip the distiller invocation entirely\n3. **If new** — launch `kage-distiller` with the transcript path\n4. **After distiller completes successfully** — append the `session_id` to `~/.claude/kage/.processed_sessions`\n\n**File format:** One session ID per line, plain text.\n\n**Location rationale:** Stored in `~/.claude/kage/` (personal agent directory, not in the repo) so it is machine-local and persists across git operations without being committed. This prevents duplicate nodes when the repository is cloned or a new developer works on the same project.\n\n## Implementation details\n\n- File is created lazily (on first write) if it doesn't exist\n- `stop.sh` checks file existence before reading to handle first-run case\n- Session ID is appended only after successful distillation (not on error)\n- No sorting or cleanup needed — just a simple append-only log",
+  "type": "convention",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-management",
+    "deduplication",
+    "persistence"
+  ],
+  "paths": [
+    "backend",
+    "devops"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "legacy_markdown",
+      "path": ".agent_memory/nodes/processed-sessions-tracking.md"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-04-12",
+    "verification": "legacy_import"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": null,
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0
+  },
+  "created_at": "2026-04-12T00:00:00.000Z",
+  "updated_at": "2026-04-12T00:00:00.000Z"
+}

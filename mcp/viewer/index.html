@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Kage Graph Viewer</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <h1>Kage Graph Viewer</h1>
+        <p id="graphSummary">Load <code>.agent_memory/graph/graph.json</code> or <code>.agent_memory/code_graph/graph.json</code>.</p>
+      </div>
+      <label class="file-picker">
+        <span>Load JSON graph</span>
+        <input id="graphFile" type="file" accept=".json,application/json">
+      </label>
+    </header>
+
+    <main class="layout">
+      <section class="toolbar" aria-label="Graph controls">
+        <label>
+          <span>Search</span>
+          <input id="searchInput" type="search" placeholder="Entity, edge, type, tag, path...">
+        </label>
+        <label>
+          <span>Node Type</span>
+          <select id="typeFilter">
+            <option value="">All types</option>
+          </select>
+        </label>
+        <label>
+          <span>Relation</span>
+          <select id="relationFilter">
+            <option value="">All relations</option>
+          </select>
+        </label>
+        <button id="resetView" type="button">Reset</button>
+      </section>
+
+      <section class="graph-panel" aria-label="Graph rendering">
+        <svg id="graphSvg" viewBox="0 0 1000 660" role="img" aria-labelledby="graphTitle graphDescription">
+          <title id="graphTitle">Kage local memory graph</title>
+          <desc id="graphDescription">Entities and relationships from a loaded Kage graph JSON file.</desc>
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z"></path>
+            </marker>
+          </defs>
+          <g id="edgeLayer"></g>
+          <g id="nodeLayer"></g>
+        </svg>
+        <div id="emptyState" class="empty-state">
+          <strong>No graph loaded</strong>
+          <span>Choose a Kage memory graph or code graph JSON file.</span>
+        </div>
+      </section>
+
+      <aside class="details-panel" aria-label="Selection details">
+        <h2>Selection</h2>
+        <div id="selectionDetails" class="details-empty">Select an entity or edge.</div>
+      </aside>
+
+      <section class="table-panel entities-panel" aria-label="Nodes">
+        <div class="panel-heading">
+          <h2>Nodes</h2>
+          <span id="entityCount">0</span>
+        </div>
+        <div id="entityList" class="list"></div>
+      </section>
+
+      <section class="table-panel edges-panel" aria-label="Relations">
+        <div class="panel-heading">
+          <h2>Relations</h2>
+          <span id="edgeCount">0</span>
+        </div>
+        <div id="edgeList" class="list"></div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

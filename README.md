@@ -8,6 +8,106 @@ No background process. No external API key. No pip install.
 
 ---
 
+## Repo-Recall MVP
+
+Kage now includes a TypeScript repo-recall kernel in `mcp/`.
+
+```bash
+cd mcp
+npm install
+npm run build
+
+# First-run setup for any repo
+kage init --project /path/to/repo
+
+# Repair or install the Codex agent policy
+kage policy --project /path/to/repo
+
+# Recall repo-local memory
+kage recall "how do I run tests" --project /path/to/repo
+
+# Mark recalled memory helpful, wrong, or stale
+kage feedback --project /path/to/repo --packet <approved-packet-id> --kind helpful
+
+# Inspect or query the repo-local knowledge graph
+kage branch --project /path/to/repo
+kage code-graph --project /path/to/repo
+kage code-graph "routes and tests" --project /path/to/repo
+kage graph --project /path/to/repo
+kage graph --project /path/to/repo --mermaid
+kage graph "test command" --project /path/to/repo
+
+# Capture actual session learning
+kage learn --project /path/to/repo --learning "Decision: use kage_learn for discoveries; diff proposal is only a fallback."
+
+# Update branch review summary from local git changes
+kage propose --project /path/to/repo --from-diff
+
+# Generate a Markdown review artifact for pending memory
+kage review-artifact --project /path/to/repo
+
+# Export sanitized public candidates as a static bundle
+kage export-public --project /path/to/repo
+
+# Recommend docs, skills, and optional MCPs for this stack
+kage registry --project /path/to/repo
+
+# Check health
+kage doctor --project /path/to/repo
+```
+
+The kernel stores canonical memory packets in `.agent_memory/packets/*.json`,
+generates disposable indexes in `.agent_memory/indexes/`, migrates legacy
+Markdown nodes, builds typed memory graph artifacts in `.agent_memory/graph/`,
+builds source-derived code graph artifacts in `.agent_memory/code_graph/`, and
+exposes MCP tools:
+
+- `kage_recall`
+- `kage_code_graph`
+- `kage_graph`
+- `kage_graph_visual`
+- `kage_learn`
+- `kage_capture`
+- `kage_feedback`
+- `kage_install_policy`
+- `kage_branch_overlay`
+- `kage_validate`
+- `kage_registry_recommend`
+- `kage_review_artifact`
+- `kage_propose_from_diff`
+- `kage_promote_public_candidate`
+- `kage_export_public_bundle`
+
+### Codex
+
+Build the MCP package, then add the local stdio MCP server to Codex:
+
+```toml
+[mcp_servers.kage]
+command = "node"
+args = ["/absolute/path/to/Kage/mcp/dist/index.js"]
+```
+
+After restarting Codex, agents can call `kage_recall` for repo context,
+`kage_capture` to create pending memory, `kage_propose_from_diff` to update
+branch review summaries, and
+`kage_registry_recommend` to discover relevant docs, skills, and optional MCPs.
+This MVP does not auto-install MCP servers or auto-publish memory.
+
+For Kage to feel automatic in Codex, `kage init` installs an `AGENTS.md` policy
+that tells Codex to validate, recall, query the graph, capture reusable
+learnings, and update branch review summaries without the user prompting for each step.
+MCP exposes the tools; `AGENTS.md` makes the agent use them as a harness.
+
+The intended capture order is:
+
+1. `kage_learn` for actual session discoveries.
+2. End-of-task learning summaries via `kage_learn`.
+3. `kage_propose_from_diff` only as a branch review summary. It no longer
+   creates recallable memory.
+
+---
+
 ## The Problem
 
 Every Claude Code session starts from zero. You spend 20 minutes explaining your auth setup, Claude fixes the bug, and next session you explain it again. Your teammate opens the same repo and hits the same issue. Across projects, you rediscover the same framework gotchas.
