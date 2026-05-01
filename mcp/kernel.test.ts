@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -492,6 +492,27 @@ test("project validation warns when approved packet paths are ungrounded", () =>
   const validation = validateProject(project);
   assert.equal(validation.ok, true);
   assert.equal(validation.warnings.some((warning) => warning.includes("none of the referenced paths exist")), true);
+});
+
+test("project validation ignores retired packet quality warnings", () => {
+  const project = tempProject();
+  const result = capture({
+    projectDir: project,
+    title: "Retired memory",
+    body: "This old memory points at a subsystem that no longer exists.",
+    type: "reference",
+    paths: ["missing/subsystem"],
+  });
+  assert.equal(result.ok, true);
+  const approvedPath = result.path!.replace("/pending/", "/packets/");
+  const packet = JSON.parse(readFileSync(result.path!, "utf8"));
+  packet.status = "deprecated";
+  writeFileSync(approvedPath, `${JSON.stringify(packet, null, 2)}\n`, "utf8");
+  renameSync(result.path!, `${result.path!}.retired`);
+
+  const validation = validateProject(project);
+  assert.equal(validation.ok, true);
+  assert.equal(validation.warnings.some((warning) => warning.includes("none of the referenced paths exist")), false);
 });
 
 test("public catalog compatibility accepts nodes and node_count", () => {

@@ -8,7 +8,7 @@
   "scope": "repo",
   "visibility": "team",
   "sensitivity": "internal",
-  "status": "approved",
+  "status": "superseded",
   "confidence": 0.65,
   "tags": [
     "repo",
@@ -43,11 +43,11 @@
   "freshness": {
     "ttl_days": 30,
     "last_verified_at": "2026-04-30",
-    "verification": "source_seen"
+    "verification": "superseded_by_current_readme"
   },
   "edges": [],
   "quality": {
-    "reviewer": "kage-indexer",
+    "reviewer": "codex-release-readiness",
     "votes_up": 0,
     "votes_down": 0,
     "uses_30d": 0,

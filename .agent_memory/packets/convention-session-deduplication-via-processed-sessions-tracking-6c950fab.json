@@ -8,7 +8,7 @@
   "scope": "repo",
   "visibility": "team",
   "sensitivity": "internal",
-  "status": "approved",
+  "status": "deprecated",
   "confidence": 0.7,
   "tags": [
     "session-management",
@@ -16,8 +16,7 @@
     "persistence"
   ],
   "paths": [
-    "backend",
-    "devops"
+    ".agent_memory/nodes/processed-sessions-tracking.md"
   ],
   "stack": [],
   "source_refs": [
@@ -29,11 +28,11 @@
   "freshness": {
     "ttl_days": 365,
     "last_verified_at": "2026-04-12",
-    "verification": "legacy_import"
+    "verification": "superseded_by_mcp_memory_model"
   },
   "edges": [],
   "quality": {
-    "reviewer": null,
+    "reviewer": "codex-release-readiness",
     "votes_up": 0,
     "votes_down": 0,
     "uses_30d": 0,

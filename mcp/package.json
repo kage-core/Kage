@@ -1,7 +1,7 @@
 {
   "name": "@kage-core/kage-graph-mcp",
   "version": "1.1.0",
-  "description": "MCP server for the kage community knowledge graph — search gotchas, patterns, and configs across auth, database, payments, and more",
+  "description": "Local-first repo memory, code graph, and recall MCP server for coding agents",
   "main": "dist/index.js",
   "bin": {
     "kage-graph-mcp": "dist/index.js",
@@ -16,7 +16,7 @@
     "dev": "ts-node index.ts",
     "test": "npm run build && node --test dist/**/*.test.js"
   },
-  "keywords": ["mcp", "kage", "knowledge-graph", "claude", "ai-agents"],
+  "keywords": ["mcp", "kage", "memory", "knowledge-graph", "codex", "claude", "ai-agents", "code-graph"],
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.10.2",

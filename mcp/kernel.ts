@@ -3295,11 +3295,14 @@ export function validateProject(projectDir: string): ValidationResult {
         const validation = validatePacket(packet, relative(projectDir, packetPath));
         errors.push(...validation.errors);
         warnings.push(...validation.warnings);
-        warnings.push(...packetGroundingWarnings(projectDir, packet, relative(projectDir, packetPath)));
-        const quality = evaluateMemoryQuality(projectDir, packet);
-        if (Number(quality.score) < 55) warnings.push(`${relative(projectDir, packetPath)}: low memory quality score ${quality.score}`);
-        const duplicates = quality.duplicate_candidates as Array<{ title: string; score: number }> | undefined;
-        if (duplicates?.length) warnings.push(`${relative(projectDir, packetPath)}: possible duplicate of ${duplicates[0].title} (${duplicates[0].score})`);
+        const activeMemory = packet.status === "approved" || packet.status === "pending";
+        if (activeMemory) {
+          warnings.push(...packetGroundingWarnings(projectDir, packet, relative(projectDir, packetPath)));
+          const quality = evaluateMemoryQuality(projectDir, packet);
+          if (Number(quality.score) < 55) warnings.push(`${relative(projectDir, packetPath)}: low memory quality score ${quality.score}`);
+          const duplicates = quality.duplicate_candidates as Array<{ title: string; score: number }> | undefined;
+          if (duplicates?.length) warnings.push(`${relative(projectDir, packetPath)}: possible duplicate of ${duplicates[0].title} (${duplicates[0].score})`);
+        }
         const findings = scanSensitiveText(`${packet.title}\n${packet.summary}\n${packet.body}`);
         if (findings.length) errors.push(`${relative(projectDir, packetPath)}: ${label} contains sensitive content: ${findings.join(", ")}`);
       } catch (error) {
