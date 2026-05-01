@@ -64,6 +64,7 @@
     state.selected = null;
     render();
   });
+  loadFromUrlParams();
 
   function handleFile(event) {
     var files = Array.from(event.target.files || []);
@@ -98,7 +99,7 @@
     var edges = normalized.edges;
     var episodes = normalized.episodes;
 
-    state.graph = graph;
+    state.graph = normalized;
     state.entities = entities;
     state.edges = edges;
     state.entityById = new Map(entities.map(function (entity) {
@@ -114,6 +115,31 @@
     els.emptyState.classList.add("hidden");
     els.graphSummary.textContent = fileName + " loaded: " + entities.length + " nodes, " + edges.length + " relations.";
     render();
+  }
+
+  function loadFromUrlParams() {
+    var params = new URLSearchParams(window.location.search);
+    var paths = []
+      .concat(params.getAll("graph"))
+      .concat(params.getAll("code"))
+      .concat(params.getAll("metrics"))
+      .flatMap(function (value) { return String(value || "").split(","); })
+      .map(function (value) { return value.trim(); })
+      .filter(Boolean);
+    if (!paths.length) return;
+    Promise.all(paths.map(function (path) {
+      return fetch(path).then(function (response) {
+        if (!response.ok) throw new Error(response.status + " " + path);
+        return response.json().then(function (graph) { return { fileName: path.split("/").pop() || path, graph: graph }; });
+      });
+    })).then(function (items) {
+      state.metrics = items.map(function (item) { return item.graph; }).find(isMetricsGraph) || null;
+      var graphItems = items.filter(function (item) { return !isMetricsGraph(item.graph); });
+      var merged = mergeNormalizedGraphs(graphItems.map(function (item) { return normalizeGraph(item.graph); }));
+      loadNormalizedGraph(merged, graphItems.map(function (item) { return item.fileName; }).join(", ") || "metrics");
+    }).catch(function (error) {
+      showError("Could not auto-load graph: " + error.message);
+    });
   }
 
   function readJsonFile(file) {
