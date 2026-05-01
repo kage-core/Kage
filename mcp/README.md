@@ -57,8 +57,9 @@ The graph builder writes evidence-backed graph artifacts under
 The code graph builder writes source-derived artifacts under
 `.agent_memory/code_graph/`:
 
-- `files.json`: source, test, config, manifest, and doc files.
-- `symbols.json`: JS/TS functions, classes, constants, and test cases.
+- `files.json`: source, test, config, manifest, and doc files, including
+  language and parser metadata.
+- `symbols.json`: functions, classes, constants, and test cases.
 - `imports.json`: local and external import edges.
 - `calls.json`: best-effort call edges between discovered symbols.
 - `routes.json`: best-effort Node/Express/Next route facts.
@@ -66,10 +67,19 @@ The code graph builder writes source-derived artifacts under
 - `packages.json`: package scripts and dependencies.
 - `graph.json`: the assembled code graph.
 
-This MVP code graph uses no runtime parser dependency. It is intentionally
-best-effort and rebuildable. The storage/API shape is designed so Tree-sitter,
-TypeScript compiler API, SCIP, or language-server based indexers can replace or
-augment the extractor later without changing recall consumers.
+The code graph is multi-language by design. JS/TS/JSX/TSX files use the
+TypeScript compiler API for AST-backed symbols, imports, and call hints. Python,
+Go, Rust, Java, Kotlin, Ruby, PHP, C#, C/C++, and Swift use deterministic generic
+static extractors today so every repo gets a useful graph immediately. The
+storage/API shape is intentionally extractor-neutral so Tree-sitter, SCIP, LSIF,
+or language-server adapters can augment a language without changing recall
+consumers.
+
+The memory graph follows the same product direction as temporal context graph
+systems such as Graphiti: immutable ingestion episodes, derived entities and
+facts, evidence/provenance on every edge, confidence, branch/commit context, and
+temporal validity fields (`valid_from`, `invalidated_at`). Kage keeps code facts
+and learned memory separate, then recalls across both when assembling context.
 
 ## Local Graph Viewer
 

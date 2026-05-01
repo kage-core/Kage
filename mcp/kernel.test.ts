@@ -197,6 +197,44 @@ test('createApp routes tasks', () => createApp());
   assert.equal(graph.tests.some((edge) => edge.covers_symbol === "createApp"), true);
 });
 
+test("builds a multi-language code graph with generic static extractors", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "app"), { recursive: true });
+  mkdirSync(join(project, "pkg"), { recursive: true });
+  writeFileSync(
+    join(project, "app", "service.py"),
+    `from pkg.store import TaskStore
+
+class TaskService:
+    def list_tasks(self):
+        return TaskStore().list()
+`,
+    "utf8"
+  );
+  writeFileSync(
+    join(project, "pkg", "store.go"),
+    `package pkg
+
+import "context"
+
+type TaskStore struct {}
+
+func ListTasks(ctx context.Context) []string {
+  return []string{}
+}
+`,
+    "utf8"
+  );
+
+  const graph = buildCodeGraph(project);
+  assert.equal(graph.files.find((file) => file.path === "app/service.py")?.language, "python");
+  assert.equal(graph.files.find((file) => file.path === "app/service.py")?.parser, "generic-static");
+  assert.equal(graph.symbols.some((symbol) => symbol.path === "app/service.py" && symbol.name === "TaskService" && symbol.kind === "class"), true);
+  assert.equal(graph.symbols.some((symbol) => symbol.path === "app/service.py" && symbol.name === "list_tasks" && symbol.kind === "function"), true);
+  assert.equal(graph.symbols.some((symbol) => symbol.path === "pkg/store.go" && symbol.name === "TaskStore" && symbol.kind === "class"), true);
+  assert.equal(graph.imports.some((edge) => edge.from_path === "app/service.py" && edge.specifier === "pkg.store"), true);
+});
+
 test("code graph query returns routes, symbols, and tests", () => {
   const project = tempProject();
   mkdirSync(join(project, "src"), { recursive: true });

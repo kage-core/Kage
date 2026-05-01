@@ -84,7 +84,8 @@ kage doctor --project /path/to/repo
 The kernel stores canonical memory packets in `.agent_memory/packets/*.json`,
 generates disposable indexes in `.agent_memory/indexes/`, migrates legacy
 Markdown nodes, builds typed memory graph artifacts in `.agent_memory/graph/`,
-builds source-derived code graph artifacts in `.agent_memory/code_graph/`, and
+builds source-derived multi-language code graph artifacts in
+`.agent_memory/code_graph/`, and
 exposes MCP tools:
 
 - `kage_recall`

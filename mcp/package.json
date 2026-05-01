@@ -19,11 +19,11 @@
   "keywords": ["mcp", "kage", "knowledge-graph", "claude", "ai-agents"],
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.10.2"
+    "@modelcontextprotocol/sdk": "^1.10.2",
+    "typescript": "^5.0.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "typescript": "^5.0.0"
+    "@types/node": "^22.0.0"
   },
   "engines": {
     "node": ">=18"
