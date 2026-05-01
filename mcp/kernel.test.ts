@@ -264,6 +264,8 @@ test("metrics summarize code graph, memory graph, and harness readiness", () => 
   assert.equal(metrics.code_graph.parsers["typescript-ast"], 1);
   assert.equal(metrics.code_graph.indexer_coverage_percent, 100);
   assert.equal(metrics.memory_graph.evidence_coverage_percent, 100);
+  assert.equal(metrics.memory_graph.average_quality_score > 0, true);
+  assert.equal(metrics.savings.estimated_tokens_saved_per_recall >= 0, true);
   assert.equal(metrics.harness.policy_installed, true);
   assert.equal(metrics.harness.readiness_score > 0, true);
 });
@@ -554,6 +556,8 @@ test("creates review artifact for pending packets", () => {
   const artifact = createReviewArtifact(project);
   assert.equal(artifact.pending, 1);
   assert.match(readFileSync(artifact.path, "utf8"), /Review me/);
+  assert.match(readFileSync(artifact.path, "utf8"), /Quality score/);
+  assert.match(readFileSync(artifact.path, "utf8"), /Estimated tokens saved/);
   assert.match(readFileSync(artifact.path, "utf8"), /Branch Summary/);
 });
 

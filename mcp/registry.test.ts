@@ -119,10 +119,14 @@ test("org registry manifest indexes sanitized candidates deterministically", () 
 
   assert.equal(manifest.kind, "org_registry");
   assert.equal(manifest.payload.org, "acme");
+  assert.deepEqual(manifest.payload.metrics.by_type, { reference: 1, runbook: 1 });
+  assert.equal(manifest.payload.metrics.entry_count, 2);
   assert.deepEqual(
     manifest.payload.entries.map((entry) => entry.id),
     ["docs:billing-overview", "runbook:stripe-webhooks"]
   );
   assert.equal(manifest.payload.entries[0].manifest_sha256, undefined);
+  assert.equal(manifest.payload.entries[0].trust_level, "community");
+  assert.equal(manifest.payload.entries[0].review_status, "needs_public_review");
   assert.equal(verifySignedManifest(manifest).ok, true);
 });

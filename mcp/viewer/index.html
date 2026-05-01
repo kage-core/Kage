@@ -14,7 +14,7 @@
       </div>
       <label class="file-picker">
         <span>Load JSON graph</span>
-        <input id="graphFile" type="file" accept=".json,application/json">
+        <input id="graphFile" type="file" accept=".json,application/json" multiple>
       </label>
     </header>
 
@@ -23,6 +23,14 @@
         <label>
           <span>Search</span>
           <input id="searchInput" type="search" placeholder="Entity, edge, type, tag, path...">
+        </label>
+        <label>
+          <span>View</span>
+          <select id="viewMode">
+            <option value="combined">Combined</option>
+            <option value="memory">Memory</option>
+            <option value="code">Code</option>
+          </select>
         </label>
         <label>
           <span>Node Type</span>
@@ -58,6 +66,8 @@
       </section>
 
       <aside class="details-panel" aria-label="Selection details">
+        <h2>Metrics</h2>
+        <div id="metricsSummary" class="metrics-grid"></div>
         <h2>Selection</h2>
         <div id="selectionDetails" class="details-empty">Select an entity or edge.</div>
       </aside>

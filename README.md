@@ -106,6 +106,10 @@ exposes MCP tools:
 - `kage_promote_public_candidate`
 - `kage_export_public_bundle`
 
+`kage metrics` estimates tokens saved per recall by comparing indexed source and
+memory context against the compact recall block. It also reports memory quality,
+duplicate candidates, validation status, and graph evidence coverage.
+
 ### Codex
 
 Build the MCP package, then add the local stdio MCP server to Codex:

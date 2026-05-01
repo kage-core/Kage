@@ -10,7 +10,8 @@
     positions: new Map(),
     visibleEntityIds: new Set(),
     visibleEdgeIds: new Set(),
-    selected: null
+    selected: null,
+    metrics: null
   };
 
   var palette = {
@@ -34,6 +35,7 @@
     graphFile: document.getElementById("graphFile"),
     graphSummary: document.getElementById("graphSummary"),
     searchInput: document.getElementById("searchInput"),
+    viewMode: document.getElementById("viewMode"),
     typeFilter: document.getElementById("typeFilter"),
     relationFilter: document.getElementById("relationFilter"),
     resetView: document.getElementById("resetView"),
@@ -44,16 +46,19 @@
     selectionDetails: document.getElementById("selectionDetails"),
     entityList: document.getElementById("entityList"),
     edgeList: document.getElementById("edgeList"),
+    metricsSummary: document.getElementById("metricsSummary"),
     entityCount: document.getElementById("entityCount"),
     edgeCount: document.getElementById("edgeCount")
   };
 
   els.graphFile.addEventListener("change", handleFile);
   els.searchInput.addEventListener("input", render);
+  els.viewMode.addEventListener("change", render);
   els.typeFilter.addEventListener("change", render);
   els.relationFilter.addEventListener("change", render);
   els.resetView.addEventListener("click", function () {
     els.searchInput.value = "";
+    els.viewMode.value = "combined";
     els.typeFilter.value = "";
     els.relationFilter.value = "";
     state.selected = null;
@@ -61,25 +66,34 @@
   });
 
   function handleFile(event) {
-    var file = event.target.files && event.target.files[0];
-    if (!file) return;
-
-    var reader = new FileReader();
-    reader.onload = function () {
-      try {
-        loadGraph(JSON.parse(String(reader.result || "{}")), file.name);
-      } catch (error) {
-        showError("Could not parse JSON: " + error.message);
+    var files = Array.from(event.target.files || []);
+    if (!files.length) return;
+    Promise.all(files.map(readJsonFile)).then(function (items) {
+      state.metrics = items.map(function (item) { return item.graph; }).find(isMetricsGraph) || null;
+      var graphItems = items.filter(function (item) { return !isMetricsGraph(item.graph); });
+      if (!graphItems.length && state.metrics) {
+        state.graph = { entities: [], edges: [], episodes: [] };
+        state.entities = [];
+        state.edges = [];
+        state.entityById = new Map();
+        state.episodesById = new Map();
+        els.emptyState.classList.add("hidden");
+        els.graphSummary.textContent = "Metrics loaded.";
+        renderMetrics();
+        return;
       }
-    };
-    reader.onerror = function () {
-      showError("Could not read " + file.name + ".");
-    };
-    reader.readAsText(file);
+      var merged = mergeNormalizedGraphs(graphItems.map(function (item) { return normalizeGraph(item.graph); }));
+      loadNormalizedGraph(merged, graphItems.map(function (item) { return item.fileName; }).join(", "));
+    }).catch(function (error) {
+      showError("Could not load JSON: " + error.message);
+    });
   }
 
   function loadGraph(graph, fileName) {
-    var normalized = normalizeGraph(graph);
+    loadNormalizedGraph(normalizeGraph(graph), fileName);
+  }
+
+  function loadNormalizedGraph(normalized, fileName) {
     var entities = normalized.entities;
     var edges = normalized.edges;
     var episodes = normalized.episodes;
@@ -102,11 +116,42 @@
     render();
   }
 
+  function readJsonFile(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        try {
+          resolve({ fileName: file.name, graph: JSON.parse(String(reader.result || "{}")) });
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = function () { reject(new Error("Could not read " + file.name + ".")); };
+      reader.readAsText(file);
+    });
+  }
+
+  function isMetricsGraph(graph) {
+    return graph && graph.code_graph && graph.memory_graph && graph.harness;
+  }
+
+  function mergeNormalizedGraphs(graphs) {
+    var entities = new Map();
+    var edges = new Map();
+    var episodes = new Map();
+    graphs.forEach(function (graph) {
+      graph.entities.forEach(function (entity) { entities.set(entity.id, entity); });
+      graph.edges.forEach(function (edge) { edges.set(edge.id, edge); });
+      graph.episodes.forEach(function (episode) { episodes.set(episode.id, episode); });
+    });
+    return { entities: Array.from(entities.values()), edges: Array.from(edges.values()), episodes: Array.from(episodes.values()) };
+  }
+
   function normalizeGraph(graph) {
     if (Array.isArray(graph.entities) && Array.isArray(graph.edges)) {
       return {
-        entities: graph.entities,
-        edges: graph.edges,
+        entities: graph.entities.map(function (entity) { return Object.assign({ graph_kind: "memory" }, entity); }),
+        edges: graph.edges.map(function (edge) { return Object.assign({ graph_kind: "memory" }, edge); }),
         episodes: Array.isArray(graph.episodes) ? graph.episodes : []
       };
     }
@@ -138,7 +183,8 @@
         confidence: 1,
         evidence: [],
         commit: graph.repo_state && graph.repo_state.head,
-        source: source || "code_graph"
+        source: source || "code_graph",
+        graph_kind: "code"
       });
     };
 
@@ -146,6 +192,7 @@
       addEntity({
         id: "file:" + file.path,
         type: "file",
+        graph_kind: "code",
         name: file.path,
         summary: file.kind + " file, " + file.language + ", " + file.line_count + " lines",
         aliases: [file.hash],
@@ -157,6 +204,7 @@
       addEntity({
         id: symbol.id,
         type: symbol.kind === "test" ? "test" : "symbol",
+        graph_kind: "code",
         name: symbol.name,
         summary: symbol.kind + " in " + symbol.path + ":" + symbol.line + (symbol.signature ? "\n" + symbol.signature : ""),
         aliases: [symbol.path],
@@ -169,7 +217,7 @@
       if (item.to_path) addEdge("file:" + item.from_path, "file:" + item.to_path, "imports", item.from_path + " imports " + item.specifier + ".", "imports");
       else {
         var externalId = "external:" + item.specifier;
-        addEntity({ id: externalId, type: "external", name: item.specifier, summary: "External import", aliases: [], evidence: [] });
+        addEntity({ id: externalId, type: "external", graph_kind: "code", name: item.specifier, summary: "External import", aliases: [], evidence: [] });
         addEdge("file:" + item.from_path, externalId, "imports_external", item.from_path + " imports " + item.specifier + ".", "imports");
       }
     });
@@ -182,6 +230,7 @@
       addEntity({
         id: route.id,
         type: "route",
+        graph_kind: "code",
         name: route.method + " " + route.path,
         summary: route.framework + " route in " + route.file_path + ":" + route.line,
         aliases: [route.file_path],
@@ -197,7 +246,7 @@
 
     (graph.packages || []).forEach(function (pkg) {
       var id = pkg.kind + ":" + pkg.name;
-      addEntity({ id: id, type: pkg.kind === "script" ? "script" : "external", name: pkg.name, summary: pkg.kind + ": " + pkg.version, aliases: [], evidence: [] });
+      addEntity({ id: id, type: pkg.kind === "script" ? "script" : "external", graph_kind: "code", name: pkg.name, summary: pkg.kind + ": " + pkg.version, aliases: [], evidence: [] });
     });
 
     return { entities: entities, edges: edges, episodes: [] };
@@ -261,18 +310,21 @@
     if (!state.graph) return;
 
     var query = normalize(els.searchInput.value);
+    var mode = els.viewMode.value;
     var type = els.typeFilter.value;
     var relation = els.relationFilter.value;
     var matchedEntityIds = new Set();
     var matchedEdgeIds = new Set();
 
     state.entities.forEach(function (entity) {
+      if (mode !== "combined" && entity.graph_kind !== mode) return;
       var passesType = !type || entity.type === type;
       var passesSearch = !query || searchableText(entity).indexOf(query) !== -1;
       if (passesType && passesSearch) matchedEntityIds.add(entity.id);
     });
 
     state.edges.forEach(function (edge) {
+      if (mode !== "combined" && edge.graph_kind !== mode) return;
       var fromMatched = matchedEntityIds.has(edge.from);
       var toMatched = matchedEntityIds.has(edge.to);
       var edgeMatchesSearch = !query || searchableText(edge).indexOf(query) !== -1;
@@ -287,8 +339,8 @@
     });
 
     if (!query && !type && !relation) {
-      matchedEntityIds = new Set(state.entities.map(function (entity) { return entity.id; }));
-      matchedEdgeIds = new Set(state.edges.map(function (edge) { return edge.id; }));
+      matchedEntityIds = new Set(state.entities.filter(function (entity) { return mode === "combined" || entity.graph_kind === mode; }).map(function (entity) { return entity.id; }));
+      matchedEdgeIds = new Set(state.edges.filter(function (edge) { return mode === "combined" || edge.graph_kind === mode; }).map(function (edge) { return edge.id; }));
     }
 
     state.visibleEntityIds = matchedEntityIds;
@@ -297,6 +349,7 @@
     renderSvg();
     renderLists();
     renderDetails();
+    renderMetrics();
   }
 
   function renderSvg() {
@@ -320,7 +373,7 @@
         y1: from.y,
         x2: to.x,
         y2: to.y,
-        class: classNames("edge-line", !visible && "filtered", connected && "connected", selectedEdgeId === edge.id && "selected")
+        class: classNames("edge-line", "review-" + reviewStatus(edge).replace(/\s+/g, "-"), !visible && "filtered", connected && "connected", selectedEdgeId === edge.id && "selected")
       });
       var hit = svgEl("line", {
         x1: from.x,
@@ -374,6 +427,8 @@
     });
     var visibleEdges = state.edges.filter(function (edge) {
       return state.visibleEdgeIds.has(edge.id);
+    }).sort(function (a, b) {
+      return reviewRank(a) - reviewRank(b);
     });
 
     els.entityCount.textContent = String(visibleEntities.length);
@@ -401,7 +456,7 @@
       button.className = classNames("list-item", state.selected && state.selected.kind === "edge" && state.selected.id === edge.id && "selected");
       button.innerHTML = "<span class=\"item-title\"></span><span class=\"item-meta\"></span>";
       button.querySelector(".item-title").textContent = edge.relation || "related";
-      button.querySelector(".item-meta").textContent = displayName(state.entityById.get(edge.from)) + " -> " + displayName(state.entityById.get(edge.to));
+      button.querySelector(".item-meta").textContent = displayName(state.entityById.get(edge.from)) + " -> " + displayName(state.entityById.get(edge.to)) + " | " + reviewStatus(edge);
       button.addEventListener("click", function () {
         state.selected = { kind: "edge", id: edge.id };
         render();
@@ -439,6 +494,7 @@
 
     if (state.selected.kind === "entity") {
       rows.appendChild(detailRow("Summary", item.summary || ""));
+      rows.appendChild(detailRow("Graph", item.graph_kind || ""));
       rows.appendChild(detailRow("Aliases", Array.isArray(item.aliases) ? item.aliases.join(", ") : ""));
       rows.appendChild(detailRow("Evidence", formatEvidence(item.evidence)));
       rows.appendChild(detailRow("First seen", item.first_seen_at || ""));
@@ -447,8 +503,12 @@
       rows.appendChild(detailRow("From", displayName(state.entityById.get(item.from)) + " (" + item.from + ")"));
       rows.appendChild(detailRow("To", displayName(state.entityById.get(item.to)) + " (" + item.to + ")"));
       rows.appendChild(detailRow("Fact", item.fact || ""));
+      rows.appendChild(detailRow("Graph", item.graph_kind || ""));
+      rows.appendChild(detailRow("Review", reviewStatus(item)));
       rows.appendChild(detailRow("Confidence", item.confidence == null ? "" : String(item.confidence)));
       rows.appendChild(detailRow("Evidence", formatEvidence(item.evidence)));
+      rows.appendChild(detailRow("Valid from", item.valid_from || ""));
+      rows.appendChild(detailRow("Invalidated at", item.invalidated_at || ""));
       rows.appendChild(detailRow("Commit", item.commit || ""));
     }
 
@@ -475,6 +535,53 @@
       var episode = state.episodesById.get(id);
       return episode && episode.summary ? id + ": " + episode.summary : id;
     }).join("\n");
+  }
+
+  function reviewStatus(item) {
+    if (item.invalidated_at) return "invalidated";
+    if (item.confidence != null && item.confidence < 0.75) return "low confidence";
+    if (Array.isArray(item.evidence) && item.evidence.length === 0) return "missing evidence";
+    return "ok";
+  }
+
+  function reviewRank(item) {
+    var status = reviewStatus(item);
+    if (status === "invalidated") return 0;
+    if (status === "missing evidence") return 1;
+    if (status === "low confidence") return 2;
+    return 3;
+  }
+
+  function renderMetrics() {
+    if (!els.metricsSummary) return;
+    var visibleEdges = state.edges.filter(function (edge) { return state.visibleEdgeIds.has(edge.id); });
+    var visibleEntities = state.entities.filter(function (entity) { return state.visibleEntityIds.has(entity.id); });
+    var evidenceEdges = visibleEdges.filter(function (edge) { return Array.isArray(edge.evidence) && edge.evidence.length > 0; }).length;
+    var official = state.metrics;
+    var metrics = official ? [
+      ["Readiness", official.harness.readiness_score + "/100"],
+      ["Tokens Saved", official.savings ? official.savings.estimated_tokens_saved_per_recall : "n/a"],
+      ["Code Files", official.code_graph.files],
+      ["Memory Edges", official.memory_graph.edges],
+      ["Quality", official.memory_graph.average_quality_score + "/100"],
+      ["Evidence", official.memory_graph.evidence_coverage_percent + "%"]
+    ] : [
+      ["Nodes", visibleEntities.length + "/" + state.entities.length],
+      ["Relations", visibleEdges.length + "/" + state.edges.length],
+      ["Memory Nodes", visibleEntities.filter(function (entity) { return entity.graph_kind === "memory"; }).length],
+      ["Code Nodes", visibleEntities.filter(function (entity) { return entity.graph_kind === "code"; }).length],
+      ["Evidence", visibleEdges.length ? Math.round(evidenceEdges / visibleEdges.length * 100) + "%" : "n/a"],
+      ["Review Flags", visibleEdges.filter(function (edge) { return reviewStatus(edge) !== "ok"; }).length]
+    ];
+    els.metricsSummary.textContent = "";
+    metrics.forEach(function (metric) {
+      var div = document.createElement("div");
+      div.className = "metric";
+      div.innerHTML = "<strong></strong><span></span>";
+      div.querySelector("strong").textContent = metric[1];
+      div.querySelector("span").textContent = metric[0];
+      els.metricsSummary.appendChild(div);
+    });
   }
 
   function connectedEntityIds(entityId, edgeId) {
