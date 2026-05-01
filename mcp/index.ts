@@ -15,6 +15,7 @@ import {
   exportPublicBundle,
   graphMermaid,
   installAgentPolicy,
+  kageMetrics,
   learn,
   proposeFromDiff,
   queryCodeGraph,
@@ -194,6 +195,18 @@ export function listTools() {
           query: { type: "string" },
           limit: { type: "number" },
           json: { type: "boolean" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_metrics",
+      description:
+        "Return concise Kage adoption and quality metrics: code graph counts, language/parser coverage, memory graph evidence coverage, pending/approved packets, validation state, and readiness score.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
         },
         required: ["project_dir"],
       },
@@ -506,6 +519,13 @@ export async function callTool(name: string, args: Record<string, unknown> | und
       };
     }
     const result = buildCodeGraph(projectDir);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_metrics") {
+    const result = kageMetrics(String(args?.project_dir ?? ""));
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };

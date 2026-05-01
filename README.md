@@ -56,6 +56,7 @@ kage feedback --project /path/to/repo --packet <approved-packet-id> --kind helpf
 
 # Inspect or query the repo-local knowledge graph
 kage branch --project /path/to/repo
+kage metrics --project /path/to/repo
 kage code-graph --project /path/to/repo
 kage code-graph "routes and tests" --project /path/to/repo
 kage graph --project /path/to/repo
@@ -90,6 +91,7 @@ exposes MCP tools:
 
 - `kage_recall`
 - `kage_code_graph`
+- `kage_metrics`
 - `kage_graph`
 - `kage_graph_visual`
 - `kage_learn`
@@ -115,6 +117,8 @@ args = ["/absolute/path/to/Kage/mcp/dist/index.js"]
 ```
 
 After restarting Codex, agents can call `kage_recall` for repo context,
+`kage_code_graph` for source flow and dependency context,
+`kage_metrics` to report graph coverage and readiness,
 `kage_capture` to create pending memory, `kage_propose_from_diff` to update
 branch review summaries, and
 `kage_registry_recommend` to discover relevant docs, skills, and optional MCPs.
@@ -122,7 +126,8 @@ This MVP does not auto-install MCP servers or auto-publish memory.
 
 For Kage to feel automatic in Codex, `kage init` installs an `AGENTS.md` policy
 that tells Codex to validate, recall, query the graph, capture reusable
-learnings, and update branch review summaries without the user prompting for each step.
+learnings, query code flow when relevant, and update branch review summaries
+without the user prompting for each step.
 MCP exposes the tools; `AGENTS.md` makes the agent use them as a harness.
 
 The intended capture order is:

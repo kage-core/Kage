@@ -22,6 +22,7 @@ test("MCP lists repo-local memory tools", () => {
   assert.equal(names.includes("kage_recall"), true);
   assert.equal(names.includes("kage_graph"), true);
   assert.equal(names.includes("kage_code_graph"), true);
+  assert.equal(names.includes("kage_metrics"), true);
   assert.equal(names.includes("kage_graph_visual"), true);
   assert.equal(names.includes("kage_learn"), true);
   assert.equal(names.includes("kage_capture"), true);
@@ -89,6 +90,18 @@ test("MCP kage_code_graph returns source-derived code facts", async () => {
   const text = textContent(result);
   assert.match(text, /Kage Code Graph Context/);
   assert.match(text, /createApp|\/tasks/);
+});
+
+test("MCP kage_metrics returns coverage and readiness metrics", async () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "node --test" } }), "utf8");
+  writeFileSync(join(project, "src", "server.js"), "export function createApp() { return {}; }\n", "utf8");
+  const result = await callTool("kage_metrics", { project_dir: project });
+  const metrics = JSON.parse(textContent(result));
+  assert.equal(metrics.code_graph.languages.javascript, 1);
+  assert.equal(metrics.code_graph.indexer_coverage_percent, 100);
+  assert.equal(typeof metrics.harness.readiness_score, "number");
 });
 
 test("MCP kage_learn captures actual session learning", async () => {

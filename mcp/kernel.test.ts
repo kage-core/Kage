@@ -19,6 +19,7 @@ import {
   initProject,
   indexProject,
   installAgentPolicy,
+  kageMetrics,
   learn,
   loadApprovedPackets,
   loadPendingPackets,
@@ -248,6 +249,23 @@ test("code graph query returns routes, symbols, and tests", () => {
   assert.equal(result.routes.some((route) => route.path === "/summary"), true);
   assert.equal(result.symbols.some((symbol) => symbol.name === "createApp"), true);
   assert.equal(result.tests.some((edge) => edge.title === "summary route"), true);
+});
+
+test("metrics summarize code graph, memory graph, and harness readiness", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "node --test" } }), "utf8");
+  writeFileSync(join(project, "src", "server.js"), "export function createApp() { return {}; }\n", "utf8");
+  indexProject(project);
+
+  const metrics = kageMetrics(project);
+  assert.equal(metrics.code_graph.files >= 2, true);
+  assert.equal(metrics.code_graph.languages.javascript, 1);
+  assert.equal(metrics.code_graph.parsers["typescript-ast"], 1);
+  assert.equal(metrics.code_graph.indexer_coverage_percent, 100);
+  assert.equal(metrics.memory_graph.evidence_coverage_percent, 100);
+  assert.equal(metrics.harness.policy_installed, true);
+  assert.equal(metrics.harness.readiness_score > 0, true);
 });
 
 test("graph query returns relevant typed facts", () => {

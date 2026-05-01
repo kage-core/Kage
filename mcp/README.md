@@ -81,6 +81,11 @@ facts, evidence/provenance on every edge, confidence, branch/commit context, and
 temporal validity fields (`valid_from`, `invalidated_at`). Kage keeps code facts
 and learned memory separate, then recalls across both when assembling context.
 
+Use `kage metrics --project <repo>` or the `kage_metrics` MCP tool to inspect
+whether the harness is actually carrying its weight. Metrics include language
+and parser coverage, code graph counts, evidence coverage, approved vs pending
+memory, validation status, and a readiness score.
+
 ## Local Graph Viewer
 
 Open `mcp/viewer/index.html` in a browser, choose
@@ -95,6 +100,7 @@ Local repo tools:
 
 - `kage_recall`
 - `kage_code_graph`
+- `kage_metrics`
 - `kage_graph`
 - `kage_graph_visual`
 - `kage_learn`
