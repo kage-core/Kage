@@ -110,6 +110,11 @@ exposes MCP tools:
 memory context against the compact recall block. It also reports memory quality,
 duplicate candidates, validation status, and graph evidence coverage.
 
+For deeper code intelligence, Kage can ingest external Tree-sitter, SCIP, LSIF,
+and LSP symbol artifacts from `.agent_memory/code_index/` or common root-level
+dump names. These enrich the code graph without making native parsers mandatory
+for every install.
+
 ### Codex
 
 Build the MCP package, then add the local stdio MCP server to Codex:

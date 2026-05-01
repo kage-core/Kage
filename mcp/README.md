@@ -70,10 +70,23 @@ The code graph builder writes source-derived artifacts under
 The code graph is multi-language by design. JS/TS/JSX/TSX files use the
 TypeScript compiler API for AST-backed symbols, imports, and call hints. Python,
 Go, Rust, Java, Kotlin, Ruby, PHP, C#, C/C++, and Swift use deterministic generic
-static extractors today so every repo gets a useful graph immediately. The
-storage/API shape is intentionally extractor-neutral so Tree-sitter, SCIP, LSIF,
-or language-server adapters can augment a language without changing recall
-consumers.
+static extractors so every repo gets a useful graph immediately.
+
+Kage also consumes external industry indexer artifacts when present:
+
+- `.agent_memory/code_index/tree-sitter.json`
+- `.agent_memory/code_index/scip.json`
+- `.agent_memory/code_index/lsp-symbols.json`
+- `.agent_memory/code_index/lsif.jsonl`
+- `tree-sitter-index.json`
+- `index.scip.json`
+- `dump.lsif`
+
+Those adapters are merge inputs, not required runtime dependencies. Facts from
+Tree-sitter, SCIP, LSIF, and LSP are tagged with parser provenance and outrank
+generic extraction in metrics and file parser coverage. This keeps installation
+light while allowing teams to plug in the strongest indexer available for their
+language stack.
 
 The memory graph follows the same product direction as temporal context graph
 systems such as Graphiti: immutable ingestion episodes, derived entities and

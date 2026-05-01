@@ -216,7 +216,7 @@ export interface CodeFileNode {
   id: string;
   path: string;
   language: string;
-  parser: "typescript-ast" | "generic-static" | "metadata";
+  parser: CodeParser;
   kind: "source" | "test" | "config" | "manifest" | "doc";
   size_bytes: number;
   line_count: number;
@@ -229,7 +229,7 @@ export interface CodeSymbolNode {
   kind: "function" | "class" | "method" | "constant" | "route" | "test";
   path: string;
   language: string;
-  parser: "typescript-ast" | "generic-static";
+  parser: CodeParser;
   export: boolean;
   line: number;
   end_line: number | null;
@@ -242,9 +242,11 @@ export interface CodeImportEdge {
   specifier: string;
   imported: string[];
   kind: "import" | "require" | "export" | "include" | "use";
-  parser: "typescript-ast" | "generic-static";
+  parser: CodeParser;
   line: number;
 }
+
+export type CodeParser = "typescript-ast" | "generic-static" | "tree-sitter" | "scip" | "lsif" | "lsp" | "metadata";
 
 export interface CodeCallEdge {
   from_symbol: string | null;
@@ -1376,6 +1378,22 @@ function routeId(path: string, method: string, routePath: string, line: number):
   return `route:${slugify(path)}:${method.toLowerCase()}:${slugify(routePath)}:${line}`;
 }
 
+function parserRank(parser: CodeParser): number {
+  return {
+    metadata: 0,
+    "generic-static": 1,
+    "typescript-ast": 2,
+    "tree-sitter": 3,
+    lsp: 4,
+    lsif: 5,
+    scip: 6,
+  }[parser];
+}
+
+function strongerParser(a: CodeParser, b: CodeParser): CodeParser {
+  return parserRank(b) > parserRank(a) ? b : a;
+}
+
 function findBlockEndLine(text: string, startOffset: number): number | null {
   const open = text.indexOf("{", startOffset);
   if (open === -1) return null;
@@ -1789,6 +1807,146 @@ function extractTests(path: string, text: string, symbols: CodeSymbolNode[], imp
   });
 }
 
+interface ExternalCodeFacts {
+  symbols: CodeSymbolNode[];
+  imports: CodeImportEdge[];
+  calls: CodeCallEdge[];
+}
+
+function externalIndexFiles(projectDir: string): Array<{ path: string; parser: CodeParser; format: "kage" | "lsif" | "lsp" }> {
+  return [
+    { path: join(projectDir, ".agent_memory", "code_index", "tree-sitter.json"), parser: "tree-sitter", format: "kage" },
+    { path: join(projectDir, ".agent_memory", "code_index", "scip.json"), parser: "scip", format: "kage" },
+    { path: join(projectDir, ".agent_memory", "code_index", "lsp-symbols.json"), parser: "lsp", format: "lsp" },
+    { path: join(projectDir, ".agent_memory", "code_index", "lsif.jsonl"), parser: "lsif", format: "lsif" },
+    { path: join(projectDir, "index.scip.json"), parser: "scip", format: "kage" },
+    { path: join(projectDir, "tree-sitter-index.json"), parser: "tree-sitter", format: "kage" },
+    { path: join(projectDir, "dump.lsif"), parser: "lsif", format: "lsif" },
+  ];
+}
+
+function normalizeExternalKind(value: unknown): CodeSymbolNode["kind"] {
+  const kind = String(value ?? "").toLowerCase();
+  if (["function", "method", "class", "constant", "route", "test"].includes(kind)) return kind as CodeSymbolNode["kind"];
+  if (["interface", "struct", "enum", "trait", "object"].includes(kind)) return "class";
+  if (["variable", "field", "property"].includes(kind)) return "constant";
+  return "function";
+}
+
+function externalSymbol(projectDir: string, parser: CodeParser, input: Record<string, unknown>): CodeSymbolNode | null {
+  const path = String(input.path ?? input.file ?? input.uri ?? "").replace(/^file:\/\//, "");
+  const rel = path.startsWith(projectDir) ? relative(projectDir, path).replace(/\\/g, "/") : path.replace(/\\/g, "/");
+  const name = String(input.name ?? input.symbol ?? "").trim();
+  if (!rel || !name) return null;
+  const line = Math.max(1, Number(input.line ?? input.start_line ?? 1));
+  const kind = normalizeExternalKind(input.kind ?? input.type);
+  return {
+    id: symbolId(rel, name, kind, line),
+    name,
+    kind,
+    path: rel,
+    language: codeLanguage(rel),
+    parser,
+    export: Boolean(input.exported ?? input.export),
+    line,
+    end_line: input.end_line === undefined ? null : Math.max(line, Number(input.end_line)),
+    signature: String(input.signature ?? input.detail ?? name).slice(0, 180),
+  };
+}
+
+function parseKageExternalIndex(projectDir: string, parser: CodeParser, path: string): ExternalCodeFacts {
+  const raw = readJson<Record<string, unknown>>(path);
+  const symbols = Array.isArray(raw.symbols)
+    ? raw.symbols.flatMap((item) => isRecord(item) ? [externalSymbol(projectDir, parser, item)].filter(Boolean) as CodeSymbolNode[] : [])
+    : [];
+  const imports = Array.isArray(raw.imports)
+    ? raw.imports.flatMap((item) => {
+        if (!isRecord(item)) return [];
+        const from = String(item.from_path ?? item.from ?? "");
+        const specifier = String(item.specifier ?? item.to_path ?? item.to ?? "");
+        if (!from || !specifier) return [];
+        return [{
+          from_path: from,
+          to_path: typeof item.to_path === "string" ? item.to_path : null,
+          specifier,
+          imported: Array.isArray(item.imported) ? item.imported.map(String) : [],
+          kind: ["require", "export", "include", "use"].includes(String(item.kind)) ? item.kind as CodeImportEdge["kind"] : "import",
+          parser,
+          line: Math.max(1, Number(item.line ?? 1)),
+        }];
+      })
+    : [];
+  const calls = Array.isArray(raw.calls)
+    ? raw.calls.flatMap((item) => {
+        if (!isRecord(item) || typeof item.to_symbol !== "string") return [];
+        return [{ from_symbol: typeof item.from_symbol === "string" ? item.from_symbol : null, to_symbol: item.to_symbol, path: String(item.path ?? ""), line: Math.max(1, Number(item.line ?? 1)) }];
+      })
+    : [];
+  return { symbols, imports, calls };
+}
+
+function parseLspDocumentSymbols(projectDir: string, path: string): ExternalCodeFacts {
+  const raw = readJson<unknown>(path);
+  const docs = Array.isArray(raw) ? raw : isRecord(raw) && Array.isArray(raw.documents) ? raw.documents : [];
+  const symbols: CodeSymbolNode[] = [];
+  const visit = (filePath: string, items: unknown[]) => {
+    for (const item of items) {
+      if (!isRecord(item)) continue;
+      const range = isRecord(item.range) ? item.range : {};
+      const start = isRecord(range.start) ? range.start : {};
+      const line = Number(start.line ?? 0) + 1;
+      const symbol = externalSymbol(projectDir, "lsp", { path: filePath, name: item.name, kind: item.kind, line, signature: item.detail });
+      if (symbol) symbols.push(symbol);
+      if (Array.isArray(item.children)) visit(filePath, item.children);
+    }
+  };
+  for (const doc of docs) {
+    if (!isRecord(doc)) continue;
+    const filePath = String(doc.path ?? doc.uri ?? "");
+    if (Array.isArray(doc.symbols)) visit(filePath, doc.symbols);
+  }
+  return { symbols, imports: [], calls: [] };
+}
+
+function parseLsif(projectDir: string, path: string): ExternalCodeFacts {
+  const docs = new Map<number, string>();
+  const ranges = new Map<number, CodeSymbolNode>();
+  const symbols: CodeSymbolNode[] = [];
+  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    let item: unknown;
+    try { item = JSON.parse(line); } catch { continue; }
+    if (!isRecord(item) || typeof item.id !== "number") continue;
+    if (item.type === "vertex" && item.label === "document" && typeof item.uri === "string") {
+      docs.set(item.id, item.uri.replace(/^file:\/\//, ""));
+    }
+    if (item.type === "vertex" && item.label === "range" && isRecord(item.tag) && typeof item.tag.text === "string") {
+      const filePath = docs.values().next().value ?? "";
+      const lineNo = isRecord(item.start) ? Number(item.start.line ?? 0) + 1 : 1;
+      const symbol = externalSymbol(projectDir, "lsif", { path: filePath, name: item.tag.text, kind: item.tag.type, line: lineNo, signature: item.tag.text });
+      if (symbol) ranges.set(item.id, symbol);
+    }
+  }
+  for (const symbol of ranges.values()) symbols.push(symbol);
+  return { symbols, imports: [], calls: [] };
+}
+
+function loadExternalCodeFacts(projectDir: string): ExternalCodeFacts {
+  const facts: ExternalCodeFacts = { symbols: [], imports: [], calls: [] };
+  for (const index of externalIndexFiles(projectDir)) {
+    if (!existsSync(index.path)) continue;
+    const parsed = index.format === "lsp"
+      ? parseLspDocumentSymbols(projectDir, index.path)
+      : index.format === "lsif"
+        ? parseLsif(projectDir, index.path)
+        : parseKageExternalIndex(projectDir, index.parser, index.path);
+    facts.symbols.push(...parsed.symbols);
+    facts.imports.push(...parsed.imports);
+    facts.calls.push(...parsed.calls);
+  }
+  return facts;
+}
+
 function extractPackages(projectDir: string): CodeGraph["packages"] {
   const packages: CodeGraph["packages"] = [];
   const add = (name: string, version: string, kind: "dependency" | "devDependency" | "script") => {
@@ -1873,6 +2031,23 @@ export function buildCodeGraph(projectDir: string): CodeGraph {
     }
   }
 
+  const externalFacts = loadExternalCodeFacts(projectDir);
+  const fileByPath = new Map(files.map((file) => [file.path, file]));
+  const addSymbol = (symbol: CodeSymbolNode) => {
+    if (!fileByPath.has(symbol.path)) return;
+    if (symbols.some((existing) => existing.id === symbol.id)) return;
+    const file = fileByPath.get(symbol.path);
+    if (file) file.parser = strongerParser(file.parser, symbol.parser);
+    symbols.push(symbol);
+  };
+  for (const symbol of externalFacts.symbols) addSymbol(symbol);
+  for (const edge of externalFacts.imports) {
+    if (!fileByPath.has(edge.from_path)) continue;
+    const file = fileByPath.get(edge.from_path);
+    if (file) file.parser = strongerParser(file.parser, edge.parser);
+    if (!imports.some((existing) => existing.from_path === edge.from_path && existing.specifier === edge.specifier && existing.line === edge.line)) imports.push(edge);
+  }
+
   const symbolByName = new Map<string, CodeSymbolNode[]>();
   for (const symbol of symbols) {
     const list = symbolByName.get(symbol.name) ?? [];
@@ -1890,6 +2065,9 @@ export function buildCodeGraph(projectDir: string): CodeGraph {
     calls.push(...extractCalls(rel, content, symbols, symbolByName));
     routes.push(...extractRoutes(rel, content, fileSymbols));
     tests.push(...extractTests(rel, content, fileSymbols, fileImports));
+  }
+  for (const call of externalFacts.calls) {
+    if (!calls.some((existing) => existing.from_symbol === call.from_symbol && existing.to_symbol === call.to_symbol && existing.path === call.path && existing.line === call.line)) calls.push(call);
   }
 
   const graph: CodeGraph = {
@@ -2292,6 +2470,10 @@ function tokenize(text: string): string[] {
 
 function unique<T>(values: T[]): T[] {
   return [...new Set(values)];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function countBy<T>(values: T[], key: (value: T) => string): Record<string, number> {
