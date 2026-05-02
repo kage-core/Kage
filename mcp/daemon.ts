@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { extname, join, normalize, resolve } from "node:path";
 import {
   benchmarkProject,
   distillSession,
@@ -30,12 +30,36 @@ export interface DaemonDoctor {
   warnings: string[];
 }
 
+export interface ViewerStatus {
+  ok: boolean;
+  project_dir: string;
+  host: string;
+  port: number;
+  url: string;
+}
+
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_REST_PORT = 3111;
 const DEFAULT_VIEWER_PORT = 3113;
 
 function daemonDir(projectDir: string): string {
   return join(projectDir, ".agent_memory", "daemon");
+}
+
+function isInside(parent: string, child: string): boolean {
+  const a = resolve(parent);
+  const b = resolve(child);
+  return b === a || b.startsWith(`${a}/`);
+}
+
+function contentType(filePath: string): string {
+  const ext = extname(filePath);
+  if (ext === ".html") return "text/html; charset=utf-8";
+  if (ext === ".js") return "application/javascript; charset=utf-8";
+  if (ext === ".css") return "text/css; charset=utf-8";
+  if (ext === ".json") return "application/json; charset=utf-8";
+  if (ext === ".md") return "text/markdown; charset=utf-8";
+  return "application/octet-stream";
 }
 
 function statusPath(projectDir: string): string {
@@ -188,3 +212,52 @@ export async function startDaemon(projectDir: string, options: { host?: string; 
   });
 }
 
+export async function startViewer(projectDir: string, options: { host?: string; port?: number } = {}): Promise<ViewerStatus> {
+  const host = options.host ?? DEFAULT_HOST;
+  const port = options.port ?? DEFAULT_VIEWER_PORT;
+  const viewerDir = resolve(__dirname, "..", "viewer");
+  const projectRoot = resolve(projectDir);
+  const graphPath = join(projectRoot, ".agent_memory", "graph", "graph.json");
+  const codePath = join(projectRoot, ".agent_memory", "code_graph", "graph.json");
+  const metricsPath = join(projectRoot, ".agent_memory", "metrics.json");
+  const reviewPath = join(projectRoot, ".agent_memory", "review", "memory-review.md");
+  const pendingDir = join(projectRoot, ".agent_memory", "pending");
+  const url = `http://${host}:${port}/viewer/index.html?graph=${encodeURIComponent(graphPath)}&code=${encodeURIComponent(codePath)}&metrics=${encodeURIComponent(metricsPath)}&review=${encodeURIComponent(reviewPath)}&pending=${encodeURIComponent(pendingDir)}`;
+
+  const server = createServer((req, res) => {
+    const requestUrl = new URL(req.url ?? "/", `http://${host}:${port}`);
+    let filePath: string | null = null;
+    if (requestUrl.pathname === "/" || requestUrl.pathname === "/viewer") {
+      filePath = join(viewerDir, "index.html");
+    } else if (requestUrl.pathname.startsWith("/viewer/")) {
+      filePath = join(viewerDir, normalize(requestUrl.pathname.replace(/^\/viewer\//, "")));
+    } else {
+      const decoded = decodeURIComponent(requestUrl.pathname);
+      filePath = resolve(decoded);
+      if (!isInside(projectRoot, filePath)) filePath = null;
+    }
+
+    if (!filePath || (!isInside(viewerDir, filePath) && !isInside(projectRoot, filePath)) || !existsSync(filePath)) {
+      json(res, 404, { ok: false, error: "not_found" });
+      return;
+    }
+    const stat = statSync(filePath);
+    if (stat.isDirectory()) {
+      const files = readdirSync(filePath)
+        .filter((name: string) => name.endsWith(".json") || name.endsWith(".md"))
+        .sort()
+        .map((name: string) => ({ name, path: join(filePath!, name) }));
+      json(res, 200, { ok: true, files });
+      return;
+    }
+    res.writeHead(200, { "content-type": contentType(filePath) });
+    res.end(readFileSync(filePath));
+  });
+
+  await new Promise<void>((resolveListen) => server.listen(port, host, resolveListen));
+  console.log(`Kage viewer listening on ${url}`);
+  process.on("SIGTERM", () => {
+    server.close(() => process.exit(0));
+  });
+  return { ok: true, project_dir: projectRoot, host, port, url };
+}

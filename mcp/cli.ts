@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { daemonDoctor, readDaemonStatus, startDaemon, stopDaemon } from "./daemon.js";
+import { daemonDoctor, readDaemonStatus, startDaemon, startViewer, stopDaemon } from "./daemon.js";
 import {
   SETUP_AGENTS,
   approvePending,
@@ -56,6 +56,7 @@ Usage:
   kage daemon stop --project <dir>
   kage daemon status --project <dir> [--json]
   kage daemon doctor --project <dir> [--json]
+  kage viewer --project <dir> [--port 3113]
   kage branch --project <dir> [--json]
   kage metrics --project <dir> [--json]
   kage quality --project <dir> [--json]
@@ -279,6 +280,11 @@ async function main(): Promise<void> {
       return;
     }
     usage();
+  }
+
+  if (command === "viewer") {
+    await startViewer(projectArg(args), { port: numberArg(args, "--port", 3113) });
+    return;
   }
 
   if (command === "graph") {

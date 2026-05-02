@@ -40,7 +40,7 @@ h2 { color: var(--terminal); font-size: 13px; letter-spacing: 0.04em; text-trans
 
 .app-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   gap: 16px;
   align-items: center;
   padding: 14px 18px;
@@ -77,6 +77,24 @@ h2 { color: var(--terminal); font-size: 13px; letter-spacing: 0.04em; text-trans
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.autoload-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #040805;
+  color: var(--warn);
+  font-size: 11px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+.autoload-status.ok {
+  border-color: var(--line-strong);
+  color: var(--terminal-strong);
 }
 
 .status-pill, .detail-kind {
@@ -132,17 +150,18 @@ h2 { color: var(--terminal); font-size: 13px; letter-spacing: 0.04em; text-trans
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 380px;
-  grid-template-rows: minmax(680px, calc(100vh - 108px)) auto minmax(270px, 34vh);
+  grid-template-rows: minmax(680px, calc(100vh - 108px)) auto minmax(220px, 30vh) minmax(270px, 34vh);
   grid-template-areas:
     "graph details"
     "controls details"
+    "review proof"
     "entities edges";
   gap: 12px;
   padding: 12px;
   min-height: calc(100vh - 78px);
 }
 
-.control-panel, .graph-panel, .details-panel, .table-panel {
+.control-panel, .graph-panel, .details-panel, .table-panel, .review-panel, .proof-panel {
   border: 1px solid var(--line);
   border-radius: 6px;
   background: rgba(8, 17, 13, 0.94);
@@ -329,8 +348,77 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
 
 .entities-panel { grid-area: entities; }
 .edges-panel { grid-area: edges; }
+.review-panel { grid-area: review; }
+.proof-panel { grid-area: proof; }
 .table-panel { min-height: 0; overflow: hidden; }
+.review-panel, .proof-panel { min-height: 0; overflow: hidden; }
 .list { height: calc(100% - 48px); overflow: auto; padding: 0 8px 10px; }
+.review-list, .proof-list {
+  height: calc(100% - 48px);
+  overflow: auto;
+  padding: 0 10px 12px;
+}
+.review-item {
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.review-title {
+  color: var(--terminal);
+  font-weight: 820;
+  overflow-wrap: anywhere;
+}
+.review-meta, .review-risks {
+  margin-top: 4px;
+  color: var(--terminal-dim);
+  font-size: 11px;
+}
+.review-summary {
+  margin-top: 6px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.review-artifact {
+  margin-top: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.review-artifact summary {
+  color: var(--terminal-strong);
+  cursor: pointer;
+  font-weight: 780;
+}
+.review-artifact pre {
+  margin: 10px 0 0;
+  white-space: pre-wrap;
+  color: var(--muted);
+  font-size: 11px;
+}
+.proof-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  align-content: start;
+}
+.proof-item {
+  min-height: 62px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #06100b;
+}
+.proof-item strong {
+  display: block;
+  color: var(--terminal-strong);
+  font-size: 18px;
+}
+.proof-item span {
+  display: block;
+  margin-top: 5px;
+  color: var(--terminal-dim);
+  font-size: 10px;
+  font-weight: 760;
+  text-transform: uppercase;
+}
 .list-item {
   width: 100%;
   display: grid;
@@ -411,11 +499,13 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
   .status-pill { min-height: 24px; padding: 3px 8px; }
   .layout {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(620px, 78vh) auto auto minmax(220px, 36vh) minmax(220px, 36vh);
+    grid-template-rows: minmax(620px, 78vh) auto auto minmax(220px, 36vh) minmax(220px, 36vh) minmax(220px, 36vh) minmax(220px, 36vh);
     grid-template-areas:
       "graph"
       "controls"
       "details"
+      "review"
+      "proof"
       "entities"
       "edges";
   }
@@ -432,6 +522,7 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
   .layout { padding: 8px; gap: 8px; }
   .control-panel { grid-template-columns: 1fr; }
   .metrics-grid { grid-template-columns: 1fr 1fr; }
+  .proof-list { grid-template-columns: 1fr 1fr; }
   .graph-toolbar { align-items: flex-start; flex-direction: column; }
   .graph-actions { width: 100%; }
   .interaction-hint { flex: 1; white-space: normal; }

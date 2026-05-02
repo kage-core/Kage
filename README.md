@@ -134,6 +134,7 @@ kage code-graph "routes and tests" --project /path/to/repo
 kage metrics --project /path/to/repo
 kage quality --project /path/to/repo
 kage benchmark --project /path/to/repo
+kage viewer --project /path/to/repo
 
 # Optional live runtime
 kage daemon start --project /path/to/repo
@@ -290,15 +291,27 @@ for every install.
 
 ## Visualizer
 
-The terminal graph viewer is zero-dependency and local:
+The terminal graph viewer is zero-dependency and local. The preferred launch
+path is:
+
+```bash
+kage viewer --project /path/to/repo
+```
+
+That starts a localhost viewer server, serves the project graph/code/metrics and
+review files, and prints a URL that auto-loads the full console. You should not
+need to manually select JSON for normal use.
+
+Static/manual mode is still available:
 
 ```text
 mcp/viewer/index.html?graph=/repo/.agent_memory/graph/graph.json&code=/repo/.agent_memory/code_graph/graph.json&metrics=/repo/.agent_memory/metrics.json
 ```
 
 It supports memory/code/combined views, search, type and relation filters,
-click-to-inspect nodes and edges, review risk markers, readiness metrics,
-estimated tokens saved, drag-to-pan, wheel zoom, and fit controls.
+click-to-inspect nodes and edges, review risk markers, review queue inspection,
+quality/proof metrics, estimated tokens saved, drag-to-pan, wheel zoom, and fit
+controls.
 
 ## Safety Model
 
