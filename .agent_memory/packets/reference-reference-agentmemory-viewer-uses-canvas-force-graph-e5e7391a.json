@@ -1,0 +1,59 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:reference:reference-agentmemory-viewer-uses-canvas-force-graph-1777752593071",
+  "title": "Reference: AgentMemory viewer uses canvas force graph",
+  "summary": "AgentMemory's real time viewer graph is a single file HTML/JS canvas implementation, not D3/Cytoscape. It loads graph data through REST endpoints graph/query and graph/stats, initializes nodes in a circle, runs a custom",
+  "body": "AgentMemory's real-time viewer graph is a single-file HTML/JS canvas implementation, not D3/Cytoscape. It loads graph data through REST endpoints graph/query and graph/stats, initializes nodes in a circle, runs a custom force simulation with repulsion/attraction/center gravity, supports drag, pan, zoom, hover tooltips, type filters, search dimming, selected-node focus, double-click neighbor expansion, rebuild graph, and zoom-aware labels. Its launch website graph is separate: a decorative Next.js canvas animation in website/components/MemoryGraph.tsx.\nEvidence: Inspected /tmp/agentmemory-inspect/src/viewer/index.html, src/functions/graph.ts, src/viewer/server.ts, website/components/MemoryGraph.tsx from https://github.com/rohitg00/agentmemory\nVerified by: git clone --depth 1 https://github.com/rohitg00/agentmemory.git /tmp/agentmemory-inspect",
+  "type": "reference",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "competitor-research",
+    "viewer",
+    "graph-ui",
+    "agentmemory"
+  ],
+  "paths": [
+    "mcp/viewer/app.js",
+    "mcp/viewer/index.html"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-02T20:09:53.071Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-02T20:09:53.071Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 90,
+    "reasons": [
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 428
+  },
+  "created_at": "2026-05-02T20:09:53.071Z",
+  "updated_at": "2026-05-02T20:09:53.071Z"
+}
