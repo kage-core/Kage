@@ -3,7 +3,9 @@
 This package exposes two surfaces:
 
 - `kage-graph-mcp`: MCP server for the public Kage graph plus repo-local recall.
-- `kage`: CLI for local repo memory packets, indexing, recall, capture, review, setup, optional daemon runtime, and validation.
+- `kage`: CLI for local repo memory packets, indexing, recall, capture, review,
+  setup, optional daemon runtime, org/global artifact mode, marketplace packs,
+  and validation.
 
 ## Build
 
@@ -44,8 +46,14 @@ kage capture --project /path/to/repo --type runbook --title "Webhook tests" --bo
 kage propose --project /path/to/repo --from-diff
 kage review-artifact --project /path/to/repo
 kage registry --project /path/to/repo
+kage marketplace --project /path/to/repo
 kage promote --project /path/to/repo --public <approved-packet-id>
 kage export-public --project /path/to/repo
+kage org upload --project /path/to/repo --org acme --packet <approved-packet-id>
+kage org review --project /path/to/repo --org acme --packet <org-packet-id> --approve
+kage org recall "how do I run tests" --project /path/to/repo --org acme
+kage layered-recall "how do I run tests" --project /path/to/repo --org acme --global
+kage global build --project /path/to/repo --org acme
 kage review --project /path/to/repo
 kage validate --project /path/to/repo
 ```
@@ -187,6 +195,12 @@ Local repo tools:
 - `kage_branch_overlay`
 - `kage_validate`
 - `kage_registry_recommend`
+- `kage_marketplace`
+- `kage_org_status`
+- `kage_org_upload_candidate`
+- `kage_org_recall`
+- `kage_layered_recall`
+- `kage_global_build`
 - `kage_review_artifact`
 - `kage_propose_from_diff`
 - `kage_promote_public_candidate`

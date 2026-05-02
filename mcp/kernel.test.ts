@@ -7,9 +7,11 @@ import { tmpdir } from "node:os";
 import {
   SETUP_AGENTS,
   benchmarkProject,
+  buildGlobalCdnBundle,
   buildCodeGraph,
   buildKnowledgeGraph,
   buildBranchOverlay,
+  buildMarketplace,
   capture,
   catalogDomainNodeCount,
   createReviewArtifact,
@@ -17,6 +19,7 @@ import {
   distillSession,
   doctorProject,
   exportPublicBundle,
+  exportOrgRegistry,
   graphDir,
   graphMermaid,
   initProject,
@@ -27,6 +30,11 @@ import {
   loadApprovedPackets,
   loadPendingPackets,
   observe,
+  layeredRecall,
+  orgRecall,
+  orgReviewPacket,
+  orgStatus,
+  orgUploadPacket,
   packetsDir,
   proposeFromDiff,
   queryCodeGraph,
@@ -770,6 +778,58 @@ test("exports public candidates as a static bundle", () => {
   assert.equal(bundle.packetCount, 1);
   assert.match(readFileSync(bundle.path!, "utf8"), /public_candidate_bundle/);
   assert.match(readFileSync(bundle.path!, "utf8"), /payload_sha256/);
+});
+
+test("org memory upload, review, registry export, and layered recall are human-gated", () => {
+  const project = tempProject();
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
+  indexProject(project);
+  const packet = loadApprovedPackets(project).find((candidate) => candidate.type === "repo_map");
+  assert.ok(packet);
+
+  const upload = orgUploadPacket(project, "acme", packet.id);
+  assert.equal(upload.ok, true);
+  assert.ok(upload.packet);
+  assert.equal(upload.packet.status, "pending");
+  assert.equal(upload.packet.scope, "org");
+  assert.equal(orgRecall(project, "acme", "run tests").results.length, 0);
+
+  const review = orgReviewPacket(project, "acme", upload.packet.id, "approve");
+  assert.equal(review.ok, true);
+  const orgResult = orgRecall(project, "acme", "run tests");
+  assert.equal(orgResult.results.length > 0, true);
+  const registry = exportOrgRegistry(project, "acme");
+  assert.equal(registry.approved, 1);
+  assert.match(readFileSync(registry.registry_path!, "utf8"), /org_registry/);
+
+  const layered = layeredRecall(project, "run tests", { org: "acme", includeGlobal: false });
+  assert.deepEqual(layered.priority_order, ["branch", "repo", "org"]);
+  assert.equal((layered.org?.results.length ?? 0) > 0, true);
+});
+
+test("marketplace and local global CDN bundle are explicit-review artifacts", () => {
+  const project = tempProject();
+  writeFileSync(
+    join(project, "package.json"),
+    JSON.stringify({ name: "demo", dependencies: { next: "15.0.0", react: "19.0.0", stripe: "18.0.0" } }),
+    "utf8"
+  );
+  indexProject(project);
+  const packet = loadApprovedPackets(project).find((candidate) => candidate.type === "repo_map");
+  assert.ok(packet);
+  assert.equal(createPublicCandidate(project, packet.id).ok, true);
+
+  const marketplace = buildMarketplace(project);
+  assert.equal(marketplace.ok, true);
+  assert.equal(marketplace.packs.some((pack) => pack.id === "docs:nextjs"), true);
+  assert.match(readFileSync(marketplace.path, "utf8"), /explicit_human_approval_required/);
+
+  const global = buildGlobalCdnBundle(project, "acme");
+  assert.equal(global.ok, true);
+  assert.equal(global.packet_count, 1);
+  assert.equal(global.marketplace_packs >= 2, true);
+  assert.match(readFileSync(global.alias_path!, "utf8"), /rollback_ready/);
+  assert.match(readFileSync(global.manifest_path!, "utf8"), /org_registry/);
 });
 
 test("builds branch overlay metadata", () => {
