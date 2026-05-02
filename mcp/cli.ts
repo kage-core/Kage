@@ -50,7 +50,7 @@ import {
 } from "./kernel.js";
 
 function usage(): never {
-  console.log(`Kage Repo-Recall MVP
+  console.log(`Kage repo memory and code graph
 
 Usage:
   kage index --project <dir>

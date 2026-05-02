@@ -275,7 +275,7 @@ codex mcp list
 ```
 
 Kage currently runs as a local stdio MCP server, so the TOML form is the direct
-fit for this MVP.
+fit for the current package.
 
 ## Safety Model
 

@@ -1,6 +1,6 @@
 # Kage Org And Global Roadmap
 
-This roadmap defines the hosted pieces that turn the local repo-recall MVP into
+This roadmap defines the hosted pieces that turn the local repo memory product into
 an organization memory platform and a public graph distribution system. Each
 phase is scoped so it can ship independently behind explicit permissions and
 without changing the current local-only safety model: agents may propose memory,

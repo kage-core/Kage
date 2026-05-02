@@ -1,22 +1,9 @@
 # Kage — gitignore
 .DS_Store
-.agent_memory/pending/
-.agent_memory/branches/
-.agent_memory/code_graph/
-.agent_memory/daemon/
-.agent_memory/graph/
-.agent_memory/indexes/
-.agent_memory/observations/
-.agent_memory/public-bundle/
-.agent_memory/public-candidates/
-.agent_memory/review/
-.agent_memory/distiller.log
-.agent_memory/watcher.log
-.agent_memory/watcher.error.log
-.agent_memory/.processed_sessions
-.agent_memory/scripts/__pycache__/
-.claude/kage/.processed_sessions
-.claude/kage/distill.log
+.agent_memory/
+.claude/
+.agents/
+.cursorrules
 __pycache__/
 *.pyc
 node_modules/
