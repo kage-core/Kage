@@ -324,6 +324,27 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
   white-space: nowrap;
 }
 
+.graph-canvas-wrap {
+  position: relative;
+  min-height: 600px;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 52% 46%, rgba(65, 255, 143, 0.10), transparent 44%),
+    #020503;
+}
+
+#graphCanvas {
+  width: 100%;
+  height: 100%;
+  min-height: 600px;
+  display: block;
+  cursor: grab;
+}
+
+#graphCanvas:active { cursor: grabbing; }
+
 #graphSvg {
   width: 100%;
   height: 100%;
@@ -337,8 +358,50 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
     #020503;
   background-size: 28px 28px, 28px 28px, 100% 100%, 100% 100%;
 }
+#graphSvg.fallback-graph { display: none; }
 #graphSvg.dragging { cursor: grabbing; }
 #arrow path { fill: var(--edge); }
+.graph-tooltip {
+  position: absolute;
+  z-index: 5;
+  display: none;
+  max-width: min(320px, calc(100% - 28px));
+  padding: 10px 12px;
+  border: 1px solid rgba(65, 255, 143, 0.32);
+  border-radius: 6px;
+  background: rgba(3, 6, 4, 0.90);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.38), inset 0 0 0 1px rgba(65, 255, 143, 0.08);
+  backdrop-filter: blur(12px);
+  color: var(--text);
+  pointer-events: none;
+}
+.graph-tooltip.visible { display: block; }
+.tt-name {
+  color: var(--terminal);
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+.tt-type {
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.tt-summary {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.tt-conns {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(65, 255, 143, 0.16);
+  color: var(--terminal-dim);
+  font-size: 10px;
+  font-weight: 760;
+}
 .lane-label {
   fill: rgba(185, 251, 192, 0.34);
   font-size: 12px;
@@ -549,7 +612,7 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
   .control-panel .panel-heading, .metrics-grid, .legend { grid-column: 1 / -1; }
   .control-panel label, .control-panel button { margin-top: 0; }
   .graph-panel { min-height: 620px; }
-  #graphSvg { min-height: 560px; }
+  #graphCanvas, .graph-canvas-wrap, #graphSvg { min-height: 560px; }
 }
 
 @media (max-width: 620px) {
@@ -561,5 +624,5 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
   .graph-toolbar { align-items: flex-start; flex-direction: column; }
   .graph-actions { width: 100%; }
   .interaction-hint { flex: 1; white-space: normal; }
-  #graphSvg { min-height: 450px; }
+  #graphCanvas, .graph-canvas-wrap, #graphSvg { min-height: 450px; }
 }
