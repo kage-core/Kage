@@ -350,9 +350,13 @@ test("setup generates all-agent MCP configuration and writes Codex config idempo
 
   const claude = setupAgent("claude-code", project, { serverPath: "/tmp/kage/dist/index.js", homeDir: home, write: true });
   assert.equal(claude.wrote, true);
-  const claudeConfig = JSON.parse(readFileSync(join(home, ".claude", "settings.json"), "utf8"));
+  const claudeConfig = JSON.parse(readFileSync(join(home, ".claude.json"), "utf8"));
   assert.equal(claudeConfig.mcpServers.kage.command, "node");
   assert.equal(claudeConfig.mcpServers.kage.args[0], "/tmp/kage/dist/index.js");
+  assert.equal(claudeConfig.mcpServers.kage.alwaysLoad, true);
+  const claudeSettings = JSON.parse(readFileSync(join(home, ".claude", "settings.json"), "utf8"));
+  assert.equal(Array.isArray(claudeSettings.hooks.SessionStart), true);
+  assert.match(readFileSync(join(home, ".claude", "kage", "hooks", "session-start.sh"), "utf8"), /KAGE_MEMORY_POLICY_V1/);
 
   const doctor = setupDoctor(project);
   assert.equal(doctor.length, SETUP_AGENTS.length);
