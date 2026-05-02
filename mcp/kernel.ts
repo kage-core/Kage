@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import * as ts from "typescript";
-import { createPublicCandidateBundleManifest } from "./registry/index.js";
+import { createPublicCandidateBundleManifest, createSignedManifest, generateOrgRegistryManifest } from "./registry/index.js";
 
 export const PACKET_SCHEMA_VERSION = 2;
 
@@ -141,6 +141,75 @@ export interface RegistryRecommendation {
   matched: string[];
   trust: "official" | "community" | "local";
   install: "read_only" | "manual_approval_required";
+}
+
+export interface OrgMemoryStatus {
+  org: string;
+  path: string;
+  inbox: number;
+  approved: number;
+  rejected: number;
+  audit_events: number;
+  registry_path?: string;
+}
+
+export interface OrgUploadResult {
+  ok: boolean;
+  packet?: MemoryPacket;
+  path?: string;
+  errors: string[];
+}
+
+export interface OrgReviewResult {
+  ok: boolean;
+  path?: string;
+  errors: string[];
+}
+
+export interface LayeredRecallResult {
+  query: string;
+  priority_order: string[];
+  context_block: string;
+  repo: RecallResult;
+  org?: RecallResult;
+  global?: RecallResult;
+}
+
+export interface MarketplacePack {
+  id: string;
+  kind: "documentation" | "skill" | "mcp";
+  title: string;
+  summary: string;
+  trust: "official" | "community" | "local";
+  install: "read_only" | "manual_approval_required";
+  matched: string[];
+  source: "repo_metadata" | "local_manifest";
+}
+
+export interface MarketplaceManifest {
+  schema_version: 1;
+  project_dir: string;
+  generated_at: string;
+  packs: MarketplacePack[];
+  install_policy: "explicit_human_approval_required";
+}
+
+export interface MarketplaceResult {
+  ok: boolean;
+  path: string;
+  packs: MarketplacePack[];
+  errors: string[];
+}
+
+export interface GlobalBundleResult {
+  ok: boolean;
+  root: string;
+  manifest_path?: string;
+  alias_path?: string;
+  marketplace_path?: string;
+  packet_count: number;
+  marketplace_packs: number;
+  errors: string[];
 }
 
 export const SETUP_AGENTS = [
@@ -721,6 +790,30 @@ export function daemonDir(projectDir: string): string {
   return join(memoryRoot(projectDir), "daemon");
 }
 
+export function orgRootDir(projectDir: string, org: string): string {
+  return join(memoryRoot(projectDir), "orgs", slugify(org));
+}
+
+export function orgInboxDir(projectDir: string, org: string): string {
+  return join(orgRootDir(projectDir, org), "inbox");
+}
+
+export function orgPacketsDir(projectDir: string, org: string): string {
+  return join(orgRootDir(projectDir, org), "packets");
+}
+
+export function orgRejectedDir(projectDir: string, org: string): string {
+  return join(orgRootDir(projectDir, org), "rejected");
+}
+
+export function globalCdnDir(projectDir: string): string {
+  return join(memoryRoot(projectDir), "global-cdn");
+}
+
+export function marketplaceDir(projectDir: string): string {
+  return join(memoryRoot(projectDir), "marketplace");
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -1179,6 +1272,8 @@ export function ensureMemoryDirs(projectDir: string): void {
   ensureDir(publicBundleDir(projectDir));
   ensureDir(observationsDir(projectDir));
   ensureDir(daemonDir(projectDir));
+  ensureDir(globalCdnDir(projectDir));
+  ensureDir(marketplaceDir(projectDir));
 }
 
 function walkFiles(root: string, predicate: (path: string) => boolean): string[] {
@@ -4078,6 +4173,310 @@ export function exportPublicBundle(projectDir: string): PublicBundleResult {
     generated_at: manifest.value.generated_at,
   });
   return { ok: true, path: bundlePath, packetCount: manifest.value.payload.candidates.length, errors: [] };
+}
+
+function orgAuditPath(projectDir: string, org: string): string {
+  return join(orgRootDir(projectDir, org), "audit.jsonl");
+}
+
+function appendOrgAudit(projectDir: string, org: string, event: Record<string, unknown>): void {
+  ensureDir(orgRootDir(projectDir, org));
+  const path = orgAuditPath(projectDir, org);
+  const line = JSON.stringify({
+    schema_version: 1,
+    org: slugify(org),
+    repo_key: repoKey(projectDir),
+    at: nowIso(),
+    ...event,
+  });
+  writeFileSync(path, `${existsSync(path) ? readFileSync(path, "utf8") : ""}${line}\n`, "utf8");
+}
+
+function orgAuditCount(projectDir: string, org: string): number {
+  const path = orgAuditPath(projectDir, org);
+  if (!existsSync(path)) return 0;
+  return readFileSync(path, "utf8").split(/\r?\n/).filter(Boolean).length;
+}
+
+function loadOrgApprovedPackets(projectDir: string, org: string): MemoryPacket[] {
+  return loadPacketsFromDir(orgPacketsDir(projectDir, org)).filter((packet) => packet.status === "approved");
+}
+
+function loadOrgInboxPackets(projectDir: string, org: string): MemoryPacket[] {
+  return loadPacketsFromDir(orgInboxDir(projectDir, org));
+}
+
+function recallFromPackets(query: string, packets: MemoryPacket[], limit: number, label: string): RecallResult {
+  const terms = tokenize(query);
+  const scored = packets
+    .map((packet) => {
+      const { score, why } = scorePacket(terms, packet);
+      return { packet, score, why_matched: why };
+    })
+    .filter((result) => result.score > 0)
+    .sort((a, b) => b.score - a.score || b.packet.updated_at.localeCompare(a.packet.updated_at))
+    .slice(0, limit);
+
+  const context = scored.map((result, index) => {
+    const packet = result.packet;
+    return [
+      `### ${label} ${index + 1}: ${packet.title}`,
+      `- id: ${packet.id}`,
+      `- type: ${packet.type}; scope: ${packet.scope}; status: ${packet.status}; score: ${result.score}`,
+      `- tags: ${packet.tags.join(", ") || "(none)"}`,
+      `- source: ${sourceLabel(packet)}`,
+      "",
+      packet.summary,
+      "",
+      packet.body,
+    ].join("\n");
+  });
+
+  return {
+    query,
+    context_block: context.length ? `# Kage ${label} Recall\n\n${context.join("\n\n---\n\n")}` : `No ${label.toLowerCase()} memory found for "${query}".`,
+    results: scored,
+  };
+}
+
+export function orgStatus(projectDir: string, org: string): OrgMemoryStatus {
+  ensureDir(orgInboxDir(projectDir, org));
+  ensureDir(orgPacketsDir(projectDir, org));
+  ensureDir(orgRejectedDir(projectDir, org));
+  return {
+    org: slugify(org),
+    path: orgRootDir(projectDir, org),
+    inbox: loadOrgInboxPackets(projectDir, org).length,
+    approved: loadOrgApprovedPackets(projectDir, org).length,
+    rejected: loadPacketsFromDir(orgRejectedDir(projectDir, org)).length,
+    audit_events: orgAuditCount(projectDir, org),
+    registry_path: existsSync(join(orgRootDir(projectDir, org), "registry.json")) ? join(orgRootDir(projectDir, org), "registry.json") : undefined,
+  };
+}
+
+export function orgUploadPacket(projectDir: string, org: string, id: string): OrgUploadResult {
+  ensureMemoryDirs(projectDir);
+  ensureDir(orgInboxDir(projectDir, org));
+  const source = loadApprovedPackets(projectDir).find((packet) => packet.id === id);
+  if (!source) return { ok: false, errors: [`Approved packet not found: ${id}`] };
+  if (["blocked", "confidential"].includes(source.sensitivity)) {
+    return { ok: false, errors: [`Packet sensitivity cannot be uploaded to org memory: ${source.sensitivity}`] };
+  }
+  const findings = scanSensitiveText(`${source.title}\n${source.summary}\n${source.body}\n${source.paths.join("\n")}`);
+  if (findings.length) return { ok: false, errors: [`Sensitive content blocked: ${unique(findings).join(", ")}`] };
+
+  const createdAt = nowIso();
+  const packet: MemoryPacket = {
+    ...source,
+    id: `org:${slugify(org)}:${createHash("sha256").update(source.id).digest("hex").slice(0, 16)}:${slugify(source.title)}`,
+    scope: "org",
+    visibility: "org",
+    sensitivity: source.sensitivity === "public" ? "public" : "internal",
+    status: "pending",
+    tags: unique([...source.tags, "org-candidate"]).sort(),
+    source_refs: [
+      ...source.source_refs,
+      {
+        kind: "org_upload_candidate",
+        source_packet_id: source.id,
+        repo_key: repoKey(projectDir),
+      },
+    ],
+    quality: {
+      ...source.quality,
+      org_review_required: true,
+      source_packet_id: source.id,
+    },
+    created_at: createdAt,
+    updated_at: createdAt,
+  };
+  const validation = validatePacket(packet, "org candidate");
+  if (!validation.ok) return { ok: false, errors: validation.errors };
+  const path = join(orgInboxDir(projectDir, org), packetFileName(packet));
+  writeJson(path, packet);
+  appendOrgAudit(projectDir, org, { action: "upload_candidate", packet_id: packet.id, source_packet_id: source.id });
+  return { ok: true, packet, path, errors: [] };
+}
+
+export function orgReviewPacket(projectDir: string, org: string, id: string, action: "approve" | "reject"): OrgReviewResult {
+  ensureDir(orgInboxDir(projectDir, org));
+  ensureDir(orgPacketsDir(projectDir, org));
+  ensureDir(orgRejectedDir(projectDir, org));
+  const sourcePath = walkFiles(orgInboxDir(projectDir, org), (path) => path.endsWith(".json"))
+    .find((path) => readJson<MemoryPacket>(path).id === id);
+  if (!sourcePath) return { ok: false, errors: [`Org inbox packet not found: ${id}`] };
+  const packet = readJson<MemoryPacket>(sourcePath);
+  packet.status = action === "approve" ? "approved" : "deprecated";
+  packet.updated_at = nowIso();
+  packet.quality = {
+    ...packet.quality,
+    org_reviewed_at: packet.updated_at,
+    org_review_action: action,
+  };
+  const targetDir = action === "approve" ? orgPacketsDir(projectDir, org) : orgRejectedDir(projectDir, org);
+  const targetPath = join(targetDir, packetFileName(packet));
+  writeJson(targetPath, packet);
+  renameSync(sourcePath, `${sourcePath}.reviewed`);
+  appendOrgAudit(projectDir, org, { action: `review_${action}`, packet_id: packet.id });
+  exportOrgRegistry(projectDir, org);
+  return { ok: true, path: targetPath, errors: [] };
+}
+
+export function orgRecall(projectDir: string, org: string, query: string, limit = 5): RecallResult {
+  return recallFromPackets(query, loadOrgApprovedPackets(projectDir, org), limit, `Org:${slugify(org)}`);
+}
+
+export function layeredRecall(projectDir: string, query: string, options: { org?: string; includeGlobal?: boolean; limit?: number } = {}): LayeredRecallResult {
+  const limit = options.limit ?? 5;
+  const repo = recall(projectDir, query, limit, true);
+  const org = options.org ? orgRecall(projectDir, options.org, query, limit) : undefined;
+  const global = options.includeGlobal ? recallFromPackets(query, loadPacketsFromDir(publicCandidatesDir(projectDir)), limit, "Global") : undefined;
+  const blocks = [
+    "# Kage Layered Recall",
+    "",
+    "Priority: branch > repo local > org > global",
+    "",
+    repo.context_block,
+    org ? `\n---\n\n${org.context_block}` : "",
+    global ? `\n---\n\n${global.context_block}` : "",
+  ].filter(Boolean);
+  return {
+    query,
+    priority_order: ["branch", "repo", ...(org ? ["org"] : []), ...(global ? ["global"] : [])],
+    context_block: blocks.join("\n"),
+    repo,
+    ...(org ? { org } : {}),
+    ...(global ? { global } : {}),
+  };
+}
+
+export function exportOrgRegistry(projectDir: string, org: string): OrgMemoryStatus {
+  const packets = loadOrgApprovedPackets(projectDir, org);
+  const payload = {
+    schema_version: 1,
+    org: slugify(org),
+    repo_key: repoKey(projectDir),
+    generated_at: nowIso(),
+    metrics: {
+      packets: packets.length,
+      by_type: countBy(packets, (packet) => packet.type),
+      by_repo_path: countBy(packets.flatMap((packet) => packet.paths), (path) => path),
+    },
+    packets: packets.map((packet) => ({
+      id: packet.id,
+      title: packet.title,
+      summary: packet.summary,
+      type: packet.type,
+      tags: packet.tags,
+      paths: packet.paths,
+      source_refs: packet.source_refs,
+      updated_at: packet.updated_at,
+      content_sha256: createHash("sha256").update(canonicalPacketText(packet)).digest("hex"),
+    })),
+  };
+  const manifest = createSignedManifest({
+    kind: "org_registry",
+    name: `${slugify(org)} org memory`,
+    version: nowIso().slice(0, 10),
+    keyId: `${slugify(org)}-local`,
+    payload,
+  });
+  writeJson(join(orgRootDir(projectDir, org), "registry.json"), manifest);
+  appendOrgAudit(projectDir, org, { action: "export_registry", packets: packets.length });
+  return orgStatus(projectDir, org);
+}
+
+function canonicalPacketText(packet: MemoryPacket): string {
+  return JSON.stringify({
+    title: packet.title,
+    summary: packet.summary,
+    body: packet.body,
+    type: packet.type,
+    tags: packet.tags,
+    paths: packet.paths,
+  });
+}
+
+export function buildMarketplace(projectDir: string): MarketplaceResult {
+  ensureMemoryDirs(projectDir);
+  const packs: MarketplacePack[] = registryRecommendations(projectDir).map((item) => ({
+    ...item,
+    source: "repo_metadata" as const,
+  }));
+  const manifest: MarketplaceManifest = {
+    schema_version: 1,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    packs,
+    install_policy: "explicit_human_approval_required",
+  };
+  const path = join(marketplaceDir(projectDir), "manifest.json");
+  writeJson(path, manifest);
+  const planLines = [
+    "# Kage Marketplace Install Plan",
+    "",
+    "Kage never installs marketplace assets automatically. Review each pack, then install it with your agent's normal trusted setup flow.",
+    "",
+    ...packs.flatMap((pack) => [
+      `## ${pack.title}`,
+      "",
+      `- ID: \`${pack.id}\``,
+      `- Kind: \`${pack.kind}\``,
+      `- Trust: \`${pack.trust}\``,
+      `- Install policy: \`${pack.install}\``,
+      `- Matched: ${pack.matched.join(", ") || "(repo metadata)"}`,
+      "",
+      pack.summary,
+      "",
+    ]),
+  ];
+  writeFileSync(join(marketplaceDir(projectDir), "install-plan.md"), `${planLines.join("\n").trim()}\n`, "utf8");
+  return { ok: true, path, packs, errors: [] };
+}
+
+export function buildGlobalCdnBundle(projectDir: string, org = "local"): GlobalBundleResult {
+  ensureMemoryDirs(projectDir);
+  const publicBundle = exportPublicBundle(projectDir);
+  if (!publicBundle.ok) {
+    return { ok: false, root: globalCdnDir(projectDir), packet_count: 0, marketplace_packs: 0, errors: publicBundle.errors };
+  }
+  const marketplace = buildMarketplace(projectDir);
+  const publicManifest = readJson<ReturnType<typeof createPublicCandidateBundleManifest>["value"]>(publicBundle.path!);
+  const registryManifest = generateOrgRegistryManifest({
+    org: slugify(org),
+    version: nowIso().slice(0, 10),
+    keyId: `${slugify(org)}-global-local`,
+    bundles: [publicManifest!],
+  });
+  const root = globalCdnDir(projectDir);
+  const digest = registryManifest.signature.payload_sha256.slice(0, 16);
+  const manifestPath = join(root, `registry.${digest}.json`);
+  const aliasPath = join(root, "latest.json");
+  writeJson(manifestPath, registryManifest);
+  writeJson(join(root, "registry.json"), registryManifest);
+  writeJson(join(root, "revocations.json"), {
+    schema_version: 1,
+    generated_at: nowIso(),
+    revoked: [],
+  });
+  writeJson(aliasPath, {
+    schema_version: 1,
+    registry: relative(root, manifestPath),
+    marketplace: relative(root, marketplace.path),
+    payload_sha256: registryManifest.signature.payload_sha256,
+    generated_at: registryManifest.generated_at,
+    rollback_ready: true,
+  });
+  return {
+    ok: true,
+    root,
+    manifest_path: manifestPath,
+    alias_path: aliasPath,
+    marketplace_path: marketplace.path,
+    packet_count: registryManifest.payload.metrics.entry_count,
+    marketplace_packs: marketplace.packs.length,
+    errors: [],
+  };
 }
 
 export function recordFeedback(projectDir: string, id: string, feedback: MemoryFeedbackKind): FeedbackResult {

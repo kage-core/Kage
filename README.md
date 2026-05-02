@@ -38,7 +38,10 @@ works as a plain CLI and stdio MCP server without it.
   quality, and feedback scoring.
 - Agent policy installation through `AGENTS.md` so Kage is used automatically.
 - Local terminal-style graph viewer for demos and memory inspection.
-- Public candidate export and registry recommendation plumbing, without
+- Local org-memory inbox, review, audit, registry export, and org recall.
+- Static global/CDN bundle generation for human-promoted public candidates,
+  with immutable registry artifacts, latest alias, and revocation manifest.
+- Marketplace manifest and install plan for docs, skills, and MCP packs, without
   automatic publishing or installation.
 
 ## Product Model
@@ -48,11 +51,12 @@ Kage has three layers:
 | Layer | Status | Purpose |
 |---|---:|---|
 | Local repo memory | Ships now | Private, git-native memory for one repo. |
-| Org memory | Designed | Optional hosted memory shared across repos and teams. |
-| Global graph/CDN | Designed | Public reviewed framework docs, gotchas, skills, MCPs, and graph packs. |
+| Org memory | Local artifact mode ships now | Review-gated memory shared across teams through exported org registries. Hosted sync is optional. |
+| Global graph/CDN | Local artifact mode ships now | Static public-review bundles, marketplace manifests, revocation files, and rollback aliases. Real CDN upload is optional. |
 
-The local layer is the default. A memory server is only needed when sharing scope
-exceeds one git repo.
+The local layer is the default. Org/global commands write deterministic local
+artifacts first. A memory server or hosted CDN is only needed when sharing scope
+exceeds git/filesystem distribution.
 
 ## Install For Codex
 
@@ -155,8 +159,18 @@ kage validate --project /path/to/repo
 kage propose --project /path/to/repo --from-diff
 kage feedback --project /path/to/repo --packet <packet-id> --kind helpful
 kage registry --project /path/to/repo
+kage marketplace --project /path/to/repo
 kage promote --project /path/to/repo --public <approved-packet-id>
 kage export-public --project /path/to/repo
+
+# Org and global artifact mode
+kage org upload --project /path/to/repo --org acme --packet <approved-packet-id>
+kage org status --project /path/to/repo --org acme
+kage org review --project /path/to/repo --org acme --packet <org-packet-id> --approve
+kage org recall "how do I run tests" --project /path/to/repo --org acme
+kage org export --project /path/to/repo --org acme
+kage layered-recall "how do I run tests" --project /path/to/repo --org acme --global
+kage global build --project /path/to/repo --org acme
 ```
 
 ## MCP Tools
@@ -180,6 +194,12 @@ Local repo tools:
 - `kage_branch_overlay`
 - `kage_validate`
 - `kage_registry_recommend`
+- `kage_marketplace`
+- `kage_org_status`
+- `kage_org_upload_candidate`
+- `kage_org_recall`
+- `kage_layered_recall`
+- `kage_global_build`
 - `kage_review_artifact`
 - `kage_propose_from_diff`
 - `kage_promote_public_candidate`
@@ -360,9 +380,36 @@ controls.
 - Generated public candidates are local files only.
 - Nothing is published to org or global memory automatically.
 - Registry recommendations do not auto-install skills, docs, or MCP servers.
+- Org upload creates a review candidate; it does not approve org memory.
+- Global build uses only human-promoted public candidates and writes local CDN
+  artifacts; it does not upload to a hosted service.
 - Capture blocks obvious secrets, tokens, private URL credentials, bearer
   tokens, private keys, and email addresses before writing packets.
 - Public/global content is advisory and lower priority than repo-local memory.
+
+## Org, Global, And Marketplace
+
+Kage now ships org/global as local artifact mode:
+
+- Org memory lives under `.agent_memory/orgs/<org>/`.
+- Org uploads land in `inbox/` and require `kage org review --approve` before
+  org recall can use them.
+- Org review writes an audit log and exports `registry.json`.
+- Public candidates live under `.agent_memory/public-candidates/` and are built
+  into `.agent_memory/public-bundle/`.
+- `kage global build` writes `.agent_memory/global-cdn/registry.json`,
+  immutable registry snapshots, `latest.json`, and `revocations.json`.
+- `kage marketplace` writes `.agent_memory/marketplace/manifest.json` and an
+  explicit `install-plan.md` for docs, skills, and MCP packs.
+
+Priority is always:
+
+```text
+branch > repo local > org > global
+```
+
+Repo-local memory wins unless the user or installed policy explicitly expands
+scope with org/global recall.
 
 ## Hosted Roadmap
 
@@ -370,8 +417,9 @@ The hosted roadmap lives in [docs/ORG_GLOBAL_ROADMAP.md](docs/ORG_GLOBAL_ROADMAP
 It covers org memory, permissions, branch overlays, PR bot, registry signing,
 global CDN publish, and operational launch gates.
 
-These hosted pieces are optional extensions. They are not required for the
-local-first repo memory product.
+These hosted pieces are optional transport and operations extensions. The local
+artifact mode is the source-of-truth workflow that hosted services should sync,
+sign, serve, and audit.
 
 ## Development
 
@@ -384,4 +432,5 @@ npm test
 The current package test suite covers packet validation, migration, indexing,
 recall ranking, code graph building, external code-index artifact ingestion,
 metrics, MCP behavior, graph export, review artifacts, branch proposals,
-registry recommendations, and public bundle sanitization.
+registry recommendations, org memory review, layered recall, marketplace
+manifests, global/CDN bundle generation, and public bundle sanitization.
