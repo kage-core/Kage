@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import * as ts from "typescript";
 import { createPublicCandidateBundleManifest, createSignedManifest, generateOrgRegistryManifest } from "./registry/index.js";
@@ -4300,11 +4300,27 @@ export function distillSession(projectDir: string, sessionId: string): DistillRe
 function createDiffChangeMemory(projectDir: string, summary: BranchReviewSummary): { packet: MemoryPacket; path: string } {
   const branch = summary.branch ?? "detached";
   const head = summary.head ?? "unknown";
-  const fingerprint = createHash("sha256")
-    .update(`${branch}\n${head}\n${summary.changed_files.join("\n")}\n${summary.diff_stat}`)
-    .digest("hex")
-    .slice(0, 10);
   const title = `Change memory: ${branch}`;
+
+  // Remove any stale change-memory packets for this branch so propose_from_diff
+  // replaces rather than accumulates. The stable ID (branch-only, no fingerprint)
+  // makes writePacket idempotent going forward; this sweep handles packets that
+  // were written with the old fingerprint-based ID.
+  const stalePrefix = `workflow-${slugify(title)}-`;
+  const stableId = makePacketId(projectDir, "workflow", title);
+  const stableFileName = `${stalePrefix}${createHash("sha256").update(stableId).digest("hex").slice(0, 8)}.json`;
+  try {
+    const existing = readdirSync(packetsDir(projectDir)).filter(
+      (name) => name.startsWith(stalePrefix) && name !== stableFileName
+    );
+    for (const name of existing) {
+      const stale = join(packetsDir(projectDir), name);
+      const stalePacket = readJson<MemoryPacket>(stale);
+      if (stalePacket?.type === "workflow" && stalePacket?.title === title) {
+        unlinkSync(stale);
+      }
+    }
+  } catch { /* non-fatal */ }
   const verifyCommands = npmScriptCommands(projectDir)
     .filter((command) => /(test|check|lint|build|type|verify)/i.test(command))
     .slice(0, 8);
@@ -4338,7 +4354,7 @@ function createDiffChangeMemory(projectDir: string, summary: BranchReviewSummary
   const now = nowIso();
   const packet: MemoryPacket = {
     schema_version: PACKET_SCHEMA_VERSION,
-    id: makePacketId(projectDir, "workflow", title, fingerprint),
+    id: stableId,
     title,
     summary: `Repo-local context for ${summary.changed_files.length} changed repo path${summary.changed_files.length === 1 ? "" : "s"} on ${branch}.`,
     body,
