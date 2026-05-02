@@ -121,14 +121,14 @@ memory, validation status, estimated tokens saved per recall, duplicate
 candidates, average memory quality, and a readiness score.
 
 Review artifacts include memory quality reasons, risks, duplicate candidates,
-and estimated token savings so reviewers can approve, reject, or merge pending
-memory with less manual inspection.
+and estimated token savings for legacy pending/quarantine packets and promotion
+review.
 
 `kage observe` is the automatic-capture primitive for agent hooks and daemon
 clients. It accepts session, prompt, tool, file-change, command, test, and
 session-end events; deduplicates them; scans for secrets and PII; and stores raw
-observations locally only. `kage distill` turns those observations into pending
-packets with observation session source refs. It never approves or publishes
+observations locally only. `kage distill` turns useful observations into
+repo-local packets with observation session source refs. It never publishes
 memory.
 
 `kage recall --explain --json` exposes the hybrid scoring explanation used for
@@ -156,12 +156,13 @@ workflows that need REST, live observation ingestion, or Aider-style scripting.
 Run `kage viewer --project <repo>` to start the local terminal console. It
 serves the viewer and the selected repo's `.agent_memory/` files from the same
 localhost server, then prints a URL that auto-loads memory graph, code graph,
-metrics, review artifact, and pending packets. Manual JSON selection remains as
+metrics, review artifact, and pending packets when present. Manual JSON selection remains as
 a fallback, not the main workflow.
 
 The viewer renders nodes and relations in SVG, supports memory/code/combined
-modes, filters by type and relation, displays metrics, shows the pending review
-queue, and marks review risks such as low-confidence or missing-evidence edges.
+modes, filters by type and relation, displays metrics, shows packets and pending
+quarantine items when present, and marks risks such as low-confidence or
+missing-evidence edges.
 
 For demos or local docs, the viewer also accepts URL params:
 
@@ -264,7 +265,7 @@ Before code changes or repo-specific answers:
 3. Call `kage_graph` with the user task as the query.
 4. Capture reusable learnings with `kage_learn` or `kage_capture`.
 5. Before finishing changed-file tasks, call `kage_propose_from_diff`.
-6. Never approve or publish memory automatically.
+6. Never publish or promote org/global memory automatically.
 ```
 
 The official Codex MCP docs also support adding HTTP MCP servers with:
@@ -280,15 +281,16 @@ fit for the current package.
 ## Safety Model
 
 - `kage_learn` is the preferred surface for actual session learning. It creates
-  pending packets with explicit learning/evidence/verification text.
-- `kage_capture` only creates pending packets.
+  repo-local packets with explicit learning/evidence/verification text.
+- `kage_capture` creates repo-local packets.
 - `kage_propose_from_diff` writes a branch review summary under
-  `.agent_memory/review/` and a pending change-memory packet under
-  `.agent_memory/pending/`. It becomes shared recall only after human approval.
+  `.agent_memory/review/` and a repo-local change-memory packet under
+  `.agent_memory/packets/`. Promotion beyond the repo still requires explicit
+  review.
 - `kage_promote_public_candidate` writes a local sanitized review candidate
   under `.agent_memory/public-candidates/`; it does not publish.
 - Registry recommendations never auto-install skills, docs, or MCP servers.
-- Shared approved memory still requires `kage review`.
+- Org/global shared memory still requires explicit review.
 - Capture blocks obvious secrets, tokens, private URL credentials, bearer
   tokens, private keys, and email addresses before writing a packet.
 - Generated indexes are disposable and can be rebuilt from packets.

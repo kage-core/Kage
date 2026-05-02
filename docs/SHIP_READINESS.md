@@ -9,8 +9,8 @@ that can ship now from hosted SaaS infrastructure that remains a later launch.
 | Area | Status | Notes |
 |---|---:|---|
 | Canonical memory packets | Ready | Approved JSON packets live in `.agent_memory/packets/`. |
-| Pending capture | Ready | `kage_learn` and `kage_capture` create pending packets only. |
-| Human review gate | Ready | `kage review-artifact` and `kage review` keep approval explicit. |
+| Repo-local capture | Ready | `kage_learn` and `kage_capture` write repo packets directly. |
+| Org/global review gate | Ready | Public candidates and org uploads keep approval explicit before promotion. |
 | Secret and PII scanner | Ready | Capture blocks common secrets, tokens, private URL credentials, private keys, and emails. |
 | Legacy Markdown migration | Ready | Existing `.agent_memory/nodes/*.md` is migrated without deleting source files. |
 | Repo indexes | Ready | Path, tag, type, catalog, and graph indexes are rebuildable. |
@@ -27,9 +27,9 @@ that can ship now from hosted SaaS infrastructure that remains a later launch.
 | All-agent setup matrix | Ready | `kage setup` prints MCP/REST setup for Codex, Claude Code, Cursor, Windsurf, Gemini CLI, OpenCode, Cline, Goose, Roo, Kilo, Claude Desktop, Aider, and generic MCP. |
 | Optional local runtime | Ready | `kage daemon` serves REST observe/recall/distill/metrics/quality/benchmark on localhost while CLI/MCP continue without it. |
 | Automatic observations | Ready | `kage observe`, `kage_observe`, and REST observe store privacy-scanned deduped session events locally. |
-| Observation distillation | Ready | `kage distill` creates pending packets with observation-session source refs and review suggestions. |
+| Observation distillation | Ready | `kage distill` creates repo packets with observation-session source refs and quality metadata. |
 | Ambient agent policy | Ready | `AGENTS.md` tells agents to recall, query, learn, and propose without manual prompts. |
-| Change memory proposals | Ready | `kage propose --from-diff` writes branch summaries and pending change-memory packets for review. |
+| Change memory capture | Ready | `kage propose --from-diff` writes branch summaries and repo-local change-memory packets. |
 | Registry recommendations | Ready | Recommends docs, skills, and optional MCPs without auto-installing. |
 | Public candidate export | Ready | Sanitized local bundles can be created, but nothing is published automatically. |
 | Local org memory artifact mode | Ready | Org inbox, review, audit log, approved packets, registry export, and org recall are file-backed. |
@@ -43,13 +43,13 @@ that can ship now from hosted SaaS infrastructure that remains a later launch.
 
 - [x] Local install path for Codex.
 - [x] MCP server and CLI binaries.
-- [x] Human-gated memory review.
+- [x] Human-gated org/global promotion review.
 - [x] Local graph and code graph.
 - [x] Metrics and token-savings estimate.
 - [x] Quality and benchmark proof commands.
 - [x] All-agent setup command.
 - [x] Optional local daemon and REST observe/recall/distill API.
-- [x] Observation capture and distillation into pending memory.
+- [x] Observation capture and distillation into repo memory.
 - [x] Local org memory artifact mode.
 - [x] Local global/CDN artifact mode.
 - [x] Marketplace manifest and install plan.
@@ -91,7 +91,7 @@ See [ORG_GLOBAL_ROADMAP.md](ORG_GLOBAL_ROADMAP.md) and
 Kage is ready to present as:
 
 > A local-first repo memory and code graph harness for coding agents, with MCP
-> tools, optional REST runtime, git-shareable memory, human review, metrics,
+> tools, optional REST runtime, git-shareable memory, org/global review, metrics,
 > quality/benchmark proof, automatic observation capture, and a terminal graph
 > viewer. It also ships local org/global artifact mode and marketplace
 > recommendations without automatic publishing or installation.

@@ -708,7 +708,7 @@
           <a href="#hive">Hive</a>
           <a href="#graphs">Graphs</a>
           <a href="#setup">Setup</a>
-          <a href="#review">Review</a>
+          <a href="#trust">Trust</a>
           <a href="#ships">Ships now</a>
         </div>
         <a class="nav-cta" href="https://github.com/kage-core/Kage">GitHub</a>
@@ -736,12 +736,12 @@
             </g>
             <g class="hero-node" filter="url(#glow)">
               <rect x="610" y="336" width="220" height="64" fill="rgba(7,16,13,.84)" stroke="rgba(80,215,255,.58)" />
-              <text x="636" y="363" fill="#50d7ff" font-size="15">reviewed packet</text>
+              <text x="636" y="363" fill="#50d7ff" font-size="15">repo packet</text>
               <text x="636" y="382" fill="#85a394" font-size="12">source-backed JSON</text>
             </g>
             <g class="hero-node" filter="url(#glow)">
               <rect x="1040" y="404" width="176" height="58" fill="rgba(7,16,13,.82)" stroke="rgba(255,184,77,.55)" />
-              <text x="1062" y="438" fill="#ffb84d" font-size="15">human approves</text>
+              <text x="1062" y="438" fill="#ffb84d" font-size="15">git carries it</text>
             </g>
             <g class="hero-node" filter="url(#glow)">
               <rect x="1048" y="602" width="228" height="64" fill="rgba(7,16,13,.84)" stroke="rgba(57,255,154,.58)" />
@@ -755,7 +755,7 @@
             <h1>Repo memory for coding agents.</h1>
             <p class="hero-copy">
               <strong>Codex learns it today. Claude Code recalls it tomorrow.</strong>
-              Kage turns durable discoveries into reviewed, source-backed repo memory that travels with your code.
+              Kage turns durable discoveries into source-backed repo memory that travels with your code.
             </p>
             <div class="hero-actions">
               <div class="install" aria-label="Install Kage command">
@@ -793,16 +793,16 @@
                 <p>Codex finds a workflow, bug fix, convention, command, package pattern, or code path.</p>
               </div>
               <div class="flow-step" data-step="02">
-                <h3>Kage proposes</h3>
-                <p>The agent writes a pending packet or change-memory proposal with paths and evidence.</p>
+                <h3>Kage writes</h3>
+                <p>The agent writes repo-local packets with paths, evidence, quality, freshness, and source refs.</p>
               </div>
               <div class="flow-step" data-step="03">
-                <h3>Human reviews</h3>
-                <p>Weak, duplicate, stale, or sensitive memory is rejected before it reaches the team.</p>
+                <h3>Git reviews</h3>
+                <p>Repo memory is visible as normal JSON changes. Secrets are blocked before write.</p>
               </div>
               <div class="flow-step" data-step="04">
                 <h3>Git carries it</h3>
-                <p>Approved packets live in the repo as plain JSON. No hidden vendor silo required.</p>
+                <p>Packets live in the repo as plain JSON. No hidden vendor silo required.</p>
               </div>
               <div class="flow-step" data-step="05">
                 <h3>Agents recall</h3>
@@ -818,7 +818,7 @@
               <div class="label">Graphs with provenance</div>
               <h2>Separate code truth from learned memory.</h2>
               <p>
-                The code graph is rebuilt from source. The memory graph is built from reviewed packets.
+                The code graph is rebuilt from source. The memory graph is built from repo-local packets.
                 That separation keeps Kage useful instead of turning sessions into junk nodes.
               </p>
             </div>
@@ -855,8 +855,8 @@
                   </g>
                   <g filter="url(#softGlow)">
                     <rect x="518" y="104" width="132" height="68" fill="#07100d" stroke="#ffb84d" />
-                    <text x="544" y="134" fill="#ffb84d" font-size="14">review gate</text>
-                    <text x="538" y="153" fill="#85a394" font-size="11">humans approve</text>
+                    <text x="544" y="134" fill="#ffb84d" font-size="14">promotion</text>
+                    <text x="538" y="153" fill="#85a394" font-size="11">org/global review</text>
                   </g>
                   <g filter="url(#softGlow)">
                     <rect x="50" y="204" width="134" height="70" fill="#07100d" stroke="#39ff9a" />
@@ -877,7 +877,7 @@
               </div>
               <div class="graph-side" aria-label="Graph metrics">
                 <div class="signal"><strong>files -> symbols -> calls</strong><span>Source-derived graph facts for routes, imports, tests, packages, and flow.</span></div>
-                <div class="signal"><strong>packets -> entities -> edges</strong><span>Reviewed memory becomes typed graph facts with provenance, freshness, and quality.</span></div>
+                <div class="signal"><strong>packets -> entities -> edges</strong><span>Repo memory becomes typed graph facts with provenance, freshness, and quality.</span></div>
                 <div class="signal"><strong>text + graph retrieval</strong><span>Recall blends text, graph, path, type, tag, quality, freshness, and feedback signals.</span></div>
                 <div class="signal"><strong>estimated savings</strong><span>Token savings are estimated from compact context today; production telemetry is not overclaimed.</span></div>
               </div>
@@ -912,24 +912,24 @@ kage init --project .</pre>
           </div>
         </section>
 
-        <section class="section" id="review">
+        <section class="section" id="trust">
           <div class="section-inner">
             <div class="section-head">
               <div class="label">Trust model</div>
-              <h2>Agents propose. Humans approve.</h2>
+              <h2>Repo memory is immediate. Org/global memory is reviewed.</h2>
             </div>
             <div class="review-grid">
               <div class="review-copy">
                 <p>
-                  Kage is built to prevent memory rot. Raw observations answer what happened.
-                  Durable memory answers what a future agent should know before acting.
+                  Repo-local memory should feel automatic: agents learn, write packets, and future
+                  agents recall them. The human gate starts when memory leaves the repo boundary.
                 </p>
               </div>
               <div class="review-list">
-                <div class="review-item"><b>pending</b><span>Agents create pending packets, never approved team memory.</span></div>
+                <div class="review-item"><b>repo</b><span>Agents write approved repo packets directly under `.agent_memory/packets/`.</span></div>
                 <div class="review-item"><b>scanned</b><span>Secrets, tokens, credentials, private URLs, and PII are blocked before capture.</span></div>
-                <div class="review-item"><b>scored</b><span>Quality, duplicates, evidence, grounding, and stale feedback are visible at review.</span></div>
-                <div class="review-item"><b>approved</b><span>Only reviewed packets become recallable shared repo memory.</span></div>
+                <div class="review-item"><b>visible</b><span>Repo memory is git-visible, diffable, and reviewable in the same flow as code.</span></div>
+                <div class="review-item"><b>promote</b><span>Org/global upload, public candidates, registry packs, and CDN bundles require explicit review.</span></div>
               </div>
             </div>
           </div>
@@ -947,10 +947,10 @@ kage init --project .</pre>
             </div>
             <div class="ship-grid">
               <div class="ship"><h3>CLI + MCP</h3><p>`kage` and `kage-graph-mcp` ship from npm for Codex, Claude Code, and MCP clients.</p></div>
-              <div class="ship"><h3>Git-native memory</h3><p>Approved packets are plain JSON under the repo, reviewable like any other code artifact.</p></div>
+              <div class="ship"><h3>Git-native memory</h3><p>Repo packets are plain JSON under the repo, diffable like any other code artifact.</p></div>
               <div class="ship"><h3>Code graph</h3><p>Source-derived files, symbols, imports, calls, routes, tests, and package scripts.</p></div>
               <div class="ship"><h3>Metrics</h3><p>Readiness, evidence coverage, memory quality, recall hit rate, and estimated tokens saved.</p></div>
-              <div class="ship"><h3>Viewer</h3><p>Terminal-style local console for graph inspection, packet review, and metrics exploration.</p></div>
+              <div class="ship"><h3>Viewer</h3><p>Terminal-style local console for graph inspection, packet inspection, and metrics exploration.</p></div>
               <div class="ship"><h3>Honest boundary</h3><p>No hosted SaaS claim. No automatic public publishing. No marketplace auto-install.</p></div>
             </div>
           </div>
