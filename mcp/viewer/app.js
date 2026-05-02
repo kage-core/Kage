@@ -154,6 +154,9 @@
     var metricsPath = params.get("metrics");
     var reviewPath = params.get("review");
     var pendingPath = params.get("pending");
+    var inferredRoot = inferMemoryRoot(graphPaths[0] || "");
+    if (!reviewPath && inferredRoot) reviewPath = inferredRoot + "/review/memory-review.md";
+    if (!pendingPath && inferredRoot) pendingPath = inferredRoot + "/pending";
     var jobs = [];
     if (metricsPath) jobs.push(fetchJson(metricsPath).then(function (metrics) { state.metrics = metrics; }));
     if (reviewPath) jobs.push(fetchText(reviewPath).then(function (text) { state.reviewText = text; }).catch(function () { state.reviewText = ""; }));
@@ -182,6 +185,13 @@
       setAutoLoad("auto-load failed", false);
       showError("Could not auto-load graph: " + error.message);
     });
+  }
+
+  function inferMemoryRoot(path) {
+    var marker = "/.agent_memory/";
+    var index = path.indexOf(marker);
+    if (index === -1) return "";
+    return path.slice(0, index + marker.length - 1);
   }
 
   function fetchJson(path) {
@@ -782,6 +792,7 @@
     var reviewFlags = visibleEdges.filter(function (edge) { return reviewStatus(edge) !== "ok"; }).length;
     var pills = official ? [
       ["Readiness", official.harness.readiness_score + "/100", ""],
+      ["Pending", official.memory_graph ? String(official.memory_graph.pending_packets) : "n/a", official.memory_graph && official.memory_graph.pending_packets ? "warn" : ""],
       ["Tokens saved", official.savings ? String(official.savings.estimated_tokens_saved_per_recall) : "n/a", "warn"],
       ["Quality", official.memory_graph.average_quality_score + "/100", "memory"],
       ["Parser coverage", official.code_graph.indexer_coverage_percent + "%", "code"]
