@@ -230,6 +230,11 @@ quality notes, duplicate candidates, risks, and estimated token savings. `kage
 review` is the CLI approval gate. Approved packets are committed like normal
 repo files and shared with teammates through git.
 
+Kage does not turn every observation into memory. Routine commands, file touch
+events, and raw task prompts stay as observations unless they contain a durable
+repo learning. The admission rules are documented in
+[docs/MEMORY_ADMISSION.md](docs/MEMORY_ADMISSION.md).
+
 ## What Gets Stored
 
 Kage stores future-useful knowledge, not transcripts:

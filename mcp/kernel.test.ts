@@ -38,6 +38,7 @@ import {
   setupAgent,
   setupDoctor,
   qualityReport,
+  evaluateMemoryAdmission,
   validatePacket,
   validateProject,
 } from "./kernel.js";
@@ -390,6 +391,7 @@ test("distillation creates command memory only for reusable command learnings", 
   assert.doesNotMatch(packet?.title ?? "", /Session .* command runbook/);
   assert.equal(packet?.source_refs[0]?.kind, "observation_session");
   assert.deepEqual(packet?.source_refs[0]?.session_id, "cmd-meaningful");
+  assert.equal((packet?.quality.admission as { admit?: boolean } | undefined)?.admit, true);
 });
 
 test("distillation does not create useless touched-file memory", () => {
@@ -418,6 +420,55 @@ test("distillation does not create useless touched-file memory", () => {
   assert.match(packet?.title ?? "", /Server dispatcher maps/);
   assert.doesNotMatch(packet?.title ?? "", /touched 1 repo paths/);
   assert.deepEqual(packet?.paths, ["src/server.ts"]);
+});
+
+test("distillation keeps ordinary prompts episodic and admits durable prompt learnings", () => {
+  const project = tempProject();
+  assert.equal(observe(project, {
+    type: "user_prompt",
+    session_id: "prompt-generic",
+    text: "Build a todo app and show me the graph.",
+  }).ok, true);
+  let distilled = distillSession(project, "prompt-generic");
+  assert.equal(distilled.candidates.length, 0);
+
+  assert.equal(observe(project, {
+    type: "user_prompt",
+    session_id: "prompt-durable",
+    text: "Decision: prefer kage_learn for durable session discoveries; avoid saving raw task prompts as memory.",
+  }).ok, true);
+  distilled = distillSession(project, "prompt-durable");
+  const packet = distilled.candidates[0]?.packet;
+  assert.equal(packet?.type, "decision");
+  assert.match(packet?.title ?? "", /Decision/);
+  assert.doesNotMatch(packet?.title ?? "", /user intent/);
+});
+
+test("memory admission rejects session bookkeeping and accepts durable repo knowledge", () => {
+  const project = tempProject();
+  const bad = capture({
+    projectDir: project,
+    title: "Session abc command runbook",
+    summary: "Observed commands: npm test",
+    body: "Observed during session abc:\n- npm test (exit 0)",
+    type: "runbook",
+  });
+  assert.equal(bad.ok, true);
+  assert.equal(evaluateMemoryAdmission(project, bad.packet!).admit, false);
+
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "server.ts"), "", "utf8");
+  const good = capture({
+    projectDir: project,
+    title: "Webhook replay tests verify signatures",
+    summary: "Use npm test -- webhooks after changing webhook signature verification.",
+    body: "Use npm test -- webhooks after changing webhook signature verification because the normal suite does not replay signed payload fixtures. Verified by: npm test -- webhooks.",
+    type: "runbook",
+    paths: ["src/server.ts"],
+    tags: ["webhook", "tests"],
+  });
+  assert.equal(good.ok, true);
+  assert.equal(evaluateMemoryAdmission(project, good.packet!).admit, true);
 });
 
 test("recall explanations, quality, and benchmark expose proof metrics", () => {

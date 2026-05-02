@@ -283,6 +283,14 @@ export interface BenchmarkReport {
   };
 }
 
+export interface MemoryAdmissionResult {
+  admit: boolean;
+  class: "episodic_only" | "candidate" | "high_signal";
+  score: number;
+  reasons: string[];
+  risks: string[];
+}
+
 export interface DiffProposalResult {
   ok: boolean;
   packet?: MemoryPacket;
@@ -956,6 +964,67 @@ function evaluateMemoryQuality(projectDir: string, packet: MemoryPacket): Record
     risks,
     duplicate_candidates: duplicates,
     estimated_tokens_saved: Math.max(40, estimateTokens(packet.body) * 2),
+  };
+}
+
+export function evaluateMemoryAdmission(projectDir: string, packet: MemoryPacket): MemoryAdmissionResult {
+  const reasons: string[] = [];
+  const risks: string[] = [];
+  const text = `${packet.title}\n${packet.summary}\n${packet.body}`.toLowerCase();
+  let score = 0;
+
+  if (["runbook", "bug_fix", "decision", "convention", "workflow", "gotcha", "policy"].includes(packet.type)) {
+    score += 18;
+    reasons.push("durable memory type");
+  }
+  if (packet.source_refs.length) {
+    score += 14;
+    reasons.push("has provenance");
+  }
+  if (packet.paths.length || ["repo_map", "policy"].includes(packet.type)) {
+    score += 12;
+    reasons.push("repo scoped or path grounded");
+  }
+  if (/(when|after|before|because|requires|must|avoid|prefer|use this|run this|root cause|decision|convention|gotcha|workaround|fix|policy)/i.test(packet.body)) {
+    score += 18;
+    reasons.push("has future trigger or rationale");
+  }
+  if (/(verified by|evidence:|test passed|reproduced|root cause)/i.test(packet.body)) {
+    score += 10;
+    reasons.push("has verification signal");
+  }
+  if (tokenize(packet.body).length >= 14) {
+    score += 8;
+    reasons.push("substantive enough to reuse");
+  }
+  if (duplicateCandidates(projectDir, packet).length) {
+    score -= 24;
+    risks.push("duplicates existing memory");
+  }
+  if (/^session\b|session .*(command runbook|user intent|touched \d+ repo paths)/i.test(packet.title)) {
+    score -= 35;
+    risks.push("session bookkeeping, not durable knowledge");
+  }
+  if (/(observed commands?:\s*(npm test|npm run test|yarn test|pnpm test)\b|tests? passed\.?$)/i.test(packet.summary) && !/(when|after|because|workaround|fix|failure|gotcha)/i.test(packet.body)) {
+    score -= 30;
+    risks.push("routine command result already belongs in repo index");
+  }
+  if (/(edited file|touched file|changed file|modified file|updated file)/i.test(packet.body) && !/(because|requires|maps|dispatch|workflow|gotcha|decision)/i.test(packet.body)) {
+    score -= 30;
+    risks.push("file activity without reusable learning");
+  }
+  if (packet.body.length < 80) {
+    score -= 10;
+    risks.push("too little context");
+  }
+
+  const bounded = Math.max(0, Math.min(100, score));
+  return {
+    admit: bounded >= 45 && risks.indexOf("session bookkeeping, not durable knowledge") === -1,
+    class: bounded >= 72 ? "high_signal" : bounded >= 45 ? "candidate" : "episodic_only",
+    score: bounded,
+    reasons,
+    risks,
   };
 }
 
@@ -3751,6 +3820,31 @@ function reusableCommandObservation(event: ObservationRecord, knownCommands: Set
   return { command, learning };
 }
 
+function reusablePromptObservation(event: ObservationRecord): string {
+  const text = `${event.summary ?? ""}\n${event.text ?? ""}`.trim();
+  if (!text) return "";
+  const lower = text.toLowerCase();
+  const durableSignals = [
+    "remember",
+    "decision:",
+    "we decided",
+    "convention",
+    "policy",
+    "gotcha",
+    "runbook",
+    "workflow",
+    "root cause",
+    "use this",
+    "always",
+    "never",
+    "prefer",
+    "avoid",
+  ];
+  if (!durableSignals.some((signal) => lower.includes(signal))) return "";
+  if (/^(fix|build|create|implement|update|continue|show me|what is|why is|can you)\b/i.test(text) && !/(decision|convention|policy|gotcha|remember|prefer|avoid)/i.test(text)) return "";
+  return text;
+}
+
 export function distillSession(projectDir: string, sessionId: string): DistillResult {
   const observations = loadObservations(projectDir, sessionId);
   const candidates: CaptureResult[] = [];
@@ -3769,6 +3863,7 @@ export function distillSession(projectDir: string, sessionId: string): DistillRe
     result.packet.quality = {
       ...result.packet.quality,
       distillation: "automatic_observation_candidate",
+      admission: evaluateMemoryAdmission(projectDir, result.packet),
       suggested_review_action: suggestedAction(classifyPacket(projectDir, result.packet), result.packet.status),
     };
     writeJson(result.path, result.packet);
@@ -3815,12 +3910,11 @@ export function distillSession(projectDir: string, sessionId: string): DistillRe
   }
 
   if (promptEvents.length) {
-    const text = promptEvents.map((event) => event.summary || event.text || "").join("\n").trim();
+    const text = promptEvents.map(reusablePromptObservation).filter(Boolean).join("\n").trim();
     if (text) candidates.push(annotate(learn({
       projectDir,
-      title: `Session ${sessionId} user intent`,
-      learning: `Observed user intent during session ${sessionId}: ${summarize(text)}`,
-      type: "reference",
+      title: titleFromLearning(text),
+      learning: text,
       evidence: `Observation session: ${sessionId}`,
       tags: ["observed-session", "intent"],
     })));
@@ -3925,6 +4019,7 @@ export function createReviewArtifact(projectDir: string): ReviewArtifactResult {
     ]),
     ...pending.flatMap((packet, index) => {
       const quality = evaluateMemoryQuality(projectDir, packet);
+      const admission = evaluateMemoryAdmission(projectDir, packet);
       const duplicates = quality.duplicate_candidates as Array<{ id: string; title: string; score: number; status: string }>;
       return [
         `## ${index + 1}. ${packet.title}`,
@@ -3934,6 +4029,9 @@ export function createReviewArtifact(projectDir: string): ReviewArtifactResult {
         `- Tags: ${packet.tags.join(", ") || "(none)"}`,
         `- Paths: ${packet.paths.join(", ") || "(none)"}`,
         `- Summary: ${packet.summary}`,
+        `- Admission: ${admission.admit ? "candidate" : "episodic only"} (${admission.score}/100, ${admission.class})`,
+        `- Admission reasons: ${admission.reasons.join(", ") || "(none)"}`,
+        `- Admission risks: ${admission.risks.join(", ") || "(none)"}`,
         `- Quality score: ${quality.score}/100`,
         `- Quality reasons: ${(quality.reasons as string[]).join(", ") || "(none)"}`,
         `- Review risks: ${(quality.risks as string[]).join(", ") || "(none)"}`,
