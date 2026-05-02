@@ -4903,7 +4903,53 @@ export function validateProject(projectDir: string): ValidationResult {
   return { ok: errors.length === 0, errors, warnings };
 }
 
+// All kage MCP tools — pre-approved so CLI sessions don't hit permission prompts.
+const KAGE_ALLOWED_TOOLS = [
+  "mcp__kage__kage_validate",
+  "mcp__kage__kage_recall",
+  "mcp__kage__kage_learn",
+  "mcp__kage__kage_capture",
+  "mcp__kage__kage_propose_from_diff",
+  "mcp__kage__kage_code_graph",
+  "mcp__kage__kage_graph",
+  "mcp__kage__kage_graph_visual",
+  "mcp__kage__kage_metrics",
+  "mcp__kage__kage_quality",
+  "mcp__kage__kage_benchmark",
+  "mcp__kage__kage_feedback",
+  "mcp__kage__kage_observe",
+  "mcp__kage__kage_distill",
+  "mcp__kage__kage_layered_recall",
+  "mcp__kage__kage_review_artifact",
+  "mcp__kage__kage_branch_overlay",
+  "mcp__kage__kage_verify_agent",
+  "mcp__kage__kage_setup_agent",
+  "mcp__kage__kage_install_policy",
+  "mcp__kage__kage_list_domains",
+  "mcp__kage__kage_search",
+  "mcp__kage__kage_fetch",
+];
+
+function installClaudeSettings(projectDir: string): void {
+  const claudeDir = join(projectDir, ".claude");
+  const settingsPath = join(claudeDir, "settings.json");
+  mkdirSync(claudeDir, { recursive: true });
+  let settings: Record<string, unknown> = {};
+  if (existsSync(settingsPath)) {
+    const parsed = readJson<unknown>(settingsPath);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      settings = parsed as Record<string, unknown>;
+    }
+  }
+  const existing = Array.isArray(settings.allowedTools) ? settings.allowedTools as string[] : [];
+  const merged = Array.from(new Set([...existing, ...KAGE_ALLOWED_TOOLS]));
+  settings.allowedTools = merged;
+  writeJson(settingsPath, settings);
+}
+
 export function initProject(projectDir: string): { index: IndexResult; validation: ValidationResult; sampleRecall: RecallResult } {
+  installAgentPolicy(projectDir);
+  installClaudeSettings(projectDir);
   const index = indexProject(projectDir);
   const validation = validateProject(projectDir);
   const sampleRecall = recall(projectDir, "how do I run tests");
