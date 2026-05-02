@@ -43,6 +43,7 @@ import {
   setupAgent,
   setupDoctor,
   validateProject,
+  verifyAgentActivation,
   type CaptureInput,
   type MemoryType,
   type ObservationEvent,
@@ -60,6 +61,7 @@ Usage:
   kage setup list
   kage setup <agent> --project <dir> [--write] [--json]
   kage setup doctor --project <dir> [--json]
+  kage setup verify-agent --agent <agent> --project <dir> [--json]
   kage daemon start --project <dir> [--port 3111]
   kage daemon stop --project <dir>
   kage daemon status --project <dir> [--json]
@@ -237,6 +239,27 @@ async function main(): Promise<void> {
       for (const item of result) {
         console.log(`- ${item.agent}: ${item.configured ? "configured" : "not detected"}${item.config_path ? ` (${item.config_path})` : ""}`);
       }
+      return;
+    }
+    if (action === "verify-agent") {
+      const agent = takeArg(args, "--agent") ?? "codex";
+      if (!SETUP_AGENTS.includes(agent as SetupAgent)) usage();
+      const result = verifyAgentActivation(agent as SetupAgent, projectArg(args));
+      if (args.includes("--json")) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+      console.log(`Kage agent activation: ${result.agent}`);
+      console.log(`Status: ${result.status}`);
+      console.log(`Config: ${result.checks.config_mentions_kage ? "kage configured" : result.checks.config_present ? "config present, kage missing" : "missing"}${result.config_path ? ` (${result.config_path})` : ""}`);
+      console.log(`Policy: ${result.checks.policy_installed ? "installed" : "missing"}`);
+      console.log(`Indexes: ${result.checks.indexes_present ? "present" : "missing"}`);
+      console.log(`Recall: ${result.checks.recall_works ? "ok" : "failed"} (${result.recall_preview})`);
+      console.log(`Code graph: ${result.checks.code_graph_works ? "ok" : "failed"} (${result.code_graph_summary})`);
+      console.log(`Active MCP tool: ${result.checks.mcp_tool_reachable ? "reachable" : "not verified from CLI"}`);
+      if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
+      if (result.next_steps.length) console.log(`Next steps:\n${result.next_steps.map((step) => `  - ${step}`).join("\n")}`);
+      if (result.status !== "ready") process.exitCode = 2;
       return;
     }
     if (!action || !SETUP_AGENTS.includes(action as SetupAgent)) usage();

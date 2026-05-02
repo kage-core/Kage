@@ -57,6 +57,26 @@ export interface IndexResult {
   policyPath?: string;
 }
 
+export interface AgentActivationReport {
+  agent: SetupAgent;
+  project_dir: string;
+  status: "ready" | "restart_required" | "needs_setup" | "needs_index";
+  checks: {
+    config_present: boolean;
+    config_mentions_kage: boolean;
+    policy_installed: boolean;
+    indexes_present: boolean;
+    recall_works: boolean;
+    code_graph_works: boolean;
+    mcp_tool_reachable: boolean;
+  };
+  config_path: string | null;
+  recall_preview: string;
+  code_graph_summary: string;
+  warnings: string[];
+  next_steps: string[];
+}
+
 export interface ValidationResult {
   ok: boolean;
   errors: string[];
@@ -672,6 +692,10 @@ Before making code changes, answering repo-specific implementation questions, de
 6. Prefer repo memory over public/community memory when they conflict.
 
 Do this without waiting for the user to ask. Kage should feel like ambient repo memory, not a manual search command.
+
+If Kage appears installed but no Kage tools are available, report that the active
+agent session has not loaded the MCP server and ask the user to restart the
+agent. After restart, call \`kage_verify_agent\` to prove the harness is live.
 
 ## Automatic Capture
 
@@ -3816,6 +3840,82 @@ export function setupDoctor(projectDir: string): Array<{ agent: SetupAgent; conf
       notes: setup.instructions,
     };
   });
+}
+
+function configMentionsKage(path: string | null): boolean {
+  if (!path || !existsSync(path)) return false;
+  const text = readFileSync(path, "utf8");
+  return /\bkage\b/.test(text) && /(mcp|mcpServers|mcp_servers)/i.test(text);
+}
+
+export function verifyAgentActivation(
+  agent: SetupAgent,
+  projectDir: string,
+  options: { mcpToolReachable?: boolean; homeDir?: string; serverPath?: string } = {}
+): AgentActivationReport {
+  if (!SETUP_AGENTS.includes(agent)) throw new Error(`Unsupported agent: ${agent}`);
+  const setup = setupAgent(agent, projectDir, { homeDir: options.homeDir, serverPath: options.serverPath });
+  const configPresent = Boolean(setup.config_path && existsSync(setup.config_path));
+  const configHasKage = configMentionsKage(setup.config_path);
+  const refreshed = indexProject(projectDir);
+  const policyPath = join(projectDir, "AGENTS.md");
+  const policyInstalled = existsSync(policyPath) && readFileSync(policyPath, "utf8").includes(AGENTS_POLICY_MARKER);
+  const requiredIndexes = ["catalog.json", "by-path.json", "by-tag.json", "by-type.json", "graph.json", "code-graph.json"];
+  const indexSet = new Set(refreshed.indexes.map((path) => basename(path)));
+  const indexesPresent = requiredIndexes.every((name) => indexSet.has(name));
+  const recallResult = recall(projectDir, "kage setup repo memory code graph", 3, true);
+  const codeGraph = buildCodeGraph(projectDir);
+  const recallWorks = recallResult.context_block.includes("Kage Context");
+  const codeGraphWorks = codeGraph.files.length > 0;
+  const mcpToolReachable = Boolean(options.mcpToolReachable);
+  const warnings: string[] = [];
+  const nextSteps: string[] = [];
+
+  if (!configPresent) {
+    warnings.push(`${agent} config was not detected.`);
+    nextSteps.push(`Run: kage setup ${agent} --project ${projectDir} --write`);
+  } else if (!configHasKage) {
+    warnings.push(`${agent} config exists but does not mention the Kage MCP server.`);
+    nextSteps.push(`Run: kage setup ${agent} --project ${projectDir} --write`);
+  }
+  if (!policyInstalled) {
+    warnings.push("AGENTS.md Kage policy is missing.");
+    nextSteps.push(`Run: kage init --project ${projectDir}`);
+  }
+  if (!indexesPresent) {
+    warnings.push("Generated indexes are missing or incomplete.");
+    nextSteps.push(`Run: kage index --project ${projectDir}`);
+  }
+  if (!mcpToolReachable) {
+    warnings.push("This CLI can verify config, policy, recall, and code graph, but cannot prove the current agent session loaded the MCP server.");
+    nextSteps.push(`Restart ${agent}, then ask it to call kage_verify_agent or list MCP tools.`);
+  }
+
+  const status: AgentActivationReport["status"] =
+    !configPresent || !configHasKage ? "needs_setup" :
+    !indexesPresent || !recallWorks || !codeGraphWorks ? "needs_index" :
+    !mcpToolReachable ? "restart_required" :
+    "ready";
+
+  return {
+    agent,
+    project_dir: projectDir,
+    status,
+    checks: {
+      config_present: configPresent,
+      config_mentions_kage: configHasKage,
+      policy_installed: policyInstalled,
+      indexes_present: indexesPresent,
+      recall_works: recallWorks,
+      code_graph_works: codeGraphWorks,
+      mcp_tool_reachable: mcpToolReachable,
+    },
+    config_path: setup.config_path,
+    recall_preview: recallResult.results[0]?.packet.title ?? "No matching memory packet; recall surface is still reachable.",
+    code_graph_summary: `${codeGraph.files.length} files, ${codeGraph.symbols.length} symbols, ${codeGraph.calls.length} calls, ${codeGraph.tests.length} tests`,
+    warnings,
+    next_steps: unique(nextSteps),
+  };
 }
 
 function observationPath(projectDir: string, id: string): string {

@@ -26,6 +26,7 @@ test("MCP lists repo-local memory tools", () => {
   assert.equal(names.includes("kage_quality"), true);
   assert.equal(names.includes("kage_benchmark"), true);
   assert.equal(names.includes("kage_setup_agent"), true);
+  assert.equal(names.includes("kage_verify_agent"), true);
   assert.equal(names.includes("kage_graph_visual"), true);
   assert.equal(names.includes("kage_learn"), true);
   assert.equal(names.includes("kage_capture"), true);
@@ -128,6 +129,9 @@ test("MCP setup, quality, benchmark, observe, and distill tools work", async () 
   writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
   const setup = await callTool("kage_setup_agent", { project_dir: project, agent: "generic-mcp" });
   assert.match(textContent(setup), /mcpServers/);
+
+  const verify = await callTool("kage_verify_agent", { project_dir: project, agent: "generic-mcp" });
+  assert.equal(JSON.parse(textContent(verify)).checks.mcp_tool_reachable, true);
 
   const observed = await callTool("kage_observe", {
     project_dir: project,

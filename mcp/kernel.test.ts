@@ -46,6 +46,7 @@ import {
   setupDoctor,
   qualityReport,
   evaluateMemoryAdmission,
+  verifyAgentActivation,
   validatePacket,
   validateProject,
 } from "./kernel.js";
@@ -355,6 +356,19 @@ test("setup generates all-agent MCP configuration and writes Codex config idempo
 
   const doctor = setupDoctor(project);
   assert.equal(doctor.length, SETUP_AGENTS.length);
+
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
+  const cliVerify = verifyAgentActivation("codex", project, { homeDir: home });
+  assert.equal(cliVerify.status, "restart_required");
+  assert.equal(cliVerify.checks.config_mentions_kage, true);
+  assert.equal(cliVerify.checks.policy_installed, true);
+  assert.equal(cliVerify.checks.recall_works, true);
+  assert.equal(cliVerify.checks.code_graph_works, true);
+  assert.equal(cliVerify.checks.mcp_tool_reachable, false);
+  assert.equal(cliVerify.next_steps.some((step) => step.includes("kage_verify_agent")), true);
+
+  const mcpVerify = verifyAgentActivation("codex", project, { homeDir: home, mcpToolReachable: true });
+  assert.equal(mcpVerify.status, "ready");
 });
 
 test("observations are privacy-scanned, deduplicated, and generic commands stay telemetry", () => {
