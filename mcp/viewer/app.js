@@ -35,19 +35,35 @@
 
   var palette = {
     repo: "#41ff8f",
-    memory: "#b88cff",
+    memory: "#41ff8f",
     path: "#ff6b6b",
     tag: "#ffd166",
     package: "#6ad7ff",
     command: "#9be7c0",
     memory_type: "#41ff8f",
     file: "#6ad7ff",
-    symbol: "#b88cff",
-    route: "#ff8fab",
+    symbol: "#9be7c0",
+    route: "#6ad7ff",
     test: "#ffd166",
-    external: "#93a4a0",
+    external: "#62776b",
     script: "#6ad7ff",
     default: "#9be7c0"
+  };
+
+  var graphPalette = {
+    background: "#020503",
+    grid: "rgba(65,255,143,0.040)",
+    gridStrong: "rgba(65,255,143,0.070)",
+    text: "#d7f9df",
+    muted: "#6ea77d",
+    memory: "#41ff8f",
+    code: "#6ad7ff",
+    amber: "#ffd166",
+    danger: "#ff6b6b",
+    dependency: "#62776b",
+    body: "rgba(4,12,8,0.88)",
+    bodyCode: "rgba(5,16,18,0.88)",
+    bodyMemory: "rgba(5,18,10,0.90)"
   };
 
   var els = {
@@ -751,9 +767,15 @@
 
   function drawCanvasGrid(ctx, width, height) {
     ctx.save();
-    ctx.fillStyle = "#020503";
+    ctx.fillStyle = graphPalette.background;
     ctx.fillRect(0, 0, width, height);
-    ctx.strokeStyle = "rgba(65,255,143,0.045)";
+    var gradient = ctx.createRadialGradient(width * 0.52, height * 0.44, 40, width * 0.52, height * 0.44, Math.max(width, height) * 0.72);
+    gradient.addColorStop(0, "rgba(65,255,143,0.080)");
+    gradient.addColorStop(0.48, "rgba(65,255,143,0.018)");
+    gradient.addColorStop(1, "rgba(2,5,3,0)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+    ctx.strokeStyle = graphPalette.grid;
     ctx.lineWidth = 1;
     var grid = 28;
     for (var x = 0; x < width; x += grid) {
@@ -768,6 +790,13 @@
       ctx.lineTo(width, y);
       ctx.stroke();
     }
+    ctx.strokeStyle = graphPalette.gridStrong;
+    ctx.beginPath();
+    ctx.moveTo(0, height / 2);
+    ctx.lineTo(width, height / 2);
+    ctx.moveTo(width / 2, 0);
+    ctx.lineTo(width / 2, height);
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -782,8 +811,8 @@
       if (!from || !to) return;
       var connected = focusId && (edge.from === focusId || edge.to === focusId);
       var matches = !query || searchableText(edge).indexOf(query) !== -1 || searchableText(from.entity).indexOf(query) !== -1 || searchableText(to.entity).indexOf(query) !== -1;
-      var alpha = !matches ? 0.04 : focusId ? (connected ? 0.78 : 0.07) : (dense ? 0.18 : 0.34);
-      var color = hexToRgb(palette[from.entity.type] || palette[from.entity.graph_kind] || palette.default);
+      var alpha = !matches ? 0.035 : focusId ? (connected ? 0.62 : 0.055) : (dense ? 0.13 : 0.22);
+      var color = hexToRgb(edgeThemeColor(edge, from.entity, to.entity));
       var dx = to.x - from.x;
       var dy = to.y - from.y;
       var dist = Math.max(1, Math.sqrt(dx * dx + dy * dy));
@@ -794,7 +823,7 @@
       ctx.moveTo(from.x, from.y);
       ctx.quadraticCurveTo(cx, cy, to.x, to.y);
       ctx.strokeStyle = "rgba(" + color.r + "," + color.g + "," + color.b + "," + alpha + ")";
-      ctx.lineWidth = connected ? 2.8 : 1.2;
+      ctx.lineWidth = connected ? 2.2 : 1;
       ctx.stroke();
       if (connected || (!dense && state.sim.zoom > 1.25)) drawArrow(ctx, from, to, cx, cy, color, alpha);
       if (connected && state.sim.zoom > 0.62) drawEdgeLabel(ctx, edge, cx, cy);
@@ -814,28 +843,35 @@
       }));
       var matches = !query || searchableText(entity).indexOf(query) !== -1;
       var alpha = !matches ? 0.12 : focusId && !connected ? 0.20 : 1;
-      var color = palette[entity.type] || palette[entity.graph_kind] || palette.default;
+      var color = nodeThemeColor(entity);
       ctx.save();
       ctx.globalAlpha = alpha;
-      if (selected || hovered || (!focusId && !dense)) {
+      if (selected || hovered) {
         ctx.shadowColor = color;
-        ctx.shadowBlur = selected ? 20 : hovered ? 16 : 5;
+        ctx.shadowBlur = selected ? 14 : 10;
       }
       drawNodeShape(ctx, node.x, node.y, node.r, entity);
-      var grad = ctx.createRadialGradient(node.x - node.r * 0.3, node.y - node.r * 0.3, 1, node.x, node.y, node.r * 1.35);
-      grad.addColorStop(0, brighten(color, 54));
-      grad.addColorStop(1, color);
-      ctx.fillStyle = grad;
+      ctx.fillStyle = nodeFillColor(entity);
       ctx.fill();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = selected || hovered ? 2.2 : 1.2;
+      ctx.stroke();
+      if (entity.graph_kind === "memory") {
+        ctx.fillStyle = color;
+        ctx.globalAlpha = alpha * 0.85;
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, Math.max(2.4, node.r * 0.18), 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.restore();
 
       if (selected || hovered) {
         ctx.save();
         drawNodeShape(ctx, node.x, node.y, node.r + 4, entity);
         ctx.strokeStyle = color;
-        ctx.lineWidth = selected ? 3 : 2;
+        ctx.lineWidth = selected ? 2.6 : 1.8;
         ctx.shadowColor = color;
-        ctx.shadowBlur = 12;
+        ctx.shadowBlur = 8;
         ctx.stroke();
         ctx.restore();
       }
@@ -851,8 +887,8 @@
     var tipY = to.y - to.r * Math.sin(angle);
     ctx.beginPath();
     ctx.moveTo(tipX, tipY);
-    ctx.lineTo(tipX - 8 * Math.cos(angle - 0.35), tipY - 8 * Math.sin(angle - 0.35));
-    ctx.lineTo(tipX - 8 * Math.cos(angle + 0.35), tipY - 8 * Math.sin(angle + 0.35));
+    ctx.lineTo(tipX - 6 * Math.cos(angle - 0.32), tipY - 6 * Math.sin(angle - 0.32));
+    ctx.lineTo(tipX - 6 * Math.cos(angle + 0.32), tipY - 6 * Math.sin(angle + 0.32));
     ctx.closePath();
     ctx.fillStyle = "rgba(" + color.r + "," + color.g + "," + color.b + "," + Math.min(0.85, alpha + 0.10) + ")";
     ctx.fill();
@@ -861,9 +897,9 @@
   function drawEdgeLabel(ctx, edge, x, y) {
     var inv = 1 / state.sim.zoom;
     ctx.save();
-    ctx.font = "700 " + (10 * inv).toFixed(1) + "px ui-monospace, Menlo, monospace";
+    ctx.font = "700 " + (9 * inv).toFixed(1) + "px ui-monospace, Menlo, monospace";
     ctx.textAlign = "center";
-    ctx.fillStyle = "rgba(215,249,223,0.82)";
+    ctx.fillStyle = "rgba(155,231,192,0.72)";
     ctx.fillText(shortName(edge.relation || "related", 22), x, y - 5 * inv);
     ctx.restore();
   }
@@ -872,17 +908,17 @@
     var inv = 1 / state.sim.zoom;
     var label = shortName(displayName(node.entity), strong ? 30 : 20);
     ctx.save();
-    ctx.font = (strong ? "800 " : "700 ") + (12 * inv).toFixed(1) + "px ui-monospace, Menlo, monospace";
+    ctx.font = (strong ? "800 " : "700 ") + (11 * inv).toFixed(1) + "px ui-monospace, Menlo, monospace";
     var width = ctx.measureText(label).width + 16 * inv;
     var height = 20 * inv;
     var x = node.x - width / 2;
     var y = node.y + node.r + 8 * inv;
-    ctx.fillStyle = "rgba(3,6,4,0.88)";
+    ctx.fillStyle = "rgba(2,5,3,0.92)";
     roundedRect(ctx, x, y, width, height, 4 * inv);
     ctx.fill();
-    ctx.strokeStyle = strong ? "rgba(65,255,143,0.55)" : "rgba(65,255,143,0.18)";
+    ctx.strokeStyle = strong ? "rgba(65,255,143,0.45)" : "rgba(65,255,143,0.14)";
     ctx.stroke();
-    ctx.fillStyle = strong ? "#d7f9df" : "#9be7c0";
+    ctx.fillStyle = strong ? graphPalette.text : graphPalette.muted;
     ctx.textAlign = "center";
     ctx.fillText(label, node.x, y + 14 * inv);
     ctx.restore();
@@ -917,6 +953,30 @@
     }
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
+  }
+
+  function nodeThemeColor(entity) {
+    if (isDependencyEntity(entity) || entity.type === "external") return graphPalette.dependency;
+    if (entity.type === "test" || entity.type === "tag") return graphPalette.amber;
+    if (entity.type === "bug_fix" || entity.type === "path") return graphPalette.danger;
+    if (entity.graph_kind === "memory" || ["memory", "repo", "memory_type", "decision", "runbook", "workflow", "convention", "gotcha", "reference", "policy"].indexOf(entity.type) !== -1) return graphPalette.memory;
+    if (entity.graph_kind === "code" || ["file", "symbol", "route", "script", "command", "package"].indexOf(entity.type) !== -1) return graphPalette.code;
+    return graphPalette.muted;
+  }
+
+  function nodeFillColor(entity) {
+    if (isDependencyEntity(entity) || entity.type === "external") return "rgba(7,13,10,0.88)";
+    if (entity.graph_kind === "memory" || entity.type === "memory") return graphPalette.bodyMemory;
+    if (entity.graph_kind === "code") return graphPalette.bodyCode;
+    return graphPalette.body;
+  }
+
+  function edgeThemeColor(edge, fromEntity, toEntity) {
+    if (edge.relation && /test|covers/i.test(edge.relation)) return graphPalette.amber;
+    if (edge.relation && /invalid|risk|missing|bug/i.test(edge.relation)) return graphPalette.danger;
+    if (isDependencyEntity(fromEntity) || isDependencyEntity(toEntity)) return graphPalette.dependency;
+    if (fromEntity.graph_kind === "memory" || toEntity.graph_kind === "memory") return graphPalette.memory;
+    return graphPalette.code;
   }
 
   function renderSvg() {
@@ -1461,7 +1521,7 @@
     }
     var entity = node.entity;
     var relationCount = state.sim.edges.filter(function (edge) { return edge.from === node.id || edge.to === node.id; }).length;
-    var color = palette[entity.type] || palette[entity.graph_kind] || palette.default;
+    var color = nodeThemeColor(entity);
     els.tooltip.innerHTML = [
       "<div class=\"tt-name\"></div>",
       "<div class=\"tt-type\"></div>",
