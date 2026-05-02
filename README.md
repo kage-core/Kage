@@ -32,6 +32,8 @@ works as a plain CLI and stdio MCP server without it.
   metrics, quality, and benchmark.
 - Automatic observation capture primitives with privacy scanning, dedupe, and
   distillation into pending memory candidates.
+- Memory admission scoring so routine session events do not become durable
+  memory.
 - Hybrid recall explanations across text, graph, path/type/tag, freshness,
   quality, and feedback scoring.
 - Agent policy installation through `AGENTS.md` so Kage is used automatically.
@@ -230,9 +232,26 @@ quality notes, duplicate candidates, risks, and estimated token savings. `kage
 review` is the CLI approval gate. Approved packets are committed like normal
 repo files and shared with teammates through git.
 
-Kage does not turn every observation into memory. Routine commands, file touch
-events, and raw task prompts stay as observations unless they contain a durable
-repo learning. The admission rules are documented in
+Kage does not turn every observation into memory. Observations are the raw
+session trail; memory packets are the small set of durable repo learnings that a
+future agent should act on.
+
+The admission gate blocks low-value candidates before they enter review:
+
+- routine commands already discoverable from manifests
+- file touched/edited/changed events with no reusable conclusion
+- raw user task prompts
+- transcript summaries without a decision, root cause, gotcha, or workflow
+- generic framework knowledge that belongs in public docs, not repo memory
+- duplicates of existing packets or generated code graph facts
+- anything that trips the privacy scanner
+
+Good memory has a future trigger and a source-backed action: "when this test
+fails, check this fixture", "before changing auth, update this policy", "run
+this non-obvious command from this directory", or "this decision was made
+because...".
+
+The detailed admission model is documented in
 [docs/MEMORY_ADMISSION.md](docs/MEMORY_ADMISSION.md).
 
 ## What Gets Stored
@@ -253,6 +272,11 @@ Each packet includes schema version, title, summary, body, type, scope,
 visibility, sensitivity, status, confidence, tags, paths, stack, source refs,
 freshness, graph edges, quality fields, and timestamps.
 
+Packet quality includes an admission result: score, class, reasons, risks, and
+an estimated review cost. The review artifact surfaces those fields so a human
+can approve strong memories quickly and reject weak ones without opening every
+JSON file.
+
 Generated indexes and graphs are disposable. The canonical memory is the packet
 set.
 
@@ -262,10 +286,22 @@ deduplicated before storage. Distillation converts them into pending packets
 with `source_refs.kind = "observation_session"`. They are never approved or
 published automatically.
 
+In other words: "session touched 1 path" is telemetry, not memory. It can help
+audit a session or replay what happened, but it should not become a recallable
+repo graph node unless distillation extracts a reusable learning from it.
+
 ## Code Graph
 
 Kage keeps learned memory and codebase structure separate, then recalls across
 both.
+
+- The code graph is rebuilt from source and external index artifacts.
+- The memory graph is built from approved packets only.
+- Observations are local evidence and session replay data.
+
+That separation keeps the graph useful: code flow comes from the repository,
+durable lessons come from reviewed packet memory, and raw events do not pollute
+future recall.
 
 The code graph writes:
 
