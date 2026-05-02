@@ -676,40 +676,6 @@ const DEFAULT_CONFIDENCE = 0.7;
 const AGENTS_POLICY_MARKER = "<!-- KAGE_MEMORY_POLICY_V1 -->";
 const AGENTS_POLICY_END = "<!-- END_KAGE_MEMORY_POLICY_V1 -->";
 
-// Claude Code-specific policy: imperative opener + ToolSearch instruction.
-// Kage tools are deferred in Claude Code and require ToolSearch to load
-// their schemas before they can be called. AGENTS_POLICY (for AGENTS.md)
-// doesn't need this because Codex and other agents resolve tools differently.
-const CLAUDE_POLICY = `${AGENTS_POLICY_MARKER}
-# Kage Memory Harness
-
-**YOUR FIRST ACTION every session — before reading any file or writing any code:**
-
-1. \`kage_validate\` — check memory health
-2. \`kage_recall\` — load relevant context for the task
-
-Do this without waiting for the user to ask.
-
-## Capture
-
-- When you discover something reusable: \`kage_learn\`
-- Before finishing a task that changed files: \`kage_propose_from_diff\`
-- Keep captures concise and future-facing. Do not store raw transcripts.
-
-## Recall
-
-- \`kage_code_graph\` — for file, symbol, route, test, and dependency questions
-- \`kage_graph\` — for decisions, bugs, workflows, and conventions
-- Prefer repo memory over public/community memory when they conflict.
-- Call \`kage_feedback\` with \`helpful\`, \`wrong\`, or \`stale\` after recall.
-
-## Safety
-
-- Never approve, publish, or promote memory automatically.
-- Never store secrets, credentials, customer data, or private URLs.
-- If Kage returns validation warnings, mention them when they affect the task.
-${AGENTS_POLICY_END}
-`;
 const AGENTS_POLICY = `${AGENTS_POLICY_MARKER}
 # Kage Memory Harness
 
@@ -2905,25 +2871,23 @@ export function installAgentPolicy(projectDir: string): PolicyInstallResult {
   }
 
   // Write to CLAUDE.md (Claude Code reads this automatically at session start).
-  // Uses CLAUDE_POLICY (not AGENTS_POLICY): imperative opener + ToolSearch
-  // instruction, because Kage tools are deferred in Claude Code and must be
-  // explicitly loaded via ToolSearch before they can be called.
+  // Same full policy as AGENTS.md — single source of truth.
   if (!existsSync(claudePath)) {
-    writeFileSync(claudePath, `${CLAUDE_POLICY}\n`, "utf8");
+    writeFileSync(claudePath, `${AGENTS_POLICY}\n`, "utf8");
     created = true;
   } else {
     const current = readFileSync(claudePath, "utf8");
     if (current.includes(AGENTS_POLICY_MARKER)) {
       const replaced = current.replace(
         new RegExp(`${AGENTS_POLICY_MARKER}[\\s\\S]*?${AGENTS_POLICY_END}`),
-        CLAUDE_POLICY.trimEnd()
+        AGENTS_POLICY.trimEnd()
       );
       if (replaced !== current) {
         writeFileSync(claudePath, `${replaced.replace(/\s+$/, "")}\n`, "utf8");
         updated = true;
       }
     } else {
-      writeFileSync(claudePath, `${current.replace(/\s+$/, "")}\n\n${CLAUDE_POLICY}\n`, "utf8");
+      writeFileSync(claudePath, `${current.replace(/\s+$/, "")}\n\n${AGENTS_POLICY}\n`, "utf8");
       updated = true;
     }
   }
