@@ -1,0 +1,969 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Kage is repo hive memory for coding agents. Codex learns it today. Claude Code recalls it tomorrow."
+    />
+    <title>Kage - Repo Memory For Coding Agents</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #020405;
+        --panel: #07100d;
+        --panel-2: #0b1713;
+        --panel-3: #0f1d18;
+        --text: #eafff4;
+        --muted: #85a394;
+        --faint: #4d6659;
+        --green: #39ff9a;
+        --green-2: #95ffc5;
+        --cyan: #50d7ff;
+        --amber: #ffb84d;
+        --red: #ff6b6b;
+        --line: rgba(105, 255, 170, 0.2);
+        --line-strong: rgba(105, 255, 170, 0.46);
+        --shadow: 0 24px 90px rgba(0, 0, 0, 0.45);
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        background:
+          linear-gradient(180deg, rgba(2, 4, 5, 0.16), #020405 780px),
+          repeating-linear-gradient(0deg, rgba(57, 255, 154, 0.025) 0 1px, transparent 1px 7px),
+          var(--bg);
+        color: var(--text);
+        font-family: var(--sans);
+        letter-spacing: 0;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .shell {
+        position: relative;
+        overflow: hidden;
+      }
+
+      .shell::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background: linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+        background-size: 80px 80px;
+        mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.8), transparent 72%);
+      }
+
+      .nav {
+        position: fixed;
+        z-index: 20;
+        top: 0;
+        left: 0;
+        right: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        min-height: 68px;
+        padding: 14px clamp(18px, 4vw, 56px);
+        border-bottom: 1px solid rgba(105, 255, 170, 0.12);
+        background: rgba(2, 4, 5, 0.82);
+        backdrop-filter: blur(18px);
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+      }
+
+      .mark {
+        display: grid;
+        place-items: center;
+        width: 36px;
+        height: 36px;
+        border: 1px solid var(--line-strong);
+        color: var(--green);
+        background: rgba(57, 255, 154, 0.08);
+        font: 800 17px/1 var(--mono);
+        box-shadow: 0 0 28px rgba(57, 255, 154, 0.14);
+      }
+
+      .brand strong {
+        display: block;
+        font: 800 15px/1 var(--mono);
+      }
+
+      .brand span {
+        display: block;
+        margin-top: 3px;
+        color: var(--muted);
+        font: 12px/1 var(--mono);
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        color: var(--muted);
+        font: 13px/1 var(--mono);
+      }
+
+      .nav-links a:hover {
+        color: var(--green);
+      }
+
+      .nav-cta {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 38px;
+        padding: 0 14px;
+        border: 1px solid var(--green);
+        background: rgba(57, 255, 154, 0.1);
+        color: var(--green);
+        font: 700 13px/1 var(--mono);
+      }
+
+      .hero {
+        position: relative;
+        min-height: 100svh;
+        display: grid;
+        align-items: center;
+        padding: 112px clamp(18px, 4vw, 56px) 46px;
+      }
+
+      .hero-grid {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        opacity: 0.48;
+      }
+
+      .hero-content {
+        position: relative;
+        z-index: 2;
+        max-width: 1180px;
+        width: 100%;
+        margin: 0 auto;
+        display: grid;
+        gap: 34px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        width: fit-content;
+        padding: 8px 10px;
+        border: 1px solid rgba(80, 215, 255, 0.28);
+        background: rgba(80, 215, 255, 0.06);
+        color: var(--cyan);
+        font: 700 12px/1 var(--mono);
+        text-transform: uppercase;
+      }
+
+      .pulse {
+        width: 7px;
+        height: 7px;
+        background: var(--green);
+        box-shadow: 0 0 18px var(--green);
+        animation: pulse 1.9s ease-in-out infinite;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        max-width: 1120px;
+        font: 800 clamp(48px, 8vw, 112px) / 0.92 var(--sans);
+        letter-spacing: 0;
+      }
+
+      .hero-copy {
+        max-width: 760px;
+        color: #c6e6d4;
+        font: 20px/1.6 var(--sans);
+      }
+
+      .hero-copy strong {
+        color: var(--green-2);
+        font-weight: 750;
+      }
+
+      .hero-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 670px) auto;
+        align-items: stretch;
+        gap: 14px;
+      }
+
+      .install {
+        border: 1px solid var(--line-strong);
+        background: rgba(5, 11, 9, 0.82);
+        box-shadow: var(--shadow);
+        min-width: 0;
+      }
+
+      .install-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        min-height: 40px;
+        padding: 0 14px;
+        border-bottom: 1px solid var(--line);
+        color: var(--muted);
+        font: 12px/1 var(--mono);
+      }
+
+      .install pre,
+      .code-panel pre {
+        margin: 0;
+        overflow-x: auto;
+        padding: 18px;
+        color: var(--green-2);
+        font: 14px/1.55 var(--mono);
+        white-space: pre;
+      }
+
+      .launch-button {
+        display: grid;
+        place-items: center;
+        min-width: 170px;
+        padding: 0 22px;
+        border: 1px solid var(--green);
+        background: var(--green);
+        color: #031008;
+        font: 900 14px/1 var(--mono);
+        text-transform: uppercase;
+        box-shadow: 0 0 36px rgba(57, 255, 154, 0.18);
+      }
+
+      .proof-strip {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 10px;
+        max-width: 980px;
+      }
+
+      .proof {
+        min-height: 88px;
+        padding: 14px;
+        border: 1px solid rgba(105, 255, 170, 0.18);
+        background: rgba(5, 11, 9, 0.64);
+      }
+
+      .proof strong {
+        display: block;
+        color: var(--green);
+        font: 800 26px/1 var(--mono);
+      }
+
+      .proof span {
+        display: block;
+        margin-top: 10px;
+        color: var(--muted);
+        font: 12px/1.35 var(--mono);
+      }
+
+      .section {
+        position: relative;
+        z-index: 1;
+        padding: 92px clamp(18px, 4vw, 56px);
+        border-top: 1px solid rgba(105, 255, 170, 0.1);
+      }
+
+      .section-inner {
+        max-width: 1180px;
+        margin: 0 auto;
+      }
+
+      .section-head {
+        display: grid;
+        gap: 14px;
+        max-width: 790px;
+        margin-bottom: 34px;
+      }
+
+      .label {
+        color: var(--cyan);
+        font: 800 12px/1 var(--mono);
+        text-transform: uppercase;
+      }
+
+      h2 {
+        font: 800 clamp(32px, 4.5vw, 64px) / 1 var(--sans);
+      }
+
+      .section-head p {
+        color: #bddac9;
+        font: 18px/1.62 var(--sans);
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .flow-step {
+        min-height: 180px;
+        padding: 18px;
+        border: 1px solid var(--line);
+        background: rgba(7, 16, 13, 0.78);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .flow-step::after {
+        content: attr(data-step);
+        position: absolute;
+        right: 14px;
+        bottom: 10px;
+        color: rgba(57, 255, 154, 0.16);
+        font: 900 54px/1 var(--mono);
+      }
+
+      .flow-step h3 {
+        color: var(--green-2);
+        font: 800 16px/1.2 var(--mono);
+      }
+
+      .flow-step p {
+        margin-top: 14px;
+        color: var(--muted);
+        font: 14px/1.55 var(--sans);
+      }
+
+      .graph-zone {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 18px;
+        align-items: stretch;
+      }
+
+      .graph-console {
+        min-height: 520px;
+        border: 1px solid var(--line);
+        background: rgba(3, 8, 6, 0.82);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .console-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 44px;
+        padding: 0 16px;
+        border-bottom: 1px solid var(--line);
+        color: var(--muted);
+        font: 12px/1 var(--mono);
+      }
+
+      .status-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        margin-right: 8px;
+        background: var(--green);
+        box-shadow: 0 0 18px rgba(57, 255, 154, 0.8);
+      }
+
+      .graph-canvas {
+        display: block;
+        width: 100%;
+        height: 476px;
+      }
+
+      .graph-side {
+        display: grid;
+        gap: 12px;
+      }
+
+      .signal {
+        padding: 18px;
+        border: 1px solid var(--line);
+        background: rgba(7, 16, 13, 0.72);
+      }
+
+      .signal strong {
+        display: block;
+        color: var(--green);
+        font: 800 18px/1.2 var(--mono);
+      }
+
+      .signal span {
+        display: block;
+        margin-top: 8px;
+        color: var(--muted);
+        font: 14px/1.48 var(--sans);
+      }
+
+      .matrix {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .system-panel {
+        border: 1px solid var(--line);
+        background: rgba(7, 16, 13, 0.75);
+      }
+
+      .system-panel h3 {
+        padding: 16px 18px;
+        border-bottom: 1px solid var(--line);
+        color: var(--green-2);
+        font: 800 15px/1 var(--mono);
+      }
+
+      .rows {
+        display: grid;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 140px 1fr;
+        gap: 12px;
+        padding: 13px 18px;
+        border-bottom: 1px solid rgba(105, 255, 170, 0.1);
+        color: var(--muted);
+        font: 14px/1.45 var(--sans);
+      }
+
+      .row:last-child {
+        border-bottom: 0;
+      }
+
+      .row b {
+        color: var(--text);
+        font-family: var(--mono);
+        font-size: 13px;
+      }
+
+      .setup-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .code-panel {
+        border: 1px solid var(--line-strong);
+        background: rgba(3, 8, 6, 0.86);
+        overflow: hidden;
+      }
+
+      .code-panel h3 {
+        padding: 16px 18px;
+        border-bottom: 1px solid var(--line);
+        color: var(--green-2);
+        font: 900 16px/1 var(--mono);
+      }
+
+      .review-grid {
+        display: grid;
+        grid-template-columns: 0.9fr 1.1fr;
+        gap: 18px;
+        align-items: stretch;
+      }
+
+      .review-copy {
+        border-left: 2px solid var(--amber);
+        padding: 22px 0 22px 22px;
+      }
+
+      .review-copy p {
+        color: #d9c69c;
+        font: 20px/1.55 var(--sans);
+      }
+
+      .review-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .review-item {
+        display: grid;
+        grid-template-columns: 116px 1fr;
+        gap: 12px;
+        padding: 14px 16px;
+        border: 1px solid rgba(255, 184, 77, 0.28);
+        background: rgba(255, 184, 77, 0.055);
+      }
+
+      .review-item b {
+        color: var(--amber);
+        font: 800 13px/1.3 var(--mono);
+      }
+
+      .review-item span {
+        color: #ddcda9;
+        font: 14px/1.45 var(--sans);
+      }
+
+      .ship-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .ship {
+        min-height: 150px;
+        padding: 18px;
+        border: 1px solid var(--line);
+        background: rgba(7, 16, 13, 0.72);
+      }
+
+      .ship h3 {
+        color: var(--green-2);
+        font: 800 15px/1.2 var(--mono);
+      }
+
+      .ship p {
+        margin-top: 12px;
+        color: var(--muted);
+        font: 14px/1.52 var(--sans);
+      }
+
+      .footer {
+        padding: 40px clamp(18px, 4vw, 56px) 56px;
+        border-top: 1px solid rgba(105, 255, 170, 0.12);
+        color: var(--muted);
+      }
+
+      .footer-inner {
+        max-width: 1180px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        font: 13px/1.4 var(--mono);
+      }
+
+      .kbd {
+        color: var(--green);
+      }
+
+      .hero-graph text,
+      .graph-canvas text {
+        font-family: var(--mono);
+        letter-spacing: 0;
+      }
+
+      .hero-edge,
+      .graph-edge {
+        stroke-dasharray: 10 12;
+        animation: dash 18s linear infinite;
+      }
+
+      .hero-node {
+        opacity: 0.62;
+        animation: float 5.5s ease-in-out infinite;
+      }
+
+      .hero-node:nth-of-type(2) {
+        animation-delay: -1.1s;
+      }
+
+      .hero-node:nth-of-type(3) {
+        animation-delay: -2.2s;
+      }
+
+      .hero-node:nth-of-type(4) {
+        animation-delay: -3.1s;
+      }
+
+      @keyframes dash {
+        to {
+          stroke-dashoffset: -220;
+        }
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 0.45;
+          transform: scale(0.78);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-8px);
+        }
+      }
+
+      @media (max-width: 980px) {
+        .nav {
+          position: sticky;
+        }
+
+        .nav-links {
+          display: none;
+        }
+
+        .hero {
+          min-height: auto;
+        }
+
+        .hero-actions,
+        .graph-zone,
+        .matrix,
+        .setup-grid,
+        .review-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .proof-strip,
+        .flow,
+        .ship-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .launch-button {
+          min-height: 54px;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .hero,
+        .section {
+          padding-left: 16px;
+          padding-right: 16px;
+        }
+
+        h1 {
+          font-size: 48px;
+        }
+
+        .hero-copy {
+          font-size: 17px;
+        }
+
+        .proof-strip,
+        .flow,
+        .ship-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .row,
+        .review-item {
+          grid-template-columns: 1fr;
+        }
+
+        .install pre,
+        .code-panel pre {
+          font-size: 12px;
+        }
+
+        .footer-inner {
+          display: grid;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <nav class="nav" aria-label="Main navigation">
+        <a class="brand" href="#top" aria-label="Kage home">
+          <span class="mark">K</span>
+          <span>
+            <strong>Kage</strong>
+            <span>repo hive memory</span>
+          </span>
+        </a>
+        <div class="nav-links">
+          <a href="#hive">Hive</a>
+          <a href="#graphs">Graphs</a>
+          <a href="#setup">Setup</a>
+          <a href="#review">Review</a>
+          <a href="#ships">Ships now</a>
+        </div>
+        <a class="nav-cta" href="https://github.com/kage-core/Kage">GitHub</a>
+      </nav>
+
+      <main id="top">
+        <section class="hero" aria-label="Kage launch hero">
+          <svg class="hero-grid hero-graph" viewBox="0 0 1440 920" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <defs>
+              <filter id="glow">
+                <feGaussianBlur stdDeviation="4" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+            <path d="M160 640 C370 430 530 320 735 365 C935 410 1040 245 1265 160" fill="none" stroke="rgba(80,215,255,.35)" stroke-width="2" class="hero-edge" />
+            <path d="M250 210 C470 300 515 520 720 540 C910 560 1060 670 1290 620" fill="none" stroke="rgba(57,255,154,.32)" stroke-width="2" class="hero-edge" />
+            <path d="M155 500 C360 570 500 700 735 640 C930 590 1020 430 1260 430" fill="none" stroke="rgba(255,184,77,.26)" stroke-width="2" class="hero-edge" />
+
+            <g class="hero-node" filter="url(#glow)">
+              <rect x="150" y="188" width="186" height="58" fill="rgba(7,16,13,.82)" stroke="rgba(57,255,154,.55)" />
+              <text x="172" y="222" fill="#95ffc5" font-size="15">Codex discovers</text>
+            </g>
+            <g class="hero-node" filter="url(#glow)">
+              <rect x="610" y="336" width="220" height="64" fill="rgba(7,16,13,.84)" stroke="rgba(80,215,255,.58)" />
+              <text x="636" y="363" fill="#50d7ff" font-size="15">reviewed packet</text>
+              <text x="636" y="382" fill="#85a394" font-size="12">source-backed JSON</text>
+            </g>
+            <g class="hero-node" filter="url(#glow)">
+              <rect x="1040" y="404" width="176" height="58" fill="rgba(7,16,13,.82)" stroke="rgba(255,184,77,.55)" />
+              <text x="1062" y="438" fill="#ffb84d" font-size="15">human approves</text>
+            </g>
+            <g class="hero-node" filter="url(#glow)">
+              <rect x="1048" y="602" width="228" height="64" fill="rgba(7,16,13,.84)" stroke="rgba(57,255,154,.58)" />
+              <text x="1072" y="630" fill="#95ffc5" font-size="15">Claude Code recalls</text>
+              <text x="1072" y="649" fill="#85a394" font-size="12">no rediscovery loop</text>
+            </g>
+          </svg>
+
+          <div class="hero-content">
+            <div class="eyebrow"><span class="pulse"></span> Local-first memory kernel live on npm</div>
+            <h1>Repo memory for coding agents.</h1>
+            <p class="hero-copy">
+              <strong>Codex learns it today. Claude Code recalls it tomorrow.</strong>
+              Kage turns durable discoveries into reviewed, source-backed repo memory that travels with your code.
+            </p>
+            <div class="hero-actions">
+              <div class="install" aria-label="Install Kage command">
+                <div class="install-bar">
+                  <span>ask your agent</span>
+                  <span>ambient after restart</span>
+                </div>
+                <pre>Install and set up Kage for this repo.</pre>
+              </div>
+              <a class="launch-button" href="#setup">Install</a>
+            </div>
+            <div class="proof-strip" aria-label="Launch proof metrics">
+              <div class="proof"><strong>59</strong><span>passing tests</span></div>
+              <div class="proof"><strong>13</strong><span>agent setup targets</span></div>
+              <div class="proof"><strong>0</strong><span>external databases</span></div>
+              <div class="proof"><strong>100%</strong><span>evidence-backed graph facts in verified demos</span></div>
+              <div class="proof"><strong>MCP</strong><span>Codex, Claude Code, Cursor, more</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="hive">
+          <div class="section-inner">
+            <div class="section-head">
+              <div class="label">The hive memory loop</div>
+              <h2>One agent discovers. Every future agent starts informed.</h2>
+              <p>
+                Kage does not save chat exhaust. It captures resolved, reusable, source-backed knowledge:
+                why something changed, how to run it, where it lives, and what can break next.
+              </p>
+            </div>
+            <div class="flow" aria-label="Kage memory workflow">
+              <div class="flow-step" data-step="01">
+                <h3>Agent discovers</h3>
+                <p>Codex finds a workflow, bug fix, convention, command, package pattern, or code path.</p>
+              </div>
+              <div class="flow-step" data-step="02">
+                <h3>Kage proposes</h3>
+                <p>The agent writes a pending packet or change-memory proposal with paths and evidence.</p>
+              </div>
+              <div class="flow-step" data-step="03">
+                <h3>Human reviews</h3>
+                <p>Weak, duplicate, stale, or sensitive memory is rejected before it reaches the team.</p>
+              </div>
+              <div class="flow-step" data-step="04">
+                <h3>Git carries it</h3>
+                <p>Approved packets live in the repo as plain JSON. No hidden vendor silo required.</p>
+              </div>
+              <div class="flow-step" data-step="05">
+                <h3>Agents recall</h3>
+                <p>Claude Code and other MCP agents retrieve compact context before they act.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="graphs">
+          <div class="section-inner">
+            <div class="section-head">
+              <div class="label">Graphs with provenance</div>
+              <h2>Separate code truth from learned memory.</h2>
+              <p>
+                The code graph is rebuilt from source. The memory graph is built from reviewed packets.
+                That separation keeps Kage useful instead of turning sessions into junk nodes.
+              </p>
+            </div>
+            <div class="graph-zone">
+              <div class="graph-console">
+                <div class="console-head">
+                  <span><span class="status-dot"></span>kage graph --live</span>
+                  <span>evidence locked</span>
+                </div>
+                <svg class="graph-canvas" viewBox="0 0 720 476" role="img" aria-label="Animated Kage memory and code graph">
+                  <defs>
+                    <filter id="softGlow">
+                      <feGaussianBlur stdDeviation="3" result="blur" />
+                      <feMerge>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                  </defs>
+                  <path class="graph-edge" d="M115 104 L330 82 L575 138" stroke="#50d7ff" stroke-width="2" fill="none" />
+                  <path class="graph-edge" d="M117 238 L330 82 L578 252" stroke="#39ff9a" stroke-width="2" fill="none" />
+                  <path class="graph-edge" d="M117 238 L350 342 L578 252" stroke="#ffb84d" stroke-width="2" fill="none" />
+                  <path class="graph-edge" d="M115 104 L350 342 L575 138" stroke="rgba(149,255,197,.55)" stroke-width="2" fill="none" />
+
+                  <g filter="url(#softGlow)">
+                    <rect x="50" y="70" width="130" height="68" fill="#07100d" stroke="#50d7ff" />
+                    <text x="76" y="100" fill="#50d7ff" font-size="14">code graph</text>
+                    <text x="72" y="119" fill="#85a394" font-size="11">symbols/calls</text>
+                  </g>
+                  <g filter="url(#softGlow)">
+                    <rect x="250" y="44" width="160" height="76" fill="#07100d" stroke="#39ff9a" />
+                    <text x="284" y="77" fill="#95ffc5" font-size="14">repo hive</text>
+                    <text x="276" y="97" fill="#85a394" font-size="11">local-first kernel</text>
+                  </g>
+                  <g filter="url(#softGlow)">
+                    <rect x="518" y="104" width="132" height="68" fill="#07100d" stroke="#ffb84d" />
+                    <text x="544" y="134" fill="#ffb84d" font-size="14">review gate</text>
+                    <text x="538" y="153" fill="#85a394" font-size="11">humans approve</text>
+                  </g>
+                  <g filter="url(#softGlow)">
+                    <rect x="50" y="204" width="134" height="70" fill="#07100d" stroke="#39ff9a" />
+                    <text x="78" y="235" fill="#95ffc5" font-size="14">packets</text>
+                    <text x="72" y="254" fill="#85a394" font-size="11">JSON in git</text>
+                  </g>
+                  <g filter="url(#softGlow)">
+                    <rect x="278" y="306" width="144" height="72" fill="#07100d" stroke="#50d7ff" />
+                    <text x="306" y="338" fill="#50d7ff" font-size="14">evidence</text>
+                    <text x="300" y="357" fill="#85a394" font-size="11">paths/source refs</text>
+                  </g>
+                  <g filter="url(#softGlow)">
+                    <rect x="516" y="220" width="138" height="70" fill="#07100d" stroke="#39ff9a" />
+                    <text x="544" y="251" fill="#95ffc5" font-size="14">recall</text>
+                    <text x="536" y="270" fill="#85a394" font-size="11">agent context</text>
+                  </g>
+                </svg>
+              </div>
+              <div class="graph-side" aria-label="Graph metrics">
+                <div class="signal"><strong>files -> symbols -> calls</strong><span>Source-derived graph facts for routes, imports, tests, packages, and flow.</span></div>
+                <div class="signal"><strong>packets -> entities -> edges</strong><span>Reviewed memory becomes typed graph facts with provenance, freshness, and quality.</span></div>
+                <div class="signal"><strong>text + graph retrieval</strong><span>Recall blends text, graph, path, type, tag, quality, freshness, and feedback signals.</span></div>
+                <div class="signal"><strong>estimated savings</strong><span>Token savings are estimated from compact context today; production telemetry is not overclaimed.</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="setup">
+          <div class="section-inner">
+            <div class="section-head">
+              <div class="label">Two agents. One repo memory.</div>
+              <h2>Ask the agent to install it. Then work normally.</h2>
+              <p>
+                Kage installs a CLI, an MCP server, and a repo policy. After restart, agents should recall,
+                query, learn, and propose memory without the user saying "use Kage" every time.
+              </p>
+            </div>
+            <div class="setup-grid">
+              <div class="code-panel">
+                <h3>Codex</h3>
+                <pre>npm install -g @kage-core/kage-graph-mcp
+kage setup codex --project . --write
+kage init --project .</pre>
+              </div>
+              <div class="code-panel">
+                <h3>Claude Code</h3>
+                <pre>npm install -g @kage-core/kage-graph-mcp
+kage setup claude-code --project . --write
+kage init --project .</pre>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="review">
+          <div class="section-inner">
+            <div class="section-head">
+              <div class="label">Trust model</div>
+              <h2>Agents propose. Humans approve.</h2>
+            </div>
+            <div class="review-grid">
+              <div class="review-copy">
+                <p>
+                  Kage is built to prevent memory rot. Raw observations answer what happened.
+                  Durable memory answers what a future agent should know before acting.
+                </p>
+              </div>
+              <div class="review-list">
+                <div class="review-item"><b>pending</b><span>Agents create pending packets, never approved team memory.</span></div>
+                <div class="review-item"><b>scanned</b><span>Secrets, tokens, credentials, private URLs, and PII are blocked before capture.</span></div>
+                <div class="review-item"><b>scored</b><span>Quality, duplicates, evidence, grounding, and stale feedback are visible at review.</span></div>
+                <div class="review-item"><b>approved</b><span>Only reviewed packets become recallable shared repo memory.</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="ships">
+          <div class="section-inner">
+            <div class="section-head">
+              <div class="label">Ships now</div>
+              <h2>Local-first, npm-installed, no external database.</h2>
+              <p>
+                The launch package is intentionally sharp: repo memory and source graph for agents,
+                with local org/global artifacts available without automatic publication.
+              </p>
+            </div>
+            <div class="ship-grid">
+              <div class="ship"><h3>CLI + MCP</h3><p>`kage` and `kage-graph-mcp` ship from npm for Codex, Claude Code, and MCP clients.</p></div>
+              <div class="ship"><h3>Git-native memory</h3><p>Approved packets are plain JSON under the repo, reviewable like any other code artifact.</p></div>
+              <div class="ship"><h3>Code graph</h3><p>Source-derived files, symbols, imports, calls, routes, tests, and package scripts.</p></div>
+              <div class="ship"><h3>Metrics</h3><p>Readiness, evidence coverage, memory quality, recall hit rate, and estimated tokens saved.</p></div>
+              <div class="ship"><h3>Viewer</h3><p>Terminal-style local console for graph inspection, packet review, and metrics exploration.</p></div>
+              <div class="ship"><h3>Honest boundary</h3><p>No hosted SaaS claim. No automatic public publishing. No marketplace auto-install.</p></div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <div class="footer-inner">
+          <span>Kage: repo memory for coding agents.</span>
+          <span><span class="kbd">npm</span> install -g @kage-core/kage-graph-mcp</span>
+        </div>
+      </footer>
+    </div>
+
+  </body>
+</html>

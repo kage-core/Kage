@@ -140,7 +140,7 @@ kage metrics --project /path/to/repo
 kage viewer --project /path/to/repo
 ```
 
-Setup does three things:
+Setup does four things:
 
 1. Installs the `kage` CLI and `kage-graph-mcp` MCP server.
 2. Adds the local stdio MCP server to Codex or Claude Code config.
