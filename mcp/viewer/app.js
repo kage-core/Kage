@@ -470,7 +470,7 @@
   function render() {
     if (!state.graph) return;
 
-    var query = normalize(els.searchInput.value);
+    var query = parseSearchQuery(els.searchInput.value);
     var mode = els.viewMode.value;
     var type = els.typeFilter.value;
     var relation = els.relationFilter.value;
@@ -480,7 +480,7 @@
     state.entities.forEach(function (entity) {
       if (mode !== "combined" && entity.graph_kind !== mode) return;
       var passesType = !type || entity.type === type;
-      var passesSearch = !query || searchableText(entity).indexOf(query) !== -1;
+      var passesSearch = matchesSearchQuery(entity, query);
       if (passesType && passesSearch) matchedEntityIds.add(entity.id);
     });
 
@@ -488,7 +488,7 @@
       if (mode !== "combined" && edge.graph_kind !== mode) return;
       var fromMatched = matchedEntityIds.has(edge.from);
       var toMatched = matchedEntityIds.has(edge.to);
-      var edgeMatchesSearch = !query || searchableText(edge).indexOf(query) !== -1;
+      var edgeMatchesSearch = matchesSearchQuery(edge, query);
       var passesRelation = !relation || edge.relation === relation;
       if (passesRelation && (edgeMatchesSearch || fromMatched || toMatched)) {
         matchedEdgeIds.add(edge.id);
@@ -499,7 +499,7 @@
       }
     });
 
-    if (!query && !type && !relation) {
+    if (!query.active && !type && !relation) {
       matchedEntityIds = new Set(state.entities.filter(function (entity) { return mode === "combined" || entity.graph_kind === mode; }).map(function (entity) { return entity.id; }));
       matchedEdgeIds = new Set(state.edges.filter(function (edge) { return mode === "combined" || edge.graph_kind === mode; }).map(function (edge) { return edge.id; }));
     }
@@ -536,7 +536,7 @@
       Array.from(entities).forEach(function (id) {
         var entity = state.entityById.get(id);
         if (!entity) return;
-        if (isDependencyEntity(entity) && !(options.query && searchableText(entity).indexOf(options.query) !== -1)) {
+        if (isDependencyEntity(entity) && !matchesSearchQuery(entity, options.query)) {
           entities.delete(id);
         }
       });
@@ -803,14 +803,14 @@
   function drawCanvasEdges(ctx) {
     var nodeMap = state.sim.nodeById;
     var focusId = focusedCanvasNodeId();
-    var query = normalize(els.searchInput.value);
+    var query = parseSearchQuery(els.searchInput.value);
     var dense = state.sim.nodes.length > 55;
     state.sim.edges.forEach(function (edge) {
       var from = nodeMap.get(edge.from);
       var to = nodeMap.get(edge.to);
       if (!from || !to) return;
       var connected = focusId && (edge.from === focusId || edge.to === focusId);
-      var matches = !query || searchableText(edge).indexOf(query) !== -1 || searchableText(from.entity).indexOf(query) !== -1 || searchableText(to.entity).indexOf(query) !== -1;
+      var matches = matchesSearchQuery(edge, query) || matchesSearchQuery(from.entity, query) || matchesSearchQuery(to.entity, query);
       var alpha = !matches ? 0.035 : focusId ? (connected ? 0.62 : 0.055) : (dense ? 0.13 : 0.22);
       var color = hexToRgb(edgeThemeColor(edge, from.entity, to.entity));
       var dx = to.x - from.x;
@@ -832,7 +832,7 @@
 
   function drawCanvasNodes(ctx) {
     var focusId = focusedCanvasNodeId();
-    var query = normalize(els.searchInput.value);
+    var query = parseSearchQuery(els.searchInput.value);
     var dense = state.sim.nodes.length > 55;
     state.sim.nodes.forEach(function (node) {
       var entity = node.entity;
@@ -841,7 +841,7 @@
       var connected = focusId && (node.id === focusId || state.sim.edges.some(function (edge) {
         return (edge.from === focusId && edge.to === node.id) || (edge.to === focusId && edge.from === node.id);
       }));
-      var matches = !query || searchableText(entity).indexOf(query) !== -1;
+      var matches = matchesSearchQuery(entity, query);
       var alpha = !matches ? 0.12 : focusId && !connected ? 0.20 : 1;
       var color = nodeThemeColor(entity);
       ctx.save();
@@ -876,7 +876,7 @@
         ctx.restore();
       }
 
-      var shouldLabel = matches && (selected || hovered || (query && matches) || (!dense && state.sim.zoom > 0.75) || (dense && state.sim.zoom > 1.55 && node.r > 13));
+      var shouldLabel = matches && (selected || hovered || (query.active && matches) || (!dense && state.sim.zoom > 0.75) || (dense && state.sim.zoom > 1.55 && node.r > 13));
       if (shouldLabel) drawNodeLabel(ctx, node, selected || hovered);
     });
   }
@@ -1711,6 +1711,77 @@
 
   function searchableText(value) {
     return normalize(JSON.stringify(value || {}));
+  }
+
+  function parseSearchQuery(value) {
+    var raw = normalize(value);
+    var tokens = raw
+      .replace(/[^a-z0-9_./:-]+/g, " ")
+      .split(/\s+/)
+      .map(searchStem)
+      .filter(Boolean)
+      .filter(function (token) { return !SEARCH_STOP_WORDS.has(token); });
+    if ((tokens.indexOf("run") !== -1 || tokens.indexOf("runn") !== -1) && tokens.indexOf("test") !== -1) tokens.push("runtest");
+    var groups = tokens.map(function (token) {
+      return unique([token].concat(SEARCH_SYNONYMS[token] || []).map(searchStem).filter(Boolean));
+    });
+    return {
+      active: raw.trim().length > 0,
+      raw: raw,
+      tokens: unique(groups.reduce(function (all, group) { return all.concat(group); }, [])),
+      groups: groups
+    };
+  }
+
+  var SEARCH_STOP_WORDS = new Set([
+    "a", "an", "and", "are", "about", "can", "do", "does", "for", "from", "how", "i", "in", "is", "it", "me", "of", "on", "or", "please", "show", "that", "the", "there", "this", "to", "what", "when", "where", "which", "who", "why", "with"
+  ]);
+
+  var SEARCH_SYNONYMS = {
+    memory: ["packet", "runbook", "decision", "workflow", "gotcha", "reference"],
+    test: ["tests", "testing", "vitest", "jest", "pytest", "spec"],
+    run: ["running", "command", "script", "npm", "pnpm", "yarn"],
+    runn: ["run", "running", "command", "script", "npm", "pnpm", "yarn"],
+    runtest: ["run", "test", "runbook", "command"],
+    start: ["serve", "dev", "launch"],
+    build: ["compile", "tsc"],
+    bug: ["fix", "gotcha", "error"],
+    route: ["endpoint", "api"],
+    file: ["path"],
+    dependency: ["package", "external", "deps"]
+  };
+
+  function matchesSearchQuery(value, query) {
+    if (!query || !query.active) return true;
+    var text = searchableText(value);
+    if (query.raw && text.indexOf(query.raw) !== -1) return true;
+    if (!query.tokens.length) return true;
+    var textTokens = new Set(text
+      .replace(/[^a-z0-9_./:-]+/g, " ")
+      .split(/\s+/)
+      .map(searchStem)
+      .filter(Boolean));
+    var requiredGroups = (query.groups || []).filter(function (group) {
+      return group.some(function (token) { return SEARCH_SOFT_TOKENS.has(token) ? text.indexOf(token) !== -1 || textTokens.has(token) : true; });
+    });
+    if (!requiredGroups.length) requiredGroups = query.groups || [query.tokens];
+    return requiredGroups.every(function (group) {
+      return group.some(function (token) {
+        if (text.indexOf(token) !== -1) return true;
+        return textTokens.has(token);
+      });
+    });
+  }
+
+  var SEARCH_SOFT_TOKENS = new Set(["memory", "packet", "about"]);
+
+  function searchStem(value) {
+    var token = String(value || "").toLowerCase();
+    if (token.length > 5 && token.endsWith("ing")) token = token.slice(0, -3);
+    if (token.length > 4 && token.endsWith("ies")) token = token.slice(0, -3) + "y";
+    if (token.length > 4 && token.endsWith("es")) token = token.slice(0, -2);
+    if (token.length > 3 && token.endsWith("s")) token = token.slice(0, -1);
+    return token;
   }
 
   function shortName(value, max) {
