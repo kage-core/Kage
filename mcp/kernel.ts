@@ -2840,32 +2840,57 @@ export function indexProject(projectDir: string): IndexResult {
 }
 
 export function installAgentPolicy(projectDir: string): PolicyInstallResult {
-  const path = join(projectDir, "AGENTS.md");
-  if (!existsSync(path)) {
-    writeFileSync(path, `${AGENTS_POLICY}\n`, "utf8");
-    return { path, created: true, updated: false };
-  }
+  const agentsPath = join(projectDir, "AGENTS.md");
+  const claudePath = join(projectDir, "CLAUDE.md");
+  let created = false;
+  let updated = false;
 
-  const current = readFileSync(path, "utf8");
-  if (current.includes(AGENTS_POLICY_MARKER)) {
-    const replaced = current.replace(
-      new RegExp(`${AGENTS_POLICY_MARKER}[\\s\\S]*?${AGENTS_POLICY_END}`),
-      AGENTS_POLICY.trimEnd()
-    );
-    if (replaced !== current) {
-      writeFileSync(path, `${replaced.replace(/\s+$/, "")}\n`, "utf8");
-      return { path, created: false, updated: true };
+  // Write to AGENTS.md (generic agents: Codex, Cursor, etc.)
+  if (!existsSync(agentsPath)) {
+    writeFileSync(agentsPath, `${AGENTS_POLICY}\n`, "utf8");
+    created = true;
+  } else {
+    const current = readFileSync(agentsPath, "utf8");
+    if (current.includes(AGENTS_POLICY_MARKER)) {
+      const replaced = current.replace(
+        new RegExp(`${AGENTS_POLICY_MARKER}[\\s\\S]*?${AGENTS_POLICY_END}`),
+        AGENTS_POLICY.trimEnd()
+      );
+      if (replaced !== current) {
+        writeFileSync(agentsPath, `${replaced.replace(/\s+$/, "")}\n`, "utf8");
+        updated = true;
+      }
+    } else if (current.includes("# Kage Memory Harness") && current.includes("Automatic Recall")) {
+      writeFileSync(agentsPath, `${AGENTS_POLICY}\n`, "utf8");
+      updated = true;
+    } else {
+      writeFileSync(agentsPath, `${current.replace(/\s+$/, "")}\n\n${AGENTS_POLICY}\n`, "utf8");
+      updated = true;
     }
-    return { path, created: false, updated: false };
   }
 
-  if (current.includes("# Kage Memory Harness") && current.includes("Automatic Recall")) {
-    writeFileSync(path, `${AGENTS_POLICY}\n`, "utf8");
-    return { path, created: false, updated: true };
+  // Write to CLAUDE.md (Claude Code reads this automatically at session start)
+  if (!existsSync(claudePath)) {
+    writeFileSync(claudePath, `${AGENTS_POLICY}\n`, "utf8");
+    created = true;
+  } else {
+    const current = readFileSync(claudePath, "utf8");
+    if (current.includes(AGENTS_POLICY_MARKER)) {
+      const replaced = current.replace(
+        new RegExp(`${AGENTS_POLICY_MARKER}[\\s\\S]*?${AGENTS_POLICY_END}`),
+        AGENTS_POLICY.trimEnd()
+      );
+      if (replaced !== current) {
+        writeFileSync(claudePath, `${replaced.replace(/\s+$/, "")}\n`, "utf8");
+        updated = true;
+      }
+    } else {
+      writeFileSync(claudePath, `${current.replace(/\s+$/, "")}\n\n${AGENTS_POLICY}\n`, "utf8");
+      updated = true;
+    }
   }
 
-  writeFileSync(path, `${current.replace(/\s+$/, "")}\n\n${AGENTS_POLICY}\n`, "utf8");
-  return { path, created: false, updated: true };
+  return { path: agentsPath, created, updated };
 }
 
 function tokenize(text: string): string[] {
