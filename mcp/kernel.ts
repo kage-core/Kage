@@ -3814,17 +3814,39 @@ export function setupAgent(agent: SetupAgent, projectDir: string, options: { wri
     const server = { type: "stdio", command: serverCommand, args: serverArgs, alwaysLoad: true };
     const hookDir = join(home, ".claude", "kage", "hooks");
     const hookScript = `#!/usr/bin/env bash
-# Kage SessionStart hook — ambient memory reminder
-# Fires once per session. Silent if kage is not initialized in this project.
+# Kage SessionStart hook — injects full memory policy as a system message.
+# Silent if Kage is not initialized in the current project.
 set -euo pipefail
 
 CWD="$(cat | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('cwd',''))" 2>/dev/null || echo "")"
 
 [[ -d "$CWD/.agent_memory" ]] || exit 0
 
-MSG="Kage memory active. Before starting: call kage_validate then kage_recall. After discovering something reusable: kage_learn. Before finishing a task that changed files: kage_propose_from_diff."
+# Read the full policy from AGENTS.md (between the markers) if present.
+POLICY=""
+AGENTS_MD="$CWD/AGENTS.md"
+if [[ -f "$AGENTS_MD" ]]; then
+  POLICY="$(python3 -c "
+import sys, re
+text = open('$AGENTS_MD').read()
+m = re.search(r'<!-- KAGE_MEMORY_POLICY_V1 -->(.*?)<!-- END_KAGE_MEMORY_POLICY_V1 -->', text, re.DOTALL)
+print(m.group(1).strip() if m else '')
+" 2>/dev/null || echo "")"
+fi
 
-KAGE_MSG="$MSG" python3 -c "import json,os; print(json.dumps({'systemMessage': os.environ['KAGE_MSG']}))"
+if [[ -z "$POLICY" ]]; then
+  POLICY="This repo uses Kage as an automatic memory harness for coding agents.
+Before making code changes or answering implementation questions:
+1. Call kage_validate for this repo.
+2. Call kage_recall with the user task as the query.
+3. Call kage_code_graph for file, symbol, route, test, or dependency questions.
+4. Call kage_graph for decisions, bugs, workflows, and conventions.
+When you learn something reusable: kage_learn.
+Before finishing a task that changed files: kage_propose_from_diff.
+If recalled memory helped: kage_feedback helpful. If wrong or stale: kage_feedback wrong or stale."
+fi
+
+KAGE_MSG="$POLICY" python3 -c "import json,os; print(json.dumps({'systemMessage': os.environ['KAGE_MSG']}))"
 `;
     const settingsPath = join(home, ".claude", "settings.json");
     const hookEntry = {
