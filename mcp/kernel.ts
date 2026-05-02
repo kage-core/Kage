@@ -675,6 +675,47 @@ interface FrontmatterParse {
 const DEFAULT_CONFIDENCE = 0.7;
 const AGENTS_POLICY_MARKER = "<!-- KAGE_MEMORY_POLICY_V1 -->";
 const AGENTS_POLICY_END = "<!-- END_KAGE_MEMORY_POLICY_V1 -->";
+
+// Claude Code-specific policy: imperative opener + ToolSearch instruction.
+// Kage tools are deferred in Claude Code and require ToolSearch to load
+// their schemas before they can be called. AGENTS_POLICY (for AGENTS.md)
+// doesn't need this because Codex and other agents resolve tools differently.
+const CLAUDE_POLICY = `${AGENTS_POLICY_MARKER}
+# Kage Memory Harness
+
+**YOUR FIRST ACTION every session — before reading any file or writing any code:**
+
+\`\`\`
+Step 1: ToolSearch("kage recall validate")   // Kage tools are deferred — this loads their schemas
+Step 2: kage_validate({ project_dir })        // checks memory health
+Step 3: kage_recall({ query, project_dir })   // loads relevant context for the task
+\`\`\`
+
+Kage tools do NOT appear automatically in Claude Code. They are deferred and invisible
+until you call ToolSearch. Skip this step and you will have no memory context.
+
+Do this without waiting for the user to ask.
+
+## Capture
+
+- When you discover something reusable: \`kage_learn\`
+- Before finishing a task that changed files: \`kage_propose_from_diff\`
+- Keep captures concise and future-facing. Do not store raw transcripts.
+
+## Recall
+
+- \`kage_code_graph\` — for file, symbol, route, test, and dependency questions
+- \`kage_graph\` — for decisions, bugs, workflows, and conventions
+- Prefer repo memory over public/community memory when they conflict.
+- Call \`kage_feedback\` with \`helpful\`, \`wrong\`, or \`stale\` after recall.
+
+## Safety
+
+- Never approve, publish, or promote memory automatically.
+- Never store secrets, credentials, customer data, or private URLs.
+- If Kage returns validation warnings, mention them when they affect the task.
+${AGENTS_POLICY_END}
+`;
 const AGENTS_POLICY = `${AGENTS_POLICY_MARKER}
 # Kage Memory Harness
 
@@ -2869,23 +2910,26 @@ export function installAgentPolicy(projectDir: string): PolicyInstallResult {
     }
   }
 
-  // Write to CLAUDE.md (Claude Code reads this automatically at session start)
+  // Write to CLAUDE.md (Claude Code reads this automatically at session start).
+  // Uses CLAUDE_POLICY (not AGENTS_POLICY): imperative opener + ToolSearch
+  // instruction, because Kage tools are deferred in Claude Code and must be
+  // explicitly loaded via ToolSearch before they can be called.
   if (!existsSync(claudePath)) {
-    writeFileSync(claudePath, `${AGENTS_POLICY}\n`, "utf8");
+    writeFileSync(claudePath, `${CLAUDE_POLICY}\n`, "utf8");
     created = true;
   } else {
     const current = readFileSync(claudePath, "utf8");
     if (current.includes(AGENTS_POLICY_MARKER)) {
       const replaced = current.replace(
         new RegExp(`${AGENTS_POLICY_MARKER}[\\s\\S]*?${AGENTS_POLICY_END}`),
-        AGENTS_POLICY.trimEnd()
+        CLAUDE_POLICY.trimEnd()
       );
       if (replaced !== current) {
         writeFileSync(claudePath, `${replaced.replace(/\s+$/, "")}\n`, "utf8");
         updated = true;
       }
     } else {
-      writeFileSync(claudePath, `${current.replace(/\s+$/, "")}\n\n${AGENTS_POLICY}\n`, "utf8");
+      writeFileSync(claudePath, `${current.replace(/\s+$/, "")}\n\n${CLAUDE_POLICY}\n`, "utf8");
       updated = true;
     }
   }
@@ -4889,4 +4933,67 @@ export function rejectPending(projectDir: string, id: string): string {
     }
   }
   throw new Error(`Pending packet not found: ${id}`);
+}
+
+export interface ChangelogEntry {
+  id: string;
+  title: string;
+  type: MemoryType;
+  date: string;
+}
+
+export interface ChangelogResult {
+  project_dir: string;
+  days: number;
+  since: string;
+  added: ChangelogEntry[];
+  updated: ChangelogEntry[];
+  deprecated: ChangelogEntry[];
+  total: number;
+}
+
+export function changelog(projectDir: string, days = 7): ChangelogResult {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const sinceIso = since.toISOString();
+
+  const allPackets = loadPacketsFromDir(packetsDir(projectDir));
+
+  const added: ChangelogEntry[] = [];
+  const updated: ChangelogEntry[] = [];
+  const deprecated: ChangelogEntry[] = [];
+
+  for (const packet of allPackets) {
+    const createdAt = packet.created_at ?? "";
+    const updatedAt = packet.updated_at ?? "";
+    const isRecentlyCreated = createdAt >= sinceIso;
+    const isRecentlyUpdated = updatedAt >= sinceIso && updatedAt !== createdAt;
+
+    if (packet.status === "deprecated" || packet.status === "superseded") {
+      if (isRecentlyUpdated || isRecentlyCreated) {
+        deprecated.push({ id: packet.id, title: packet.title, type: packet.type, date: updatedAt || createdAt });
+      }
+    } else if (packet.status === "approved") {
+      if (isRecentlyCreated) {
+        added.push({ id: packet.id, title: packet.title, type: packet.type, date: createdAt });
+      } else if (isRecentlyUpdated) {
+        updated.push({ id: packet.id, title: packet.title, type: packet.type, date: updatedAt });
+      }
+    }
+  }
+
+  // Sort each list by date descending
+  const byDate = (a: ChangelogEntry, b: ChangelogEntry) => b.date.localeCompare(a.date);
+  added.sort(byDate);
+  updated.sort(byDate);
+  deprecated.sort(byDate);
+
+  return {
+    project_dir: projectDir,
+    days,
+    since: sinceIso,
+    added,
+    updated,
+    deprecated,
+    total: added.length + updated.length + deprecated.length,
+  };
 }
