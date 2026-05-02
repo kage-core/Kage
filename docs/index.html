@@ -892,7 +892,7 @@
               <h2>Ask the agent to install it. Then work normally.</h2>
               <p>
                 Kage installs a CLI, an MCP server, and a repo policy. After restart, agents should recall,
-                query, learn, and propose memory without the user saying "use Kage" every time.
+                query, learn, and write memory without the user saying "use Kage" every time.
               </p>
             </div>
             <div class="setup-grid">
@@ -900,13 +900,15 @@
                 <h3>Codex</h3>
                 <pre>npm install -g @kage-core/kage-graph-mcp
 kage setup codex --project . --write
-kage init --project .</pre>
+kage init --project .
+kage setup verify-agent --agent codex --project .</pre>
               </div>
               <div class="code-panel">
                 <h3>Claude Code</h3>
                 <pre>npm install -g @kage-core/kage-graph-mcp
 kage setup claude-code --project . --write
-kage init --project .</pre>
+kage init --project .
+kage setup verify-agent --agent claude-code --project .</pre>
               </div>
             </div>
           </div>

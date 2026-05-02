@@ -16,6 +16,10 @@ Before making code changes, answering repo-specific implementation questions, de
 
 Do this without waiting for the user to ask. Kage should feel like ambient repo memory, not a manual search command.
 
+If Kage appears installed but no Kage tools are available, report that the active
+agent session has not loaded the MCP server and ask the user to restart the
+agent. After restart, call `kage_verify_agent` to prove the harness is live.
+
 ## Automatic Capture
 
 When you learn something reusable, create repo-local memory with `kage_learn`.

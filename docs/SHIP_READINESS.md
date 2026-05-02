@@ -24,8 +24,9 @@ that can ship now from hosted SaaS infrastructure that remains a later launch.
 | Quality and benchmark reports | Ready | Reports useful-memory ratio, duplicate burden, evidence/path grounding, recall hit rate, rediscovery avoided, and tokens saved. |
 | Codex MCP integration | Ready | Installer writes stdio MCP config and initializes repo memory. |
 | Claude Code MCP integration | Ready | `kage setup claude-code --write` merges local MCP config and uses the same repo policy. |
+| Agent activation verification | Ready | `kage setup verify-agent` and MCP `kage_verify_agent` detect dormant installs and prove live MCP reachability. |
 | All-agent setup matrix | Ready | `kage setup` prints MCP/REST setup for Codex, Claude Code, Cursor, Windsurf, Gemini CLI, OpenCode, Cline, Goose, Roo, Kilo, Claude Desktop, Aider, and generic MCP. |
-| Optional local runtime | Ready | `kage daemon` serves REST observe/recall/distill/metrics/quality/benchmark on localhost while CLI/MCP continue without it. |
+| Optional local runtime | Ready | `kage daemon` serves REST observe/recall/distill/metrics/quality/benchmark on localhost, indexes on start, and watches source changes. |
 | Automatic observations | Ready | `kage observe`, `kage_observe`, and REST observe store privacy-scanned deduped session events locally. |
 | Observation distillation | Ready | `kage distill` creates repo packets with observation-session source refs and quality metadata. |
 | Ambient agent policy | Ready | `AGENTS.md` tells agents to recall, query, learn, and propose without manual prompts. |
@@ -48,6 +49,7 @@ that can ship now from hosted SaaS infrastructure that remains a later launch.
 - [x] Metrics and token-savings estimate.
 - [x] Quality and benchmark proof commands.
 - [x] All-agent setup command.
+- [x] Agent activation verifier for dormant MCP installs.
 - [x] Optional local daemon and REST observe/recall/distill API.
 - [x] Observation capture and distillation into repo memory.
 - [x] Local org memory artifact mode.

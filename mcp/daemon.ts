@@ -1,9 +1,10 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, watch, writeFileSync, type FSWatcher } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 import {
   benchmarkProject,
   distillSession,
+  indexProject,
   kageMetrics,
   observe,
   qualityReport,
@@ -20,6 +21,8 @@ export interface DaemonStatus {
   viewer_port: number;
   started_at: string;
   status_path: string;
+  index_watch: boolean;
+  last_indexed_at: string;
 }
 
 export interface DaemonDoctor {
@@ -113,6 +116,10 @@ export function daemonDoctor(projectDir: string): DaemonDoctor {
     }
   }
   const restPort = status?.rest_port ?? DEFAULT_REST_PORT;
+  const warnings = [
+    ...(running ? [] : ["Daemon is not running. Start it with `kage daemon start --project <repo>`."]),
+    ...(running && status && !status.index_watch ? ["Index file watcher is not active; run `kage index --project <repo>` after source changes."] : []),
+  ];
   return {
     configured: Boolean(status),
     running,
@@ -126,7 +133,7 @@ export function daemonDoctor(projectDir: string): DaemonDoctor {
       `GET http://${DEFAULT_HOST}:${restPort}/kage/quality`,
       `GET http://${DEFAULT_HOST}:${restPort}/kage/benchmark`,
     ],
-    warnings: running ? [] : ["Daemon is not running. Start it with `kage daemon start --project <repo>`."],
+    warnings,
   };
 }
 
@@ -146,6 +153,8 @@ export async function startDaemon(projectDir: string, options: { host?: string; 
   const restPort = options.restPort ?? DEFAULT_REST_PORT;
   const viewerPort = options.viewerPort ?? DEFAULT_VIEWER_PORT;
   mkdirSync(daemonDir(projectDir), { recursive: true });
+  indexProject(projectDir);
+  let lastIndexedAt = new Date().toISOString();
   const status: DaemonStatus = {
     ok: true,
     project_dir: projectDir,
@@ -155,8 +164,37 @@ export async function startDaemon(projectDir: string, options: { host?: string; 
     viewer_port: viewerPort,
     started_at: new Date().toISOString(),
     status_path: statusPath(projectDir),
+    index_watch: false,
+    last_indexed_at: lastIndexedAt,
   };
   writeFileSync(status.status_path, JSON.stringify(status, null, 2), "utf8");
+  let watcher: FSWatcher | null = null;
+  let refreshTimer: NodeJS.Timeout | null = null;
+  const refreshIndex = () => {
+    if (refreshTimer) clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => {
+      try {
+        indexProject(projectDir);
+        lastIndexedAt = new Date().toISOString();
+        status.last_indexed_at = lastIndexedAt;
+        writeFileSync(status.status_path, JSON.stringify(status, null, 2), "utf8");
+      } catch {
+        // Keep the daemon alive; doctor/status surfaces stale indexes separately.
+      }
+    }, 350);
+  };
+  try {
+    watcher = watch(projectDir, { recursive: true }, (_event, filename) => {
+      const file = String(filename ?? "");
+      if (!file || file.includes("node_modules") || file.includes(".git") || file.includes(".agent_memory/indexes") || file.includes(".agent_memory/code_graph") || file.includes(".agent_memory/graph")) return;
+      refreshIndex();
+    });
+    status.index_watch = true;
+    writeFileSync(status.status_path, JSON.stringify(status, null, 2), "utf8");
+  } catch {
+    status.index_watch = false;
+    writeFileSync(status.status_path, JSON.stringify(status, null, 2), "utf8");
+  }
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://${host}:${restPort}`);
@@ -166,6 +204,7 @@ export async function startDaemon(projectDir: string, options: { host?: string; 
         return;
       }
       if (req.method === "GET" && url.pathname === "/kage/status") {
+        status.last_indexed_at = lastIndexedAt;
         json(res, 200, status);
         return;
       }
@@ -208,6 +247,8 @@ export async function startDaemon(projectDir: string, options: { host?: string; 
   console.log(`Status: ${status.status_path}`);
 
   process.on("SIGTERM", () => {
+    if (watcher) watcher.close();
+    if (refreshTimer) clearTimeout(refreshTimer);
     server.close(() => process.exit(0));
   });
 }

@@ -36,6 +36,7 @@ import {
   registryRecommendations,
   setupAgent,
   validateProject,
+  verifyAgentActivation,
   type MemoryType,
   type ObservationEvent,
   type SetupAgent,
@@ -261,6 +262,19 @@ export function listTools() {
           agent: { type: "string", enum: SETUP_AGENTS },
           project_dir: { type: "string" },
           write: { type: "boolean" },
+        },
+        required: ["agent", "project_dir"],
+      },
+    },
+    {
+      name: "kage_verify_agent",
+      description:
+        "Verify that Kage is truly active for the current agent: config, repo policy, indexes, recall, code graph, and this live MCP tool reachability.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          agent: { type: "string", enum: SETUP_AGENTS },
+          project_dir: { type: "string" },
         },
         required: ["agent", "project_dir"],
       },
@@ -721,6 +735,13 @@ export async function callTool(name: string, args: Record<string, unknown> | und
 
   if (name === "kage_setup_agent") {
     const result = setupAgent(String(args?.agent ?? "") as SetupAgent, String(args?.project_dir ?? ""), { write: Boolean(args?.write) });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_verify_agent") {
+    const result = verifyAgentActivation(String(args?.agent ?? "") as SetupAgent, String(args?.project_dir ?? ""), { mcpToolReachable: true });
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };

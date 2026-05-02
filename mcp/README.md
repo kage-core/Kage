@@ -22,6 +22,7 @@ kage setup codex --project /path/to/repo --write
 kage setup claude-code --project /path/to/repo
 kage setup generic-mcp --project /path/to/repo
 kage setup doctor --project /path/to/repo
+kage setup verify-agent --agent codex --project /path/to/repo
 kage init --project /path/to/repo
 kage policy --project /path/to/repo
 kage doctor --project /path/to/repo
@@ -149,7 +150,9 @@ is deterministic text plus graph retrieval.
 - `POST /kage/distill`
 
 The daemon is not required for stdio MCP or CLI use; it exists for agents and
-workflows that need REST, live observation ingestion, or Aider-style scripting.
+workflows that need REST, live observation ingestion, Aider-style scripting, or
+automatic index refresh. On start it indexes once, then watches repo file changes
+and refreshes generated graph/index artifacts after a short debounce.
 
 ## Local Graph Viewer
 
@@ -267,6 +270,11 @@ Before code changes or repo-specific answers:
 5. Before finishing changed-file tasks, call `kage_propose_from_diff`.
 6. Never publish or promote org/global memory automatically.
 ```
+
+Run `kage setup verify-agent --agent codex --project <repo>` after setup. The
+CLI verifies config, policy, indexes, recall, and code graph. It intentionally
+reports `restart_required` until the active agent can call the MCP
+`kage_verify_agent` tool, which proves Kage is live inside that agent session.
 
 The official Codex MCP docs also support adding HTTP MCP servers with:
 

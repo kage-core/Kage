@@ -99,7 +99,7 @@ The easiest setup is to ask your agent to do it.
 | Tell Codex: | Tell Claude Code: |
 | `Install and set up Kage for this repo.` | `Install and set up Kage for this repo.` |
 | Codex should run: | Claude Code should run: |
-| `npm install -g @kage-core/kage-graph-mcp`<br>`kage setup codex --project . --write`<br>`kage init --project .` | `npm install -g @kage-core/kage-graph-mcp`<br>`kage setup claude-code --project . --write`<br>`kage init --project .` |
+| `npm install -g @kage-core/kage-graph-mcp`<br>`kage setup codex --project . --write`<br>`kage init --project .`<br>`kage setup verify-agent --agent codex --project .` | `npm install -g @kage-core/kage-graph-mcp`<br>`kage setup claude-code --project . --write`<br>`kage init --project .`<br>`kage setup verify-agent --agent claude-code --project .` |
 | Restart Codex once. | Restart Claude Code once. |
 
 After restart, Kage becomes ambient repo memory. The user should not need to
@@ -111,6 +111,7 @@ Manual Codex setup:
 npm install -g @kage-core/kage-graph-mcp
 kage setup codex --project . --write
 kage init --project .
+kage setup verify-agent --agent codex --project .
 ```
 
 Then restart Codex so the MCP server is loaded.
@@ -121,6 +122,7 @@ Manual Claude Code setup:
 npm install -g @kage-core/kage-graph-mcp
 kage setup claude-code --project . --write
 kage init --project .
+kage setup verify-agent --agent claude-code --project .
 ```
 
 Then restart Claude Code.
@@ -140,12 +142,13 @@ kage metrics --project /path/to/repo
 kage viewer --project /path/to/repo
 ```
 
-Setup does four things:
+Setup does five things:
 
 1. Installs the `kage` CLI and `kage-graph-mcp` MCP server.
 2. Adds the local stdio MCP server to Codex or Claude Code config.
 3. Runs `kage init` so the repo has `.agent_memory/` and `AGENTS.md`.
 4. Installs the ambient policy that tells agents when to recall, query, learn, and propose memory.
+5. Runs `kage setup verify-agent` so dormant installs are visible before users trust the harness.
 
 ## Usage With Codex And Claude Code
 
@@ -221,6 +224,7 @@ kage setup codex --project /path/to/repo --write
 kage setup claude-code --project /path/to/repo --write
 kage setup generic-mcp --project /path/to/repo
 kage setup doctor --project /path/to/repo
+kage setup verify-agent --agent codex --project /path/to/repo
 ```
 
 ## Why Kage
@@ -326,7 +330,8 @@ be clear about:
 - MCP tools for recall, graph query, metrics, learning, validation, and branch
   review summaries.
 - Optional local daemon with REST endpoints for observe, recall, distill,
-  metrics, quality, and benchmark.
+  metrics, quality, and benchmark. Daemon startup indexes once and watches repo
+  changes to refresh graph artifacts.
 - Memory admission scoring so routine session events do not become durable
   memory.
 - Hybrid recall explanations across text, graph, path/type/tag, freshness,
