@@ -3713,14 +3713,14 @@ export function setupAgent(agent: SetupAgent, projectDir: string, options: { wri
   }
 
   if (agent === "claude-code") {
-    const path = join(home, ".claude", "settings.json");
-    setSnippet(path, JSON.stringify({ mcpServers: { kage: { command: serverCommand, args: serverArgs } } }, null, 2), [
-      "Add the MCP server to ~/.claude/settings.json, then restart Claude Code.",
+    const path = join(home, ".claude.json");
+    setSnippet(path, JSON.stringify({ mcpServers: { kage: { type: "stdio", command: serverCommand, args: serverArgs } } }, null, 2), [
+      "Add the MCP server to ~/.claude.json, then restart Claude Code.",
       "Run `kage init --project <repo>` inside each repo to install the ambient memory policy.",
       "Claude Code should recall at session start and propose pending change memory before final responses.",
     ], true);
     if (options.write) {
-      upsertJsonMcpServer(path, "kage", { command: serverCommand, args: serverArgs });
+      upsertJsonMcpServer(path, "kage", { type: "stdio", command: serverCommand, args: serverArgs });
       result.wrote = true;
     }
     return result;
@@ -3758,7 +3758,7 @@ export function setupAgent(agent: SetupAgent, projectDir: string, options: { wri
   return result;
 }
 
-function upsertJsonMcpServer(path: string, name: string, server: { command: string; args: string[] }): void {
+function upsertJsonMcpServer(path: string, name: string, server: { type?: string; command: string; args: string[]; env?: Record<string, string> }): void {
   ensureDir(dirname(path));
   let config: Record<string, unknown> = {};
   if (existsSync(path)) {
