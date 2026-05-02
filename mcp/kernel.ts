@@ -3667,6 +3667,42 @@ function loadObservations(projectDir: string, sessionId?: string): ObservationRe
     .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 }
 
+function reusableFileObservation(event: ObservationRecord): string {
+  const text = `${event.summary ?? ""}\n${event.text ?? ""}`.trim();
+  if (!text) return "";
+  const lower = text.toLowerCase();
+  const generic = [
+    "file changed",
+    "edited file",
+    "updated file",
+    "wrote file",
+    "touched file",
+    "changed file",
+    "modified file",
+  ];
+  if (generic.some((phrase) => lower === phrase || lower.startsWith(`${phrase}:`))) return "";
+  const durableSignals = [
+    "because",
+    "requires",
+    "must",
+    "should",
+    "use ",
+    "run ",
+    "maps ",
+    "routes ",
+    "dispatch",
+    "convention",
+    "decision",
+    "gotcha",
+    "workflow",
+    "runbook",
+    "fix",
+    "bug",
+    "test",
+  ];
+  return durableSignals.some((signal) => lower.includes(signal)) ? text : "";
+}
+
 export function distillSession(projectDir: string, sessionId: string): DistillResult {
   const observations = loadObservations(projectDir, sessionId);
   const candidates: CaptureResult[] = [];
@@ -3707,15 +3743,20 @@ export function distillSession(projectDir: string, sessionId: string): DistillRe
     })));
   }
 
-  if (fileEvents.length) {
-    const paths = unique(fileEvents.map((event) => event.path!).slice(0, 12));
+  const meaningfulFileEvents = fileEvents
+    .map((event) => ({ event, learning: reusableFileObservation(event) }))
+    .filter((item) => item.learning);
+
+  if (meaningfulFileEvents.length) {
+    const paths = unique(meaningfulFileEvents.map((item) => item.event.path!).slice(0, 12));
+    const lead = summarize(meaningfulFileEvents[0].learning);
     candidates.push(annotate(capture({
       projectDir,
-      title: `Session ${sessionId} touched ${paths.length} repo paths`,
-      summary: `Observed file changes: ${paths.join(", ")}`,
-      body: `Observed file changes during session ${sessionId}:\n${paths.map((path) => `- ${path}`).join("\n")}\n\nUse this as review context, not permanent memory unless the changes reveal a reusable workflow.`,
+      title: `Workflow: ${lead}`,
+      summary: lead,
+      body: `Reusable file observation distilled from session ${sessionId}:\n\n${meaningfulFileEvents.map((item) => `- ${item.event.path}: ${item.learning}`).join("\n")}\n\nReview before approving as durable repo memory.`,
       type: "workflow",
-      tags: ["observed-session", "file-change"],
+      tags: ["observed-session", "workflow"],
       paths,
     })));
   }

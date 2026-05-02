@@ -373,6 +373,34 @@ test("observations are privacy-scanned, deduplicated, and distilled into pending
   assert.deepEqual(distilled.candidates[0]?.packet?.source_refs[0]?.session_id, "s1");
 });
 
+test("distillation does not create useless touched-file memory", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "server.ts"), "", "utf8");
+  assert.equal(observe(project, {
+    type: "file_change",
+    session_id: "s-file",
+    path: "src/server.ts",
+    summary: "Edited file",
+  }).ok, true);
+  let distilled = distillSession(project, "s-file");
+  assert.equal(distilled.ok, true);
+  assert.equal(distilled.candidates.length, 0);
+
+  assert.equal(observe(project, {
+    type: "file_change",
+    session_id: "s-meaningful",
+    path: "src/server.ts",
+    summary: "Server dispatcher maps GET /tasks and GET /summary through createApp.",
+  }).ok, true);
+  distilled = distillSession(project, "s-meaningful");
+  const packet = distilled.candidates[0]?.packet;
+  assert.equal(packet?.type, "workflow");
+  assert.match(packet?.title ?? "", /Server dispatcher maps/);
+  assert.doesNotMatch(packet?.title ?? "", /touched 1 repo paths/);
+  assert.deepEqual(packet?.paths, ["src/server.ts"]);
+});
+
 test("recall explanations, quality, and benchmark expose proof metrics", () => {
   const project = tempProject();
   writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
