@@ -92,20 +92,35 @@ we overclaim.
 
 ## Try It In 60 Seconds
 
-For Codex, run this inside the repo you want Kage to remember:
+The easiest setup is to ask your agent to do it.
+
+| Codex | Claude Code |
+|---|---|
+| Tell Codex: | Tell Claude Code: |
+| `Install and set up Kage for this repo.` | `Install and set up Kage for this repo.` |
+| Codex should run: | Claude Code should run: |
+| `npm install -g @kage-core/kage-graph-mcp`<br>`kage setup codex --project . --write`<br>`kage init --project .` | `npm install -g @kage-core/kage-graph-mcp`<br>`kage setup claude-code --project . --write`<br>`kage init --project .` |
+| Restart Codex once. | Restart Claude Code once. |
+
+After restart, Kage becomes ambient repo memory. The user should not need to
+manually ask for recall or capture during normal work.
+
+Manual Codex setup:
 
 ```text
-Set up Kage in this repo. Run the official installer:
-curl -fsSL https://raw.githubusercontent.com/kage-core/Kage/master/codex-setup.sh | bash
+npm install -g @kage-core/kage-graph-mcp
+kage setup codex --project . --write
+kage init --project .
 ```
 
 Then restart Codex so the MCP server is loaded.
 
-For Claude Code:
+Manual Claude Code setup:
 
 ```bash
-kage setup claude-code --project /path/to/repo --write
-kage init --project /path/to/repo
+npm install -g @kage-core/kage-graph-mcp
+kage setup claude-code --project . --write
+kage init --project .
 ```
 
 Then restart Claude Code.
@@ -125,13 +140,12 @@ kage metrics --project /path/to/repo
 kage viewer --project /path/to/repo
 ```
 
-The installer:
+Setup does three things:
 
-1. Clones or updates Kage under `~/.kage/Kage`.
-2. Installs and builds the TypeScript MCP package.
-3. Adds the local stdio MCP server to `~/.codex/config.toml`.
-4. Runs `kage init --project <current-repo>`.
-5. Installs or updates `AGENTS.md` so Codex uses Kage automatically.
+1. Installs the `kage` CLI and `kage-graph-mcp` MCP server.
+2. Adds the local stdio MCP server to Codex or Claude Code config.
+3. Runs `kage init` so the repo has `.agent_memory/` and `AGENTS.md`.
+4. Installs the ambient policy that tells agents when to recall, query, learn, and propose memory.
 
 ## Works With Your Agent
 
