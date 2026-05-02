@@ -1409,8 +1409,12 @@ function parsePorcelainStatus(status: string): string[] {
       })
       .map((path) => path.replace(/^.* -> /, ""))
       .filter(Boolean)
-      .filter((path) => !isNoisePath(path))
+      .filter((path) => !shouldSkipRepoMemoryPath(path))
   ).sort();
+}
+
+function shouldSkipRepoMemoryPath(relativePath: string): boolean {
+  return isNoisePath(relativePath) || shouldSkipCodePath(relativePath);
 }
 
 function migrateLegacyMarkdown(projectDir: string): number {
@@ -1649,7 +1653,7 @@ function pathExistsInRepo(projectDir: string, packetPath: string): boolean {
 
 function packetGroundingWarnings(projectDir: string, packet: MemoryPacket, source: string): string[] {
   const warnings: string[] = [];
-  const meaningfulPaths = packet.paths.filter((path) => path && path !== "root");
+  const meaningfulPaths = packet.paths.filter((path) => path && path !== "root" && !shouldSkipRepoMemoryPath(path));
   const missingPaths = meaningfulPaths.filter((path) => !pathExistsInRepo(projectDir, path));
   if (meaningfulPaths.length && missingPaths.length === meaningfulPaths.length) {
     warnings.push(`${source}: none of the referenced paths exist in this repo: ${missingPaths.join(", ")}`);
@@ -1658,7 +1662,7 @@ function packetGroundingWarnings(projectDir: string, packet: MemoryPacket, sourc
   }
 
   const hasGroundedSource = packet.source_refs.some((ref) => {
-    if (typeof ref.path === "string") return pathExistsInRepo(projectDir, ref.path);
+    if (typeof ref.path === "string") return !shouldSkipRepoMemoryPath(ref.path) && pathExistsInRepo(projectDir, ref.path);
     if (typeof ref.kind === "string" && ["explicit_capture", "local_public_candidate"].includes(ref.kind)) return true;
     return typeof ref.url === "string";
   });
@@ -2617,6 +2621,7 @@ export function buildKnowledgeGraph(projectDir: string): KnowledgeGraph {
     });
 
     for (const path of packet.paths.length ? packet.paths : ["root"]) {
+      if (shouldSkipRepoMemoryPath(path)) continue;
       if (!pathExistsInRepo(projectDir, path)) continue;
       const pathId = graphEntityId("path", path);
       addEntity(entities, {
@@ -4383,9 +4388,8 @@ function createDiffChangeMemory(projectDir: string, summary: BranchReviewSummary
 
 export function proposeFromDiff(projectDir: string): DiffProposalResult {
   ensureMemoryDirs(projectDir);
-  // Use --porcelain without -uall so git respects .gitignore for untracked files
-  // and doesn't flood the packet with node_modules / vendor paths.
-  const status = readGit(projectDir, ["status", "--porcelain"]);
+  // Keep exact untracked file paths, then filter generated/vendor noise below.
+  const status = readGit(projectDir, ["status", "--porcelain", "-uall"]);
   if (status === null) return { ok: false, changedFiles: [], errors: ["Not a git repository or git is unavailable."] };
   const changedFiles = parsePorcelainStatus(status);
   if (changedFiles.length === 0) return { ok: false, changedFiles: [], errors: ["No changed files found."] };
