@@ -1,8 +1,8 @@
 # Kage Ship Readiness
 
 This document maps the original Kage memory-harness design to the current repo
-state. It separates the local-first product that can ship now from hosted org
-and global systems that remain intentionally out of scope for local beta.
+state. It separates the local-first product and local org/global artifact mode
+that can ship now from hosted SaaS infrastructure that remains a later launch.
 
 ## Local-First Beta
 
@@ -31,6 +31,10 @@ and global systems that remain intentionally out of scope for local beta.
 | Branch review summaries | Ready | `kage propose --from-diff` writes non-recallable branch summaries. |
 | Registry recommendations | Ready | Recommends docs, skills, and optional MCPs without auto-installing. |
 | Public candidate export | Ready | Sanitized local bundles can be created, but nothing is published automatically. |
+| Local org memory artifact mode | Ready | Org inbox, review, audit log, approved packets, registry export, and org recall are file-backed. |
+| Local global/CDN artifact mode | Ready | Builds immutable static registry artifacts, latest alias, revocation manifest, and marketplace references. |
+| Marketplace manifest | Ready | Writes docs/skills/MCP pack recommendations plus explicit install plan. |
+| Layered recall | Ready | Supports repo, org, and global recall priority with repo-local memory first. |
 | Terminal graph viewer | Ready | Local viewer loads memory, code, and metrics graphs with search and inspection. |
 | CI | Ready | GitHub Actions runs MCP install, build, and tests. |
 
@@ -45,9 +49,13 @@ and global systems that remain intentionally out of scope for local beta.
 - [x] All-agent setup command.
 - [x] Optional local daemon and REST observe/recall/distill API.
 - [x] Observation capture and distillation into pending memory.
+- [x] Local org memory artifact mode.
+- [x] Local global/CDN artifact mode.
+- [x] Marketplace manifest and install plan.
 - [x] Safety model documented.
 - [x] CI workflow.
 - [x] README aligned with actual implementation.
+- [x] Customer readiness guide.
 - [ ] Publish `@kage-core/kage-graph-mcp` package version from a clean release
   environment.
 - [ ] Add release screenshots or GIFs for recall, learning, metrics, and viewer.
@@ -56,20 +64,21 @@ and global systems that remain intentionally out of scope for local beta.
 
 ## Hosted Platform
 
-These pieces are not required for local beta. They are the path to org/global
-Kage and need dedicated hosted infrastructure.
+These pieces are not required for local beta. They are the path from local
+artifact mode to hosted org/global Kage and need dedicated hosted
+infrastructure.
 
 | Area | Status | Why not local-beta |
 |---|---:|---|
-| Org memory server | Designed | Needed only for cross-repo/private team memory beyond git. |
-| Org upload protocol | Designed | Local public candidates and bundles exist; tenant upload needs hosted auth and audit logs. |
+| Org memory server | Designed | Needed only for cross-repo/private team memory beyond git/filesystem artifacts. |
+| Hosted org upload protocol | Designed | Local org upload exists; hosted upload needs auth, tenancy, and server audit logs. |
 | Auth and tenant isolation | Designed | Requires hosted identities and scoped tokens. |
-| Hosted review queue | Designed | Local review already works; hosted review needs org permissions. |
+| Hosted review queue | Designed | Local org review already works; hosted review needs org permissions. |
 | Branch overlays server | Designed | Local branch summaries exist; hosted overlays require lifecycle management. |
 | PR bot | Designed | Needs GitHub App permissions and webhook infrastructure. |
-| Registry signing | Designed | Needs key management, revocation, and release pipeline. |
-| Global CDN publish | Designed | Needs reviewed public packets, signing, immutable artifacts, and rollback. |
-| Registry pack install automation | Designed | Local recommendations exist; automatic skill/MCP/doc installation requires trust prompts and sandbox policy. |
+| Production registry signing | Designed | Local deterministic manifests exist; production signing needs key management, revocation, and release pipeline. |
+| Global CDN publish | Designed | Local CDN artifacts exist; hosted publish needs upload, edge aliases, and rollback operations. |
+| Registry pack install automation | Designed | Local marketplace recommendations exist; automatic skill/MCP/doc installation requires trust prompts and sandbox policy. |
 | Admin UI | Designed | Only needed after hosted org/global workflows exist. |
 | Data export/deletion runbooks | Designed | Required for hosted customer data, not local files. |
 
@@ -83,8 +92,10 @@ Kage is ready to present as:
 > A local-first repo memory and code graph harness for coding agents, with MCP
 > tools, optional REST runtime, git-shareable memory, human review, metrics,
 > quality/benchmark proof, automatic observation capture, and a terminal graph
-> viewer.
+> viewer. It also ships local org/global artifact mode and marketplace
+> recommendations without automatic publishing or installation.
 
 Kage should not yet be presented as:
 
-> A fully hosted org memory server or public global CDN.
+> A fully hosted org memory server, production SaaS admin console, or automatic
+> public global CDN publisher.

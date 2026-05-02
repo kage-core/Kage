@@ -413,6 +413,11 @@ scope with org/global recall.
 
 ## Hosted Roadmap
 
+Customer-facing beta guidance lives in
+[docs/CUSTOMER_READINESS.md](docs/CUSTOMER_READINESS.md). It includes
+positioning, target customers, demo script, proof metrics, onboarding flow,
+known beta gaps, and support runbook.
+
 The hosted roadmap lives in [docs/ORG_GLOBAL_ROADMAP.md](docs/ORG_GLOBAL_ROADMAP.md).
 It covers org memory, permissions, branch overlays, PR bot, registry signing,
 global CDN publish, and operational launch gates.
