@@ -178,7 +178,7 @@ h2 { color: var(--terminal); font-size: 13px; letter-spacing: 0.04em; text-trans
 @media (min-width: 1121px) {
   .control-panel {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+    grid-template-columns: repeat(7, minmax(118px, 1fr)) auto;
     gap: 10px;
     align-items: end;
   }
@@ -187,6 +187,26 @@ h2 { color: var(--terminal); font-size: 13px; letter-spacing: 0.04em; text-trans
 }
 
 .control-panel label { display: block; margin-top: 12px; }
+.control-panel .toggle-control {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #030604;
+}
+.control-panel .toggle-control input {
+  width: 15px;
+  min-height: 15px;
+  accent-color: var(--terminal-strong);
+}
+.control-panel .toggle-control span {
+  margin: 0;
+  color: var(--terminal-dim);
+  line-height: 1.2;
+}
 label span {
   display: block;
   margin-bottom: 6px;
@@ -319,6 +339,13 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
 }
 #graphSvg.dragging { cursor: grabbing; }
 #arrow path { fill: var(--edge); }
+.lane-label {
+  fill: rgba(185, 251, 192, 0.34);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  pointer-events: none;
+}
 
 .empty-state {
   position: absolute;
@@ -436,7 +463,7 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
 .item-title { color: var(--terminal); font-weight: 780; overflow-wrap: anywhere; }
 .item-meta { color: var(--terminal-dim); font-size: 11px; overflow-wrap: anywhere; }
 
-.edge-line { stroke: var(--edge); stroke-width: 1.5; marker-end: url(#arrow); opacity: 0.72; }
+.edge-line { stroke: var(--edge); stroke-width: 1.35; marker-end: url(#arrow); opacity: 0.50; }
 .edge-line.filtered { opacity: 0.05; }
 .edge-line.selected, .edge-line.connected { stroke: var(--terminal-strong); stroke-width: 2.8; opacity: 1; }
 .edge-line.review-low-confidence { stroke-dasharray: 5 4; stroke: var(--warn); }
@@ -461,6 +488,14 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
 .node.graph-unknown .node-body {
   fill: #151b18;
   stroke: var(--terminal-dim);
+}
+.node.dependency-node .node-body {
+  fill: #101714;
+  stroke: #506c5a;
+}
+.node.dependency-node .node-title,
+.node.dependency-node .node-type {
+  fill: #8aa394;
 }
 .node.selected .node-body, .node.connected .node-body {
   stroke: var(--terminal-strong);

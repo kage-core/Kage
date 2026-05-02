@@ -579,17 +579,20 @@ test("graph command extraction ignores prose and file references", () => {
 
 test("graph skips missing path edges even when packets warn about them", () => {
   const project = tempProject();
+  mkdirSync(join(project, "node_modules", "debug"), { recursive: true });
+  writeFileSync(join(project, "node_modules", "debug", "README.md"), "dependency docs\n", "utf8");
   const result = capture({
     projectDir: project,
     title: "Old backend flow",
     body: "This memory references a path that no longer exists.",
     type: "workflow",
-    paths: ["backend"],
+    paths: ["backend", "node_modules/debug/README.md"],
   });
   assert.equal(result.ok, true);
 
   const graph = buildKnowledgeGraph(project);
   assert.equal(graph.edges.some((edge) => edge.relation === "affects_path" && edge.fact.includes("backend")), false);
+  assert.equal(graph.edges.some((edge) => edge.relation === "affects_path" && edge.fact.includes("node_modules")), false);
   assert.equal(validateProject(project).warnings.some((warning) => warning.includes("none of the referenced paths exist")), true);
 });
 
@@ -887,8 +890,10 @@ test("diff proposal creates a branch review summary and repo-local change memory
   const project = tempProject();
   execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
   mkdirSync(join(project, "src"), { recursive: true });
+  mkdirSync(join(project, "node_modules", "left-pad"), { recursive: true });
   writeFileSync(join(project, "package.json"), JSON.stringify({ scripts: { test: "vitest", build: "tsc" } }), "utf8");
   writeFileSync(join(project, "src", "runner.ts"), "export const command = 'npm test';\n", "utf8");
+  writeFileSync(join(project, "node_modules", "left-pad", "README.md"), "dependency noise\n", "utf8");
 
   const result = proposeFromDiff(project);
   assert.equal(result.ok, true);
@@ -902,6 +907,8 @@ test("diff proposal creates a branch review summary and repo-local change memory
   assert.equal(result.summary.repo_memory_written, true);
   assert.equal(result.summary.promotion_review_required, true);
   assert.equal(result.changedFiles.includes("src/runner.ts"), true);
+  assert.equal(result.changedFiles.some((path) => path.includes("node_modules")), false);
+  assert.equal(result.packet.paths.some((path) => path.includes("node_modules")), false);
   assert.match(readFileSync(result.path!, "utf8"), /git_diff/);
   assert.equal(recall(project, "what changed runner npm test").results.some((item) => item.packet.id === result.packet!.id), true);
 });
