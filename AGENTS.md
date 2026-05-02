@@ -35,7 +35,9 @@ Keep captures concise and future-facing. Do not store raw transcripts.
 
 Before finishing a task that changed files, call `kage_propose_from_diff`.
 
-This writes a branch review summary only. It does not create recallable memory.
+This writes a branch review summary and a pending change-memory packet. The packet
+must be human-reviewed before it becomes shared repo memory, but it should capture
+what changed, why it matters, how to verify it, and what future agents should know.
 
 ## Feedback
 
@@ -61,7 +63,7 @@ For normal coding tasks:
 4. `kage_graph` for remembered decisions, bugs, workflows, and conventions
 5. Work on the task
 6. `kage_learn` for concrete learnings
-7. `kage_propose_from_diff` before the final response to update branch review
+7. `kage_propose_from_diff` before the final response to create pending change memory
 
 For quick factual questions, `kage_recall` alone is enough. For status or demo requests, call `kage_metrics`.
 <!-- END_KAGE_MEMORY_POLICY_V1 -->
