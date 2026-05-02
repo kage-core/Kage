@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -23,6 +24,9 @@ test("MCP lists repo-local memory tools", () => {
   assert.equal(names.includes("kage_graph"), true);
   assert.equal(names.includes("kage_code_graph"), true);
   assert.equal(names.includes("kage_metrics"), true);
+  assert.equal(names.includes("kage_refresh"), true);
+  assert.equal(names.includes("kage_pr_summarize"), true);
+  assert.equal(names.includes("kage_pr_check"), true);
   assert.equal(names.includes("kage_quality"), true);
   assert.equal(names.includes("kage_benchmark"), true);
   assert.equal(names.includes("kage_setup_agent"), true);
@@ -122,6 +126,26 @@ test("MCP kage_metrics returns coverage and readiness metrics", async () => {
   assert.equal(metrics.code_graph.indexer_coverage_percent, 100);
   assert.equal(typeof metrics.harness.readiness_score, "number");
   assert.equal(typeof metrics.pain.estimated_tokens_saved, "number");
+});
+
+test("MCP refresh and PR tools expose merge readiness", async () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "node --test" } }), "utf8");
+  writeFileSync(join(project, "src", "runner.js"), "export function run() { return 'ok'; }\n", "utf8");
+
+  const summary = JSON.parse(textContent(await callTool("kage_pr_summarize", { project_dir: project })));
+  assert.equal(summary.ok, true);
+  assert.ok(summary.diff_memory_packet_id);
+
+  const refresh = JSON.parse(textContent(await callTool("kage_refresh", { project_dir: project })));
+  assert.equal(refresh.ok, true);
+  assert.equal(typeof refresh.code_graph.files, "number");
+
+  const check = JSON.parse(textContent(await callTool("kage_pr_check", { project_dir: project })));
+  assert.equal(check.ok, true);
+  assert.equal(check.code_graph_current, true);
 });
 
 test("MCP setup, quality, benchmark, observe, and distill tools work", async () => {

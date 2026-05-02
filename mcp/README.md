@@ -27,6 +27,7 @@ kage init --project /path/to/repo
 kage policy --project /path/to/repo
 kage doctor --project /path/to/repo
 kage index --project /path/to/repo
+kage refresh --project /path/to/repo
 kage branch --project /path/to/repo
 kage code-graph --project /path/to/repo
 kage code-graph "createApp routes tests" --project /path/to/repo
@@ -45,6 +46,8 @@ kage learn --project /path/to/repo --learning "Decision: use kage_learn for actu
 kage feedback --project /path/to/repo --packet <approved-packet-id> --kind stale
 kage capture --project /path/to/repo --type runbook --title "Webhook tests" --body "Run pnpm test:api -- webhooks."
 kage propose --project /path/to/repo --from-diff
+kage pr summarize --project /path/to/repo
+kage pr check --project /path/to/repo
 kage review-artifact --project /path/to/repo
 kage registry --project /path/to/repo
 kage marketplace --project /path/to/repo
@@ -57,6 +60,7 @@ kage layered-recall "how do I run tests" --project /path/to/repo --org acme --gl
 kage global build --project /path/to/repo --org acme
 kage review --project /path/to/repo
 kage validate --project /path/to/repo
+kage upgrade --dry-run
 ```
 
 `kage init` is the first-run command. It creates `.agent_memory/`, migrates
@@ -120,6 +124,16 @@ whether the harness is actually carrying its weight. Metrics include language
 and parser coverage, code graph counts, evidence coverage, approved vs pending
 memory, validation status, estimated tokens saved per recall, duplicate
 candidates, average memory quality, and a readiness score.
+
+Use `kage refresh --project <repo>` or the `kage_refresh` MCP tool after
+meaningful file changes. Refresh rebuilds indexes, code graph, memory graph,
+metrics, and stale-memory metadata. Memory is marked stale when status or
+feedback says it is stale, its TTL expires, or grounded paths disappear.
+
+Use `kage pr summarize --project <repo>` / `kage_pr_summarize` before handoff to
+write branch review metadata and repo-local change memory from the git diff.
+Use `kage pr check --project <repo>` / `kage_pr_check` before merge to verify
+validation, graph freshness, stale packets, and memory packet changes.
 
 Review artifacts include memory quality reasons, risks, duplicate candidates,
 and estimated token savings for legacy pending/quarantine packets and promotion
@@ -185,6 +199,9 @@ Local repo tools:
 - `kage_recall`
 - `kage_code_graph`
 - `kage_metrics`
+- `kage_refresh`
+- `kage_pr_summarize`
+- `kage_pr_check`
 - `kage_quality`
 - `kage_benchmark`
 - `kage_setup_agent`
@@ -267,8 +284,10 @@ Before code changes or repo-specific answers:
 2. Call `kage_recall` with the user task as the query.
 3. Call `kage_graph` with the user task as the query.
 4. Capture reusable learnings with `kage_learn` or `kage_capture`.
-5. Before finishing changed-file tasks, call `kage_propose_from_diff`.
-6. Never publish or promote org/global memory automatically.
+5. After meaningful file changes, call `kage_refresh`.
+6. Before finishing changed-file tasks, call `kage_propose_from_diff` or `kage_pr_summarize`.
+7. Before merge, call `kage_pr_check`.
+8. Never publish or promote org/global memory automatically.
 ```
 
 Run `kage setup verify-agent --agent codex --project <repo>` after setup. The

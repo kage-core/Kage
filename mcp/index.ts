@@ -27,12 +27,15 @@ import {
   orgRecall,
   orgStatus,
   orgUploadPacket,
+  prCheck,
+  prSummarize,
   proposeFromDiff,
   qualityReport,
   queryCodeGraph,
   queryGraph,
   recall,
   recordFeedback,
+  refreshProject,
   registryRecommendations,
   setupAgent,
   validateProject,
@@ -220,6 +223,42 @@ export function listTools() {
       name: "kage_metrics",
       description:
         "Return concise Kage adoption and quality metrics: code graph counts, language/parser coverage, memory graph evidence coverage, pending/approved packets, validation state, and readiness score.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_refresh",
+      description:
+        "Rebuild repo indexes, code graph, memory graph, metrics, and stale-memory metadata. Agents should run this after meaningful file changes and before PR checks.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_pr_summarize",
+      description:
+        "Create a PR/branch memory summary from local git diff metadata and write repo-local change memory. Use when a branch is ready to hand off.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_pr_check",
+      description:
+        "Check whether repo memory, code graph, memory graph, and stale-memory state are ready for merge.",
       inputSchema: {
         type: "object",
         properties: {
@@ -716,6 +755,30 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     const result = kageMetrics(String(args?.project_dir ?? ""));
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_refresh") {
+    const result = refreshProject(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      isError: !result.ok,
+    };
+  }
+
+  if (name === "kage_pr_summarize") {
+    const result = prSummarize(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      isError: !result.ok,
+    };
+  }
+
+  if (name === "kage_pr_check") {
+    const result = prCheck(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      isError: !result.ok,
     };
   }
 

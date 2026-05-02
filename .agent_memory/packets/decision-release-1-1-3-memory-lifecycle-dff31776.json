@@ -1,0 +1,64 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:release-1-1-3-memory-lifecycle-1777760408919",
+  "title": "Release 1.1.3 memory lifecycle",
+  "summary": "Release 1.1.3 adds production memory lifecycle commands: kage refresh rebuilds indexes/code graph/memory graph/metrics and marks stale memory from status, feedback, TTL, or path drift; kage pr summarize writes branch cha",
+  "body": "Release 1.1.3 adds production memory lifecycle commands: kage refresh rebuilds indexes/code graph/memory graph/metrics and marks stale memory from status, feedback, TTL, or path drift; kage pr summarize writes branch change memory; kage pr check verifies graph freshness, stale packets, validation, and memory packet changes before merge; MCP exposes kage_refresh, kage_pr_summarize, and kage_pr_check; kage upgrade updates the global npm package. Verified by npm test --prefix mcp, npm pack --dry-run, CLI smoke demo, and npm publish.\nVerified by: npm test --prefix mcp; npm --cache /tmp/kage-npm-cache pack --dry-run; npm publish",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "release",
+    "pr-check",
+    "staleness",
+    "refresh",
+    "mcp"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/cli.ts",
+    "mcp/index.ts",
+    "README.md",
+    "mcp/README.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-02T22:20:08.918Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-02T22:20:08.918Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 316
+  },
+  "created_at": "2026-05-02T22:20:08.918Z",
+  "updated_at": "2026-05-02T22:20:19.407Z"
+}
