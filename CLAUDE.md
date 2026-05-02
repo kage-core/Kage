@@ -3,14 +3,8 @@
 
 **YOUR FIRST ACTION every session — before reading any file or writing any code:**
 
-```
-Step 1: ToolSearch("kage recall validate")   // Kage tools are deferred — this loads their schemas
-Step 2: kage_validate({ project_dir })        // checks memory health
-Step 3: kage_recall({ query, project_dir })   // loads relevant context for the task
-```
-
-Kage tools do NOT appear automatically in Claude Code. They are deferred and invisible
-until you call ToolSearch. Skip this step and you will have no memory context.
+1. `kage_validate` — check memory health
+2. `kage_recall` — load relevant context for the task
 
 Do this without waiting for the user to ask.
 

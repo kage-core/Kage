@@ -685,14 +685,8 @@ const CLAUDE_POLICY = `${AGENTS_POLICY_MARKER}
 
 **YOUR FIRST ACTION every session — before reading any file or writing any code:**
 
-\`\`\`
-Step 1: ToolSearch("kage recall validate")   // Kage tools are deferred — this loads their schemas
-Step 2: kage_validate({ project_dir })        // checks memory health
-Step 3: kage_recall({ query, project_dir })   // loads relevant context for the task
-\`\`\`
-
-Kage tools do NOT appear automatically in Claude Code. They are deferred and invisible
-until you call ToolSearch. Skip this step and you will have no memory context.
+1. \`kage_validate\` — check memory health
+2. \`kage_recall\` — load relevant context for the task
 
 Do this without waiting for the user to ask.
 
@@ -3817,13 +3811,14 @@ export function setupAgent(agent: SetupAgent, projectDir: string, options: { wri
 
   if (agent === "claude-code") {
     const path = join(home, ".claude.json");
-    setSnippet(path, JSON.stringify({ mcpServers: { kage: { type: "stdio", command: serverCommand, args: serverArgs } } }, null, 2), [
+    const server = { type: "stdio", command: serverCommand, args: serverArgs, alwaysLoad: true };
+    setSnippet(path, JSON.stringify({ mcpServers: { kage: server } }, null, 2), [
       "Add the MCP server to ~/.claude.json, then restart Claude Code.",
+      "alwaysLoad: true makes Kage tools immediately visible without requiring ToolSearch.",
       "Run `kage init --project <repo>` inside each repo to install the ambient memory policy.",
-      "Claude Code should recall at session start and write repo-local change memory before final responses.",
     ], true);
     if (options.write) {
-      upsertJsonMcpServer(path, "kage", { type: "stdio", command: serverCommand, args: serverArgs });
+      upsertJsonMcpServer(path, "kage", server);
       result.wrote = true;
     }
     return result;
