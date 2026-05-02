@@ -147,6 +147,50 @@ Setup does three things:
 3. Runs `kage init` so the repo has `.agent_memory/` and `AGENTS.md`.
 4. Installs the ambient policy that tells agents when to recall, query, learn, and propose memory.
 
+## Usage With Codex And Claude Code
+
+After setup, use Codex or Claude Code normally. You should not have to say
+"use Kage" every time.
+
+| Task | Ask Codex | Ask Claude Code |
+|---|---|---|
+| Understand the repo | `How is this repo structured?` | `How is this repo structured?` |
+| Find commands | `How do I run tests and build this?` | `How do I run tests and build this?` |
+| Start a feature | `Add leaderboard persistence.` | `Add leaderboard persistence.` |
+| Debug | `Fix the failing payment webhook test.` | `Fix the failing payment webhook test.` |
+| Continue someone else's work | `Continue the scoring changes from the last session.` | `Continue the scoring changes from the last session.` |
+| Review memory | `Show me pending Kage memory for review.` | `Show me pending Kage memory for review.` |
+
+What the agent should do automatically:
+
+1. Recall approved repo memory before working.
+2. Query the code graph when files, symbols, routes, tests, or dependencies matter.
+3. Use the returned context only when it is relevant and source-backed.
+4. Capture real reusable learnings as pending memory.
+5. Before finishing code changes, create a pending change-memory proposal from the diff.
+6. Tell you what memory was captured and how to review it.
+
+What you review:
+
+```bash
+kage review-artifact --project .
+kage review --project .
+kage index --project .
+```
+
+Once approved and committed, the memory lives in `.agent_memory/packets/`.
+Codex, Claude Code, and other MCP agents can recall the same reviewed context.
+
+Typical handoff:
+
+```text
+Codex builds a feature
+  -> creates pending change memory
+  -> human approves it
+  -> memory is committed with the repo
+  -> Claude Code later recalls what changed, why, and how to test it
+```
+
 ## Works With Your Agent
 
 Kage supports agent setup snippets for:
