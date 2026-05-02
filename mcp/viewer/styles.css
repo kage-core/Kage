@@ -331,7 +331,7 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
   height: 100%;
   overflow: hidden;
   background:
-    radial-gradient(circle at 52% 46%, rgba(65, 255, 143, 0.10), transparent 44%),
+    radial-gradient(circle at 52% 46%, rgba(65, 255, 143, 0.055), transparent 44%),
     #020503;
 }
 
@@ -367,10 +367,10 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
   display: none;
   max-width: min(320px, calc(100% - 28px));
   padding: 10px 12px;
-  border: 1px solid rgba(65, 255, 143, 0.32);
-  border-radius: 6px;
-  background: rgba(3, 6, 4, 0.90);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.38), inset 0 0 0 1px rgba(65, 255, 143, 0.08);
+  border: 1px solid rgba(65, 255, 143, 0.28);
+  border-radius: 4px;
+  background: rgba(2, 5, 3, 0.94);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42), inset 0 0 0 1px rgba(65, 255, 143, 0.06);
   backdrop-filter: blur(12px);
   color: var(--text);
   pointer-events: none;
@@ -378,14 +378,14 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
 .graph-tooltip.visible { display: block; }
 .tt-name {
   color: var(--terminal);
-  font-weight: 850;
+  font-weight: 820;
   overflow-wrap: anywhere;
 }
 .tt-type {
   margin-top: 4px;
   font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
 }
 .tt-summary {

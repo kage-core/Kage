@@ -1,0 +1,61 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:decision-canvas-graph-must-stay-in-kage-terminal-theme-1777754568561",
+  "title": "Decision: canvas graph must stay in Kage terminal theme",
+  "summary": "Decision: Kage's canvas force graph should keep the Kage terminal visual language. Use a restrained near black shell background, phosphor green for memory, cyan for code, amber for tests/review, red only for risk, and mu",
+  "body": "Decision: Kage's canvas force graph should keep the Kage terminal visual language. Use a restrained near-black shell background, phosphor green for memory, cyan for code, amber for tests/review, red only for risk, and muted gray for dependencies. Prefer outline-first nodes, subtle fills, minimal glow, terminal tooltips, and zoom-aware labels instead of bright per-type gradients or candy-colored graph styling.\nEvidence: Updated mcp/viewer/app.js and mcp/viewer/styles.css after visual review showed the AgentMemory-style interaction model drifting away from Kage's theme.\nVerified by: node --check mcp/viewer/app.js; npm test --prefix mcp; npm --cache /tmp/kage-npm-cache pack --dry-run",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "viewer",
+    "theme",
+    "ux",
+    "canvas",
+    "brand"
+  ],
+  "paths": [
+    "mcp/viewer/app.js",
+    "mcp/viewer/styles.css"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-02T20:42:48.561Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-02T20:42:48.561Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 346
+  },
+  "created_at": "2026-05-02T20:42:48.561Z",
+  "updated_at": "2026-05-02T20:42:48.561Z"
+}
