@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { execFileSync } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { daemonDoctor, readDaemonStatus, startDaemon, startViewer, stopDaemon } from "./daemon.js";
@@ -33,12 +34,15 @@ import {
   orgStatus,
   orgUploadPacket,
   exportOrgRegistry,
+  prCheck,
+  prSummarize,
   proposeFromDiff,
   qualityReport,
   queryCodeGraph,
   queryGraph,
   recall,
   recordFeedback,
+  refreshProject,
   rejectPending,
   registryRecommendations,
   setupAgent,
@@ -68,6 +72,10 @@ Usage:
   kage daemon status --project <dir> [--json]
   kage daemon doctor --project <dir> [--json]
   kage viewer --project <dir> [--port 3113]
+  kage refresh --project <dir> [--json]
+  kage pr summarize --project <dir> [--json]
+  kage pr check --project <dir> [--json]
+  kage upgrade [--dry-run]
   kage branch --project <dir> [--json]
   kage metrics --project <dir> [--json]
   kage quality --project <dir> [--json]
@@ -325,6 +333,85 @@ async function main(): Promise<void> {
 
   if (command === "viewer") {
     await startViewer(projectArg(args), { port: numberArg(args, "--port", 3113) });
+    return;
+  }
+
+  if (command === "refresh") {
+    const result = refreshProject(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      if (!result.ok) process.exit(2);
+      return;
+    }
+    console.log(`Refreshed ${result.project_dir}`);
+    console.log(`Packets indexed: ${result.index.packets}`);
+    console.log(`Packet metadata updated: ${result.updated_packets}`);
+    console.log(`Code graph: ${result.code_graph.files} files, ${result.code_graph.symbols} symbols, ${result.code_graph.imports} imports, ${result.code_graph.calls} calls`);
+    console.log(`Memory graph: ${result.memory_graph.entities} entities, ${result.memory_graph.edges} edges, ${result.memory_graph.episodes} episodes`);
+    console.log(`Stale packets: ${result.stale_packets.length}`);
+    for (const packet of result.stale_packets.slice(0, 8)) {
+      console.log(`  - ${packet.title} (${packet.id}): ${packet.reasons.join("; ")}`);
+    }
+    console.log(result.validation.ok ? "Validation: passed" : "Validation: failed");
+    if (result.validation.errors.length) console.log(`Errors:\n${result.validation.errors.map((error) => `  - ${error}`).join("\n")}`);
+    if (result.validation.warnings.length) console.log(`Warnings:\n${result.validation.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
+    console.log(`Next actions:\n${result.next_actions.map((action) => `  - ${action}`).join("\n")}`);
+    if (!result.ok) process.exit(2);
+    return;
+  }
+
+  if (command === "pr") {
+    const action = args[1];
+    if (action === "summarize") {
+      const result = prSummarize(projectArg(args));
+      if (args.includes("--json")) {
+        console.log(JSON.stringify(result, null, 2));
+        if (!result.ok) process.exit(2);
+        return;
+      }
+      console.log(`PR summary for ${result.project_dir}`);
+      console.log(`Branch: ${result.branch ?? "(detached)"}`);
+      console.log(`Changed files: ${result.changed_files.join(", ") || "(none)"}`);
+      if (result.diff_memory_packet_id) console.log(`Repo memory: ${result.diff_memory_packet_id}`);
+      if (result.branch_summary_path) console.log(`Branch summary: ${result.branch_summary_path}`);
+      if (result.review_artifact_path) console.log(`Review artifact: ${result.review_artifact_path}`);
+      if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
+      if (result.errors.length) console.log(`Errors:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);
+      if (!result.ok) process.exit(2);
+      return;
+    }
+    if (action === "check") {
+      const result = prCheck(projectArg(args));
+      if (args.includes("--json")) {
+        console.log(JSON.stringify(result, null, 2));
+        if (!result.ok) process.exit(2);
+        return;
+      }
+      console.log(`PR memory check for ${result.project_dir}`);
+      console.log(`Branch: ${result.branch ?? "(detached)"}`);
+      console.log(`Changed files: ${result.changed_files.length}`);
+      console.log(`Memory packet changes: ${result.memory_packet_changes.length}`);
+      console.log(`Code graph current: ${result.code_graph_current ? "yes" : "no"}`);
+      console.log(`Memory graph current: ${result.memory_graph_current ? "yes" : "no"}`);
+      console.log(`Stale packets: ${result.stale_packets.length}`);
+      if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
+      if (result.errors.length) console.log(`Errors:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);
+      console.log(`Required actions:\n${result.required_actions.map((action) => `  - ${action}`).join("\n")}`);
+      if (!result.ok) process.exit(2);
+      return;
+    }
+    usage();
+  }
+
+  if (command === "upgrade") {
+    const commandLine = "npm install -g @kage-core/kage-graph-mcp@latest";
+    if (args.includes("--dry-run")) {
+      console.log(commandLine);
+      return;
+    }
+    console.log(`Running: ${commandLine}`);
+    execFileSync("npm", ["install", "-g", "@kage-core/kage-graph-mcp@latest"], { stdio: "inherit" });
+    console.log("Kage upgraded. Restart Codex or Claude Code so the MCP process reloads the new package.");
     return;
   }
 

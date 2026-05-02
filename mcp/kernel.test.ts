@@ -35,11 +35,14 @@ import {
   orgStatus,
   orgUploadPacket,
   packetsDir,
+  prCheck,
+  prSummarize,
   proposeFromDiff,
   queryCodeGraph,
   queryGraph,
   recall,
   recordFeedback,
+  refreshProject,
   registryRecommendations,
   scanSensitiveText,
   setupAgent,
@@ -911,4 +914,51 @@ test("diff proposal creates a branch review summary and repo-local change memory
   assert.equal(result.packet.paths.some((path) => path.includes("node_modules")), false);
   assert.match(readFileSync(result.path!, "utf8"), /git_diff/);
   assert.equal(recall(project, "what changed runner npm test").results.some((item) => item.packet.id === result.packet!.id), true);
+});
+
+test("refresh rebuilds graphs and marks path-drifted memory stale", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  const result = capture({
+    projectDir: project,
+    title: "Old runbook path",
+    body: "Run tests with npm test after changing the old runner module. Verified by local command output.",
+    type: "runbook",
+    paths: ["src/old-runner.ts"],
+    tags: ["tests"],
+  });
+  assert.equal(result.ok, true);
+
+  const refresh = refreshProject(project);
+  assert.equal(refresh.ok, true);
+  assert.equal(refresh.stale_packets.some((packet) => packet.id === result.packet!.id), true);
+  assert.equal(refresh.code_graph.files >= 0, true);
+  assert.equal(refresh.memory_graph.entities > 0, true);
+
+  const packet = loadApprovedPackets(project).find((candidate) => candidate.id === result.packet!.id);
+  assert.ok(packet);
+  assert.equal(packet.quality.stale, true);
+  assert.match((packet.quality.stale_reasons as string[]).join(" "), /missing/);
+});
+
+test("pr summarize and check make merge-time memory health explicit", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "node --test" } }), "utf8");
+  writeFileSync(join(project, "src", "runner.js"), "export function run() { return 'ok'; }\n", "utf8");
+
+  const summary = prSummarize(project);
+  assert.equal(summary.ok, true);
+  assert.ok(summary.diff_memory_packet_id);
+  assert.ok(summary.review_artifact_path);
+  assert.equal(summary.changed_files.includes("src/runner.js"), true);
+
+  const refresh = refreshProject(project);
+  assert.equal(refresh.ok, true);
+  const check = prCheck(project);
+  assert.equal(check.ok, true);
+  assert.equal(check.code_graph_current, true);
+  assert.equal(check.memory_graph_current, true);
+  assert.equal(check.memory_packet_changes.length > 0, true);
 });

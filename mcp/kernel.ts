@@ -634,6 +634,73 @@ export interface BranchReviewSummary {
   promotion_review_required: true;
 }
 
+export interface StaleMemoryFinding {
+  id: string;
+  title: string;
+  type: MemoryType;
+  status: MemoryStatus;
+  paths: string[];
+  reasons: string[];
+  suggested_action: "verify" | "update" | "supersede" | "mark_stale";
+}
+
+export interface RefreshResult {
+  ok: boolean;
+  project_dir: string;
+  generated_at: string;
+  index: IndexResult;
+  validation: ValidationResult;
+  metrics: KageMetrics;
+  stale_packets: StaleMemoryFinding[];
+  updated_packets: number;
+  indexes: string[];
+  code_graph: {
+    files: number;
+    symbols: number;
+    imports: number;
+    calls: number;
+    routes: number;
+    tests: number;
+  };
+  memory_graph: {
+    entities: number;
+    edges: number;
+    episodes: number;
+  };
+  next_actions: string[];
+}
+
+export interface PrSummaryResult {
+  ok: boolean;
+  project_dir: string;
+  branch: string | null;
+  head: string | null;
+  changed_files: string[];
+  diff_memory_packet_id?: string;
+  diff_memory_packet_path?: string;
+  branch_summary_path?: string;
+  review_artifact_path?: string;
+  validation: ValidationResult;
+  errors: string[];
+  warnings: string[];
+}
+
+export interface PrCheckResult {
+  ok: boolean;
+  project_dir: string;
+  branch: string | null;
+  head: string | null;
+  changed_files: string[];
+  validation: ValidationResult;
+  stale_packets: StaleMemoryFinding[];
+  memory_packet_changes: string[];
+  code_graph_current: boolean;
+  memory_graph_current: boolean;
+  errors: string[];
+  warnings: string[];
+  required_actions: string[];
+}
+
 export interface PublicBundleResult {
   ok: boolean;
   path?: string;
@@ -1009,12 +1076,45 @@ function packetFeedbackScore(packet: MemoryPacket): number {
   return Number(quality.votes_up ?? 0) * 2 - Number(quality.votes_down ?? 0) * 3 - Number(quality.reports_stale ?? 0) * 4;
 }
 
+function meaningfulMemoryPath(path: string): boolean {
+  return path !== "root" && path !== "." && !isNoisePath(path);
+}
+
+function staleMemoryReasons(projectDir: string, packet: MemoryPacket): string[] {
+  const reasons: string[] = [];
+  const quality = packet.quality as Record<string, unknown>;
+  const freshness = packet.freshness as Record<string, unknown>;
+
+  if (packet.status === "deprecated" || packet.status === "superseded") {
+    reasons.push(`packet status is ${packet.status}`);
+  }
+  if (Number(quality.reports_stale ?? 0) > 0) {
+    reasons.push("user or agent reported this memory stale");
+  }
+
+  const ttlDays = Number(freshness.ttl_days ?? freshness.ttlDays ?? 0);
+  const verifiedAt = Date.parse(String(freshness.last_verified_at ?? packet.updated_at ?? packet.created_at));
+  if (Number.isFinite(ttlDays) && ttlDays > 0 && Number.isFinite(verifiedAt)) {
+    const ageDays = (Date.now() - verifiedAt) / (1000 * 60 * 60 * 24);
+    if (ageDays > ttlDays) reasons.push(`freshness ttl expired (${Math.floor(ageDays)}d old, ttl ${ttlDays}d)`);
+  }
+
+  const paths = packet.paths.filter(meaningfulMemoryPath);
+  const missingPaths = paths.filter((path) => !existsSync(join(projectDir, path)));
+  if (paths.length > 0 && missingPaths.length === paths.length) {
+    reasons.push(`all referenced paths are missing: ${missingPaths.slice(0, 4).join(", ")}`);
+  } else if (missingPaths.length > 0) {
+    reasons.push(`some referenced paths are missing: ${missingPaths.slice(0, 4).join(", ")}`);
+  }
+
+  return unique(reasons);
+}
+
 function classifyPacket(projectDir: string, packet: MemoryPacket): QualityReport["packets"][number]["classification"] {
   const quality = evaluateMemoryQuality(projectDir, packet);
   const score = Number(quality.score);
   const duplicates = quality.duplicate_candidates as Array<unknown>;
-  const q = packet.quality as Record<string, unknown>;
-  if (Number(q.reports_stale ?? 0) > 0 || packet.status === "deprecated" || packet.status === "superseded") return "stale";
+  if (staleMemoryReasons(projectDir, packet).length) return "stale";
   if (duplicates.length) return "duplicate";
   if (score < 55) return "too_generic";
   if (score < 72 || packet.status === "pending") return "needs_review";
@@ -1079,12 +1179,18 @@ function evaluateMemoryQuality(projectDir: string, packet: MemoryPacket): Record
     score -= 18;
     risks.push("possible duplicate memory");
   }
+  const staleReasons = staleMemoryReasons(projectDir, packet);
+  if (staleReasons.length) {
+    score -= 22;
+    risks.push(...staleReasons);
+  }
 
   return {
     score: Math.max(0, Math.min(100, score)),
     reasons,
     risks,
     duplicate_candidates: duplicates,
+    stale_reasons: staleReasons,
     estimated_tokens_saved: Math.max(40, estimateTokens(packet.body) * 2),
   };
 }
@@ -1325,6 +1431,17 @@ function loadPacketsFromDir(dir: string): MemoryPacket[] {
     .map((name) => readJson<MemoryPacket>(join(dir, name)));
 }
 
+function loadPacketEntriesFromDir(dir: string): Array<{ path: string; packet: MemoryPacket }> {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((name) => name.endsWith(".json"))
+    .sort()
+    .map((name) => {
+      const path = join(dir, name);
+      return { path, packet: readJson<MemoryPacket>(path) };
+    });
+}
+
 export function loadApprovedPackets(projectDir: string): MemoryPacket[] {
   return loadPacketsFromDir(packetsDir(projectDir)).filter((packet) => packet.status === "approved");
 }
@@ -1403,14 +1520,16 @@ function parsePorcelainStatus(status: string): string[] {
   return unique(
     status
       .split(/\r?\n/)
-      .map((line) => {
-        const raw = line.length > 2 && line[2] === " " ? line.slice(3) : line.slice(2);
-        return raw.trim();
-      })
+      .map(parsePorcelainPath)
       .map((path) => path.replace(/^.* -> /, ""))
       .filter(Boolean)
       .filter((path) => !shouldSkipRepoMemoryPath(path))
   ).sort();
+}
+
+function parsePorcelainPath(line: string): string {
+  const raw = line.length > 2 && line[2] === " " ? line.slice(3) : line.slice(2);
+  return raw.trim();
 }
 
 function shouldSkipRepoMemoryPath(relativePath: string): boolean {
@@ -2872,6 +2991,101 @@ export function indexProject(projectDir: string): IndexResult {
     migrated,
     indexes: indexes.map((path) => relative(projectDir, path)),
     policyPath: relative(projectDir, policy.path),
+  };
+}
+
+function staleSuggestedAction(reasons: string[]): StaleMemoryFinding["suggested_action"] {
+  if (reasons.some((reason) => reason.includes("status is"))) return "mark_stale";
+  if (reasons.some((reason) => reason.includes("missing"))) return "update";
+  if (reasons.some((reason) => reason.includes("reported"))) return "supersede";
+  return "verify";
+}
+
+function staleFinding(packet: MemoryPacket, reasons: string[]): StaleMemoryFinding {
+  return {
+    id: packet.id,
+    title: packet.title,
+    type: packet.type,
+    status: packet.status,
+    paths: packet.paths,
+    reasons,
+    suggested_action: staleSuggestedAction(reasons),
+  };
+}
+
+function refreshPacketStaleness(projectDir: string): { findings: StaleMemoryFinding[]; updated: number } {
+  const findings: StaleMemoryFinding[] = [];
+  let updated = 0;
+  for (const entry of loadPacketEntriesFromDir(packetsDir(projectDir))) {
+    const reasons = staleMemoryReasons(projectDir, entry.packet);
+    const oldQuality = entry.packet.quality as Record<string, unknown>;
+    const oldFreshness = entry.packet.freshness as Record<string, unknown>;
+    let nextQuality: Record<string, unknown>;
+    if (reasons.length) {
+      const finding = staleFinding(entry.packet, reasons);
+      findings.push(finding);
+      nextQuality = {
+        ...oldQuality,
+        stale: true,
+        stale_reasons: reasons,
+        suggested_action: finding.suggested_action,
+      };
+    } else {
+      const { stale: _stale, stale_reasons: _staleReasons, suggested_action: _suggestedAction, ...rest } = oldQuality;
+      nextQuality = rest;
+    }
+    const nextFreshness = oldFreshness;
+    const changed = JSON.stringify(oldQuality) !== JSON.stringify(nextQuality)
+      || JSON.stringify(oldFreshness) !== JSON.stringify(nextFreshness);
+    if (changed) {
+      writeJson(entry.path, {
+        ...entry.packet,
+        freshness: nextFreshness,
+        quality: nextQuality,
+        updated_at: nowIso(),
+      });
+      updated += 1;
+    }
+  }
+  return { findings, updated };
+}
+
+export function refreshProject(projectDir: string): RefreshResult {
+  const index = indexProject(projectDir);
+  const stale = refreshPacketStaleness(projectDir);
+  const indexes = stale.updated > 0 ? buildIndexes(projectDir).map((path) => relative(projectDir, path)) : index.indexes;
+  const validation = validateProject(projectDir);
+  const metrics = kageMetrics(projectDir);
+  const nextActions: string[] = [];
+  if (stale.findings.length) nextActions.push("Update, verify, or supersede stale repo memories before relying on them.");
+  if (!validation.ok) nextActions.push("Fix validation errors before merging or sharing memory.");
+  if (validation.warnings.length) nextActions.push("Review validation warnings for grounding, indexes, or generated artifacts.");
+  if (!nextActions.length) nextActions.push("Repo memory, code graph, and indexes are current.");
+
+  return {
+    ok: validation.ok,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    index,
+    validation,
+    metrics,
+    stale_packets: stale.findings,
+    updated_packets: stale.updated,
+    indexes,
+    code_graph: {
+      files: metrics.code_graph.files,
+      symbols: metrics.code_graph.symbols,
+      imports: metrics.code_graph.imports,
+      calls: metrics.code_graph.calls,
+      routes: metrics.code_graph.routes,
+      tests: metrics.code_graph.tests,
+    },
+    memory_graph: {
+      entities: metrics.memory_graph.entities,
+      edges: metrics.memory_graph.edges,
+      episodes: metrics.memory_graph.episodes,
+    },
+    next_actions: nextActions,
   };
 }
 
@@ -4452,7 +4666,7 @@ export function proposeFromDiff(projectDir: string): DiffProposalResult {
 
 export function buildBranchOverlay(projectDir: string): BranchOverlay {
   ensureMemoryDirs(projectDir);
-  const status = readGit(projectDir, ["status", "--porcelain"]) ?? "";
+  const status = readGit(projectDir, ["status", "--porcelain", "-uall"]) ?? "";
   const overlay: BranchOverlay = {
     schema_version: 1,
     project_dir: projectDir,
@@ -4530,6 +4744,93 @@ export function createReviewArtifact(projectDir: string): ReviewArtifactResult {
   ensureDir(dirname(path));
   writeFileSync(path, `${lines.join("\n").trim()}\n`, "utf8");
   return { path, pending: pending.length };
+}
+
+function graphIsCurrent(projectDir: string, relativePath: string, head: string | null): boolean {
+  const path = join(projectDir, relativePath);
+  if (!existsSync(path)) return false;
+  if (!head) return true;
+  try {
+    const graph = readJson<{ repo_state?: { head?: string | null } }>(path);
+    return graph.repo_state?.head === head;
+  } catch {
+    return false;
+  }
+}
+
+export function prSummarize(projectDir: string): PrSummaryResult {
+  ensureMemoryDirs(projectDir);
+  const proposal = proposeFromDiff(projectDir);
+  const artifact = createReviewArtifact(projectDir);
+  const validation = validateProject(projectDir);
+  const warnings = [...validation.warnings];
+  if (!proposal.ok) warnings.push(...proposal.errors);
+  return {
+    ok: proposal.ok && validation.ok,
+    project_dir: projectDir,
+    branch: gitBranch(projectDir),
+    head: gitHead(projectDir),
+    changed_files: proposal.changedFiles,
+    diff_memory_packet_id: proposal.packet?.id,
+    diff_memory_packet_path: proposal.packetPath,
+    branch_summary_path: proposal.path,
+    review_artifact_path: artifact.path,
+    validation,
+    errors: validation.errors,
+    warnings,
+  };
+}
+
+export function prCheck(projectDir: string): PrCheckResult {
+  ensureMemoryDirs(projectDir);
+  const overlay = buildBranchOverlay(projectDir);
+  const rawStatus = readGit(projectDir, ["status", "--porcelain", "-uall"]) ?? "";
+  const validation = validateProject(projectDir);
+  const stalePackets = loadPacketsFromDir(packetsDir(projectDir))
+    .map((packet) => ({ packet, reasons: staleMemoryReasons(projectDir, packet) }))
+    .filter((entry) => entry.reasons.length)
+    .map((entry) => staleFinding(entry.packet, entry.reasons));
+  const memoryPacketChanges = unique(
+    rawStatus
+      .split(/\r?\n/)
+      .map(parsePorcelainPath)
+      .map((path) => path.replace(/^.* -> /, ""))
+      .filter((path) => path.startsWith(".agent_memory/packets/") && path.endsWith(".json"))
+  ).sort();
+  const codeGraphCurrent = graphIsCurrent(projectDir, ".agent_memory/code_graph/graph.json", overlay.head);
+  const memoryGraphCurrent = graphIsCurrent(projectDir, ".agent_memory/graph/graph.json", overlay.head);
+  const errors = [...validation.errors];
+  const warnings = [...validation.warnings];
+  const requiredActions: string[] = [];
+
+  if (stalePackets.length) {
+    errors.push(`${stalePackets.length} stale memory packet(s) require update, verification, or supersession.`);
+    requiredActions.push("Run kage refresh, then update or supersede stale packets.");
+  }
+  if (!codeGraphCurrent || !memoryGraphCurrent) {
+    errors.push("Generated graph artifacts are missing or not current for this branch head.");
+    requiredActions.push("Run kage refresh --project <dir> before merge.");
+  }
+  if (!memoryPacketChanges.length && overlay.changed_files.some((path) => !path.startsWith(".agent_memory/"))) {
+    warnings.push("No repo memory packet changed for this branch. If durable knowledge was learned, run kage propose --from-diff or kage learn.");
+  }
+  if (!requiredActions.length) requiredActions.push("PR memory and graph checks passed.");
+
+  return {
+    ok: errors.length === 0,
+    project_dir: projectDir,
+    branch: overlay.branch,
+    head: overlay.head,
+    changed_files: overlay.changed_files,
+    validation,
+    stale_packets: stalePackets,
+    memory_packet_changes: memoryPacketChanges,
+    code_graph_current: codeGraphCurrent,
+    memory_graph_current: memoryGraphCurrent,
+    errors,
+    warnings,
+    required_actions: requiredActions,
+  };
 }
 
 export function exportPublicBundle(projectDir: string): PublicBundleResult {

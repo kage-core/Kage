@@ -13,7 +13,7 @@ handoff is JSON in the repo, not a hidden agent silo.
 
 <p>
   <img alt="local first" src="https://img.shields.io/badge/local--first-yes-16a34a?style=for-the-badge">
-  <img alt="tests" src="https://img.shields.io/badge/tests-59%20passing-16a34a?style=for-the-badge">
+  <img alt="tests" src="https://img.shields.io/badge/tests-62%20passing-16a34a?style=for-the-badge">
   <img alt="agents" src="https://img.shields.io/badge/agents-13-2563eb?style=for-the-badge">
   <img alt="database" src="https://img.shields.io/badge/external%20DB-0-111827?style=for-the-badge">
   <img alt="mcp" src="https://img.shields.io/badge/MCP-ready-7c3aed?style=for-the-badge">
@@ -67,7 +67,7 @@ Current local package:
 
 | Proof | Current |
 |---|---:|
-| Tests | 59 passing |
+| Tests | 62 passing |
 | Agent setup targets | 13 |
 | External DB required | 0 |
 | Org/global promotion gate | human approval |
@@ -138,6 +138,8 @@ Or run directly:
 ```bash
 kage recall "how do I run tests" --project /path/to/repo
 kage code-graph "routes tests auth" --project /path/to/repo
+kage refresh --project /path/to/repo
+kage pr check --project /path/to/repo
 kage metrics --project /path/to/repo
 kage viewer --project /path/to/repo
 ```
@@ -170,14 +172,19 @@ What the agent should do automatically:
 2. Query the code graph when files, symbols, routes, tests, or dependencies matter.
 3. Use the returned context only when it is relevant and source-backed.
 4. Capture real reusable learnings as repo memory.
-5. Before finishing code changes, create repo-local change memory from the diff.
-6. Tell you what memory was captured and whether it is worth promoting beyond the repo.
+5. After meaningful file changes, run `kage refresh` so indexes, code graph, memory graph, metrics, and stale-memory checks are current.
+6. Before finishing code changes, create repo-local change memory from the diff.
+7. Run `kage pr check` before merge and tell you whether memory/graph artifacts are ready.
+8. Tell you what memory was captured and whether it is worth promoting beyond the repo.
 
 What you inspect or promote:
 
 ```bash
 kage index --project .
+kage refresh --project .
 kage recall "what changed and why" --project .
+kage pr summarize --project .
+kage pr check --project .
 kage promote --project . --public <approved-packet-id>
 kage org upload --project . --org acme --packet <approved-packet-id>
 ```
@@ -191,10 +198,52 @@ Typical handoff:
 ```text
 Codex builds a feature
   -> creates repo-local change memory
+  -> refreshes indexes, code graph, memory graph, metrics, and stale checks
+  -> runs PR memory check before merge
   -> memory is committed with the repo
   -> Claude Code later recalls what changed, why, and how to test it
   -> human review is required only if promoting to org/global memory
 ```
+
+## Updates, Staleness, And PR Merge Flow
+
+Users should not have to manage package updates by hand. Ask the active agent:
+
+```text
+Update Kage for this repo.
+```
+
+The agent should run:
+
+```bash
+kage upgrade
+kage setup verify-agent --agent codex --project .
+kage setup verify-agent --agent claude-code --project .
+```
+
+`kage upgrade --dry-run` prints the exact npm command without changing anything.
+After an upgrade, restart Codex or Claude Code so the MCP process reloads the
+new package.
+
+Memory stays useful through refresh and PR checks:
+
+```bash
+kage refresh --project .
+kage pr summarize --project .
+kage pr check --project .
+```
+
+- `kage refresh` rebuilds generated indexes, source code graph, memory graph,
+  metrics, and stale-memory metadata.
+- A packet is considered stale when it is deprecated/superseded, receives stale
+  feedback, exceeds its freshness TTL, or all/some grounded paths disappear.
+- `kage pr summarize` creates a branch summary and repo-local change memory from
+  the current git diff.
+- `kage pr check` verifies validation, graph freshness for the current branch
+  head, stale packets, and whether repo memory changed with the branch.
+
+This is the merge contract: code changes, source graph updates, and durable
+agent learnings travel together in git.
 
 ## Works With Your Agent
 
@@ -329,6 +378,10 @@ be clear about:
 - Optional ingestion of Tree-sitter, SCIP, LSIF, and LSP artifacts.
 - MCP tools for recall, graph query, metrics, learning, validation, and branch
   review summaries.
+- Refresh and PR readiness commands: `kage refresh`, `kage pr summarize`,
+  `kage pr check`, plus MCP tools `kage_refresh`, `kage_pr_summarize`, and
+  `kage_pr_check`.
+- Package update helper: `kage upgrade`.
 - Optional local daemon with REST endpoints for observe, recall, distill,
   metrics, quality, and benchmark. Daemon startup indexes once and watches repo
   changes to refresh graph artifacts.
