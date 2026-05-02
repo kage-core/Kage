@@ -3812,13 +3812,36 @@ export function setupAgent(agent: SetupAgent, projectDir: string, options: { wri
   if (agent === "claude-code") {
     const path = join(home, ".claude.json");
     const server = { type: "stdio", command: serverCommand, args: serverArgs, alwaysLoad: true };
+    const hookDir = join(home, ".claude", "kage", "hooks");
+    const hookScript = `#!/usr/bin/env bash
+# Kage SessionStart hook — ambient memory reminder
+# Fires once per session. Silent if kage is not initialized in this project.
+set -euo pipefail
+
+CWD="$(cat | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('cwd',''))" 2>/dev/null || echo "")"
+
+[[ -d "$CWD/.agent_memory" ]] || exit 0
+
+MSG="Kage memory active. Before starting: call kage_validate then kage_recall. After discovering something reusable: kage_learn. Before finishing a task that changed files: kage_propose_from_diff."
+
+KAGE_MSG="$MSG" python3 -c "import json,os; print(json.dumps({'systemMessage': os.environ['KAGE_MSG']}))"
+`;
+    const settingsPath = join(home, ".claude", "settings.json");
+    const hookEntry = {
+      SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/session-start.sh", timeout: 5 }] }],
+    };
     setSnippet(path, JSON.stringify({ mcpServers: { kage: server } }, null, 2), [
       "Add the MCP server to ~/.claude.json, then restart Claude Code.",
       "alwaysLoad: true makes Kage tools immediately visible without requiring ToolSearch.",
+      `Also create ${hookDir}/session-start.sh with the hook script and add the SessionStart hook to ~/.claude/settings.json.`,
       "Run `kage init --project <repo>` inside each repo to install the ambient memory policy.",
     ], true);
     if (options.write) {
       upsertJsonMcpServer(path, "kage", server);
+      // Install the ambient session-start hook
+      mkdirSync(hookDir, { recursive: true });
+      writeFileSync(join(hookDir, "session-start.sh"), hookScript, { mode: 0o755 });
+      upsertJsonSettings(settingsPath, hookEntry);
       result.wrote = true;
     }
     return result;
@@ -3867,6 +3890,20 @@ function upsertJsonMcpServer(path: string, name: string, server: { type?: string
     ? config.mcpServers as Record<string, unknown>
     : {};
   config.mcpServers = { ...currentServers, [name]: server };
+  writeJson(path, config);
+}
+
+// Merge hook entries into ~/.claude/settings.json without overwriting existing hooks.
+function upsertJsonSettings(path: string, patch: Record<string, unknown>): void {
+  ensureDir(dirname(path));
+  let config: Record<string, unknown> = {};
+  if (existsSync(path)) {
+    const parsed = readJson<unknown>(path);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) config = parsed as Record<string, unknown>;
+  }
+  for (const [key, value] of Object.entries(patch)) {
+    if (!(key in config)) config[key] = value;
+  }
   writeJson(path, config);
 }
 
