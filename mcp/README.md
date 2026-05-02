@@ -34,6 +34,7 @@ kage recall "how do I run tests" --project /path/to/repo
 kage recall "how do I run tests" --project /path/to/repo --explain --json
 kage quality --project /path/to/repo
 kage benchmark --project /path/to/repo
+kage viewer --project /path/to/repo
 kage daemon start --project /path/to/repo
 kage observe --project /path/to/repo --event '{"type":"command_result","session_id":"s1","command":"npm test","exit_code":0}'
 kage distill --project /path/to/repo --session s1
@@ -144,13 +145,15 @@ workflows that need REST, live observation ingestion, or Aider-style scripting.
 
 ## Local Graph Viewer
 
-Open `mcp/viewer/index.html` in a browser, choose one or more JSON files such as
-`.agent_memory/graph/graph.json`, `.agent_memory/code_graph/graph.json`, or a
-`kage metrics --json` export, and inspect the local graph without running a
-server or installing dependencies. The viewer renders nodes and relations in
-SVG, supports memory/code/combined modes, filters by type and relation, displays
-metrics, and marks review risks such as low-confidence or missing-evidence
-edges.
+Run `kage viewer --project <repo>` to start the local terminal console. It
+serves the viewer and the selected repo's `.agent_memory/` files from the same
+localhost server, then prints a URL that auto-loads memory graph, code graph,
+metrics, review artifact, and pending packets. Manual JSON selection remains as
+a fallback, not the main workflow.
+
+The viewer renders nodes and relations in SVG, supports memory/code/combined
+modes, filters by type and relation, displays metrics, shows the pending review
+queue, and marks review risks such as low-confidence or missing-evidence edges.
 
 For demos or local docs, the viewer also accepts URL params:
 

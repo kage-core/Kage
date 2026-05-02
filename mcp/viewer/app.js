@@ -12,6 +12,8 @@
     visibleEdgeIds: new Set(),
     selected: null,
     metrics: null,
+    pendingPackets: [],
+    reviewText: "",
     viewBox: { x: 0, y: 0, width: 1000, height: 660 },
     pan: null
   };
@@ -37,6 +39,7 @@
     graphFile: document.getElementById("graphFile"),
     graphSummary: document.getElementById("graphSummary"),
     statusStrip: document.getElementById("statusStrip"),
+    autoLoadStatus: document.getElementById("autoLoadStatus"),
     workspaceMode: document.getElementById("workspaceMode"),
     graphSubhead: document.getElementById("graphSubhead"),
     selectionStatus: document.getElementById("selectionStatus"),
@@ -57,7 +60,11 @@
     edgeList: document.getElementById("edgeList"),
     metricsSummary: document.getElementById("metricsSummary"),
     entityCount: document.getElementById("entityCount"),
-    edgeCount: document.getElementById("edgeCount")
+    edgeCount: document.getElementById("edgeCount"),
+    reviewCount: document.getElementById("reviewCount"),
+    reviewList: document.getElementById("reviewList"),
+    proofStatus: document.getElementById("proofStatus"),
+    proofList: document.getElementById("proofList")
   };
 
   els.graphFile.addEventListener("change", handleFile);
@@ -138,27 +145,70 @@
 
   function loadFromUrlParams() {
     var params = new URLSearchParams(window.location.search);
-    var paths = []
+    var graphPaths = []
       .concat(params.getAll("graph"))
       .concat(params.getAll("code"))
-      .concat(params.getAll("metrics"))
       .flatMap(function (value) { return String(value || "").split(","); })
       .map(function (value) { return value.trim(); })
       .filter(Boolean);
-    if (!paths.length) return;
-    Promise.all(paths.map(function (path) {
+    var metricsPath = params.get("metrics");
+    var reviewPath = params.get("review");
+    var pendingPath = params.get("pending");
+    var jobs = [];
+    if (metricsPath) jobs.push(fetchJson(metricsPath).then(function (metrics) { state.metrics = metrics; }));
+    if (reviewPath) jobs.push(fetchText(reviewPath).then(function (text) { state.reviewText = text; }).catch(function () { state.reviewText = ""; }));
+    if (pendingPath) jobs.push(loadPending(pendingPath).then(function (packets) { state.pendingPackets = packets; }));
+    if (!graphPaths.length && !jobs.length) {
+      setAutoLoad("manual mode", false);
+      return;
+    }
+    setAutoLoad("loading project graph", false);
+    Promise.all(graphPaths.map(function (path) {
       return fetch(path).then(function (response) {
         if (!response.ok) throw new Error(response.status + " " + path);
         return response.json().then(function (graph) { return { fileName: path.split("/").pop() || path, graph: graph }; });
       });
-    })).then(function (items) {
-      state.metrics = items.map(function (item) { return item.graph; }).find(isMetricsGraph) || null;
-      var graphItems = items.filter(function (item) { return !isMetricsGraph(item.graph); });
+    }).concat(jobs)).then(function (items) {
+      var graphItems = items.filter(Boolean);
+      if (!graphItems.length) {
+        loadNormalizedGraph({ entities: [], edges: [], episodes: [] }, "project metrics");
+        setAutoLoad("project console loaded", true);
+        return;
+      }
       var merged = mergeNormalizedGraphs(graphItems.map(function (item) { return normalizeGraph(item.graph); }));
       loadNormalizedGraph(merged, graphItems.map(function (item) { return item.fileName; }).join(", ") || "metrics");
+      setAutoLoad("project console loaded", true);
     }).catch(function (error) {
+      setAutoLoad("auto-load failed", false);
       showError("Could not auto-load graph: " + error.message);
     });
+  }
+
+  function fetchJson(path) {
+    return fetch(path).then(function (response) {
+      if (!response.ok) throw new Error(response.status + " " + path);
+      return response.json();
+    });
+  }
+
+  function fetchText(path) {
+    return fetch(path).then(function (response) {
+      if (!response.ok) throw new Error(response.status + " " + path);
+      return response.text();
+    });
+  }
+
+  function loadPending(path) {
+    return fetchJson(path).then(function (listing) {
+      var files = listing && Array.isArray(listing.files) ? listing.files : [];
+      return Promise.all(files.map(function (file) { return fetchJson(file.path); }));
+    }).catch(function () { return []; });
+  }
+
+  function setAutoLoad(text, ok) {
+    if (!els.autoLoadStatus) return;
+    els.autoLoadStatus.textContent = "auto-load: " + text;
+    els.autoLoadStatus.className = "autoload-status " + (ok ? "ok" : "");
   }
 
   function readJsonFile(file) {
@@ -394,6 +444,8 @@
     renderLists();
     renderDetails();
     renderMetrics();
+    renderReviewQueue();
+    renderProof();
   }
 
   function renderSvg() {
@@ -655,6 +707,72 @@
     renderStatusStrip(visibleEntities, visibleEdges, official);
     els.workspaceMode.textContent = (els.viewMode.value || "combined").replace(/^./, function (letter) { return letter.toUpperCase(); });
     els.graphSubhead.textContent = visibleEntities.length + " visible nodes and " + visibleEdges.length + " visible relations.";
+  }
+
+  function renderReviewQueue() {
+    if (!els.reviewList) return;
+    var packets = state.pendingPackets || [];
+    els.reviewCount.textContent = String(packets.length);
+    els.reviewList.textContent = "";
+    if (!packets.length && !state.reviewText) {
+      els.reviewList.className = "review-list details-empty";
+      els.reviewList.textContent = "No pending packets loaded. Launch with `kage viewer --project <repo>` to load review context automatically.";
+      return;
+    }
+    els.reviewList.className = "review-list";
+    packets.forEach(function (packet) {
+      var item = document.createElement("div");
+      item.className = "review-item";
+      var quality = packet.quality || {};
+      item.innerHTML = [
+        "<div class=\"review-title\"></div>",
+        "<div class=\"review-meta\"></div>",
+        "<div class=\"review-summary\"></div>",
+        "<div class=\"review-risks\"></div>"
+      ].join("");
+      item.querySelector(".review-title").textContent = packet.title || packet.id;
+      item.querySelector(".review-meta").textContent = [packet.type, packet.status, "score " + (quality.score == null ? "n/a" : quality.score + "/100")].filter(Boolean).join(" | ");
+      item.querySelector(".review-summary").textContent = packet.summary || "";
+      item.querySelector(".review-risks").textContent = Array.isArray(quality.risks) && quality.risks.length ? "risks: " + quality.risks.join(", ") : "risks: none";
+      els.reviewList.appendChild(item);
+    });
+    if (state.reviewText) {
+      var artifact = document.createElement("details");
+      artifact.className = "review-artifact";
+      artifact.innerHTML = "<summary>Review artifact markdown</summary><pre></pre>";
+      artifact.querySelector("pre").textContent = state.reviewText.slice(0, 12000);
+      els.reviewList.appendChild(artifact);
+    }
+  }
+
+  function renderProof() {
+    if (!els.proofList) return;
+    var metrics = state.metrics;
+    els.proofList.textContent = "";
+    if (!metrics) {
+      els.proofStatus.textContent = "not loaded";
+      els.proofList.className = "proof-list details-empty";
+      els.proofList.textContent = "Metrics not loaded. Run `kage metrics --project <repo> --json > .agent_memory/metrics.json` or launch with `kage viewer`.";
+      return;
+    }
+    els.proofStatus.textContent = "loaded";
+    els.proofList.className = "proof-list";
+    var rows = [
+      ["Readiness", metrics.harness && metrics.harness.readiness_score != null ? metrics.harness.readiness_score + "/100" : "n/a"],
+      ["Useful memory", metrics.quality ? metrics.quality.useful_memory_ratio_percent + "%" : "n/a"],
+      ["Evidence", metrics.memory_graph ? metrics.memory_graph.evidence_coverage_percent + "%" : "n/a"],
+      ["Pending review", metrics.memory_graph ? String(metrics.memory_graph.pending_packets) : "n/a"],
+      ["Recall hit rate", metrics.pain ? metrics.pain.recall_hit_rate_percent + "%" : "n/a"],
+      ["Tokens saved", metrics.pain ? String(metrics.pain.estimated_tokens_saved) : metrics.savings ? String(metrics.savings.estimated_tokens_saved_per_recall) : "n/a"]
+    ];
+    rows.forEach(function (row) {
+      var item = document.createElement("div");
+      item.className = "proof-item";
+      item.innerHTML = "<strong></strong><span></span>";
+      item.querySelector("strong").textContent = row[1];
+      item.querySelector("span").textContent = row[0];
+      els.proofList.appendChild(item);
+    });
   }
 
   function renderStatusStrip(visibleEntities, visibleEdges, official) {

@@ -14,8 +14,9 @@
         <p id="graphSummary">Load memory, code, and metrics graphs to inspect what agents know and why.</p>
       </div>
       <div id="statusStrip" class="status-strip" aria-label="Graph health"></div>
+      <div id="autoLoadStatus" class="autoload-status">auto-load: waiting</div>
       <label class="file-picker">
-        <span>Load Graph JSON</span>
+        <span>Manual JSON</span>
         <input id="graphFile" type="file" accept=".json,application/json" multiple>
       </label>
     </header>
@@ -96,6 +97,22 @@
         </div>
         <div id="selectionDetails" class="details-empty">Select an entity or edge.</div>
       </aside>
+
+      <section class="review-panel" aria-label="Review queue">
+        <div class="panel-heading">
+          <h2>Review Queue</h2>
+          <span id="reviewCount">0</span>
+        </div>
+        <div id="reviewList" class="review-list"></div>
+      </section>
+
+      <section class="proof-panel" aria-label="Quality and benchmark">
+        <div class="panel-heading">
+          <h2>Proof</h2>
+          <span id="proofStatus">metrics</span>
+        </div>
+        <div id="proofList" class="proof-list"></div>
+      </section>
 
       <section class="table-panel entities-panel" aria-label="Nodes">
         <div class="panel-heading">
