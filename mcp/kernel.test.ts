@@ -339,8 +339,9 @@ test("setup generates all-agent MCP configuration and writes Codex config idempo
   assert.equal(doctor.length, SETUP_AGENTS.length);
 });
 
-test("observations are privacy-scanned, deduplicated, and distilled into pending packets", () => {
+test("observations are privacy-scanned, deduplicated, and generic commands stay telemetry", () => {
   const project = tempProject();
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
   const event = {
     type: "command_result" as const,
     session_id: "s1",
@@ -368,9 +369,27 @@ test("observations are privacy-scanned, deduplicated, and distilled into pending
   const distilled = distillSession(project, "s1");
   assert.equal(distilled.ok, true);
   assert.equal(distilled.observations, 1);
-  assert.equal(distilled.candidates.some((candidate) => candidate.ok && candidate.packet?.type === "runbook"), true);
-  assert.equal(distilled.candidates[0]?.packet?.source_refs[0]?.kind, "observation_session");
-  assert.deepEqual(distilled.candidates[0]?.packet?.source_refs[0]?.session_id, "s1");
+  assert.equal(distilled.candidates.length, 0);
+});
+
+test("distillation creates command memory only for reusable command learnings", () => {
+  const project = tempProject();
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
+  assert.equal(observe(project, {
+    type: "command_result",
+    session_id: "cmd-meaningful",
+    command: "npm test -- webhooks",
+    exit_code: 0,
+    summary: "Use this command after changing webhook signature verification.",
+  }).ok, true);
+
+  const distilled = distillSession(project, "cmd-meaningful");
+  const packet = distilled.candidates[0]?.packet;
+  assert.equal(packet?.type, "runbook");
+  assert.match(packet?.title ?? "", /webhook signature verification/);
+  assert.doesNotMatch(packet?.title ?? "", /Session .* command runbook/);
+  assert.equal(packet?.source_refs[0]?.kind, "observation_session");
+  assert.deepEqual(packet?.source_refs[0]?.session_id, "cmd-meaningful");
 });
 
 test("distillation does not create useless touched-file memory", () => {

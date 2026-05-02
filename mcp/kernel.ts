@@ -3703,6 +3703,54 @@ function reusableFileObservation(event: ObservationRecord): string {
   return durableSignals.some((signal) => lower.includes(signal)) ? text : "";
 }
 
+function normalizeCommandText(command: string): string {
+  return command.trim().replace(/\s+/g, " ").replace(/[).,;]+$/, "");
+}
+
+function knownRepoCommands(projectDir: string): Set<string> {
+  const known = new Set<string>();
+  for (const command of npmScriptCommands(projectDir)) {
+    known.add(normalizeCommandText(command));
+    const match = command.match(/^npm run ([A-Za-z0-9:._/-]+)$/);
+    if (match && ["test", "build", "start", "restart", "stop"].includes(match[1])) known.add(`npm ${match[1]}`);
+  }
+  return known;
+}
+
+function reusableCommandObservation(event: ObservationRecord, knownCommands: Set<string>): { command: string; learning: string } | null {
+  const command = normalizeCommandText(event.command ?? "");
+  if (!command) return null;
+  const summary = `${event.summary ?? ""}\n${event.text ?? ""}`.trim();
+  const lower = summary.toLowerCase();
+  const known = knownCommands.has(command);
+  const commandLooksUseful = /^(npm|pnpm|yarn|bun|npx|node|vitest|jest|pytest|cargo|go test|make|uv|ruff|mypy|tsc)\b/.test(command);
+  if (!commandLooksUseful) return null;
+  const durableSignals = [
+    "because",
+    "requires",
+    "must",
+    "only works",
+    "workaround",
+    "use this",
+    "when changing",
+    "after changing",
+    "fixed",
+    "fails",
+    "failure",
+    "error",
+    "gotcha",
+    "replay",
+    "migration",
+    "seed",
+  ];
+  const hasDurableSignal = durableSignals.some((signal) => lower.includes(signal));
+  const hasSpecialArgs = /\s--|:[A-Za-z0-9._/-]+|\s[A-Za-z0-9._/-]*test[A-Za-z0-9._/-]*/.test(command.replace(/^npm run [^ ]+$/, ""));
+  if (known && !hasDurableSignal && event.exit_code === 0) return null;
+  if (!known && !hasDurableSignal && !hasSpecialArgs && event.exit_code === 0) return null;
+  const learning = summary || `Use ${command}.`;
+  return { command, learning };
+}
+
 export function distillSession(projectDir: string, sessionId: string): DistillResult {
   const observations = loadObservations(projectDir, sessionId);
   const candidates: CaptureResult[] = [];
@@ -3730,16 +3778,21 @@ export function distillSession(projectDir: string, sessionId: string): DistillRe
   const fileEvents = observations.filter((event) => event.type === "file_change" && event.path);
   const promptEvents = observations.filter((event) => event.type === "user_prompt" && (event.text || event.summary));
 
-  if (commandEvents.length) {
-    const commands = unique(commandEvents.map((event) => `${event.command}${typeof event.exit_code === "number" ? ` (exit ${event.exit_code})` : ""}`));
+  const meaningfulCommandEvents = commandEvents
+    .map((event) => ({ event, reusable: reusableCommandObservation(event, knownRepoCommands(projectDir)) }))
+    .filter((item): item is { event: ObservationRecord; reusable: { command: string; learning: string } } => Boolean(item.reusable));
+
+  if (meaningfulCommandEvents.length) {
+    const commands = unique(meaningfulCommandEvents.map((item) => `${item.reusable.command}${typeof item.event.exit_code === "number" ? ` (exit ${item.event.exit_code})` : ""}`));
+    const lead = summarize(meaningfulCommandEvents[0].reusable.learning);
     candidates.push(annotate(capture({
       projectDir,
-      title: `Session ${sessionId} command runbook`,
+      title: `Runbook: ${lead}`,
       summary: `Observed commands: ${commands.slice(0, 3).join(", ")}`,
-      body: `Observed during session ${sessionId}:\n${commands.map((cmd) => `- ${cmd}`).join("\n")}\n\nReview before approving as a durable runbook.`,
+      body: `Reusable command observation distilled from session ${sessionId}:\n\n${meaningfulCommandEvents.map((item) => `- ${item.reusable.command}: ${item.reusable.learning}`).join("\n")}\n\nReview before approving as a durable runbook.`,
       type: "runbook",
-      tags: ["observed-session", "commands"],
-      paths: unique(commandEvents.map((event) => event.path).filter(Boolean) as string[]),
+      tags: ["observed-session", "commands", "runbook"],
+      paths: unique(meaningfulCommandEvents.map((item) => item.event.path).filter(Boolean) as string[]),
     })));
   }
 
