@@ -263,6 +263,15 @@ export async function startViewer(projectDir: string, options: { host?: string; 
   const metricsPath = join(projectRoot, ".agent_memory", "metrics.json");
   const reviewPath = join(projectRoot, ".agent_memory", "review", "memory-review.md");
   const pendingDir = join(projectRoot, ".agent_memory", "pending");
+
+  // Pre-generate metrics.json so the viewer can load it
+  try {
+    const metrics = kageMetrics(projectDir);
+    writeFileSync(metricsPath, JSON.stringify(metrics, null, 2));
+  } catch {
+    // non-fatal: viewer will show 404 for metrics if generation fails
+  }
+
   const url = `http://${host}:${port}/viewer/index.html?graph=${encodeURIComponent(graphPath)}&code=${encodeURIComponent(codePath)}&metrics=${encodeURIComponent(metricsPath)}&review=${encodeURIComponent(reviewPath)}&pending=${encodeURIComponent(pendingDir)}`;
 
   const server = createServer((req, res) => {

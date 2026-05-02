@@ -12,6 +12,7 @@ import {
   buildKnowledgeGraph,
   buildMarketplace,
   capture,
+  changelog,
   createReviewArtifact,
   createPublicCandidate,
   distillSession,
@@ -95,6 +96,7 @@ Usage:
   kage org export --project <dir> --org <org> [--json]
   kage layered-recall "<query>" --project <dir> [--org <org>] [--global] [--json]
   kage global build --project <dir> [--org <org>] [--json]
+  kage changelog --project <dir> [--days <n>] [--json]
   kage review --project <dir>
   kage validate --project <dir>
 
@@ -739,6 +741,38 @@ async function main(): Promise<void> {
     }
     console.log(`Captured repo-local packet: ${result.path}`);
     console.log("Repo-local memory is written immediately. Promotion to org/global still requires explicit review.");
+    return;
+  }
+
+  if (command === "changelog") {
+    const days = numberArg(args, "--days", 7);
+    const result = changelog(projectArg(args), days);
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Memory changelog: last ${result.days} day${result.days === 1 ? "" : "s"} — ${result.added.length} added, ${result.updated.length} updated, ${result.deprecated.length} deprecated (${result.total} total)`);
+    if (result.added.length > 0) {
+      console.log("\nNew packets:");
+      for (const entry of result.added) {
+        console.log(`  + [${entry.type}] ${entry.title}  (${entry.date.slice(0, 10)})`);
+      }
+    }
+    if (result.updated.length > 0) {
+      console.log("\nUpdated packets:");
+      for (const entry of result.updated) {
+        console.log(`  ~ [${entry.type}] ${entry.title}  (${entry.date.slice(0, 10)})`);
+      }
+    }
+    if (result.deprecated.length > 0) {
+      console.log("\nDeprecated packets:");
+      for (const entry of result.deprecated) {
+        console.log(`  - [${entry.type}] ${entry.title}  (${entry.date.slice(0, 10)})`);
+      }
+    }
+    if (result.total === 0) {
+      console.log("No memory activity in this period.");
+    }
     return;
   }
 
