@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Kage Stop Hook
-# Fires at session end. Invokes kage-distiller if the session is substantive.
-# Exits 0 immediately so the session closes cleanly; distiller runs in background.
+# Records session end and distills stored observations into pending JSON packets.
 
 set -euo pipefail
 
@@ -57,24 +56,11 @@ fi
 # Mark session as queued (before launching to prevent race conditions)
 echo "$SESSION_ID" >> "$PROCESSED_FILE"
 
-# Build task for kage-distiller
-GLOBAL_MEM="$HOME/.agent_memory"
-TASK="You are the kage-distiller agent. Analyze this session and save any valuable learnings to the memory graph.
+if [[ -n "$CWD" && -d "$CWD/.agent_memory" ]] && command -v kage >/dev/null 2>&1; then
+  EVENT="$(python3 -c "import json; print(json.dumps({'type':'session_end','session_id':'$SESSION_ID','agent':'claude-code','summary':'Claude Code session ended after $TURN_COUNT substantive turns'}))" 2>/dev/null || echo "")"
+  [[ -n "$EVENT" ]] && kage observe --project "$CWD" --event "$EVENT" >> "$LOG_FILE" 2>&1 || true
+  kage distill --project "$CWD" --session "$SESSION_ID" >> "$LOG_FILE" 2>&1 || true
+fi
 
-transcript_path=$TRANSCRIPT_PATH
-project_dir=$CWD
-global_memory_dir=$GLOBAL_MEM
-session_id=$SESSION_ID"
-
-# Launch kage-distiller as a background Claude process (non-interactive)
-# --no-session-persistence: don't save distiller session to disk
-# --permission-mode bypassPermissions: no prompts (running in background)
-nohup claude \
-  --agent kage-distiller \
-  --print "$TASK" \
-  --permission-mode bypassPermissions \
-  --no-session-persistence \
-  >> "$LOG_FILE" 2>&1 &
-
-# Exit 0 immediately — session closes cleanly, distiller continues in background
+# Exit 0 immediately so the session closes cleanly.
 exit 0

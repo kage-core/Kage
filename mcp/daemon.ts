@@ -1,0 +1,190 @@
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import {
+  benchmarkProject,
+  distillSession,
+  kageMetrics,
+  observe,
+  qualityReport,
+  recall,
+  type ObservationEvent,
+} from "./kernel.js";
+
+export interface DaemonStatus {
+  ok: boolean;
+  project_dir: string;
+  pid: number;
+  host: string;
+  rest_port: number;
+  viewer_port: number;
+  started_at: string;
+  status_path: string;
+}
+
+export interface DaemonDoctor {
+  configured: boolean;
+  running: boolean;
+  status?: DaemonStatus;
+  endpoints: string[];
+  warnings: string[];
+}
+
+const DEFAULT_HOST = "127.0.0.1";
+const DEFAULT_REST_PORT = 3111;
+const DEFAULT_VIEWER_PORT = 3113;
+
+function daemonDir(projectDir: string): string {
+  return join(projectDir, ".agent_memory", "daemon");
+}
+
+function statusPath(projectDir: string): string {
+  return join(daemonDir(projectDir), "status.json");
+}
+
+function json(res: ServerResponse, status: number, value: unknown): void {
+  res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+  res.end(JSON.stringify(value, null, 2));
+}
+
+function notFound(res: ServerResponse): void {
+  json(res, 404, { ok: false, error: "not_found" });
+}
+
+function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    req.on("end", () => {
+      const text = Buffer.concat(chunks).toString("utf8").trim();
+      if (!text) {
+        resolve({});
+        return;
+      }
+      try {
+        resolve(JSON.parse(text) as Record<string, unknown>);
+      } catch (error) {
+        reject(error);
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
+export function readDaemonStatus(projectDir: string): DaemonStatus | null {
+  const path = statusPath(projectDir);
+  if (!existsSync(path)) return null;
+  return JSON.parse(readFileSync(path, "utf8")) as DaemonStatus;
+}
+
+export function daemonDoctor(projectDir: string): DaemonDoctor {
+  const status = readDaemonStatus(projectDir) ?? undefined;
+  let running = false;
+  if (status) {
+    try {
+      process.kill(status.pid, 0);
+      running = true;
+    } catch {
+      running = false;
+    }
+  }
+  const restPort = status?.rest_port ?? DEFAULT_REST_PORT;
+  return {
+    configured: Boolean(status),
+    running,
+    status,
+    endpoints: [
+      `GET http://${DEFAULT_HOST}:${restPort}/health`,
+      `POST http://${DEFAULT_HOST}:${restPort}/kage/recall`,
+      `POST http://${DEFAULT_HOST}:${restPort}/kage/observe`,
+      `POST http://${DEFAULT_HOST}:${restPort}/kage/distill`,
+      `GET http://${DEFAULT_HOST}:${restPort}/kage/metrics`,
+      `GET http://${DEFAULT_HOST}:${restPort}/kage/quality`,
+      `GET http://${DEFAULT_HOST}:${restPort}/kage/benchmark`,
+    ],
+    warnings: running ? [] : ["Daemon is not running. Start it with `kage daemon start --project <repo>`."],
+  };
+}
+
+export function stopDaemon(projectDir: string): { ok: boolean; message: string; status?: DaemonStatus } {
+  const status = readDaemonStatus(projectDir);
+  if (!status) return { ok: false, message: "No daemon status file found." };
+  try {
+    process.kill(status.pid, "SIGTERM");
+    return { ok: true, message: `Sent SIGTERM to Kage daemon pid ${status.pid}.`, status };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : String(error), status };
+  }
+}
+
+export async function startDaemon(projectDir: string, options: { host?: string; restPort?: number; viewerPort?: number } = {}): Promise<void> {
+  const host = options.host ?? DEFAULT_HOST;
+  const restPort = options.restPort ?? DEFAULT_REST_PORT;
+  const viewerPort = options.viewerPort ?? DEFAULT_VIEWER_PORT;
+  mkdirSync(daemonDir(projectDir), { recursive: true });
+  const status: DaemonStatus = {
+    ok: true,
+    project_dir: projectDir,
+    pid: process.pid,
+    host,
+    rest_port: restPort,
+    viewer_port: viewerPort,
+    started_at: new Date().toISOString(),
+    status_path: statusPath(projectDir),
+  };
+  writeFileSync(status.status_path, JSON.stringify(status, null, 2), "utf8");
+
+  const server = createServer(async (req, res) => {
+    const url = new URL(req.url ?? "/", `http://${host}:${restPort}`);
+    try {
+      if (req.method === "GET" && url.pathname === "/health") {
+        json(res, 200, { ok: true, name: "kage-daemon", project_dir: projectDir, pid: process.pid });
+        return;
+      }
+      if (req.method === "GET" && url.pathname === "/kage/status") {
+        json(res, 200, status);
+        return;
+      }
+      if (req.method === "GET" && url.pathname === "/kage/metrics") {
+        json(res, 200, kageMetrics(projectDir));
+        return;
+      }
+      if (req.method === "GET" && url.pathname === "/kage/quality") {
+        json(res, 200, qualityReport(projectDir));
+        return;
+      }
+      if (req.method === "GET" && url.pathname === "/kage/benchmark") {
+        json(res, 200, benchmarkProject(projectDir));
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/kage/recall") {
+        const body = await readBody(req);
+        json(res, 200, recall(projectDir, String(body.query ?? ""), Number(body.limit ?? 5), Boolean(body.explain)));
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/kage/observe") {
+        const body = await readBody(req);
+        json(res, 200, observe(projectDir, body as unknown as ObservationEvent));
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/kage/distill") {
+        const body = await readBody(req);
+        json(res, 200, distillSession(projectDir, String(body.session_id ?? body.session ?? "default")));
+        return;
+      }
+      notFound(res);
+    } catch (error) {
+      json(res, 500, { ok: false, error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  await new Promise<void>((resolve) => server.listen(restPort, host, resolve));
+  console.log(`Kage daemon listening on http://${host}:${restPort}`);
+  console.log(`Project: ${projectDir}`);
+  console.log(`Status: ${status.status_path}`);
+
+  process.on("SIGTERM", () => {
+    server.close(() => process.exit(0));
+  });
+}
+

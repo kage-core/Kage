@@ -1,14 +1,18 @@
 #!/usr/bin/env node
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import { daemonDoctor, readDaemonStatus, startDaemon, stopDaemon } from "./daemon.js";
 import {
+  SETUP_AGENTS,
   approvePending,
+  benchmarkProject,
   buildBranchOverlay,
   buildCodeGraph,
   buildKnowledgeGraph,
   capture,
   createReviewArtifact,
   createPublicCandidate,
+  distillSession,
   doctorProject,
   exportPublicBundle,
   graphMermaid,
@@ -19,16 +23,22 @@ import {
   learn,
   loadPendingPackets,
   MEMORY_TYPES,
+  observe,
   proposeFromDiff,
+  qualityReport,
   queryCodeGraph,
   queryGraph,
   recall,
   recordFeedback,
   rejectPending,
   registryRecommendations,
+  setupAgent,
+  setupDoctor,
   validateProject,
   type CaptureInput,
   type MemoryType,
+  type ObservationEvent,
+  type SetupAgent,
 } from "./kernel.js";
 
 function usage(): never {
@@ -39,14 +49,25 @@ Usage:
   kage init --project <dir>
   kage policy --project <dir>
   kage doctor --project <dir>
+  kage setup list
+  kage setup <agent> --project <dir> [--write] [--json]
+  kage setup doctor --project <dir> [--json]
+  kage daemon start --project <dir> [--port 3111]
+  kage daemon stop --project <dir>
+  kage daemon status --project <dir> [--json]
+  kage daemon doctor --project <dir> [--json]
   kage branch --project <dir> [--json]
   kage metrics --project <dir> [--json]
+  kage quality --project <dir> [--json]
+  kage benchmark --project <dir> [--json]
   kage code-graph --project <dir> [--json]
   kage code-graph "<query>" --project <dir> [--json]
   kage graph --project <dir> [--json]
   kage graph --project <dir> --mermaid
   kage graph "<query>" --project <dir> [--json]
-  kage recall "<query>" --project <dir> [--json]
+  kage recall "<query>" --project <dir> [--json] [--explain]
+  kage observe --project <dir> --event <json>
+  kage distill --project <dir> --session <id>
   kage learn --project <dir> --learning <text> [--title <title>] [--type <type>] [--evidence <text>] [--verified-by <text>] [--tags a,b] [--paths a,b]
   kage feedback --project <dir> --packet <packet-id> --kind helpful|wrong|stale
   kage capture --project <dir> --title <title> --body <body> [--type <type>] [--summary <summary>] [--tags a,b] [--paths a,b] [--stack a,b]
@@ -76,6 +97,11 @@ function listArg(value: string | undefined): string[] {
 
 function projectArg(args: string[]): string {
   return takeArg(args, "--project") ?? process.cwd();
+}
+
+function numberArg(args: string[], name: string, fallback: number): number {
+  const value = takeArg(args, name);
+  return value ? Number(value) : fallback;
 }
 
 function firstPositional(args: string[]): string | undefined {
@@ -176,6 +202,83 @@ async function main(): Promise<void> {
     console.log(result.sampleRecall);
     if (!result.validation.ok) process.exit(2);
     return;
+  }
+
+  if (command === "setup") {
+    const action = args[1];
+    if (action === "list") {
+      console.log(SETUP_AGENTS.join("\n"));
+      return;
+    }
+    if (action === "doctor") {
+      const result = setupDoctor(projectArg(args));
+      if (args.includes("--json")) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+      console.log("Kage setup doctor");
+      for (const item of result) {
+        console.log(`- ${item.agent}: ${item.configured ? "configured" : "not detected"}${item.config_path ? ` (${item.config_path})` : ""}`);
+      }
+      return;
+    }
+    if (!action || !SETUP_AGENTS.includes(action as SetupAgent)) usage();
+    const result = setupAgent(action as SetupAgent, projectArg(args), { write: args.includes("--write") });
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage setup for ${result.agent}`);
+    if (result.config_path) console.log(`Config path: ${result.config_path}`);
+    console.log(result.write_supported ? `Write support: ${result.wrote ? "wrote config" : "available with --write"}` : "Write support: print-only");
+    console.log("\nConfig:\n");
+    console.log(result.config);
+    if (result.instructions.length) {
+      console.log("\nInstructions:");
+      for (const instruction of result.instructions) console.log(`- ${instruction}`);
+    }
+    if (result.warnings.length) {
+      console.log("\nWarnings:");
+      for (const warning of result.warnings) console.log(`- ${warning}`);
+    }
+    return;
+  }
+
+  if (command === "daemon") {
+    const action = args[1];
+    const projectDir = projectArg(args);
+    if (action === "start") {
+      await startDaemon(projectDir, { restPort: numberArg(args, "--port", 3111) });
+      return;
+    }
+    if (action === "stop") {
+      const result = stopDaemon(projectDir);
+      if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
+      else console.log(result.message);
+      if (!result.ok) process.exit(2);
+      return;
+    }
+    if (action === "status") {
+      const result = readDaemonStatus(projectDir);
+      if (args.includes("--json")) console.log(JSON.stringify(result ?? { ok: false }, null, 2));
+      else if (result) console.log(`Kage daemon pid ${result.pid} at http://${result.host}:${result.rest_port}`);
+      else console.log("No Kage daemon status found.");
+      return;
+    }
+    if (action === "doctor") {
+      const result = daemonDoctor(projectDir);
+      if (args.includes("--json")) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+      console.log(`Daemon configured: ${result.configured ? "yes" : "no"}`);
+      console.log(`Daemon running: ${result.running ? "yes" : "no"}`);
+      console.log("Endpoints:");
+      for (const endpoint of result.endpoints) console.log(`- ${endpoint}`);
+      if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
+      return;
+    }
+    usage();
   }
 
   if (command === "graph") {
@@ -282,6 +385,48 @@ async function main(): Promise<void> {
     console.log(`  Memory tokens: ${result.savings.estimated_memory_tokens}`);
     console.log(`  Recall context tokens: ${result.savings.estimated_recall_context_tokens}`);
     console.log(`  Estimated tokens saved per recall: ${result.savings.estimated_tokens_saved_per_recall}`);
+    if (result.quality) {
+      console.log("\nQuality:");
+      console.log(`  Useful memory ratio: ${result.quality.useful_memory_ratio_percent}%`);
+      console.log(`  Duplicate burden: ${result.quality.duplicate_burden}%`);
+      console.log(`  Evidence coverage: ${result.quality.evidence_coverage_percent}%`);
+      console.log(`  Review queue size: ${result.quality.totals.pending}`);
+    }
+    if (result.pain) {
+      console.log("\nPain avoided:");
+      console.log(`  Recall hit rate: ${result.pain.recall_hit_rate_percent}%`);
+      console.log(`  Estimated rediscovery avoided: ${result.pain.estimated_rediscovery_avoided}`);
+      console.log(`  Estimated tokens saved: ${result.pain.estimated_tokens_saved}`);
+      console.log(`  Time to first use: ${result.pain.time_to_first_use_seconds}s`);
+    }
+    return;
+  }
+
+  if (command === "quality") {
+    const result = qualityReport(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage Quality: ${result.project_dir}`);
+    console.log(`Useful memory ratio: ${result.useful_memory_ratio_percent}%`);
+    console.log(`Duplicate burden: ${result.duplicate_burden}%`);
+    console.log(`Evidence coverage: ${result.evidence_coverage_percent}%`);
+    console.log(`Path grounding coverage: ${result.path_grounding_coverage_percent}%`);
+    console.log(`Review queue size: ${result.totals.pending}`);
+    console.log(`Approved vs pending ratio: ${result.approved_to_pending_ratio}`);
+    console.log(`Type coverage: ${Object.entries(result.memory_type_coverage).map(([type, count]) => `${type}=${count}`).join(", ") || "(none)"}`);
+    return;
+  }
+
+  if (command === "benchmark") {
+    const result = benchmarkProject(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage Benchmark: ${result.project_dir}`);
+    for (const [name, value] of Object.entries(result.pain_metrics)) console.log(`${name}: ${value}`);
     return;
   }
 
@@ -374,9 +519,38 @@ async function main(): Promise<void> {
   if (command === "recall") {
     const query = firstPositional(args);
     if (!query) usage();
-    const result = recall(projectArg(args), query);
+    const result = recall(projectArg(args), query, 5, args.includes("--explain"));
     if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
     else console.log(result.context_block);
+    return;
+  }
+
+  if (command === "observe") {
+    const event = takeArg(args, "--event");
+    if (!event) usage();
+    const result = observe(projectArg(args), JSON.parse(event) as ObservationEvent);
+    if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
+    else if (result.ok && result.duplicate) console.log(`Observation already stored: ${result.path}`);
+    else if (result.ok) console.log(`Stored observation: ${result.path}`);
+    else {
+      console.error(`Observation blocked:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);
+      process.exit(2);
+    }
+    return;
+  }
+
+  if (command === "distill") {
+    const sessionId = takeArg(args, "--session");
+    if (!sessionId) usage();
+    const result = distillSession(projectArg(args), sessionId);
+    if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
+    else {
+      console.log(`Distilled session: ${sessionId}`);
+      console.log(`Observations: ${result.observations}`);
+      console.log(`Candidates: ${result.candidates.filter((candidate) => candidate.ok).length}`);
+      if (result.errors.length) console.log(`Errors:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);
+    }
+    if (!result.ok) process.exit(2);
     return;
   }
 

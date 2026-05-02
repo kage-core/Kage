@@ -1,20 +1,27 @@
 #!/usr/bin/env bash
 # Kage PostToolUse Hook
-# Watches Write tool calls for changes to high-signal files.
-# Queues those files for re-indexing at next SessionStart.
+# Records tool/file observations and queues high-signal file changes for reindex.
 
 set -euo pipefail
 
 HOOK_JSON="$(cat)"
 
 TOOL_NAME="$(echo "$HOOK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_name',''))" 2>/dev/null || echo "")"
+CWD="$(echo "$HOOK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('cwd',''))" 2>/dev/null || echo "")"
+SESSION_ID="$(echo "$HOOK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('session_id','default'))" 2>/dev/null || echo "default")"
+FILE_PATH="$(echo "$HOOK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")"
 
-# Only care about Write (and Edit) tool calls
-if [[ "$TOOL_NAME" != "Write" && "$TOOL_NAME" != "Edit" ]]; then
-  exit 0
+if [[ -n "$CWD" && -d "$CWD/.agent_memory" ]] && command -v kage >/dev/null 2>&1; then
+  EVENT_TYPE="tool_use"
+  [[ "$TOOL_NAME" == "Write" || "$TOOL_NAME" == "Edit" || "$TOOL_NAME" == "MultiEdit" ]] && EVENT_TYPE="file_change"
+  EVENT="$(python3 -c "import json; print(json.dumps({'type':'$EVENT_TYPE','session_id':'$SESSION_ID','agent':'claude-code','tool':'$TOOL_NAME','path':'$FILE_PATH','summary':'Claude Code tool completed'}))" 2>/dev/null || echo "")"
+  [[ -n "$EVENT" ]] && kage observe --project "$CWD" --event "$EVENT" >/dev/null 2>&1 || true
 fi
 
-FILE_PATH="$(echo "$HOOK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")"
+# Only care about Write (and Edit) tool calls
+if [[ "$TOOL_NAME" != "Write" && "$TOOL_NAME" != "Edit" && "$TOOL_NAME" != "MultiEdit" ]]; then
+  exit 0
+fi
 
 if [[ -z "$FILE_PATH" ]]; then
   exit 0

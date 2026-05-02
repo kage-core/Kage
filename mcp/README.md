@@ -3,7 +3,7 @@
 This package exposes two surfaces:
 
 - `kage-graph-mcp`: MCP server for the public Kage graph plus repo-local recall.
-- `kage`: CLI for local repo memory packets, indexing, recall, capture, review, and validation.
+- `kage`: CLI for local repo memory packets, indexing, recall, capture, review, setup, optional daemon runtime, and validation.
 
 ## Build
 
@@ -15,6 +15,11 @@ npm run build
 ## CLI
 
 ```bash
+kage setup list
+kage setup codex --project /path/to/repo --write
+kage setup claude-code --project /path/to/repo
+kage setup generic-mcp --project /path/to/repo
+kage setup doctor --project /path/to/repo
 kage init --project /path/to/repo
 kage policy --project /path/to/repo
 kage doctor --project /path/to/repo
@@ -26,6 +31,12 @@ kage graph --project /path/to/repo
 kage graph --project /path/to/repo --mermaid
 kage graph "test command" --project /path/to/repo
 kage recall "how do I run tests" --project /path/to/repo
+kage recall "how do I run tests" --project /path/to/repo --explain --json
+kage quality --project /path/to/repo
+kage benchmark --project /path/to/repo
+kage daemon start --project /path/to/repo
+kage observe --project /path/to/repo --event '{"type":"command_result","session_id":"s1","command":"npm test","exit_code":0}'
+kage distill --project /path/to/repo --session s1
 kage learn --project /path/to/repo --learning "Decision: use kage_learn for actual session discoveries." --paths mcp/index.ts
 kage feedback --project /path/to/repo --packet <approved-packet-id> --kind stale
 kage capture --project /path/to/repo --type runbook --title "Webhook tests" --body "Run pnpm test:api -- webhooks."
@@ -104,6 +115,33 @@ Review artifacts include memory quality reasons, risks, duplicate candidates,
 and estimated token savings so reviewers can approve, reject, or merge pending
 memory with less manual inspection.
 
+`kage observe` is the automatic-capture primitive for agent hooks and daemon
+clients. It accepts session, prompt, tool, file-change, command, test, and
+session-end events; deduplicates them; scans for secrets and PII; and stores raw
+observations locally only. `kage distill` turns those observations into pending
+packets with observation session source refs. It never approves or publishes
+memory.
+
+`kage recall --explain --json` exposes the hybrid scoring explanation used for
+ranking: text, graph, path/type/tag, freshness, quality, feedback, and a vector
+placeholder for future local or external embedding providers. Current fallback
+is deterministic text plus graph retrieval.
+
+`kage daemon start` exposes the optional local REST runtime on
+`127.0.0.1:3111`:
+
+- `GET /health`
+- `GET /kage/status`
+- `GET /kage/metrics`
+- `GET /kage/quality`
+- `GET /kage/benchmark`
+- `POST /kage/recall`
+- `POST /kage/observe`
+- `POST /kage/distill`
+
+The daemon is not required for stdio MCP or CLI use; it exists for agents and
+workflows that need REST, live observation ingestion, or Aider-style scripting.
+
 ## Local Graph Viewer
 
 Open `mcp/viewer/index.html` in a browser, choose one or more JSON files such as
@@ -132,10 +170,15 @@ Local repo tools:
 - `kage_recall`
 - `kage_code_graph`
 - `kage_metrics`
+- `kage_quality`
+- `kage_benchmark`
+- `kage_setup_agent`
 - `kage_graph`
 - `kage_graph_visual`
 - `kage_learn`
 - `kage_capture`
+- `kage_observe`
+- `kage_distill`
 - `kage_feedback`
 - `kage_install_policy`
 - `kage_branch_overlay`
@@ -183,6 +226,17 @@ args = ["/absolute/path/to/Kage/mcp/dist/index.js"]
 Then restart Codex. To make Kage ambient instead of manual, run `kage init` or
 `kage policy`; both install an `AGENTS.md` policy that tells Codex to call Kage
 automatically before and after coding tasks.
+
+For other agents, generate the exact config with:
+
+```bash
+kage setup list
+kage setup cursor --project /path/to/repo
+kage setup windsurf --project /path/to/repo
+kage setup gemini-cli --project /path/to/repo
+kage setup opencode --project /path/to/repo
+kage setup generic-mcp --project /path/to/repo
+```
 
 Minimum policy:
 

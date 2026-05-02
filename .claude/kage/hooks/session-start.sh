@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Kage SessionStart Hook
-# Injects a system message telling Claude which memory tiers are available.
-# Also processes the reindex queue (files written since last session that need re-indexing).
+# Records a TypeScript-packet observation and injects a short memory status note.
 
 set -euo pipefail
 
 HOOK_JSON="$(cat)"
 CWD="$(echo "$HOOK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('cwd',''))" 2>/dev/null || echo "")"
+SESSION_ID="$(echo "$HOOK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('session_id','default'))" 2>/dev/null || echo "default")"
 
 GLOBAL_MEM="$HOME/.agent_memory"
 REINDEX_QUEUE="$HOME/.claude/kage/reindex-queue.txt"
@@ -46,13 +46,13 @@ if [[ -f "$REINDEX_QUEUE" && -s "$REINDEX_QUEUE" ]]; then
 fi
 
 # Check project memory
-if [[ -f "$CWD/.agent_memory/index.md" ]]; then
-  NODE_COUNT="$(ls "$CWD/.agent_memory/nodes/"*.md 2>/dev/null | wc -l | tr -d ' ')"
-  AUTO_COUNT="$(grep -l 'source: kage-indexer' "$CWD/.agent_memory/nodes/"*.md 2>/dev/null | wc -l | tr -d ' ')"
-  if [[ "$AUTO_COUNT" -gt 0 ]]; then
-    HAS_PROJECT="Project memory: .agent_memory/ ($NODE_COUNT nodes, $AUTO_COUNT indexed from codebase)."
-  else
-    HAS_PROJECT="Project memory: .agent_memory/ ($NODE_COUNT nodes)."
+if [[ -d "$CWD/.agent_memory" ]]; then
+  PACKET_COUNT="$(ls "$CWD/.agent_memory/packets/"*.json 2>/dev/null | wc -l | tr -d ' ')"
+  PENDING_COUNT="$(ls "$CWD/.agent_memory/pending/"*.json 2>/dev/null | wc -l | tr -d ' ')"
+  HAS_PROJECT="Project memory: .agent_memory/ ($PACKET_COUNT approved packets, $PENDING_COUNT pending)."
+  if command -v kage >/dev/null 2>&1; then
+    EVENT="$(python3 -c "import json; print(json.dumps({'type':'session_start','session_id':'$SESSION_ID','agent':'claude-code','summary':'Claude Code session started'}))" 2>/dev/null || echo "")"
+    [[ -n "$EVENT" ]] && kage observe --project "$CWD" --event "$EVENT" >/dev/null 2>&1 || true
   fi
 fi
 
@@ -76,7 +76,7 @@ if [[ -z "$HAS_PROJECT$HAS_GLOBAL" && "$GRAPH_STATUS" == *"offline"* && -z "$REI
   exit 0
 fi
 
-MSG="Kage memory active. $HAS_PROJECT $HAS_GLOBAL $GRAPH_STATUS$REINDEX_MSG$UPDATE_MSG Use the kage-memory sub-agent before making architectural decisions, implementing patterns, or working in a specific domain."
+MSG="Kage memory active. $HAS_PROJECT $HAS_GLOBAL $GRAPH_STATUS$REINDEX_MSG$UPDATE_MSG Use Kage MCP tools or CLI recall before repo-specific work; capture durable learnings as pending packets."
 
 # Use env variable to pass MSG into Python — avoids shell quoting bugs when MSG contains single quotes
 KAGE_MSG="$MSG" python3 -c "import json,os; print(json.dumps({'systemMessage': os.environ['KAGE_MSG']}))" 2>/dev/null || exit 0

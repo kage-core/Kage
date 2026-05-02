@@ -5,6 +5,8 @@ import { mkdtempSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
+  SETUP_AGENTS,
+  benchmarkProject,
   buildCodeGraph,
   buildKnowledgeGraph,
   buildBranchOverlay,
@@ -12,6 +14,7 @@ import {
   catalogDomainNodeCount,
   createReviewArtifact,
   createPublicCandidate,
+  distillSession,
   doctorProject,
   exportPublicBundle,
   graphDir,
@@ -23,6 +26,7 @@ import {
   learn,
   loadApprovedPackets,
   loadPendingPackets,
+  observe,
   packetsDir,
   proposeFromDiff,
   queryCodeGraph,
@@ -31,6 +35,9 @@ import {
   recordFeedback,
   registryRecommendations,
   scanSensitiveText,
+  setupAgent,
+  setupDoctor,
+  qualityReport,
   validatePacket,
   validateProject,
 } from "./kernel.js";
@@ -307,6 +314,81 @@ test("metrics summarize code graph, memory graph, and harness readiness", () => 
   assert.equal(metrics.savings.estimated_tokens_saved_per_recall >= 0, true);
   assert.equal(metrics.harness.policy_installed, true);
   assert.equal(metrics.harness.readiness_score > 0, true);
+  assert.equal(typeof metrics.quality?.useful_memory_ratio_percent, "number");
+  assert.equal(typeof metrics.pain?.estimated_tokens_saved, "number");
+});
+
+test("setup generates all-agent MCP configuration and writes Codex config idempotently", () => {
+  const project = tempProject();
+  const home = mkdtempSync(join(tmpdir(), "kage-home-"));
+  for (const agent of SETUP_AGENTS) {
+    const result = setupAgent(agent, project, { serverPath: "/tmp/kage/dist/index.js", homeDir: home });
+    assert.equal(result.agent, agent);
+    assert.equal(result.config.length > 0, true);
+    assert.equal(result.instructions.length > 0, true);
+  }
+
+  const first = setupAgent("codex", project, { serverPath: "/tmp/kage/dist/index.js", homeDir: home, write: true });
+  assert.equal(first.wrote, true);
+  const second = setupAgent("codex", project, { serverPath: "/tmp/kage/dist/index.js", homeDir: home, write: true });
+  assert.equal(second.wrote, true);
+  const config = readFileSync(join(home, ".codex", "config.toml"), "utf8");
+  assert.equal((config.match(/\[mcp_servers\.kage\]/g) ?? []).length, 1);
+
+  const doctor = setupDoctor(project);
+  assert.equal(doctor.length, SETUP_AGENTS.length);
+});
+
+test("observations are privacy-scanned, deduplicated, and distilled into pending packets", () => {
+  const project = tempProject();
+  const event = {
+    type: "command_result" as const,
+    session_id: "s1",
+    agent: "codex",
+    command: "npm test",
+    exit_code: 0,
+    summary: "Tests passed after updating harness setup.",
+    timestamp: "2026-05-02T10:00:00.000Z",
+  };
+  const stored = observe(project, event);
+  assert.equal(stored.ok, true);
+  assert.equal(stored.stored, true);
+  const duplicate = observe(project, event);
+  assert.equal(duplicate.ok, true);
+  assert.equal(duplicate.duplicate, true);
+
+  const blocked = observe(project, {
+    type: "tool_result",
+    session_id: "s1",
+    text: "Authorization: Bearer abcdefghijklmnopqrstuvwxyz",
+  });
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.errors.join("\n"), /Sensitive content blocked/);
+
+  const distilled = distillSession(project, "s1");
+  assert.equal(distilled.ok, true);
+  assert.equal(distilled.observations, 1);
+  assert.equal(distilled.candidates.some((candidate) => candidate.ok && candidate.packet?.type === "runbook"), true);
+  assert.equal(distilled.candidates[0]?.packet?.source_refs[0]?.kind, "observation_session");
+  assert.deepEqual(distilled.candidates[0]?.packet?.source_refs[0]?.session_id, "s1");
+});
+
+test("recall explanations, quality, and benchmark expose proof metrics", () => {
+  const project = tempProject();
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
+  indexProject(project);
+
+  const result = recall(project, "how do I run tests", 5, true);
+  assert.equal(result.explanations?.length! > 0, true);
+  assert.equal(typeof result.results[0]?.score_breakdown?.final, "number");
+
+  const quality = qualityReport(project);
+  assert.equal(typeof quality.useful_memory_ratio_percent, "number");
+  assert.equal(typeof quality.evidence_coverage_percent, "number");
+
+  const benchmark = benchmarkProject(project);
+  assert.equal(typeof benchmark.pain_metrics.recall_hit_rate_percent, "number");
+  assert.equal(typeof benchmark.pain_metrics.estimated_tokens_saved, "number");
 });
 
 test("graph query returns relevant typed facts", () => {

@@ -190,7 +190,7 @@ fi
 # STEP 8 — Project setup
 if git rev-parse --git-dir > /dev/null 2>&1; then
   echo "→ project memory"
-  mkdir -p .agent_memory/nodes .agent_memory/pending .agent_memory/deprecated
+  mkdir -p .agent_memory/nodes .agent_memory/packets .agent_memory/pending .agent_memory/deprecated .agent_memory/observations .agent_memory/indexes .agent_memory/graph .agent_memory/code_graph
 
   [ -f .agent_memory/index.md ] || printf '# Project Memory Index\n\n## Domains\n\n<!-- Added as nodes are approved -->\n' > .agent_memory/index.md
   [ -f .agent_memory/SUMMARY.md ] || printf '# Project Memory Summary\n\n*No nodes yet. Memory captured automatically during sessions.*\n' > .agent_memory/SUMMARY.md
@@ -203,10 +203,10 @@ if git rev-parse --git-dir > /dev/null 2>&1; then
 
   KAGE_BLOCK="## Kage Memory
 
-- Invoke \`kage-memory\` before implementing auth, API patterns, database operations, or any domain-specific feature
-- Invoke \`kage-distiller\` immediately when you fix a bug, make a design decision, or figure out a setup step
-- Do NOT read \`.agent_memory/\` files directly — delegate to \`kage-memory\`
-- Run \`/kage review\` to approve pending nodes"
+- Use Kage MCP tools or \`kage recall\` before repo-specific implementation work
+- Claude hooks call \`kage observe\` and \`kage distill\` to create pending JSON packet candidates
+- Capture durable learnings with \`kage_learn\` or \`kage_capture\`; never approve or publish automatically
+- Run \`kage review\` to approve pending packets"
 
   if [ -f CLAUDE.md ]; then
     grep -q "Kage Memory" CLAUDE.md || printf '\n%s\n' "$KAGE_BLOCK" >> CLAUDE.md
@@ -233,7 +233,8 @@ Do this without waiting for the user to ask. Kage should feel like ambient repo 
 
 ## Automatic Capture
 
-When you learn something reusable, create a pending memory packet with `kage_capture`.
+When you learn something reusable, create a pending memory packet with `kage_learn` or `kage_capture`.
+When lifecycle hooks are available, use `kage observe` for session/tool/file/test events and `kage distill` at session end.
 
 ## End-Of-Task Proposal
 
@@ -265,7 +266,7 @@ echo ""
 echo "  Agents:  kage-distiller · kage-memory · kage-graph · kage-indexer"
 echo "  Hooks:   Stop · SessionStart · PostToolUse · UserPromptSubmit"
 echo "  Skills:  /kage · /kage-install"
-echo "  Memory:  ~/.agent_memory/  +  .agent_memory/ (this repo)"
+echo "  Memory:  ~/.agent_memory/  +  .agent_memory/ JSON packets (this repo)"
 echo "  Version: $(cat ~/.claude/kage/version 2>/dev/null | tr -d '\n')"
 echo ""
-echo "Memory is active immediately. Run /kage index to index this codebase."
+echo "Memory is active immediately. Run kage index --project . to index this codebase."
