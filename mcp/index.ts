@@ -293,7 +293,7 @@ export function listTools() {
     {
       name: "kage_learn",
       description:
-        "Capture an actual reusable learning from the current session as a pending memory packet. Prefer this over diff proposal when the agent knows what was learned.",
+        "Capture an actual reusable learning from the current session as repo-local memory. Prefer this over diff proposal when the agent knows what was learned.",
       inputSchema: {
         type: "object",
         properties: {
@@ -313,7 +313,7 @@ export function listTools() {
     {
       name: "kage_capture",
       description:
-        "Create a pending repo-local Kage memory packet. This proposes memory only; human review is still required before sharing.",
+        "Create a repo-local Kage memory packet immediately. Org/global promotion still requires explicit human review.",
       inputSchema: {
         type: "object",
         properties: {
@@ -332,7 +332,7 @@ export function listTools() {
     {
       name: "kage_observe",
       description:
-        "Store an automatic local observation event from an agent session. Observations are privacy-scanned, deduplicated, and never auto-approved or published.",
+        "Store an automatic local observation event from an agent session. Observations are privacy-scanned, deduplicated, and never published automatically.",
       inputSchema: {
         type: "object",
         properties: {
@@ -355,7 +355,7 @@ export function listTools() {
     {
       name: "kage_distill",
       description:
-        "Distill stored observations for one session into pending memory candidates. Human review is still required before approved memory.",
+        "Distill stored observations for one session into repo-local memory candidates. Org/global promotion still requires explicit human review.",
       inputSchema: {
         type: "object",
         properties: {
@@ -539,7 +539,7 @@ export function listTools() {
     {
       name: "kage_propose_from_diff",
       description:
-        "Create or update a branch review summary and pending change-memory packet from local git status and diff metadata. Human review is required before it becomes shared repo memory.",
+        "Create or update a branch review summary and repo-local change-memory packet from local git status and diff metadata. Org/global promotion still requires explicit human review.",
       inputSchema: {
         type: "object",
         properties: {
@@ -757,7 +757,7 @@ export async function callTool(name: string, args: Record<string, unknown> | und
         {
           type: "text",
           text: result.ok
-            ? `Captured session learning: ${result.path}\nReview with: kage review --project ${args?.project_dir}`
+            ? `Captured session learning: ${result.path}\nRepo-local memory is written immediately. Org/global promotion still requires explicit review.`
             : `Learning capture blocked:\n${result.errors.map((error) => `- ${error}`).join("\n")}`,
         },
       ],
@@ -782,7 +782,7 @@ export async function callTool(name: string, args: Record<string, unknown> | und
         {
           type: "text",
           text: result.ok
-            ? `Captured pending packet: ${result.path}\nReview with: kage review --project ${args?.project_dir}`
+            ? `Captured repo-local packet: ${result.path}\nOrg/global promotion still requires explicit review.`
             : `Capture blocked:\n${result.errors.map((error) => `- ${error}`).join("\n")}`,
         },
       ],
@@ -960,7 +960,7 @@ export async function callTool(name: string, args: Record<string, unknown> | und
         {
           type: "text",
           text: result.ok
-            ? `Wrote branch review summary: ${result.path}\nCaptured pending change memory: ${result.packetPath ?? "(none)"}\nChanged files: ${result.changedFiles.join(", ")}`
+            ? `Wrote branch review summary: ${result.path}\nCaptured repo-local change memory: ${result.packetPath ?? "(none)"}\nChanged files: ${result.changedFiles.join(", ")}`
             : `Proposal blocked:\n${result.errors.map((error) => `- ${error}`).join("\n")}`,
         },
       ],

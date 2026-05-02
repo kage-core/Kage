@@ -5,11 +5,11 @@
 ### Repo memory for coding agents
 
 Stop rediscovering how your codebase works. Kage gives every coding agent a
-reviewed repo memory, source-derived code graph, and team-shareable knowledge
+repo-local memory, source-derived code graph, and team-shareable knowledge
 base that lives with your code.
 
 Codex can discover a workflow today. Claude Code can recall it tomorrow. The
-handoff is reviewed JSON in the repo, not a hidden agent silo.
+handoff is JSON in the repo, not a hidden agent silo.
 
 <p>
   <img alt="local first" src="https://img.shields.io/badge/local--first-yes-16a34a?style=for-the-badge">
@@ -17,7 +17,7 @@ handoff is reviewed JSON in the repo, not a hidden agent silo.
   <img alt="agents" src="https://img.shields.io/badge/agents-13-2563eb?style=for-the-badge">
   <img alt="database" src="https://img.shields.io/badge/external%20DB-0-111827?style=for-the-badge">
   <img alt="mcp" src="https://img.shields.io/badge/MCP-ready-7c3aed?style=for-the-badge">
-  <img alt="review" src="https://img.shields.io/badge/memory-human%20reviewed-f97316?style=for-the-badge">
+  <img alt="review" src="https://img.shields.io/badge/org%2Fglobal-human%20reviewed-f97316?style=for-the-badge">
 </p>
 
 <p>
@@ -26,7 +26,7 @@ handoff is reviewed JSON in the repo, not a hidden agent silo.
   <a href="#works-with-your-agent">Agents</a> ·
   <a href="#why-kage">Why Kage</a> ·
   <a href="#kage-vs-alternatives">Comparison</a> ·
-  <a href="#memory-review">Review</a> ·
+  <a href="#repo-memory-and-promotion-review">Trust</a> ·
   <a href="#visualizer">Viewer</a>
 </p>
 
@@ -40,11 +40,11 @@ handoff is reviewed JSON in the repo, not a hidden agent silo.
 
 | Before Kage | After Kage |
 |---|---|
-| Re-reads the same files every session | Recalls approved repo memory and code graph facts |
+| Re-reads the same files every session | Recalls repo memory and code graph facts |
 | Re-discovers test/build/debug commands | Finds runbooks, scripts, and source-backed workflows |
-| Loses useful learnings in chat history | Captures durable learnings as pending memory packets |
-| Mixes raw logs with long-term memory | Separates observations, reviewed memory, and code graph |
-| Agent-specific memory silos | Codex, Claude Code, and other agents read the same reviewed memory |
+| Loses useful learnings in chat history | Captures durable learnings as repo memory packets |
+| Mixes raw logs with long-term memory | Separates observations, repo memory, and code graph |
+| Agent-specific memory silos | Codex, Claude Code, and other agents read the same repo memory |
 
 Kage helps agents know:
 
@@ -56,7 +56,7 @@ Kage helps agents know:
 | policies | calls | review state |
 | references | tests | org/global artifacts |
 
-No hosted service required. No external database. No API key. Approved memory is
+No hosted service required. No external database. No API key. Repo memory is
 plain JSON under `.agent_memory/packets/` and can be shared through git.
 
 > AgentMemory remembers sessions. Kage makes repos and teams remember.
@@ -70,7 +70,7 @@ Current local package:
 | Tests | 59 passing |
 | Agent setup targets | 13 |
 | External DB required | 0 |
-| Memory review gate | human approval |
+| Org/global promotion gate | human approval |
 | Code graph | files, symbols, imports, calls, routes, tests, packages |
 | Retrieval | text + graph + path/type/tag + freshness + quality + feedback |
 | Safety | secret/PII scan before capture |
@@ -159,36 +159,38 @@ After setup, use Codex or Claude Code normally. You should not have to say
 | Start a feature | `Add leaderboard persistence.` | `Add leaderboard persistence.` |
 | Debug | `Fix the failing payment webhook test.` | `Fix the failing payment webhook test.` |
 | Continue someone else's work | `Continue the scoring changes from the last session.` | `Continue the scoring changes from the last session.` |
-| Review memory | `Show me pending Kage memory for review.` | `Show me pending Kage memory for review.` |
+| Inspect memory | `Show me the Kage memory captured for this repo.` | `Show me the Kage memory captured for this repo.` |
 
 What the agent should do automatically:
 
-1. Recall approved repo memory before working.
+1. Recall repo memory before working.
 2. Query the code graph when files, symbols, routes, tests, or dependencies matter.
 3. Use the returned context only when it is relevant and source-backed.
-4. Capture real reusable learnings as pending memory.
-5. Before finishing code changes, create a pending change-memory proposal from the diff.
-6. Tell you what memory was captured and how to review it.
+4. Capture real reusable learnings as repo memory.
+5. Before finishing code changes, create repo-local change memory from the diff.
+6. Tell you what memory was captured and whether it is worth promoting beyond the repo.
 
-What you review:
+What you inspect or promote:
 
 ```bash
-kage review-artifact --project .
-kage review --project .
 kage index --project .
+kage recall "what changed and why" --project .
+kage promote --project . --public <approved-packet-id>
+kage org upload --project . --org acme --packet <approved-packet-id>
 ```
 
-Once approved and committed, the memory lives in `.agent_memory/packets/`.
-Codex, Claude Code, and other MCP agents can recall the same reviewed context.
+Once committed, the memory lives in `.agent_memory/packets/`. Codex, Claude
+Code, and other MCP agents can recall the same context. Org/global sharing still
+requires explicit review.
 
 Typical handoff:
 
 ```text
 Codex builds a feature
-  -> creates pending change memory
-  -> human approves it
+  -> creates repo-local change memory
   -> memory is committed with the repo
   -> Claude Code later recalls what changed, why, and how to test it
+  -> human review is required only if promoting to org/global memory
 ```
 
 ## Works With Your Agent
@@ -231,18 +233,18 @@ Kage changes that loop:
 ```text
 Session 1:
   Agent discovers a workflow, bug fix, convention, or gotcha.
-  Kage stores it as a pending memory packet or pending change memory.
-  A human reviews and approves it.
+  Kage stores it as repo-local memory.
+  Git carries it with the code.
 
 Session 2:
-  Codex, Claude Code, or any MCP client recalls the approved memory and code graph.
+  Codex, Claude Code, or any MCP client recalls the repo memory and code graph.
   It starts with source-backed repo context instead of rediscovering.
 ```
 
 Kage keeps three things separate:
 
 - Code graph: rebuilt from source files and index artifacts.
-- Memory graph: built from reviewed memory packets.
+- Memory graph: built from repo memory packets.
 - Observations: raw local evidence, not durable memory.
 
 That separation is the product. Kage does not turn every session log into a
@@ -256,9 +258,8 @@ flowchart LR
   B --> C["Compact repo context"]
   C --> D["Agent works with source-backed memory"]
   D --> E["Reusable learning found"]
-  E --> F["Pending packet"]
-  F --> G["Human review"]
-  G --> H["Approved packet in git"]
+  E --> F["Repo packet"]
+  F --> H["Packet in git"]
   H --> I["Future agents recall it"]
 
   J["Repo source"] --> K["Code graph"]
@@ -275,8 +276,8 @@ flowchart LR
 | Layer | Stored As | Used For |
 |---|---|---|
 | Code graph | `.agent_memory/code_graph/*.json` | files, symbols, imports, calls, routes, tests |
-| Approved memory | `.agent_memory/packets/*.json` | runbooks, decisions, gotchas, bug fixes, conventions |
-| Pending memory | `.agent_memory/pending/*.json` | review queue before team sharing |
+| Repo memory | `.agent_memory/packets/*.json` | runbooks, decisions, gotchas, bug fixes, conventions |
+| Pending memory | `.agent_memory/pending/*.json` | quarantine/manual review lane for legacy or promotion flows |
 | Observations | `.agent_memory/observations/*.json` | local evidence and distillation input |
 | Org/global artifacts | `.agent_memory/orgs/`, `.agent_memory/global-cdn/` | review-gated sharing beyond one repo |
 
@@ -286,8 +287,8 @@ flowchart LR
 |---|---|---|---|
 | Primary job | repo/team memory | session capture | static notes |
 | Source graph | yes, source-derived code graph | not the core surface | no |
-| Memory approval | human-gated packets | mostly automatic lifecycle | manual editing |
-| Team sharing | git-native approved packets | shared server/runtime | copy files |
+| Memory approval | repo-local automatic, org/global human-gated | mostly automatic lifecycle | manual editing |
+| Team sharing | git-native packets | shared server/runtime | copy files |
 | Agent portability | MCP + REST + setup matrix | MCP + REST + hooks | per-agent |
 | Junk prevention | admission gate + review | lifecycle/decay | manual pruning |
 | Org/global path | local artifacts now, hosted later | memory server/team namespace | no |
@@ -306,7 +307,7 @@ Kage is ready for local-first beta and customer pilots. These are the limits to
 be clear about:
 
 - Token savings are estimated, not production-measured telemetry yet.
-- Viewer review can inspect pending memory; CLI is still the approval path.
+- Viewer can inspect packets, pending/quarantine items, graph facts, and metrics.
 - Ambient behavior depends on each agent respecting repo policy or hooks.
 - Org/global are local artifact modes, not hosted SaaS yet.
 - Marketplace recommendations never auto-install skills, docs, or MCP servers.
@@ -315,8 +316,8 @@ be clear about:
 ## What Ships Today
 
 - Repo-local memory packets in `.agent_memory/packets/*.json`.
-- Pending memory capture in `.agent_memory/pending/*.json`.
-- Human review before memory becomes approved and shareable.
+- Repo-local memory capture in `.agent_memory/packets/*.json`.
+- Human review before memory is promoted to org/global/public scopes.
 - Generated indexes in `.agent_memory/indexes/`.
 - Evidence-backed memory graph in `.agent_memory/graph/`.
 - Source-derived code graph in `.agent_memory/code_graph/`.
@@ -498,8 +499,8 @@ For normal coding tasks, the agent should:
 3. Call `kage_graph` or `kage_code_graph` when source flow matters.
 4. Use returned memory only when relevant and source-backed.
 5. Capture reusable learnings with `kage_learn`.
-6. Call `kage_propose_from_diff` before final response when files changed; this creates a branch summary and pending change-memory packet.
-7. Never approve, publish, or install shared assets automatically.
+6. Call `kage_propose_from_diff` before final response when files changed; this creates a branch summary and repo-local change-memory packet.
+7. Never publish, promote, or install org/global/shared assets automatically.
 
 The user should not have to manually ask for recall or memory capture during
 normal work. The harness tells the agent when to use the tools. Where an agent
@@ -507,31 +508,35 @@ supports hooks or lifecycle events, those hooks can call `kage observe` and
 `kage distill`; where it only supports MCP, the installed policy and MCP tools
 provide ambient recall and capture.
 
-## Memory Review
+## Repo Memory And Promotion Review
 
-Memory is intentionally human-gated.
+Repo memory is intentionally immediate. Promotion beyond the repo is
+intentionally human-gated.
 
 ```text
 agent learns something
   -> kage_learn, kage_capture, kage_propose_from_diff, or kage observe + kage distill
-  -> .agent_memory/pending/*.json
-  -> kage review-artifact
-  -> kage review
   -> .agent_memory/packets/*.json
   -> kage index
   -> recallable by future agents
+
+optional promotion:
+  -> kage org upload / kage promote --public
+  -> org/global review
+  -> org/global recall or static bundle
 ```
 
-`kage review-artifact` writes `.agent_memory/review/memory-review.md` with
-quality notes, duplicate candidates, risks, and estimated token savings. `kage
-review` is the CLI approval gate. Approved packets are committed like normal
-repo files and shared with teammates through git.
+`kage review-artifact` still writes `.agent_memory/review/memory-review.md` for
+legacy pending/quarantine packets and branch summaries. Org uploads and public
+candidates keep explicit review and audit steps. Repo packets are committed like
+normal repo files and shared with teammates through git.
 
 Kage does not turn every observation into memory. Observations are the raw
 session trail; memory packets are the small set of durable repo learnings that a
 future agent should act on.
 
-The admission gate blocks low-value candidates before they enter review:
+The admission gate blocks low-value candidates before they enter repo memory or
+promotion review:
 
 - routine commands already discoverable from manifests
 - file touched/edited/changed events with no reusable conclusion
@@ -568,17 +573,15 @@ visibility, sensitivity, status, confidence, tags, paths, stack, source refs,
 freshness, graph edges, quality fields, and timestamps.
 
 Packet quality includes an admission result: score, class, reasons, risks, and
-an estimated review cost. The review artifact surfaces those fields so a human
-can approve strong memories quickly and reject weak ones without opening every
-JSON file.
+an estimated review cost for any later promotion beyond the repo.
 
 Generated indexes and graphs are disposable. The canonical memory is the packet
 set.
 
-Raw observations are different from approved memory. Observations are local
+Raw observations are different from repo memory. Observations are local
 runtime/session records under `.agent_memory/observations/`, privacy-scanned and
-deduplicated before storage. Distillation converts them into pending packets
-with `source_refs.kind = "observation_session"`. They are never approved or
+deduplicated before storage. Distillation converts useful observations into repo
+packets with `source_refs.kind = "observation_session"`. They are never
 published automatically.
 
 In other words: "session touched 1 path" is telemetry, not memory. It can help
@@ -591,11 +594,11 @@ Kage keeps learned memory and codebase structure separate, then recalls across
 both.
 
 - The code graph is rebuilt from source and external index artifacts.
-- The memory graph is built from approved packets only.
+- The memory graph is built from repo packets only.
 - Observations are local evidence and session replay data.
 
 That separation keeps the graph useful: code flow comes from the repository,
-durable lessons come from reviewed packet memory, and raw events do not pollute
+durable lessons come from packet memory, and raw events do not pollute
 future recall.
 
 The code graph writes:

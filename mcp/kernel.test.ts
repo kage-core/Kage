@@ -6,7 +6,6 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   SETUP_AGENTS,
-  approvePending,
   benchmarkProject,
   buildGlobalCdnBundle,
   buildCodeGraph,
@@ -29,7 +28,6 @@ import {
   kageMetrics,
   learn,
   loadApprovedPackets,
-  loadPendingPackets,
   observe,
   layeredRecall,
   orgRecall,
@@ -127,6 +125,10 @@ test("builds generated indexes after indexing", () => {
   indexProject(project);
   assert.equal(readFileSync(join(project, ".agent_memory", "indexes", "catalog.json"), "utf8"), firstCatalog);
   assert.equal("generated_at" in catalog, false);
+  writeFileSync(join(project, "README.md"), "# Demo\n\nNew setup flow lives here.\n", "utf8");
+  indexProject(project);
+  const overview = loadApprovedPackets(project).find((packet) => packet.title.includes("repo overview"));
+  assert.match(overview?.body ?? "", /New setup flow/);
   assert.match(readFileSync(join(project, "AGENTS.md"), "utf8"), /KAGE_MEMORY_POLICY_V1/);
 });
 
@@ -551,9 +553,6 @@ test("graph command extraction ignores prose and file references", () => {
     paths: ["scripts/stop.sh"],
   });
   assert.equal(result.ok, true);
-  const packet = JSON.parse(readFileSync(result.path!, "utf8"));
-  packet.status = "approved";
-  writeFileSync(result.path!.replace("/pending/", "/packets/"), `${JSON.stringify(packet, null, 2)}\n`, "utf8");
 
   const graph = buildKnowledgeGraph(project);
   const commandNames = graph.entities.filter((entity) => entity.type === "command").map((entity) => entity.name);
@@ -570,16 +569,13 @@ test("graph skips missing path edges even when packets warn about them", () => {
     paths: ["backend"],
   });
   assert.equal(result.ok, true);
-  const packet = JSON.parse(readFileSync(result.path!, "utf8"));
-  packet.status = "approved";
-  writeFileSync(result.path!.replace("/pending/", "/packets/"), `${JSON.stringify(packet, null, 2)}\n`, "utf8");
 
   const graph = buildKnowledgeGraph(project);
   assert.equal(graph.edges.some((edge) => edge.relation === "affects_path" && edge.fact.includes("backend")), false);
   assert.equal(validateProject(project).warnings.some((warning) => warning.includes("none of the referenced paths exist")), true);
 });
 
-test("capture blocks sensitive content before writing pending packet", () => {
+test("capture blocks sensitive content before writing repo memory", () => {
   const project = tempProject();
   const result = capture({
     projectDir: project,
@@ -591,7 +587,7 @@ test("capture blocks sensitive content before writing pending packet", () => {
   assert.match(result.errors.join("\n"), /Sensitive content blocked/);
 });
 
-test("capture writes valid pending packet for safe memory", () => {
+test("capture writes valid repo-local packet for safe memory", () => {
   const project = tempProject();
   const result = capture({
     projectDir: project,
@@ -603,6 +599,8 @@ test("capture writes valid pending packet for safe memory", () => {
   });
   assert.equal(result.ok, true);
   assert.ok(result.path);
+  assert.equal(result.packet?.status, "approved");
+  assert.match(result.path!, /\/packets\//);
   assert.match(readFileSync(result.path!, "utf8"), /Use webhook replay tests/);
 });
 
@@ -679,10 +677,8 @@ test("project validation warns when approved packet paths are ungrounded", () =>
     paths: ["missing/subsystem"],
   });
   assert.equal(result.ok, true);
-  const approvedPath = result.path!.replace("/pending/", "/packets/");
   const packet = JSON.parse(readFileSync(result.path!, "utf8"));
-  packet.status = "approved";
-  writeFileSync(approvedPath, `${JSON.stringify(packet, null, 2)}\n`, "utf8");
+  writeFileSync(result.path!, `${JSON.stringify(packet, null, 2)}\n`, "utf8");
 
   const validation = validateProject(project);
   assert.equal(validation.ok, true);
@@ -699,10 +695,9 @@ test("project validation ignores retired packet quality warnings", () => {
     paths: ["missing/subsystem"],
   });
   assert.equal(result.ok, true);
-  const approvedPath = result.path!.replace("/pending/", "/packets/");
   const packet = JSON.parse(readFileSync(result.path!, "utf8"));
   packet.status = "deprecated";
-  writeFileSync(approvedPath, `${JSON.stringify(packet, null, 2)}\n`, "utf8");
+  writeFileSync(result.path!, `${JSON.stringify(packet, null, 2)}\n`, "utf8");
   renameSync(result.path!, `${result.path!}.retired`);
 
   const validation = validateProject(project);
@@ -848,7 +843,7 @@ test("builds branch overlay metadata", () => {
   assert.equal(Array.isArray(overlay.pending_packet_ids), true);
 });
 
-test("creates review artifact for pending packets", () => {
+test("creates review artifact for legacy pending packets and branch summaries", () => {
   const project = tempProject();
   execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
   writeFileSync(join(project, "README.md"), "changed\n", "utf8");
@@ -856,20 +851,21 @@ test("creates review artifact for pending packets", () => {
   const result = capture({
     projectDir: project,
     title: "Review me",
-    body: "Pending memory needs human review.",
+    body: "Legacy pending memory needs human review.",
     type: "reference",
   });
   assert.equal(result.ok, true);
+  const pendingPacket = { ...result.packet!, id: `${result.packet!.id}-pending`, status: "pending" };
+  writeFileSync(join(project, ".agent_memory", "pending", "review-me.json"), `${JSON.stringify(pendingPacket, null, 2)}\n`, "utf8");
   const artifact = createReviewArtifact(project);
-  assert.equal(artifact.pending, 2);
+  assert.equal(artifact.pending, 1);
   assert.match(readFileSync(artifact.path, "utf8"), /Review me/);
-  assert.match(readFileSync(artifact.path, "utf8"), /Change memory:/);
   assert.match(readFileSync(artifact.path, "utf8"), /Quality score/);
   assert.match(readFileSync(artifact.path, "utf8"), /Estimated tokens saved/);
   assert.match(readFileSync(artifact.path, "utf8"), /Branch Summary/);
 });
 
-test("diff proposal creates a branch review summary and pending change memory", () => {
+test("diff proposal creates a branch review summary and repo-local change memory", () => {
   const project = tempProject();
   execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
   mkdirSync(join(project, "src"), { recursive: true });
@@ -881,13 +877,13 @@ test("diff proposal creates a branch review summary and pending change memory", 
   assert.ok(result.packet);
   assert.ok(result.packetPath);
   assert.equal(result.packet.type, "workflow");
-  assert.equal(result.packet.status, "pending");
+  assert.equal(result.packet.status, "approved");
   assert.equal(result.packet.tags.includes("change-memory"), true);
+  assert.match(result.packetPath, /\/packets\//);
   assert.ok(result.summary);
-  assert.equal(result.summary.review_required, true);
+  assert.equal(result.summary.repo_memory_written, true);
+  assert.equal(result.summary.promotion_review_required, true);
   assert.equal(result.changedFiles.includes("src/runner.ts"), true);
   assert.match(readFileSync(result.path!, "utf8"), /git_diff/);
-  assert.equal(loadPendingPackets(project).some((packet) => packet.id === result.packet!.id), true);
-  approvePending(project, result.packet.id);
   assert.equal(recall(project, "what changed runner npm test").results.some((item) => item.packet.id === result.packet!.id), true);
 });

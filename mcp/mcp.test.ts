@@ -64,7 +64,7 @@ test("MCP kage_recall can explain hybrid score breakdowns", async () => {
   assert.equal(typeof payload.results[0].score_breakdown.final, "number");
 });
 
-test("MCP kage_capture creates pending memory and blocks sensitive input", async () => {
+test("MCP kage_capture creates repo-local memory and blocks sensitive input", async () => {
   const project = tempProject();
   const safe = await callTool("kage_capture", {
     project_dir: project,
@@ -73,7 +73,7 @@ test("MCP kage_capture creates pending memory and blocks sensitive input", async
     type: "runbook",
   });
   assert.equal(safe.isError, false);
-  assert.match(textContent(safe), /Captured pending packet/);
+  assert.match(textContent(safe), /Captured repo-local packet/);
 
   const blocked = await callTool("kage_capture", {
     project_dir: project,

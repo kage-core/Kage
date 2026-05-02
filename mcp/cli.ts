@@ -471,7 +471,7 @@ async function main(): Promise<void> {
       process.exit(2);
     }
     console.log(`Captured session learning: ${result.path}`);
-    console.log(`Review with: kage review --project ${projectArg(args)}`);
+    console.log("Repo-local memory is written immediately. Promotion to org/global still requires explicit review.");
     return;
   }
 
@@ -483,10 +483,9 @@ async function main(): Promise<void> {
       process.exit(2);
     }
     console.log(`Wrote branch review summary: ${result.path}`);
-    if (result.packetPath) console.log(`Captured pending change memory: ${result.packetPath}`);
+    if (result.packetPath) console.log(`Captured repo-local change memory: ${result.packetPath}`);
     console.log(`Changed files: ${result.changedFiles.join(", ")}`);
-    console.log(`Review memory: kage review --project ${projectArg(args)}`);
-    console.log(`Review artifact: kage review-artifact --project ${projectArg(args)}`);
+    console.log("Use org/global promotion commands when this memory should leave the repo.");
     return;
   }
 
@@ -715,8 +714,8 @@ async function main(): Promise<void> {
       console.error(`Capture blocked:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);
       process.exit(2);
     }
-    console.log(`Captured pending packet: ${result.path}`);
-    console.log(`Review with: kage review --project ${input.projectDir}`);
+    console.log(`Captured repo-local packet: ${result.path}`);
+    console.log("Repo-local memory is written immediately. Promotion to org/global still requires explicit review.");
     return;
   }
 

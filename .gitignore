@@ -1,6 +1,11 @@
 # Kage — gitignore
 .DS_Store
-.agent_memory/
+.agent_memory/*
+!.agent_memory/
+!.agent_memory/packets/
+!.agent_memory/packets/*.json
+.agent_memory/packets/repo_map-repo-overview-*.json
+.agent_memory/packets/repo_map-repo-structure-*.json
 .claude/
 .agents/
 .cursorrules
