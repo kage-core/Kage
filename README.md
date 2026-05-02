@@ -1,19 +1,55 @@
+<div align="center">
+
 # Kage
 
-Repo memory for coding agents. Stop rediscovering how your codebase works.
+### Repo memory for coding agents
 
-Kage gives Codex, Claude Code, Cursor, Windsurf, Gemini CLI, OpenCode, Cline,
-Goose, Roo Code, Kilo Code, Claude Desktop, Aider, and any MCP client a
-reviewed memory and source-derived code graph that lives with your repo.
+Stop rediscovering how your codebase works. Kage gives every coding agent a
+reviewed repo memory, source-derived code graph, and team-shareable knowledge
+base that lives with your code.
 
-Your agent should know:
+<p>
+  <img alt="local first" src="https://img.shields.io/badge/local--first-yes-16a34a?style=for-the-badge">
+  <img alt="tests" src="https://img.shields.io/badge/tests-59%20passing-16a34a?style=for-the-badge">
+  <img alt="agents" src="https://img.shields.io/badge/agents-13-2563eb?style=for-the-badge">
+  <img alt="database" src="https://img.shields.io/badge/external%20DB-0-111827?style=for-the-badge">
+  <img alt="mcp" src="https://img.shields.io/badge/MCP-ready-7c3aed?style=for-the-badge">
+  <img alt="review" src="https://img.shields.io/badge/memory-human%20reviewed-f97316?style=for-the-badge">
+</p>
 
-- how to run, test, build, and debug the repo
-- where source flows, routes, tests, and symbols live
-- which bugs were already fixed
-- which decisions and conventions matter
-- which gotchas previous agents already hit
-- what memory is approved, pending review, stale, or unsafe
+<p>
+  <a href="#try-it-in-60-seconds">Quick Start</a> ·
+  <a href="#proof-points">Proof</a> ·
+  <a href="#works-with-your-agent">Agents</a> ·
+  <a href="#why-kage">Why Kage</a> ·
+  <a href="#kage-vs-alternatives">Comparison</a> ·
+  <a href="#memory-review">Review</a> ·
+  <a href="#visualizer">Viewer</a>
+</p>
+
+</div>
+
+---
+
+## What Your Agent Gets
+
+| Before Kage | After Kage |
+|---|---|
+| Re-reads the same files every session | Recalls approved repo memory and code graph facts |
+| Re-discovers test/build/debug commands | Finds runbooks, scripts, and source-backed workflows |
+| Loses useful learnings in chat history | Captures durable learnings as pending memory packets |
+| Mixes raw logs with long-term memory | Separates observations, reviewed memory, and code graph |
+| Agent-specific memory silos | Shared MCP/REST memory across agents |
+
+Kage helps agents know:
+
+| Repo Knowledge | Source Grounding | Team Memory |
+|---|---|---|
+| runbooks | files | decisions |
+| bug fixes | symbols | conventions |
+| gotchas | imports | workflows |
+| policies | calls | review state |
+| references | tests | org/global artifacts |
 
 No hosted service required. No external database. No API key. Approved memory is
 plain JSON under `.agent_memory/packets/` and can be shared through git.
@@ -139,6 +175,38 @@ Kage keeps three things separate:
 
 That separation is the product. Kage does not turn every session log into a
 junk graph.
+
+## How It Works
+
+```mermaid
+flowchart LR
+  A["Agent session"] --> B["kage_recall / kage_code_graph"]
+  B --> C["Compact repo context"]
+  C --> D["Agent works with source-backed memory"]
+  D --> E["Reusable learning found"]
+  E --> F["Pending packet"]
+  F --> G["Human review"]
+  G --> H["Approved packet in git"]
+  H --> I["Future agents recall it"]
+
+  J["Repo source"] --> K["Code graph"]
+  K --> B
+
+  L["Session observations"] --> M["Admission gate"]
+  M --> F
+  M --> N["Telemetry only"]
+
+  H --> O["Memory graph"]
+  O --> B
+```
+
+| Layer | Stored As | Used For |
+|---|---|---|
+| Code graph | `.agent_memory/code_graph/*.json` | files, symbols, imports, calls, routes, tests |
+| Approved memory | `.agent_memory/packets/*.json` | runbooks, decisions, gotchas, bug fixes, conventions |
+| Pending memory | `.agent_memory/pending/*.json` | review queue before team sharing |
+| Observations | `.agent_memory/observations/*.json` | local evidence and distillation input |
+| Org/global artifacts | `.agent_memory/orgs/`, `.agent_memory/global-cdn/` | review-gated sharing beyond one repo |
 
 ## Kage Vs Alternatives
 
