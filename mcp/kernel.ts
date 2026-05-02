@@ -1369,6 +1369,36 @@ function gitMergeBase(projectDir: string): string | null {
     || readGit(projectDir, ["merge-base", "HEAD", "origin/master"]);
 }
 
+// Directories that are never meaningful in change-memory packets.
+// These are typically generated, vendored, or ephemeral — any project can
+// accumulate thousands of files here that bury real signal.
+const NOISE_PATH_PREFIXES = [
+  ".agent_memory/",
+  "node_modules/",
+  "vendor/",
+  ".venv/",
+  "venv/",
+  "__pycache__/",
+  ".mypy_cache/",
+  ".pytest_cache/",
+  ".tox/",
+  "dist/",
+  "build/",
+  ".next/",
+  ".nuxt/",
+  ".output/",
+  "target/",       // Rust / Java
+  ".gradle/",
+  ".dart_tool/",
+  "Pods/",         // iOS CocoaPods
+  ".pub-cache/",
+  "elm-stuff/",
+];
+
+function isNoisePath(filePath: string): boolean {
+  return NOISE_PATH_PREFIXES.some((prefix) => filePath.startsWith(prefix));
+}
+
 function parsePorcelainStatus(status: string): string[] {
   return unique(
     status
@@ -1379,7 +1409,7 @@ function parsePorcelainStatus(status: string): string[] {
       })
       .map((path) => path.replace(/^.* -> /, ""))
       .filter(Boolean)
-      .filter((path) => !path.startsWith(".agent_memory/"))
+      .filter((path) => !isNoisePath(path))
   ).sort();
 }
 
@@ -4353,7 +4383,9 @@ function createDiffChangeMemory(projectDir: string, summary: BranchReviewSummary
 
 export function proposeFromDiff(projectDir: string): DiffProposalResult {
   ensureMemoryDirs(projectDir);
-  const status = readGit(projectDir, ["status", "--porcelain", "-uall"]);
+  // Use --porcelain without -uall so git respects .gitignore for untracked files
+  // and doesn't flood the packet with node_modules / vendor paths.
+  const status = readGit(projectDir, ["status", "--porcelain"]);
   if (status === null) return { ok: false, changedFiles: [], errors: ["Not a git repository or git is unavailable."] };
   const changedFiles = parsePorcelainStatus(status);
   if (changedFiles.length === 0) return { ok: false, changedFiles: [], errors: ["No changed files found."] };
@@ -4400,7 +4432,7 @@ export function proposeFromDiff(projectDir: string): DiffProposalResult {
 
 export function buildBranchOverlay(projectDir: string): BranchOverlay {
   ensureMemoryDirs(projectDir);
-  const status = readGit(projectDir, ["status", "--porcelain", "-uall"]) ?? "";
+  const status = readGit(projectDir, ["status", "--porcelain"]) ?? "";
   const overlay: BranchOverlay = {
     schema_version: 1,
     project_dir: projectDir,
@@ -4903,8 +4935,17 @@ export function validateProject(projectDir: string): ValidationResult {
   return { ok: errors.length === 0, errors, warnings };
 }
 
-// All kage MCP tools — pre-approved so CLI sessions don't hit permission prompts.
+// All kage MCP tools + Claude Code built-in tools — pre-approved so CLI
+// sessions never hit permission prompts for either file edits or kage calls.
 const KAGE_ALLOWED_TOOLS = [
+  // Claude Code built-in tools
+  "Edit",
+  "Write",
+  "Read",
+  "Bash",
+  "Glob",
+  "LS",
+  // Kage MCP tools
   "mcp__kage__kage_validate",
   "mcp__kage__kage_recall",
   "mcp__kage__kage_learn",
