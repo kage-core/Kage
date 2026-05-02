@@ -1,17 +1,176 @@
 # Kage
 
-Kage is a local-first memory harness for coding agents. It gives Codex, Claude
-Code, and other MCP-compatible agents a repo memory that survives across
-sessions and can be shared with a team through git.
+Repo memory for coding agents. Stop rediscovering how your codebase works.
 
-Kage stores useful repo knowledge as reviewed JSON packets, builds a memory
-graph and source code graph, and exposes recall/query/capture tools through a
-TypeScript CLI and MCP server. The goal is simple: an agent should not rediscover
-how a repo works every time a new session starts.
+Kage gives Codex, Claude Code, Cursor, Windsurf, Gemini CLI, OpenCode, Cline,
+Goose, Roo Code, Kilo Code, Claude Desktop, Aider, and any MCP client a
+reviewed memory and source-derived code graph that lives with your repo.
 
-No external API key. No hosted service required. A local daemon is optional for
-live observation capture, REST access, and session replay workflows; Kage still
-works as a plain CLI and stdio MCP server without it.
+Your agent should know:
+
+- how to run, test, build, and debug the repo
+- where source flows, routes, tests, and symbols live
+- which bugs were already fixed
+- which decisions and conventions matter
+- which gotchas previous agents already hit
+- what memory is approved, pending review, stale, or unsafe
+
+No hosted service required. No external database. No API key. Approved memory is
+plain JSON under `.agent_memory/packets/` and can be shared through git.
+
+> AgentMemory remembers sessions. Kage makes repos and teams remember.
+
+## Proof Points
+
+Current local package:
+
+| Proof | Current |
+|---|---:|
+| Tests | 59 passing |
+| Agent setup targets | 13 |
+| External DB required | 0 |
+| Memory review gate | human approval |
+| Code graph | files, symbols, imports, calls, routes, tests, packages |
+| Retrieval | text + graph + path/type/tag + freshness + quality + feedback |
+| Safety | secret/PII scan before capture |
+| Sharing | git-native packets, org artifacts, public bundle artifacts |
+
+Recent sandbox demo after building a browser game:
+
+| Metric | Before Kage index | After Kage index |
+|---|---:|---:|
+| Symbols | 1 | 67 |
+| Calls | 0 | 49 |
+| Tests indexed | 0 | 6 |
+| Estimated tokens saved per recall | 0 | 2,969 |
+| Evidence coverage | 100% | 100% |
+
+Token savings are currently estimated from indexed source and compact recall
+context. Production telemetry benchmarks are a launch-track item, not something
+we overclaim.
+
+## Try It In 60 Seconds
+
+For Codex, run this inside the repo you want Kage to remember:
+
+```text
+Set up Kage in this repo. Run the official installer:
+curl -fsSL https://raw.githubusercontent.com/kage-core/Kage/master/codex-setup.sh | bash
+```
+
+Then restart Codex so the MCP server is loaded.
+
+Ask a normal repo question:
+
+```text
+How do I run tests in this repo?
+```
+
+Or run directly:
+
+```bash
+kage recall "how do I run tests" --project /path/to/repo
+kage code-graph "routes tests auth" --project /path/to/repo
+kage metrics --project /path/to/repo
+kage viewer --project /path/to/repo
+```
+
+The installer:
+
+1. Clones or updates Kage under `~/.kage/Kage`.
+2. Installs and builds the TypeScript MCP package.
+3. Adds the local stdio MCP server to `~/.codex/config.toml`.
+4. Runs `kage init --project <current-repo>`.
+5. Installs or updates `AGENTS.md` so Codex uses Kage automatically.
+
+## Works With Your Agent
+
+Kage supports agent setup snippets for:
+
+| Agent | Integration |
+|---|---|
+| Codex | MCP + repo policy installer |
+| Claude Code | MCP + hook-ready observe/distill commands |
+| Cursor | MCP |
+| Windsurf | MCP |
+| Gemini CLI | MCP |
+| OpenCode | MCP |
+| Cline | MCP |
+| Goose | MCP |
+| Roo Code | MCP |
+| Kilo Code | MCP |
+| Claude Desktop | MCP |
+| Aider | REST via optional daemon |
+| Generic MCP client | stdio MCP |
+
+Generate config:
+
+```bash
+kage setup list
+kage setup codex --project /path/to/repo --write
+kage setup claude-code --project /path/to/repo
+kage setup generic-mcp --project /path/to/repo
+kage setup doctor --project /path/to/repo
+```
+
+## Why Kage
+
+Every new agent session starts half-blind. It rereads files, rediscovers
+commands, repeats old mistakes, and loses useful learnings into chat history.
+
+Kage changes that loop:
+
+```text
+Session 1:
+  Agent discovers a workflow, bug fix, convention, or gotcha.
+  Kage stores it as a pending memory packet.
+  A human reviews and approves it.
+
+Session 2:
+  Any agent recalls the approved memory and code graph.
+  It starts with source-backed repo context instead of rediscovering.
+```
+
+Kage keeps three things separate:
+
+- Code graph: rebuilt from source files and index artifacts.
+- Memory graph: built from reviewed memory packets.
+- Observations: raw local evidence, not durable memory.
+
+That separation is the product. Kage does not turn every session log into a
+junk graph.
+
+## Kage Vs Alternatives
+
+| Capability | Kage | AgentMemory-style session memory | Built-in files like `CLAUDE.md` |
+|---|---|---|---|
+| Primary job | repo/team memory | session capture | static notes |
+| Source graph | yes, source-derived code graph | not the core surface | no |
+| Memory approval | human-gated packets | mostly automatic lifecycle | manual editing |
+| Team sharing | git-native approved packets | shared server/runtime | copy files |
+| Agent portability | MCP + REST + setup matrix | MCP + REST + hooks | per-agent |
+| Junk prevention | admission gate + review | lifecycle/decay | manual pruning |
+| Org/global path | local artifacts now, hosted later | memory server/team namespace | no |
+| Best use | trusted repo knowledge | remembering what happened | small instructions |
+
+The sharp distinction:
+
+```text
+Session memory answers: what happened?
+Kage repo memory answers: what should future agents know before acting?
+```
+
+## Known Beta Limits
+
+Kage is ready for local-first beta and customer pilots. These are the limits to
+be clear about:
+
+- Token savings are estimated, not production-measured telemetry yet.
+- Viewer review can inspect pending memory; CLI is still the approval path.
+- Ambient behavior depends on each agent respecting repo policy or hooks.
+- Org/global are local artifact modes, not hosted SaaS yet.
+- Marketplace recommendations never auto-install skills, docs, or MCP servers.
+- Public bundle generation does not publish to a real CDN.
 
 ## What Ships Today
 
@@ -23,15 +182,10 @@ works as a plain CLI and stdio MCP server without it.
 - Source-derived code graph in `.agent_memory/code_graph/`.
 - Multi-language code indexing with built-in static extractors.
 - Optional ingestion of Tree-sitter, SCIP, LSIF, and LSP artifacts.
-- Codex MCP tools for recall, graph query, metrics, learning, validation, and
-  branch review summaries.
-- All-agent setup snippets for Codex, Claude Code, Cursor, Windsurf, Gemini
-  CLI, OpenCode, Cline, Goose, Roo Code, Kilo Code, Claude Desktop, Aider, and
-  generic MCP clients.
+- MCP tools for recall, graph query, metrics, learning, validation, and branch
+  review summaries.
 - Optional local daemon with REST endpoints for observe, recall, distill,
   metrics, quality, and benchmark.
-- Automatic observation capture primitives with privacy scanning, dedupe, and
-  distillation into pending memory candidates.
 - Memory admission scoring so routine session events do not become durable
   memory.
 - Hybrid recall explanations across text, graph, path/type/tag, freshness,
@@ -39,10 +193,8 @@ works as a plain CLI and stdio MCP server without it.
 - Agent policy installation through `AGENTS.md` so Kage is used automatically.
 - Local terminal-style graph viewer for demos and memory inspection.
 - Local org-memory inbox, review, audit, registry export, and org recall.
-- Static global/CDN bundle generation for human-promoted public candidates,
-  with immutable registry artifacts, latest alias, and revocation manifest.
-- Marketplace manifest and install plan for docs, skills, and MCP packs, without
-  automatic publishing or installation.
+- Static global/CDN bundle generation for human-promoted public candidates.
+- Marketplace manifest and install plan for docs, skills, and MCP packs.
 
 ## Product Model
 
@@ -58,24 +210,7 @@ The local layer is the default. Org/global commands write deterministic local
 artifacts first. A memory server or hosted CDN is only needed when sharing scope
 exceeds git/filesystem distribution.
 
-## Install For Codex
-
-From the repo you want Kage to remember, ask Codex to run:
-
-```text
-Set up Kage in this repo. Run the official installer:
-curl -fsSL https://raw.githubusercontent.com/kage-core/Kage/master/codex-setup.sh | bash
-```
-
-The installer:
-
-1. Clones or updates Kage under `~/.kage/Kage`.
-2. Installs and builds the TypeScript MCP package.
-3. Adds the local stdio MCP server to `~/.codex/config.toml`.
-4. Runs `kage init --project <current-repo>`.
-5. Installs or updates `AGENTS.md` so Codex uses Kage automatically.
-
-Restart Codex after setup so the MCP server is loaded.
+## Install From Source
 
 Local development install:
 
