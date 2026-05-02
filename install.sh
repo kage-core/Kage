@@ -240,7 +240,8 @@ When lifecycle hooks are available, use `kage observe` for session/tool/file/tes
 
 Before finishing a task that changed files, call `kage_propose_from_diff`.
 
-This writes a branch review summary only. It does not create recallable memory.
+This writes a branch review summary and a pending change-memory packet. Human
+review is required before it becomes shared repo memory.
 
 ## Safety
 

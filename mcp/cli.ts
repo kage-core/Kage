@@ -483,7 +483,9 @@ async function main(): Promise<void> {
       process.exit(2);
     }
     console.log(`Wrote branch review summary: ${result.path}`);
+    if (result.packetPath) console.log(`Captured pending change memory: ${result.packetPath}`);
     console.log(`Changed files: ${result.changedFiles.join(", ")}`);
+    console.log(`Review memory: kage review --project ${projectArg(args)}`);
     console.log(`Review artifact: kage review-artifact --project ${projectArg(args)}`);
     return;
   }

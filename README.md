@@ -8,6 +8,9 @@ Stop rediscovering how your codebase works. Kage gives every coding agent a
 reviewed repo memory, source-derived code graph, and team-shareable knowledge
 base that lives with your code.
 
+Codex can discover a workflow today. Claude Code can recall it tomorrow. The
+handoff is reviewed JSON in the repo, not a hidden agent silo.
+
 <p>
   <img alt="local first" src="https://img.shields.io/badge/local--first-yes-16a34a?style=for-the-badge">
   <img alt="tests" src="https://img.shields.io/badge/tests-59%20passing-16a34a?style=for-the-badge">
@@ -41,7 +44,7 @@ base that lives with your code.
 | Re-discovers test/build/debug commands | Finds runbooks, scripts, and source-backed workflows |
 | Loses useful learnings in chat history | Captures durable learnings as pending memory packets |
 | Mixes raw logs with long-term memory | Separates observations, reviewed memory, and code graph |
-| Agent-specific memory silos | Shared MCP/REST memory across agents |
+| Agent-specific memory silos | Codex, Claude Code, and other agents read the same reviewed memory |
 
 Kage helps agents know:
 
@@ -98,6 +101,15 @@ curl -fsSL https://raw.githubusercontent.com/kage-core/Kage/master/codex-setup.s
 
 Then restart Codex so the MCP server is loaded.
 
+For Claude Code:
+
+```bash
+kage setup claude-code --project /path/to/repo --write
+kage init --project /path/to/repo
+```
+
+Then restart Claude Code.
+
 Ask a normal repo question:
 
 ```text
@@ -146,7 +158,7 @@ Generate config:
 ```bash
 kage setup list
 kage setup codex --project /path/to/repo --write
-kage setup claude-code --project /path/to/repo
+kage setup claude-code --project /path/to/repo --write
 kage setup generic-mcp --project /path/to/repo
 kage setup doctor --project /path/to/repo
 ```
@@ -161,11 +173,11 @@ Kage changes that loop:
 ```text
 Session 1:
   Agent discovers a workflow, bug fix, convention, or gotcha.
-  Kage stores it as a pending memory packet.
+  Kage stores it as a pending memory packet or pending change memory.
   A human reviews and approves it.
 
 Session 2:
-  Any agent recalls the approved memory and code graph.
+  Codex, Claude Code, or any MCP client recalls the approved memory and code graph.
   It starts with source-backed repo context instead of rediscovering.
 ```
 
@@ -428,7 +440,7 @@ For normal coding tasks, the agent should:
 3. Call `kage_graph` or `kage_code_graph` when source flow matters.
 4. Use returned memory only when relevant and source-backed.
 5. Capture reusable learnings with `kage_learn`.
-6. Call `kage_propose_from_diff` before final response when files changed.
+6. Call `kage_propose_from_diff` before final response when files changed; this creates a branch summary and pending change-memory packet.
 7. Never approve, publish, or install shared assets automatically.
 
 The user should not have to manually ask for recall or memory capture during
@@ -443,7 +455,7 @@ Memory is intentionally human-gated.
 
 ```text
 agent learns something
-  -> kage_learn, kage_capture, or kage observe + kage distill
+  -> kage_learn, kage_capture, kage_propose_from_diff, or kage observe + kage distill
   -> .agent_memory/pending/*.json
   -> kage review-artifact
   -> kage review

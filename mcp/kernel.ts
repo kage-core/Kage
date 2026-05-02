@@ -364,6 +364,7 @@ export interface DiffProposalResult {
   ok: boolean;
   packet?: MemoryPacket;
   path?: string;
+  packetPath?: string;
   summary?: BranchReviewSummary;
   changedFiles: string[];
   errors: string[];
@@ -690,7 +691,9 @@ Keep captures concise and future-facing. Do not store raw transcripts.
 
 Before finishing a task that changed files, call \`kage_propose_from_diff\`.
 
-This writes a branch review summary only. It does not create recallable memory.
+This writes a branch review summary and a pending change-memory packet. The packet
+must be human-reviewed before it becomes shared repo memory, but it should capture
+what changed, why it matters, how to verify it, and what future agents should know.
 
 ## Feedback
 
@@ -716,7 +719,7 @@ For normal coding tasks:
 4. \`kage_graph\` for remembered decisions, bugs, workflows, and conventions
 5. Work on the task
 6. \`kage_learn\` for concrete learnings
-7. \`kage_propose_from_diff\` before the final response to update branch review
+7. \`kage_propose_from_diff\` before the final response to create pending change memory
 
 For quick factual questions, \`kage_recall\` alone is enough. For status or demo requests, call \`kage_metrics\`.
 ${AGENTS_POLICY_END}
@@ -1440,6 +1443,17 @@ function createRepoOverviewPacket(projectDir: string): MemoryPacket | null {
     created_at: createdAt,
     updated_at: createdAt,
   };
+}
+
+function inferStack(projectDir: string): string[] {
+  const packagePath = join(projectDir, "package.json");
+  if (!existsSync(packagePath)) return [];
+  const pkg = readJson<Record<string, unknown>>(packagePath);
+  const deps = {
+    ...(pkg.dependencies as Record<string, string> | undefined),
+    ...(pkg.devDependencies as Record<string, string> | undefined),
+  };
+  return Object.keys(deps).sort().slice(0, 20).map((dep) => `${dep}@${deps[dep]}`);
 }
 
 function createRepoStructurePacket(projectDir: string): MemoryPacket | null {
@@ -3701,10 +3715,14 @@ export function setupAgent(agent: SetupAgent, projectDir: string, options: { wri
   if (agent === "claude-code") {
     const path = join(home, ".claude", "settings.json");
     setSnippet(path, JSON.stringify({ mcpServers: { kage: { command: serverCommand, args: serverArgs } } }, null, 2), [
-      "Add the MCP server to Claude Code settings if your version supports MCP.",
-      "For automatic capture, install hooks that call `kage observe` and `kage distill`.",
-      "Use `kage init --project <repo>` to install AGENTS.md policy.",
-    ]);
+      "Add the MCP server to ~/.claude/settings.json, then restart Claude Code.",
+      "Run `kage init --project <repo>` inside each repo to install the ambient memory policy.",
+      "Claude Code should recall at session start and propose pending change memory before final responses.",
+    ], true);
+    if (options.write) {
+      upsertJsonMcpServer(path, "kage", { command: serverCommand, args: serverArgs });
+      result.wrote = true;
+    }
     return result;
   }
 
@@ -3738,6 +3756,20 @@ export function setupAgent(agent: SetupAgent, projectDir: string, options: { wri
   };
   setSnippet(paths[agent] || null, universal, [`Merge this MCP stdio config into ${agent}'s MCP settings.`, "Restart the agent after updating config."]);
   return result;
+}
+
+function upsertJsonMcpServer(path: string, name: string, server: { command: string; args: string[] }): void {
+  ensureDir(dirname(path));
+  let config: Record<string, unknown> = {};
+  if (existsSync(path)) {
+    const parsed = readJson<unknown>(path);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) config = parsed as Record<string, unknown>;
+  }
+  const currentServers = config.mcpServers && typeof config.mcpServers === "object" && !Array.isArray(config.mcpServers)
+    ? config.mcpServers as Record<string, unknown>
+    : {};
+  config.mcpServers = { ...currentServers, [name]: server };
+  writeJson(path, config);
 }
 
 function upsertTomlMcpBlock(text: string, block: string): string {
@@ -4019,6 +4051,94 @@ export function distillSession(projectDir: string, sessionId: string): DistillRe
   return { ok: errors.length === 0, session_id: sessionId, observations: observations.length, candidates, errors };
 }
 
+function createDiffChangeMemory(projectDir: string, summary: BranchReviewSummary): { packet: MemoryPacket; path: string } {
+  const branch = summary.branch ?? "detached";
+  const head = summary.head ?? "unknown";
+  const fingerprint = createHash("sha256")
+    .update(`${branch}\n${head}\n${summary.changed_files.join("\n")}\n${summary.diff_stat}`)
+    .digest("hex")
+    .slice(0, 10);
+  const title = `Change memory: ${branch}`;
+  const verifyCommands = npmScriptCommands(projectDir)
+    .filter((command) => /(test|check|lint|build|type|verify)/i.test(command))
+    .slice(0, 8);
+  const changedList = summary.changed_files.slice(0, 40).map((file) => `- ${file}`).join("\n");
+  const verifyList = verifyCommands.length
+    ? verifyCommands.map((command) => `- ${command}`).join("\n")
+    : "- Add the exact test, build, or manual verification command before approval.";
+  const body = [
+    "Pending change memory generated from the current git diff.",
+    "",
+    "Review goal: turn this into the durable context another agent should receive when it works in this repo later.",
+    "",
+    "What changed:",
+    changedList,
+    "",
+    "Diff summary:",
+    "```text",
+    summary.diff_stat.trim(),
+    "```",
+    "",
+    "How to verify:",
+    verifyList,
+    "",
+    "Before approving, edit this packet with:",
+    "- The actual feature, fix, or refactor rationale.",
+    "- The package, API, command, or architectural pattern future agents should reuse.",
+    "- Any gotchas, follow-up risks, or branch-specific assumptions.",
+    "",
+    "Approve only if this would help another agent avoid rediscovering the same repo context.",
+  ].join("\n");
+  const now = nowIso();
+  const packet: MemoryPacket = {
+    schema_version: PACKET_SCHEMA_VERSION,
+    id: makePacketId(projectDir, "workflow", title, fingerprint),
+    title,
+    summary: `Pending reviewed context for ${summary.changed_files.length} changed repo path${summary.changed_files.length === 1 ? "" : "s"} on ${branch}.`,
+    body,
+    type: "workflow",
+    scope: "repo",
+    visibility: "team",
+    sensitivity: "internal",
+    status: "pending",
+    confidence: 0.62,
+    tags: unique(["change-memory", "diff-proposal", "review-required", branch ? `branch:${slugify(branch)}` : "branch:detached"]),
+    paths: summary.changed_files.slice(0, 40),
+    stack: inferStack(projectDir),
+    source_refs: [
+      {
+        kind: "git_diff",
+        branch,
+        head,
+        merge_base: summary.merge_base,
+        changed_files: summary.changed_files,
+        summary_path: join(reviewDir(projectDir), `branch-summary-${slugify(branch)}.json`),
+      },
+    ],
+    freshness: {
+      last_verified_at: null,
+      ttl_days: 180,
+      verification: "pending_review",
+    },
+    edges: summary.changed_files.slice(0, 20).map((file) => ({
+      relation: "changes_path",
+      to: `path:${file}`,
+      evidence: "git_diff",
+    })),
+    quality: {},
+    created_at: now,
+    updated_at: now,
+  };
+  packet.quality = {
+    ...evaluateMemoryQuality(projectDir, packet),
+    admission: evaluateMemoryAdmission(projectDir, packet),
+    candidate_kind: "change_memory",
+    requires_human_edit_before_approval: true,
+  };
+  validatePacket(packet);
+  return { packet, path: writePacket(projectDir, packet, "pending") };
+}
+
 export function proposeFromDiff(projectDir: string): DiffProposalResult {
   ensureMemoryDirs(projectDir);
   const status = readGit(projectDir, ["status", "--porcelain", "-uall"]);
@@ -4053,9 +4173,12 @@ export function proposeFromDiff(projectDir: string): DiffProposalResult {
   const branchName = slugify(branch ?? "detached");
   const path = join(reviewDir(projectDir), `branch-summary-${branchName}.json`);
   writeJson(path, summary);
+  const memory = createDiffChangeMemory(projectDir, summary);
   return {
     ok: true,
     path,
+    packet: memory.packet,
+    packetPath: memory.path,
     summary,
     changedFiles,
     errors: [],

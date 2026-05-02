@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   SETUP_AGENTS,
+  approvePending,
   benchmarkProject,
   buildGlobalCdnBundle,
   buildCodeGraph,
@@ -343,6 +344,12 @@ test("setup generates all-agent MCP configuration and writes Codex config idempo
   assert.equal(second.wrote, true);
   const config = readFileSync(join(home, ".codex", "config.toml"), "utf8");
   assert.equal((config.match(/\[mcp_servers\.kage\]/g) ?? []).length, 1);
+
+  const claude = setupAgent("claude-code", project, { serverPath: "/tmp/kage/dist/index.js", homeDir: home, write: true });
+  assert.equal(claude.wrote, true);
+  const claudeConfig = JSON.parse(readFileSync(join(home, ".claude", "settings.json"), "utf8"));
+  assert.equal(claudeConfig.mcpServers.kage.command, "node");
+  assert.equal(claudeConfig.mcpServers.kage.args[0], "/tmp/kage/dist/index.js");
 
   const doctor = setupDoctor(project);
   assert.equal(doctor.length, SETUP_AGENTS.length);
@@ -854,25 +861,33 @@ test("creates review artifact for pending packets", () => {
   });
   assert.equal(result.ok, true);
   const artifact = createReviewArtifact(project);
-  assert.equal(artifact.pending, 1);
+  assert.equal(artifact.pending, 2);
   assert.match(readFileSync(artifact.path, "utf8"), /Review me/);
+  assert.match(readFileSync(artifact.path, "utf8"), /Change memory:/);
   assert.match(readFileSync(artifact.path, "utf8"), /Quality score/);
   assert.match(readFileSync(artifact.path, "utf8"), /Estimated tokens saved/);
   assert.match(readFileSync(artifact.path, "utf8"), /Branch Summary/);
 });
 
-test("diff proposal creates a branch review summary instead of recallable memory", () => {
+test("diff proposal creates a branch review summary and pending change memory", () => {
   const project = tempProject();
   execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
   mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ scripts: { test: "vitest", build: "tsc" } }), "utf8");
   writeFileSync(join(project, "src", "runner.ts"), "export const command = 'npm test';\n", "utf8");
 
   const result = proposeFromDiff(project);
   assert.equal(result.ok, true);
-  assert.equal(result.packet, undefined);
+  assert.ok(result.packet);
+  assert.ok(result.packetPath);
+  assert.equal(result.packet.type, "workflow");
+  assert.equal(result.packet.status, "pending");
+  assert.equal(result.packet.tags.includes("change-memory"), true);
   assert.ok(result.summary);
   assert.equal(result.summary.review_required, true);
   assert.equal(result.changedFiles.includes("src/runner.ts"), true);
   assert.match(readFileSync(result.path!, "utf8"), /git_diff/);
-  assert.equal(loadPendingPackets(project).some((packet) => packet.tags.includes("diff-proposal")), false);
+  assert.equal(loadPendingPackets(project).some((packet) => packet.id === result.packet!.id), true);
+  approvePending(project, result.packet.id);
+  assert.equal(recall(project, "what changed runner npm test").results.some((item) => item.packet.id === result.packet!.id), true);
 });

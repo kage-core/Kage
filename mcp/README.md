@@ -262,7 +262,7 @@ Before code changes or repo-specific answers:
 1. Call `kage_validate`.
 2. Call `kage_recall` with the user task as the query.
 3. Call `kage_graph` with the user task as the query.
-4. Capture reusable learnings with `kage_capture`.
+4. Capture reusable learnings with `kage_learn` or `kage_capture`.
 5. Before finishing changed-file tasks, call `kage_propose_from_diff`.
 6. Never approve or publish memory automatically.
 ```
@@ -283,7 +283,8 @@ fit for this MVP.
   pending packets with explicit learning/evidence/verification text.
 - `kage_capture` only creates pending packets.
 - `kage_propose_from_diff` writes a branch review summary under
-  `.agent_memory/review/`. It does not create recallable memory.
+  `.agent_memory/review/` and a pending change-memory packet under
+  `.agent_memory/pending/`. It becomes shared recall only after human approval.
 - `kage_promote_public_candidate` writes a local sanitized review candidate
   under `.agent_memory/public-candidates/`; it does not publish.
 - Registry recommendations never auto-install skills, docs, or MCP servers.

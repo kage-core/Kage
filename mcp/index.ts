@@ -539,7 +539,7 @@ export function listTools() {
     {
       name: "kage_propose_from_diff",
       description:
-        "Create or update a branch review summary from local git status and diff metadata. This does not create recallable memory.",
+        "Create or update a branch review summary and pending change-memory packet from local git status and diff metadata. Human review is required before it becomes shared repo memory.",
       inputSchema: {
         type: "object",
         properties: {
@@ -960,7 +960,7 @@ export async function callTool(name: string, args: Record<string, unknown> | und
         {
           type: "text",
           text: result.ok
-            ? `Wrote branch review summary: ${result.path}\nChanged files: ${result.changedFiles.join(", ")}`
+            ? `Wrote branch review summary: ${result.path}\nCaptured pending change memory: ${result.packetPath ?? "(none)"}\nChanged files: ${result.changedFiles.join(", ")}`
             : `Proposal blocked:\n${result.errors.map((error) => `- ${error}`).join("\n")}`,
         },
       ],

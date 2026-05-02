@@ -23,12 +23,13 @@ that can ship now from hosted SaaS infrastructure that remains a later launch.
 | Metrics | Ready | Reports readiness, coverage, quality, evidence, validation, and estimated tokens saved. |
 | Quality and benchmark reports | Ready | Reports useful-memory ratio, duplicate burden, evidence/path grounding, recall hit rate, rediscovery avoided, and tokens saved. |
 | Codex MCP integration | Ready | Installer writes stdio MCP config and initializes repo memory. |
+| Claude Code MCP integration | Ready | `kage setup claude-code --write` merges local MCP config and uses the same repo policy. |
 | All-agent setup matrix | Ready | `kage setup` prints MCP/REST setup for Codex, Claude Code, Cursor, Windsurf, Gemini CLI, OpenCode, Cline, Goose, Roo, Kilo, Claude Desktop, Aider, and generic MCP. |
 | Optional local runtime | Ready | `kage daemon` serves REST observe/recall/distill/metrics/quality/benchmark on localhost while CLI/MCP continue without it. |
 | Automatic observations | Ready | `kage observe`, `kage_observe`, and REST observe store privacy-scanned deduped session events locally. |
 | Observation distillation | Ready | `kage distill` creates pending packets with observation-session source refs and review suggestions. |
 | Ambient agent policy | Ready | `AGENTS.md` tells agents to recall, query, learn, and propose without manual prompts. |
-| Branch review summaries | Ready | `kage propose --from-diff` writes non-recallable branch summaries. |
+| Change memory proposals | Ready | `kage propose --from-diff` writes branch summaries and pending change-memory packets for review. |
 | Registry recommendations | Ready | Recommends docs, skills, and optional MCPs without auto-installing. |
 | Public candidate export | Ready | Sanitized local bundles can be created, but nothing is published automatically. |
 | Local org memory artifact mode | Ready | Org inbox, review, audit log, approved packets, registry export, and org recall are file-backed. |
@@ -58,7 +59,7 @@ that can ship now from hosted SaaS infrastructure that remains a later launch.
 - [x] Customer readiness guide.
 - [ ] Publish `@kage-core/kage-graph-mcp` package version from a clean release
   environment.
-- [ ] Add release screenshots or GIFs for recall, learning, metrics, and viewer.
+- [x] Add launch README GIF for Codex-to-Claude Code memory handoff.
 - [ ] Run a clean machine install smoke test from the public installer.
 - [ ] Tag a release and attach a short changelog.
 

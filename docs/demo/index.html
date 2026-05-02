@@ -341,8 +341,8 @@
         <div class="brand">
           <div class="mark">K</div>
           <div>
-            <h1>Kage + Codex</h1>
-            <p class="sub">ambient repo memory inside Codex</p>
+            <h1>Kage hive memory</h1>
+            <p class="sub">Codex learns it. Claude Code recalls it.</p>
           </div>
         </div>
 
@@ -363,7 +363,7 @@
             <span class="light" style="background:#fb923c"></span>
             <span class="light" style="background:#39ff9a"></span>
           </div>
-          <div id="title">Kage + Codex demo</div>
+          <div id="title">Kage cross-agent demo</div>
         </div>
 
         <section class="content">
@@ -399,12 +399,12 @@
 
     <script>
       const steps = [
-        "ask Codex to install",
+        "install for Codex",
         "Codex recalls",
         "Codex queries code",
-        "Codex captures learning",
+        "Codex proposes memory",
         "human reviews",
-        "next Codex session",
+        "Claude Code recalls",
       ];
 
       const scenes = [
@@ -452,17 +452,18 @@ test/game.test.js imports src/game.js
           packet: "No pending memory yet.",
         },
         {
-          title: "Codex captures a durable learning",
-          terminal: `<span class="prompt">codex ></span> kage_learn("Gotcha: ...")
+          title: "Codex proposes durable change memory",
+          terminal: `<span class="prompt">codex ></span> kage_propose_from_diff()
 
 <span class="orange">Captured pending packet</span>
-type: gotcha
+type: workflow
 status: pending
-source: explicit_capture
+source: git_diff
+paths: src/game.js, test/game.test.js
 
 No auto-approval.`,
           metrics: [67, 49, 6, 2969],
-          packet: "Gotcha: kage_propose_from_diff requires a git worktree.",
+          packet: "Change memory: scoring controls and game tests.",
         },
         {
           title: "Human review keeps Codex memory clean",
@@ -479,16 +480,17 @@ Duplicate candidates: none
           review: true,
         },
         {
-          title: "Next Codex session already knows",
-          terminal: `<span class="prompt">you ></span> Continue debugging this repo.
+          title: "Claude Code already knows",
+          terminal: `<span class="prompt">you ></span> Continue this game in Claude Code.
 
-<span class="prompt">codex ></span> kage_recall("what gotchas exist?")
+<span class="prompt">claude ></span> kage_recall("how does scoring work?")
 
 <span class="green">Approved repo memory</span>
-Gotcha: diff proposals require git.
+Change memory: scoring controls and game tests.
+Run: npm test
 
 <span class="cyan">Team benefit</span>
-Next Codex session starts with context.
+Claude Code starts with Codex's reviewed context.
 No transcript spelunking.`,
           metrics: [67, 49, 6, 3245],
           packet: "Approved packets live in .agent_memory/packets and travel through git.",
