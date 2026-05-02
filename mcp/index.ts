@@ -6,25 +6,33 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import {
+  SETUP_AGENTS,
+  benchmarkProject,
   capture,
   catalogDomainNodeCount,
   buildBranchOverlay,
   buildCodeGraph,
   createPublicCandidate,
   createReviewArtifact,
+  distillSession,
   exportPublicBundle,
   graphMermaid,
   installAgentPolicy,
   kageMetrics,
   learn,
+  observe,
   proposeFromDiff,
+  qualityReport,
   queryCodeGraph,
   queryGraph,
   recall,
   recordFeedback,
   registryRecommendations,
+  setupAgent,
   validateProject,
   type MemoryType,
+  type ObservationEvent,
+  type SetupAgent,
 } from "./kernel.js";
 
 const BASE_URL = "https://raw.githubusercontent.com/kage-core/kage-graph/master";
@@ -166,6 +174,8 @@ export function listTools() {
           query: { type: "string" },
           project_dir: { type: "string" },
           limit: { type: "number" },
+          explain: { type: "boolean" },
+          json: { type: "boolean" },
         },
         required: ["query", "project_dir"],
       },
@@ -209,6 +219,44 @@ export function listTools() {
           project_dir: { type: "string" },
         },
         required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_quality",
+      description:
+        "Return memory quality metrics: useful memory ratio, duplicate burden, stale/wrong feedback, evidence coverage, path grounding, and review queue size.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_benchmark",
+      description:
+        "Return Kage proof metrics: runbook, bug-fix, decision and code-flow coverage, recall hit rate, estimated rediscovery avoided, tokens saved, and time-to-first-use.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_setup_agent",
+      description:
+        "Generate MCP/setup instructions for Codex, Claude Code, Cursor, Windsurf, Gemini CLI, OpenCode, Cline, Goose, Roo Code, Kilo Code, Claude Desktop, Aider, or generic MCP.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          agent: { type: "string", enum: SETUP_AGENTS },
+          project_dir: { type: "string" },
+          write: { type: "boolean" },
+        },
+        required: ["agent", "project_dir"],
       },
     },
     {
@@ -273,6 +321,42 @@ export function listTools() {
           stack: { type: "array", items: { type: "string" } },
         },
         required: ["project_dir", "title", "body"],
+      },
+    },
+    {
+      name: "kage_observe",
+      description:
+        "Store an automatic local observation event from an agent session. Observations are privacy-scanned, deduplicated, and never auto-approved or published.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+          type: { type: "string", enum: ["session_start", "user_prompt", "tool_use", "tool_result", "file_change", "command_result", "test_result", "session_end"] },
+          session_id: { type: "string" },
+          agent: { type: "string" },
+          tool: { type: "string" },
+          path: { type: "string" },
+          command: { type: "string" },
+          exit_code: { type: "number" },
+          text: { type: "string" },
+          summary: { type: "string" },
+          timestamp: { type: "string" },
+          metadata: { type: "object" },
+        },
+        required: ["project_dir", "type"],
+      },
+    },
+    {
+      name: "kage_distill",
+      description:
+        "Distill stored observations for one session into pending memory candidates. Human review is still required before approved memory.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+          session_id: { type: "string" },
+        },
+        required: ["project_dir", "session_id"],
       },
     },
     {
@@ -496,9 +580,9 @@ export async function callTool(name: string, args: Record<string, unknown> | und
   }
 
   if (name === "kage_recall") {
-    const result = recall(String(args?.project_dir ?? ""), String(args?.query ?? ""), Number(args?.limit ?? 5));
+    const result = recall(String(args?.project_dir ?? ""), String(args?.query ?? ""), Number(args?.limit ?? 5), Boolean(args?.explain));
     return {
-      content: [{ type: "text", text: result.context_block }],
+      content: [{ type: "text", text: args?.json || args?.explain ? JSON.stringify(result, null, 2) : result.context_block }],
     };
   }
 
@@ -526,6 +610,27 @@ export async function callTool(name: string, args: Record<string, unknown> | und
 
   if (name === "kage_metrics") {
     const result = kageMetrics(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_quality") {
+    const result = qualityReport(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_benchmark") {
+    const result = benchmarkProject(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_setup_agent") {
+    const result = setupAgent(String(args?.agent ?? "") as SetupAgent, String(args?.project_dir ?? ""), { write: Boolean(args?.write) });
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };
@@ -591,6 +696,25 @@ export async function callTool(name: string, args: Record<string, unknown> | und
             : `Capture blocked:\n${result.errors.map((error) => `- ${error}`).join("\n")}`,
         },
       ],
+      isError: !result.ok,
+    };
+  }
+
+  if (name === "kage_observe") {
+    const projectDir = String(args?.project_dir ?? "");
+    const event = { ...args };
+    delete event.project_dir;
+    const result = observe(projectDir, event as unknown as ObservationEvent);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      isError: !result.ok,
+    };
+  }
+
+  if (name === "kage_distill") {
+    const result = distillSession(String(args?.project_dir ?? ""), String(args?.session_id ?? "default"));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       isError: !result.ok,
     };
   }

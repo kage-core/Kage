@@ -1,0 +1,48 @@
+name: Release Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  mcp-release-smoke:
+    name: MCP release smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+
+      - name: Install
+        working-directory: mcp
+        run: npm ci
+
+      - name: Build and test
+        working-directory: mcp
+        run: npm test
+
+      - name: Pack
+        working-directory: mcp
+        run: npm pack --dry-run
+
+      - name: Codex setup smoke
+        working-directory: mcp
+        run: node dist/cli.js setup codex --project "$GITHUB_WORKSPACE" --json
+
+      - name: Generic MCP setup smoke
+        working-directory: mcp
+        run: node dist/cli.js setup generic-mcp --project "$GITHUB_WORKSPACE" --json
+
+      - name: Recall smoke
+        working-directory: mcp
+        run: node dist/cli.js recall "how do I run tests" --project "$GITHUB_WORKSPACE" --json
+

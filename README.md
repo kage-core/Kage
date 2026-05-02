@@ -9,7 +9,9 @@ graph and source code graph, and exposes recall/query/capture tools through a
 TypeScript CLI and MCP server. The goal is simple: an agent should not rediscover
 how a repo works every time a new session starts.
 
-No background daemon. No external API key. No hosted service required.
+No external API key. No hosted service required. A local daemon is optional for
+live observation capture, REST access, and session replay workflows; Kage still
+works as a plain CLI and stdio MCP server without it.
 
 ## What Ships Today
 
@@ -23,6 +25,15 @@ No background daemon. No external API key. No hosted service required.
 - Optional ingestion of Tree-sitter, SCIP, LSIF, and LSP artifacts.
 - Codex MCP tools for recall, graph query, metrics, learning, validation, and
   branch review summaries.
+- All-agent setup snippets for Codex, Claude Code, Cursor, Windsurf, Gemini
+  CLI, OpenCode, Cline, Goose, Roo Code, Kilo Code, Claude Desktop, Aider, and
+  generic MCP clients.
+- Optional local daemon with REST endpoints for observe, recall, distill,
+  metrics, quality, and benchmark.
+- Automatic observation capture primitives with privacy scanning, dedupe, and
+  distillation into pending memory candidates.
+- Hybrid recall explanations across text, graph, path/type/tag, freshness,
+  quality, and feedback scoring.
 - Agent policy installation through `AGENTS.md` so Kage is used automatically.
 - Local terminal-style graph viewer for demos and memory inspection.
 - Public candidate export and registry recommendation plumbing, without
@@ -103,6 +114,12 @@ kage init --project /path/to/repo
 ## Core CLI
 
 ```bash
+kage setup list
+kage setup codex --project /path/to/repo --write
+kage setup claude-code --project /path/to/repo
+kage setup generic-mcp --project /path/to/repo
+kage setup doctor --project /path/to/repo
+
 # First-run setup
 kage init --project /path/to/repo
 kage policy --project /path/to/repo
@@ -111,9 +128,18 @@ kage doctor --project /path/to/repo
 # Build and inspect repo knowledge
 kage index --project /path/to/repo
 kage recall "how do I run tests" --project /path/to/repo
+kage recall "how do I run tests" --project /path/to/repo --explain --json
 kage graph "test command" --project /path/to/repo
 kage code-graph "routes and tests" --project /path/to/repo
 kage metrics --project /path/to/repo
+kage quality --project /path/to/repo
+kage benchmark --project /path/to/repo
+
+# Optional live runtime
+kage daemon start --project /path/to/repo
+kage daemon status --project /path/to/repo
+kage observe --project /path/to/repo --event '{"type":"command_result","session_id":"s1","command":"npm test","exit_code":0}'
+kage distill --project /path/to/repo --session s1
 
 # Capture and review memory
 kage learn --project /path/to/repo --learning "Decision: run tests with npm test from mcp/"
@@ -137,10 +163,15 @@ Local repo tools:
 - `kage_recall`
 - `kage_code_graph`
 - `kage_metrics`
+- `kage_quality`
+- `kage_benchmark`
+- `kage_setup_agent`
 - `kage_graph`
 - `kage_graph_visual`
 - `kage_learn`
 - `kage_capture`
+- `kage_observe`
+- `kage_distill`
 - `kage_feedback`
 - `kage_install_policy`
 - `kage_branch_overlay`
@@ -173,7 +204,10 @@ For normal coding tasks, the agent should:
 7. Never approve, publish, or install shared assets automatically.
 
 The user should not have to manually ask for recall or memory capture during
-normal work. The harness tells the agent when to use the tools.
+normal work. The harness tells the agent when to use the tools. Where an agent
+supports hooks or lifecycle events, those hooks can call `kage observe` and
+`kage distill`; where it only supports MCP, the installed policy and MCP tools
+provide ambient recall and capture.
 
 ## Memory Review
 
@@ -181,7 +215,7 @@ Memory is intentionally human-gated.
 
 ```text
 agent learns something
-  -> kage_learn or kage_capture
+  -> kage_learn, kage_capture, or kage observe + kage distill
   -> .agent_memory/pending/*.json
   -> kage review-artifact
   -> kage review
@@ -215,6 +249,12 @@ freshness, graph edges, quality fields, and timestamps.
 
 Generated indexes and graphs are disposable. The canonical memory is the packet
 set.
+
+Raw observations are different from approved memory. Observations are local
+runtime/session records under `.agent_memory/observations/`, privacy-scanned and
+deduplicated before storage. Distillation converts them into pending packets
+with `source_refs.kind = "observation_session"`. They are never approved or
+published automatically.
 
 ## Code Graph
 

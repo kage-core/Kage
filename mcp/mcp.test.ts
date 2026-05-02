@@ -23,9 +23,14 @@ test("MCP lists repo-local memory tools", () => {
   assert.equal(names.includes("kage_graph"), true);
   assert.equal(names.includes("kage_code_graph"), true);
   assert.equal(names.includes("kage_metrics"), true);
+  assert.equal(names.includes("kage_quality"), true);
+  assert.equal(names.includes("kage_benchmark"), true);
+  assert.equal(names.includes("kage_setup_agent"), true);
   assert.equal(names.includes("kage_graph_visual"), true);
   assert.equal(names.includes("kage_learn"), true);
   assert.equal(names.includes("kage_capture"), true);
+  assert.equal(names.includes("kage_observe"), true);
+  assert.equal(names.includes("kage_distill"), true);
   assert.equal(names.includes("kage_feedback"), true);
   assert.equal(names.includes("kage_install_policy"), true);
   assert.equal(names.includes("kage_branch_overlay"), true);
@@ -44,6 +49,19 @@ test("MCP kage_recall returns agent-ready context", async () => {
 
   assert.match(textContent(result), /Kage Context/);
   assert.match(textContent(result), /vitest|test/i);
+});
+
+test("MCP kage_recall can explain hybrid score breakdowns", async () => {
+  const project = tempProject();
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
+  const result = await callTool("kage_recall", {
+    project_dir: project,
+    query: "how do I run tests",
+    explain: true,
+  });
+  const payload = JSON.parse(textContent(result));
+  assert.equal(payload.explanations.length > 0, true);
+  assert.equal(typeof payload.results[0].score_breakdown.final, "number");
 });
 
 test("MCP kage_capture creates pending memory and blocks sensitive input", async () => {
@@ -102,6 +120,33 @@ test("MCP kage_metrics returns coverage and readiness metrics", async () => {
   assert.equal(metrics.code_graph.languages.javascript, 1);
   assert.equal(metrics.code_graph.indexer_coverage_percent, 100);
   assert.equal(typeof metrics.harness.readiness_score, "number");
+  assert.equal(typeof metrics.pain.estimated_tokens_saved, "number");
+});
+
+test("MCP setup, quality, benchmark, observe, and distill tools work", async () => {
+  const project = tempProject();
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
+  const setup = await callTool("kage_setup_agent", { project_dir: project, agent: "generic-mcp" });
+  assert.match(textContent(setup), /mcpServers/);
+
+  const observed = await callTool("kage_observe", {
+    project_dir: project,
+    type: "command_result",
+    session_id: "s2",
+    command: "npm test",
+    exit_code: 0,
+    summary: "Test command passed.",
+  });
+  assert.equal(JSON.parse(textContent(observed)).ok, true);
+
+  const distilled = await callTool("kage_distill", { project_dir: project, session_id: "s2" });
+  assert.equal(JSON.parse(textContent(distilled)).ok, true);
+
+  const quality = await callTool("kage_quality", { project_dir: project });
+  assert.equal(typeof JSON.parse(textContent(quality)).useful_memory_ratio_percent, "number");
+
+  const benchmark = await callTool("kage_benchmark", { project_dir: project });
+  assert.equal(typeof JSON.parse(textContent(benchmark)).pain_metrics.estimated_tokens_saved, "number");
 });
 
 test("MCP kage_learn captures actual session learning", async () => {

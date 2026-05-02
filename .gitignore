@@ -3,8 +3,10 @@
 .agent_memory/pending/
 .agent_memory/branches/
 .agent_memory/code_graph/
+.agent_memory/daemon/
 .agent_memory/graph/
 .agent_memory/indexes/
+.agent_memory/observations/
 .agent_memory/public-bundle/
 .agent_memory/public-candidates/
 .agent_memory/review/
