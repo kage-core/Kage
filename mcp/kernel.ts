@@ -3814,7 +3814,9 @@ KAGE_MSG="$POLICY" python3 -c "import json,os; print(json.dumps({'systemMessage'
 `;
     const settingsPath = join(home, ".claude", "settings.json");
     const hookEntry = {
+      hooks: {
       SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/session-start.sh", timeout: 5 }] }],
+      },
     };
     setSnippet(path, JSON.stringify({ mcpServers: { kage: server } }, null, 2), [
       "Add the MCP server to ~/.claude.json, then restart Claude Code.",
@@ -3888,7 +3890,19 @@ function upsertJsonSettings(path: string, patch: Record<string, unknown>): void 
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) config = parsed as Record<string, unknown>;
   }
   for (const [key, value] of Object.entries(patch)) {
-    if (!(key in config)) config[key] = value;
+    if (
+      key === "hooks" &&
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      config.hooks &&
+      typeof config.hooks === "object" &&
+      !Array.isArray(config.hooks)
+    ) {
+      config.hooks = { ...(config.hooks as Record<string, unknown>), ...(value as Record<string, unknown>) };
+    } else if (!(key in config)) {
+      config[key] = value;
+    }
   }
   writeJson(path, config);
 }
