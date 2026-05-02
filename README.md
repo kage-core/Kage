@@ -29,6 +29,9 @@ base that lives with your code.
 
 <img alt="Kage demo showing init, recall, code graph, review, and team recall" src="docs/assets/kage-demo.gif" width="760">
 
+<br>
+<a href="docs/demo/index.html">Open the interactive demo</a>
+
 </div>
 
 ---
