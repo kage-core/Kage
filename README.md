@@ -27,6 +27,8 @@ base that lives with your code.
   <a href="#visualizer">Viewer</a>
 </p>
 
+<img alt="Kage demo showing init, recall, code graph, review, and team recall" src="docs/assets/kage-demo.gif" width="760">
+
 </div>
 
 ---
