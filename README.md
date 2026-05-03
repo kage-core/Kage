@@ -90,6 +90,26 @@ Token savings are currently estimated from indexed source and compact recall
 context. Production telemetry benchmarks are a launch-track item, not something
 we overclaim.
 
+Same-repo A/B benchmark on Kage itself:
+
+```bash
+kage benchmark --project . --compare \
+  --task "how should an agent update memory and check PR readiness after changing files"
+```
+
+| Metric | Without Kage | With Kage |
+|---|---:|---:|
+| Estimated discovery tokens | 115,334 | 1,906 |
+| Estimated discovery steps | 12 | 3 |
+| Estimated time | 540s | 36s |
+| Full-file reads | 10 | 0 |
+| Recall hit | no ambient memory | yes |
+| Code graph hit | manual search | yes |
+
+Delta: 113,428 estimated tokens saved, 98% smaller context, 9 rediscovery steps
+avoided, and 504 estimated seconds saved. The command includes evidence and
+caveats; these are deterministic same-task estimates, not production telemetry.
+
 ## Try It In 60 Seconds
 
 The easiest setup is to ask your agent to do it.
@@ -140,6 +160,7 @@ kage recall "how do I run tests" --project /path/to/repo
 kage code-graph "routes tests auth" --project /path/to/repo
 kage refresh --project /path/to/repo
 kage pr check --project /path/to/repo
+kage benchmark --project /path/to/repo --compare --task "how do I run tests"
 kage metrics --project /path/to/repo
 kage viewer --project /path/to/repo
 ```
@@ -381,6 +402,9 @@ be clear about:
 - Refresh and PR readiness commands: `kage refresh`, `kage pr summarize`,
   `kage pr check`, plus MCP tools `kage_refresh`, `kage_pr_summarize`, and
   `kage_pr_check`.
+- Same-task A/B benchmark: `kage benchmark --compare --task <task>` and
+  `kage_benchmark_compare` estimate manual rediscovery tokens/steps versus Kage
+  recall plus code-graph context on the same repo.
 - Package update helper: `kage upgrade`.
 - Optional local daemon with REST endpoints for observe, recall, distill,
   metrics, quality, and benchmark. Daemon startup indexes once and watches repo
@@ -516,6 +540,7 @@ Local repo tools:
 - `kage_metrics`
 - `kage_quality`
 - `kage_benchmark`
+- `kage_benchmark_compare`
 - `kage_setup_agent`
 - `kage_graph`
 - `kage_graph_visual`

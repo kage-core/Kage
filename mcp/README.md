@@ -38,6 +38,7 @@ kage recall "how do I run tests" --project /path/to/repo
 kage recall "how do I run tests" --project /path/to/repo --explain --json
 kage quality --project /path/to/repo
 kage benchmark --project /path/to/repo
+kage benchmark --project /path/to/repo --compare --task "how do I run tests"
 kage viewer --project /path/to/repo
 kage daemon start --project /path/to/repo
 kage observe --project /path/to/repo --event '{"type":"command_result","session_id":"s1","command":"npm test","exit_code":0}'
@@ -125,6 +126,12 @@ and parser coverage, code graph counts, evidence coverage, approved vs pending
 memory, validation status, estimated tokens saved per recall, duplicate
 candidates, average memory quality, and a readiness score.
 
+Use `kage benchmark --compare --task "<task>" --project <repo>` or
+`kage_benchmark_compare` to compare the same task on the same repo with and
+without Kage. It estimates manual full-file rediscovery tokens/steps, compares
+them to compact Kage recall plus code graph context, and returns evidence plus
+caveats for honest marketing proof.
+
 Use `kage refresh --project <repo>` or the `kage_refresh` MCP tool after
 meaningful file changes. Refresh rebuilds indexes, code graph, memory graph,
 metrics, and stale-memory metadata. Memory is marked stale when status or
@@ -204,6 +211,7 @@ Local repo tools:
 - `kage_pr_check`
 - `kage_quality`
 - `kage_benchmark`
+- `kage_benchmark_compare`
 - `kage_setup_agent`
 - `kage_graph`
 - `kage_graph_visual`

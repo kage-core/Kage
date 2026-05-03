@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   SETUP_AGENTS,
+  benchmarkTaskComparison,
   benchmarkProject,
   buildGlobalCdnBundle,
   buildCodeGraph,
@@ -528,6 +529,13 @@ test("recall explanations, quality, and benchmark expose proof metrics", () => {
   const benchmark = benchmarkProject(project);
   assert.equal(typeof benchmark.pain_metrics.recall_hit_rate_percent, "number");
   assert.equal(typeof benchmark.pain_metrics.estimated_tokens_saved, "number");
+
+  const comparison = benchmarkTaskComparison(project, "how do I run tests");
+  assert.equal(comparison.task, "how do I run tests");
+  assert.equal(comparison.baseline_without_kage.files_examined > 0, true);
+  assert.equal(comparison.with_kage.context_tokens > 0, true);
+  assert.equal(typeof comparison.delta.context_reduction_percent, "number");
+  assert.equal(comparison.evidence.kage_memory.length > 0, true);
 });
 
 test("graph query returns relevant typed facts", () => {
