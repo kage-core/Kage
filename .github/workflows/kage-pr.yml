@@ -43,12 +43,15 @@ jobs:
           QUALITY=$(node mcp/dist/cli.js quality --project "$PROJECT" --json 2>/dev/null || echo '{}')
           PR_CHECK=$(node mcp/dist/cli.js pr check --project "$PROJECT" --json 2>/dev/null || echo '{}')
 
-          # Parse metrics
-          APPROVED=$(echo "$QUALITY" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.totals?.approved??0)")
-          USEFUL=$(echo "$QUALITY" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.useful_memory_ratio_percent??0)")
-          STALE=$(echo "$QUALITY" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.totals?.stale??0)")
-          DUPES=$(echo "$QUALITY" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.totals?.duplicate??0)")
-          OK=$(echo "$PR_CHECK" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.ok!==false?'✅ Pass':'⚠️ Issues found')")
+          # Parse metrics (extract last valid JSON object from output)
+          QUALITY_JSON=$(echo "$QUALITY" | grep -o '{.*}' | tail -1 || echo '{}')
+          PR_CHECK_JSON=$(echo "$PR_CHECK" | grep -o '{.*}' | tail -1 || echo '{}')
+
+          APPROVED=$(echo "$QUALITY_JSON" | jq -r '.totals.approved // 0')
+          USEFUL=$(echo "$QUALITY_JSON" | jq -r '.useful_memory_ratio_percent // 0')
+          STALE=$(echo "$QUALITY_JSON" | jq -r '.totals.stale // 0')
+          DUPES=$(echo "$QUALITY_JSON" | jq -r '.totals.duplicate // 0')
+          OK=$(echo "$PR_CHECK_JSON" | jq -r 'if .ok != false then "✅ Pass" else "⚠️ Issues found" end')
 
           # Build comment
           COMMENT="## 🧠 Kage Memory Check
