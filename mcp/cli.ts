@@ -43,6 +43,7 @@ import {
   queryGraph,
   recall,
   recordFeedback,
+  gcProject,
   refreshProject,
   rejectPending,
   registryRecommendations,
@@ -74,6 +75,7 @@ Usage:
   kage daemon doctor --project <dir> [--json]
   kage viewer --project <dir> [--port 3113]
   kage refresh --project <dir> [--json]
+  kage gc --project <dir> [--dry-run] [--force] [--json]
   kage pr summarize --project <dir> [--json]
   kage pr check --project <dir> [--json]
   kage upgrade [--dry-run]
@@ -335,6 +337,31 @@ async function main(): Promise<void> {
 
   if (command === "viewer") {
     await startViewer(projectArg(args), { port: numberArg(args, "--port", 3113) });
+    return;
+  }
+
+  if (command === "gc") {
+    const project = projectArg(args);
+    const dryRun = args.includes("--dry-run");
+    const force = args.includes("--force");
+    const result = gcProject(project, { dryRun, force });
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    const label = dryRun ? " [dry-run]" : "";
+    console.log(`Kage GC${label} — scanned ${result.total_scanned} packets`);
+    if (result.deprecated.length) {
+      console.log(`\nDeprecated (${result.deprecated.length}):`);
+      for (const p of result.deprecated) console.log(`  ✗ ${p.title} — ${p.reason}`);
+    }
+    if (result.deleted.length) {
+      console.log(`\nDeleted (${result.deleted.length}):`);
+      for (const p of result.deleted) console.log(`  🗑  ${p.title}`);
+    }
+    if (!result.deprecated.length && !result.deleted.length) {
+      console.log("No stale packets found — memory is clean.");
+    }
     return;
   }
 
