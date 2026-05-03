@@ -7,12 +7,11 @@ This repo uses Kage as an automatic memory harness for coding agents.
 
 Before making code changes, answering repo-specific implementation questions, debugging failures, or proposing architecture:
 
-1. Call `kage_validate` for this repo.
-2. Call `kage_recall` with the user's task as the query.
-3. Call `kage_code_graph` when the task mentions files, APIs, routes, symbols, tests, dependencies, or code flow.
-4. Call `kage_graph` with the user's task as the query when the task depends on decisions, bugs, workflows, commands, or conventions.
-5. Use returned memory only when it is relevant, source-backed, and not stale.
-6. Prefer repo memory over public/community memory when they conflict.
+1. Call `kage_context` with `project_dir` and the task as `query`.
+   This validates memory, recalls relevant packets, and queries both the code graph
+   and knowledge graph in one call — replacing the old four-step validate/recall/code_graph/graph sequence.
+2. Use returned memory only when it is relevant, source-backed, and not stale.
+3. Prefer repo memory over public/community memory when they conflict.
 
 Do this without waiting for the user to ask. Kage should feel like ambient repo memory, not a manual search command.
 
@@ -73,15 +72,11 @@ If recalled memory materially helped, call `kage_feedback` with `helpful`.
 
 For normal coding tasks:
 
-1. `kage_validate`
-2. `kage_recall`
-3. `kage_code_graph` for source flow, routes, symbols, tests, and dependencies
-4. `kage_graph` for remembered decisions, bugs, workflows, and conventions
-5. Work on the task
-6. `kage_learn` for concrete learnings
-7. `kage_refresh` after meaningful file changes
-8. `kage_pr_summarize` or `kage_propose_from_diff` before the final response to create repo-local change memory
-9. `kage_pr_check` before final handoff or merge readiness claims
+1. `kage_context` — validate + recall + code graph + knowledge graph in one call
+2. Work on the task
+3. `kage_learn` for concrete learnings
+4. `kage_refresh` after meaningful file changes
+5. `kage_propose_from_diff` before the final response to create repo-local change memory
 
-For quick factual questions, `kage_recall` alone is enough. For status or demo requests, call `kage_metrics`.
+For quick factual questions, `kage_context` alone is enough. For status or demo requests, call `kage_metrics`.
 <!-- END_KAGE_MEMORY_POLICY_V1 -->
