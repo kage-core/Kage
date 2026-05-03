@@ -21,6 +21,7 @@ teams stop rediscovering commands, decisions, gotchas, bugs, and code flows.
 <p>
   <a href="#install">Install</a> ·
   <a href="#viewer">Viewer</a> ·
+  <a href="https://kage-core.github.io/Kage/viewer/">Open Viewer</a> ·
   <a href="#codex-and-claude-code">Codex + Claude</a> ·
   <a href="#what-kage-stores">Memory Model</a> ·
   <a href="#proof">Proof</a>
@@ -83,11 +84,22 @@ Restart the agent once after setup so the MCP server reloads.
 Kage ships a local terminal-style viewer for memory, code graph, metrics, and
 review context.
 
+Open the static viewer shell:
+
+```text
+https://kage-core.github.io/Kage/viewer/
+```
+
+The hosted viewer is useful for screenshots, demos, and manually loading graph
+JSON. For a real repo, the local command is still preferred because it
+auto-loads that repo's graph, code graph, metrics, review file, and pending
+queue:
+
 ```bash
 kage viewer --project .
 ```
 
-The viewer opens a localhost page with:
+The viewer shows:
 
 | Surface | What It Shows |
 |---|---|
