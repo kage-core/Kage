@@ -3158,6 +3158,73 @@ export function refreshProject(projectDir: string): RefreshResult {
   };
 }
 
+export interface GcResult {
+  ok: boolean;
+  project_dir: string;
+  deprecated: Array<{ id: string; title: string; reason: string }>;
+  deleted: Array<{ id: string; title: string }>;
+  skipped: Array<{ id: string; title: string; reason: string }>;
+  total_scanned: number;
+}
+
+export function gcProject(projectDir: string, options: { dryRun?: boolean; force?: boolean } = {}): GcResult {
+  ensureMemoryDirs(projectDir);
+  const packets = loadPacketsFromDir(packetsDir(projectDir));
+  const deprecated: GcResult["deprecated"] = [];
+  const deleted: GcResult["deleted"] = [];
+  const skipped: GcResult["skipped"] = [];
+
+  for (const packet of packets) {
+    if (packet.status === "deprecated") {
+      skipped.push({ id: packet.id, title: packet.title, reason: "already deprecated" });
+      continue;
+    }
+    const reasons = staleMemoryReasons(projectDir, packet);
+    if (!reasons.length) {
+      skipped.push({ id: packet.id, title: packet.title, reason: "healthy" });
+      continue;
+    }
+    const quality = packet.quality as Record<string, unknown>;
+    const hasHelpfulVotes = Number(quality?.votes_up ?? 0) > 0;
+    if (hasHelpfulVotes && !options.force) {
+      skipped.push({ id: packet.id, title: packet.title, reason: `stale but has helpful votes (use --force to override)` });
+      continue;
+    }
+    // Mark as deprecated (or hard-delete if --force)
+    if (options.force && !hasHelpfulVotes) {
+      if (!options.dryRun) {
+        const filePath = join(packetsDir(projectDir), `${packet.id.replace(/[^a-z0-9-]/gi, "-")}.json`);
+        const files = existsSync(packetsDir(projectDir))
+          ? readdirSync(packetsDir(projectDir)).filter((f) => f.includes(packet.id.split(":").pop()?.slice(0, 20) ?? ""))
+          : [];
+        for (const f of files) unlinkSync(join(packetsDir(projectDir), f));
+      }
+      deleted.push({ id: packet.id, title: packet.title });
+    } else {
+      if (!options.dryRun) {
+        const files = existsSync(packetsDir(projectDir))
+          ? readdirSync(packetsDir(projectDir)).filter((f) => f.includes(packet.id.split(":").pop()?.slice(0, 20) ?? ""))
+          : [];
+        for (const f of files) {
+          const filePath = join(packetsDir(projectDir), f);
+          const updated = { ...packet, status: "deprecated" as const, updated_at: nowIso() };
+          writeFileSync(filePath, JSON.stringify(updated, null, 2), "utf8");
+        }
+      }
+      deprecated.push({ id: packet.id, title: packet.title, reason: reasons[0] });
+    }
+  }
+
+  return {
+    ok: true,
+    project_dir: projectDir,
+    deprecated,
+    deleted,
+    skipped,
+    total_scanned: packets.length,
+  };
+}
+
 export function installAgentPolicy(projectDir: string): PolicyInstallResult {
   const agentsPath = join(projectDir, "AGENTS.md");
   const claudePath = join(projectDir, "CLAUDE.md");
