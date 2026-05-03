@@ -1,0 +1,62 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:release-1-1-12-npm-docs-and-launch-notes-1777798069536",
+  "title": "Release 1.1.12 npm docs and launch notes",
+  "summary": "Release 1.1.12 is the npm documentation and launch note patch. It adds an explicit Latest Release section to mcp/README.md so npm displays release notes, updates CHANGELOG.md for 1.1.11/1.1.12, and keeps the root README",
+  "body": "Release 1.1.12 is the npm documentation and launch-note patch. It adds an explicit Latest Release section to mcp/README.md so npm displays release notes, updates CHANGELOG.md for 1.1.11/1.1.12, and keeps the root README hero on the animated demo GIF with clear website/viewer links.",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "release",
+    "npm",
+    "docs",
+    "readme",
+    "launch"
+  ],
+  "paths": [
+    "mcp/README.md",
+    "CHANGELOG.md",
+    "README.md",
+    "mcp/package.json"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-03T08:47:49.536Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-03T08:47:49.536Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 96,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 71
+  },
+  "created_at": "2026-05-03T08:47:49.536Z",
+  "updated_at": "2026-05-03T08:48:11.545Z"
+}

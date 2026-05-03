@@ -7,6 +7,16 @@ This package exposes two surfaces:
   setup, optional daemon runtime, org/global artifact mode, marketplace packs,
   and validation.
 
+## Latest Release
+
+`1.1.12` publishes the launch-ready docs pass:
+
+- npm README now includes this explicit release note.
+- Root README leads with the animated Kage demo GIF.
+- README links clearly to the website and live viewer.
+- Hosted viewer publishes Kage repo graph, code graph, and metrics from GitHub
+  Pages while local repos still use `kage viewer --project .`.
+
 ## Build
 
 ```bash
