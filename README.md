@@ -37,6 +37,10 @@ teams stop rediscovering commands, decisions, gotchas, bugs, and code flows.
 
 ![Kage Memory Terminal demo](docs/assets/kage-demo.gif)
 
+<a href="docs/assets/kage-viewer-demo.mp4">
+  <img alt="Kage hosted viewer demo video" src="docs/assets/kage-viewer-demo-poster.png">
+</a>
+
 </div>
 
 ---

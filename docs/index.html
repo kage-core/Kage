@@ -432,6 +432,36 @@
         align-items: stretch;
       }
 
+      .viewer-demo {
+        margin-top: 18px;
+        border: 1px solid rgba(57, 255, 154, .28);
+        border-radius: 8px;
+        overflow: hidden;
+        background: #020503;
+        box-shadow: 0 0 0 1px rgba(57, 255, 154, .06), 0 24px 70px rgba(0, 0, 0, .36);
+      }
+
+      .viewer-demo video {
+        display: block;
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        background: #020503;
+      }
+
+      .viewer-demo-caption {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 13px 14px;
+        border-top: 1px solid rgba(57, 255, 154, .18);
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .viewer-demo-caption strong {
+        color: var(--terminal);
+      }
+
       .graph-console {
         min-height: 520px;
         border: 1px solid var(--line);
@@ -719,6 +749,10 @@
           grid-template-columns: 1fr;
         }
 
+        .viewer-demo-caption {
+          flex-direction: column;
+        }
+
         .proof-strip,
         .flow,
         .ship-grid {
@@ -956,6 +990,15 @@
                 <div class="signal"><strong>packets -> entities -> edges</strong><span>Repo memory becomes typed graph facts with provenance, freshness, and quality.</span></div>
                 <div class="signal"><strong>text + graph retrieval</strong><span>Recall blends text, graph, path, type, tag, quality, freshness, and feedback signals.</span></div>
                 <div class="signal"><strong>estimated savings</strong><span>Token savings are estimated from compact context today; production telemetry is not overclaimed.</span></div>
+              </div>
+            </div>
+            <div class="viewer-demo" aria-label="Kage viewer demo video">
+              <video autoplay muted loop playsinline poster="assets/kage-viewer-demo-poster.png">
+                <source src="assets/kage-viewer-demo.mp4" type="video/mp4">
+              </video>
+              <div class="viewer-demo-caption">
+                <strong>Actual hosted viewer</strong>
+                <span>Live Kage repo graph, search, memory/code views, and metrics.</span>
               </div>
             </div>
           </div>
