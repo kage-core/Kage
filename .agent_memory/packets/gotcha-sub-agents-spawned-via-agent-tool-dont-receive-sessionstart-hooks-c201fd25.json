@@ -1,0 +1,60 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:gotcha:sub-agents-spawned-via-agent-tool-dont-receive-sessionstart-hooks-1777737314881",
+  "title": "Sub-agents spawned via Agent() tool don't receive SessionStart hooks",
+  "summary": "Claude Code's SessionStart hook only fires when a human starts a session directly. Sub agents spawned programmatically via the Agent tool start with a fresh context and don't go through the hook pipeline. CLAUDE.md and a",
+  "body": "Claude Code's SessionStart hook only fires when a human starts a session directly. Sub-agents spawned programmatically via the Agent() tool start with a fresh context and don't go through the hook pipeline. CLAUDE.md and alwaysLoad still work for sub-agents (tools are visible, policy is readable) but hook-injected system messages are absent. The only reliable enforcement for sub-agents is CLAUDE.md + alwaysLoad — hooks cannot help there.\nVerified by: Tested across 3 sub-agent runs: 0 Kage tool calls despite tools being visible and CLAUDE.md present",
+  "type": "gotcha",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "claude-code",
+    "hooks",
+    "sub-agents",
+    "enforcement"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "AGENTS.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-02T15:55:14.881Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-02T15:55:14.881Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 278
+  },
+  "created_at": "2026-05-02T15:55:14.881Z",
+  "updated_at": "2026-05-02T15:55:14.881Z"
+}
