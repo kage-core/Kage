@@ -9,7 +9,14 @@ This package exposes two surfaces:
 
 ## Latest Release
 
-`1.1.12` publishes the launch-ready docs pass:
+`1.1.13` switches future Kage releases to GPL-3.0-only:
+
+- package metadata now advertises `GPL-3.0-only`.
+- the repo includes the official GPLv3 `LICENSE` text.
+- README clarifies that pre-switch releases were MIT, while future releases are
+  GPL-3.0-only unless a separate written commercial license says otherwise.
+
+`1.1.12` published the launch-ready docs pass:
 
 - npm README now includes this explicit release note.
 - Root README leads with the animated Kage demo GIF.

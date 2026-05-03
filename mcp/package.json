@@ -1,6 +1,6 @@
 {
   "name": "@kage-core/kage-graph-mcp",
-  "version": "1.1.12",
+  "version": "1.1.13",
   "description": "Local-first repo memory, code graph, and recall MCP server for coding agents",
   "main": "dist/index.js",
   "files": [
@@ -33,7 +33,7 @@
     "ai-agents",
     "code-graph"
   ],
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.10.2",
     "typescript": "^5.0.0"
