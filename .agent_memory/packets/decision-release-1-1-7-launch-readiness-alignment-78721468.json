@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:release-1-1-7-launch-readiness-alignment-1777789779946",
+  "title": "Release 1.1.7 launch readiness alignment",
+  "summary": "Release 1.1.7 ships the launch ready kage context package alignment. It publishes the combined kage context MCP entrypoint, aligns README and MCP docs around it, updates the MCP server version, adds MCP tests for kage co",
+  "body": "Release 1.1.7 ships the launch-ready kage_context package alignment. It publishes the combined kage_context MCP entrypoint, aligns README and MCP docs around it, updates the MCP server version, adds MCP tests for kage_context, and fixes generated repo_map duplicate cleanup by using a resolved repo display name and deleting older generated overview/structure packets during refresh. Verified with npm test, npm pack dry-run, temp install smoke, npm publish, global install, kage refresh, and kage pr check.\nVerified by: npm test; npm pack --dry-run; temp install smoke; npm publish; npm install -g @kage-core/kage-graph-mcp@1.1.7",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "release",
+    "kage-context",
+    "shipping",
+    "npm",
+    "duplicate-cleanup"
+  ],
+  "paths": [
+    "README.md",
+    "mcp/README.md",
+    "mcp/index.ts",
+    "mcp/kernel.ts",
+    "mcp/mcp.test.ts",
+    "mcp/package.json"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-03T06:29:39.946Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-03T06:29:39.946Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 158
+  },
+  "created_at": "2026-05-03T06:29:39.946Z",
+  "updated_at": "2026-05-03T06:29:50.658Z"
+}
