@@ -90,10 +90,11 @@ Open the static viewer shell:
 https://kage-core.github.io/Kage/viewer/
 ```
 
-The hosted viewer opens with a bundled demo graph, so visitors can click nodes,
-inspect memory, and see proof metrics immediately. For a real repo, the local
-command is still preferred because it auto-loads that repo's graph, code graph,
-metrics, review file, and pending queue:
+The hosted viewer opens with the Kage repo's published memory graph, code graph,
+and metrics. If those artifacts are unavailable, it falls back to a bundled demo
+graph. For your private or local repo, the local command is still preferred
+because it auto-loads that repo's graph, code graph, metrics, review file, and
+pending queue:
 
 ```bash
 kage viewer --project .
