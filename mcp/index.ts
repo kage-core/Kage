@@ -128,6 +128,23 @@ const server = new Server(
 export function listTools() {
   return [
     {
+      // Combined entry-point tool: validate + recall + code_graph + graph in one call.
+      // Agents should load this schema first (one ToolSearch) instead of loading four
+      // separate deferred schemas. Cuts session start from 4 schema loads to 1.
+      name: "kage_context",
+      description:
+        "Primary kage entry point. Validates memory health, recalls relevant packets, and queries both the code graph and knowledge graph — all in one call. Call this at the start of every task instead of calling kage_validate, kage_recall, kage_code_graph, and kage_graph separately.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string", description: "Absolute path to the project root" },
+          query: { type: "string", description: "The task or question — used for both memory recall and code graph search" },
+          limit: { type: "number", description: "Max memory packets to return (default 5)" },
+        },
+        required: ["project_dir", "query"],
+      },
+    },
+    {
       name: "kage_search",
       description:
         "Search the kage community knowledge graph for gotchas, patterns, configs, and architectural decisions across auth, database, payments, deployment, frontend, testing, and more. Returns node summaries ranked by relevance.",
@@ -733,6 +750,29 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     );
     return {
       content: [{ type: "text", text: content }],
+    };
+  }
+
+  if (name === "kage_context") {
+    const projectDir = String(args?.project_dir ?? "");
+    const query = String(args?.query ?? "");
+    const limit = Number(args?.limit ?? 5);
+    // validate
+    const validation = validateProject(projectDir);
+    const validationText = validation.ok
+      ? "Memory healthy."
+      : `Warnings: ${validation.warnings.join("; ")}`;
+    // recall (memory + code graph + knowledge graph combined)
+    const recallResult = recall(projectDir, query, limit, false);
+    // graph facts on top of recall
+    const graphResult = queryGraph(projectDir, query, 5);
+    const sections = [
+      recallResult.context_block,
+      graphResult.context_block ? `\n## Graph Facts\n${graphResult.context_block}` : "",
+      `\n_${validationText}_`,
+    ].filter(Boolean).join("");
+    return {
+      content: [{ type: "text", text: sections }],
     };
   }
 
