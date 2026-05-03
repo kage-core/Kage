@@ -1,0 +1,51 @@
+name: Claude
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+
+jobs:
+  claude:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+
+      - name: Build kage CLI
+        working-directory: mcp
+        run: npm ci && npm run build
+
+      - name: Write MCP config
+        run: |
+          cat > /tmp/kage-mcp.json << 'EOF'
+          {
+            "mcpServers": {
+              "kage": {
+                "type": "stdio",
+                "command": "node",
+                "args": ["${{ github.workspace }}/mcp/dist/index.js"]
+              }
+            }
+          }
+          EOF
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: --mcp-config /tmp/kage-mcp.json --max-turns 10
