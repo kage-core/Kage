@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640">
+  <defs>
+    <filter id="kanji-glow-og" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    <filter id="text-glow" x="-10%" y="-30%" width="120%" height="160%">
+      <feGaussianBlur stdDeviation="2" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="640" fill="#0a0a0a" />
+
+  <!-- Matrix dot grid background — subtle green dots -->
+  <!-- Row 1 -->
+  <g opacity="0.07" fill="#16a34a">
+    <circle cx="40" cy="40" r="1.5"/><circle cx="80" cy="40" r="1.5"/><circle cx="120" cy="40" r="1.5"/><circle cx="160" cy="40" r="1.5"/><circle cx="200" cy="40" r="1.5"/><circle cx="240" cy="40" r="1.5"/><circle cx="280" cy="40" r="1.5"/><circle cx="320" cy="40" r="1.5"/><circle cx="360" cy="40" r="1.5"/><circle cx="400" cy="40" r="1.5"/><circle cx="440" cy="40" r="1.5"/><circle cx="480" cy="40" r="1.5"/><circle cx="520" cy="40" r="1.5"/><circle cx="560" cy="40" r="1.5"/><circle cx="600" cy="40" r="1.5"/><circle cx="640" cy="40" r="1.5"/><circle cx="680" cy="40" r="1.5"/><circle cx="720" cy="40" r="1.5"/><circle cx="760" cy="40" r="1.5"/><circle cx="800" cy="40" r="1.5"/><circle cx="840" cy="40" r="1.5"/><circle cx="880" cy="40" r="1.5"/><circle cx="920" cy="40" r="1.5"/><circle cx="960" cy="40" r="1.5"/><circle cx="1000" cy="40" r="1.5"/><circle cx="1040" cy="40" r="1.5"/><circle cx="1080" cy="40" r="1.5"/><circle cx="1120" cy="40" r="1.5"/><circle cx="1160" cy="40" r="1.5"/><circle cx="1200" cy="40" r="1.5"/><circle cx="1240" cy="40" r="1.5"/>
+    <circle cx="40" cy="80" r="1.5"/><circle cx="80" cy="80" r="1.5"/><circle cx="120" cy="80" r="1.5"/><circle cx="160" cy="80" r="1.5"/><circle cx="200" cy="80" r="1.5"/><circle cx="240" cy="80" r="1.5"/><circle cx="280" cy="80" r="1.5"/><circle cx="320" cy="80" r="1.5"/><circle cx="360" cy="80" r="1.5"/><circle cx="400" cy="80" r="1.5"/><circle cx="440" cy="80" r="1.5"/><circle cx="480" cy="80" r="1.5"/><circle cx="520" cy="80" r="1.5"/><circle cx="560" cy="80" r="1.5"/><circle cx="600" cy="80" r="1.5"/><circle cx="640" cy="80" r="1.5"/><circle cx="680" cy="80" r="1.5"/><circle cx="720" cy="80" r="1.5"/><circle cx="760" cy="80" r="1.5"/><circle cx="800" cy="80" r="1.5"/><circle cx="840" cy="80" r="1.5"/><circle cx="880" cy="80" r="1.5"/><circle cx="920" cy="80" r="1.5"/><circle cx="960" cy="80" r="1.5"/><circle cx="1000" cy="80" r="1.5"/><circle cx="1040" cy="80" r="1.5"/><circle cx="1080" cy="80" r="1.5"/><circle cx="1120" cy="80" r="1.5"/><circle cx="1160" cy="80" r="1.5"/><circle cx="1200" cy="80" r="1.5"/><circle cx="1240" cy="80" r="1.5"/>
+    <circle cx="40" cy="120" r="1.5"/><circle cx="80" cy="120" r="1.5"/><circle cx="120" cy="120" r="1.5"/><circle cx="160" cy="120" r="1.5"/><circle cx="200" cy="120" r="1.5"/><circle cx="240" cy="120" r="1.5"/><circle cx="280" cy="120" r="1.5"/><circle cx="320" cy="120" r="1.5"/><circle cx="360" cy="120" r="1.5"/><circle cx="400" cy="120" r="1.5"/><circle cx="440" cy="120" r="1.5"/><circle cx="480" cy="120" r="1.5"/><circle cx="520" cy="120" r="1.5"/><circle cx="560" cy="120" r="1.5"/><circle cx="600" cy="120" r="1.5"/><circle cx="640" cy="120" r="1.5"/><circle cx="680" cy="120" r="1.5"/><circle cx="720" cy="120" r="1.5"/><circle cx="760" cy="120" r="1.5"/><circle cx="800" cy="120" r="1.5"/><circle cx="840" cy="120" r="1.5"/><circle cx="880" cy="120" r="1.5"/><circle cx="920" cy="120" r="1.5"/><circle cx="960" cy="120" r="1.5"/><circle cx="1000" cy="120" r="1.5"/><circle cx="1040" cy="120" r="1.5"/><circle cx="1080" cy="120" r="1.5"/><circle cx="1120" cy="120" r="1.5"/><circle cx="1160" cy="120" r="1.5"/><circle cx="1200" cy="120" r="1.5"/><circle cx="1240" cy="120" r="1.5"/>
+    <circle cx="40" cy="520" r="1.5"/><circle cx="80" cy="520" r="1.5"/><circle cx="120" cy="520" r="1.5"/><circle cx="160" cy="520" r="1.5"/><circle cx="200" cy="520" r="1.5"/><circle cx="240" cy="520" r="1.5"/><circle cx="280" cy="520" r="1.5"/><circle cx="320" cy="520" r="1.5"/><circle cx="360" cy="520" r="1.5"/><circle cx="400" cy="520" r="1.5"/><circle cx="440" cy="520" r="1.5"/><circle cx="480" cy="520" r="1.5"/><circle cx="520" cy="520" r="1.5"/><circle cx="560" cy="520" r="1.5"/><circle cx="600" cy="520" r="1.5"/><circle cx="640" cy="520" r="1.5"/><circle cx="680" cy="520" r="1.5"/><circle cx="720" cy="520" r="1.5"/><circle cx="760" cy="520" r="1.5"/><circle cx="800" cy="520" r="1.5"/><circle cx="840" cy="520" r="1.5"/><circle cx="880" cy="520" r="1.5"/><circle cx="920" cy="520" r="1.5"/><circle cx="960" cy="520" r="1.5"/><circle cx="1000" cy="520" r="1.5"/><circle cx="1040" cy="520" r="1.5"/><circle cx="1080" cy="520" r="1.5"/><circle cx="1120" cy="520" r="1.5"/><circle cx="1160" cy="520" r="1.5"/><circle cx="1200" cy="520" r="1.5"/><circle cx="1240" cy="520" r="1.5"/>
+    <circle cx="40" cy="560" r="1.5"/><circle cx="80" cy="560" r="1.5"/><circle cx="120" cy="560" r="1.5"/><circle cx="160" cy="560" r="1.5"/><circle cx="200" cy="560" r="1.5"/><circle cx="240" cy="560" r="1.5"/><circle cx="280" cy="560" r="1.5"/><circle cx="320" cy="560" r="1.5"/><circle cx="360" cy="560" r="1.5"/><circle cx="400" cy="560" r="1.5"/><circle cx="440" cy="560" r="1.5"/><circle cx="480" cy="560" r="1.5"/><circle cx="520" cy="560" r="1.5"/><circle cx="560" cy="560" r="1.5"/><circle cx="600" cy="560" r="1.5"/><circle cx="640" cy="560" r="1.5"/><circle cx="680" cy="560" r="1.5"/><circle cx="720" cy="560" r="1.5"/><circle cx="760" cy="560" r="1.5"/><circle cx="800" cy="560" r="1.5"/><circle cx="840" cy="560" r="1.5"/><circle cx="880" cy="560" r="1.5"/><circle cx="920" cy="560" r="1.5"/><circle cx="960" cy="560" r="1.5"/><circle cx="1000" cy="560" r="1.5"/><circle cx="1040" cy="560" r="1.5"/><circle cx="1080" cy="560" r="1.5"/><circle cx="1120" cy="560" r="1.5"/><circle cx="1160" cy="560" r="1.5"/><circle cx="1200" cy="560" r="1.5"/><circle cx="1240" cy="560" r="1.5"/>
+    <circle cx="40" cy="600" r="1.5"/><circle cx="80" cy="600" r="1.5"/><circle cx="120" cy="600" r="1.5"/><circle cx="160" cy="600" r="1.5"/><circle cx="200" cy="600" r="1.5"/><circle cx="240" cy="600" r="1.5"/><circle cx="280" cy="600" r="1.5"/><circle cx="320" cy="600" r="1.5"/><circle cx="360" cy="600" r="1.5"/><circle cx="400" cy="600" r="1.5"/><circle cx="440" cy="600" r="1.5"/><circle cx="480" cy="600" r="1.5"/><circle cx="520" cy="600" r="1.5"/><circle cx="560" cy="600" r="1.5"/><circle cx="600" cy="600" r="1.5"/><circle cx="640" cy="600" r="1.5"/><circle cx="680" cy="600" r="1.5"/><circle cx="720" cy="600" r="1.5"/><circle cx="760" cy="600" r="1.5"/><circle cx="800" cy="600" r="1.5"/><circle cx="840" cy="600" r="1.5"/><circle cx="880" cy="600" r="1.5"/><circle cx="920" cy="600" r="1.5"/><circle cx="960" cy="600" r="1.5"/><circle cx="1000" cy="600" r="1.5"/><circle cx="1040" cy="600" r="1.5"/><circle cx="1080" cy="600" r="1.5"/><circle cx="1120" cy="600" r="1.5"/><circle cx="1160" cy="600" r="1.5"/><circle cx="1200" cy="600" r="1.5"/><circle cx="1240" cy="600" r="1.5"/>
+  </g>
+
+  <!-- Slightly brighter scattered accent dots for depth -->
+  <g opacity="0.18" fill="#16a34a">
+    <circle cx="40" cy="160" r="1.5"/><circle cx="160" cy="160" r="1.5"/><circle cx="280" cy="200" r="1.5"/><circle cx="400" cy="160" r="1.5"/><circle cx="520" cy="200" r="1.5"/><circle cx="680" cy="160" r="1.5"/><circle cx="840" cy="200" r="1.5"/><circle cx="960" cy="160" r="1.5"/><circle cx="1120" cy="200" r="1.5"/><circle cx="1240" cy="160" r="1.5"/>
+    <circle cx="80" cy="440" r="1.5"/><circle cx="240" cy="480" r="1.5"/><circle cx="440" cy="440" r="1.5"/><circle cx="600" cy="480" r="1.5"/><circle cx="760" cy="440" r="1.5"/><circle cx="920" cy="480" r="1.5"/><circle cx="1080" cy="440" r="1.5"/><circle cx="1200" cy="480" r="1.5"/>
+  </g>
+
+  <!-- Purple accent dots -->
+  <g opacity="0.15" fill="#7c3aed">
+    <circle cx="120" cy="480" r="1.5"/><circle cx="360" cy="440" r="1.5"/><circle cx="560" cy="480" r="1.5"/><circle cx="800" cy="440" r="1.5"/><circle cx="1000" cy="480" r="1.5"/><circle cx="1160" cy="440" r="1.5"/>
+    <circle cx="200" cy="160" r="1.5"/><circle cx="480" cy="200" r="1.5"/><circle cx="720" cy="160" r="1.5"/><circle cx="1040" cy="200" r="1.5"/>
+  </g>
+
+  <!-- Top border line -->
+  <line x1="80" y1="160" x2="1200" y2="160" stroke="#16a34a" stroke-width="0.5" opacity="0.15" />
+  <!-- Bottom border line -->
+  <line x1="80" y1="480" x2="1200" y2="480" stroke="#16a34a" stroke-width="0.5" opacity="0.15" />
+
+  <!-- Central kanji badge -->
+  <circle cx="460" cy="280" r="108" fill="#0d1a0d" stroke="#16a34a" stroke-width="2" opacity="0.95" />
+  <circle cx="460" cy="280" r="103" fill="none" stroke="#16a34a" stroke-width="0.75" opacity="0.3" />
+  <circle cx="460" cy="280" r="96" fill="none" stroke="#16a34a" stroke-width="0.4" opacity="0.15" />
+
+  <!-- 影 kanji large -->
+  <text
+    x="460"
+    y="325"
+    text-anchor="middle"
+    font-family="'Hiragino Sans', 'Yu Gothic', 'Noto Sans JP', 'MS Gothic', sans-serif"
+    font-size="116"
+    font-weight="700"
+    fill="#16a34a"
+    filter="url(#kanji-glow-og)"
+  >影</text>
+
+  <!-- Vertical separator -->
+  <line x1="596" y1="198" x2="596" y2="362" stroke="#16a34a" stroke-width="1.5" opacity="0.2" />
+
+  <!-- "kage" wordmark -->
+  <text
+    x="622"
+    y="296"
+    font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace"
+    font-size="96"
+    font-weight="800"
+    fill="#f0fdf4"
+    letter-spacing="-3"
+    filter="url(#text-glow)"
+  >kage</text>
+
+  <!-- Tagline below wordmark -->
+  <text
+    x="622"
+    y="342"
+    font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace"
+    font-size="22"
+    font-weight="400"
+    fill="#6b7280"
+    letter-spacing="1"
+  >repo memory for coding agents</text>
+
+  <!-- Stats row at bottom -->
+  <!-- Stat 1: tests -->
+  <g>
+    <rect x="160" y="414" width="220" height="48" rx="4" fill="#0f1a0f" stroke="#16a34a" stroke-width="1" opacity="0.9" />
+    <text x="270" y="435" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace" font-size="11" fill="#16a34a" font-weight="700" letter-spacing="1">TESTS</text>
+    <text x="270" y="453" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace" font-size="13" fill="#86efac" font-weight="600">64 passing</text>
+  </g>
+
+  <!-- Stat 2: MCP-ready -->
+  <g>
+    <rect x="400" y="414" width="220" height="48" rx="4" fill="#130d1f" stroke="#7c3aed" stroke-width="1" opacity="0.9" />
+    <text x="510" y="435" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace" font-size="11" fill="#7c3aed" font-weight="700" letter-spacing="1">INTEGRATION</text>
+    <text x="510" y="453" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace" font-size="13" fill="#c4b5fd" font-weight="600">MCP-ready</text>
+  </g>
+
+  <!-- Stat 3: local-first -->
+  <g>
+    <rect x="640" y="414" width="220" height="48" rx="4" fill="#0f1a0f" stroke="#16a34a" stroke-width="1" opacity="0.9" />
+    <text x="750" y="435" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace" font-size="11" fill="#16a34a" font-weight="700" letter-spacing="1">ARCHITECTURE</text>
+    <text x="750" y="453" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace" font-size="13" fill="#86efac" font-weight="600">local-first</text>
+  </g>
+
+  <!-- Stat 4: no external DB -->
+  <g>
+    <rect x="880" y="414" width="220" height="48" rx="4" fill="#0f1a0f" stroke="#16a34a" stroke-width="1" opacity="0.9" />
+    <text x="990" y="435" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace" font-size="11" fill="#16a34a" font-weight="700" letter-spacing="1">DATABASE</text>
+    <text x="990" y="453" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace" font-size="13" fill="#86efac" font-weight="600">no external DB</text>
+  </g>
+
+  <!-- npm install hint at very bottom -->
+  <text
+    x="640"
+    y="530"
+    text-anchor="middle"
+    font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace"
+    font-size="16"
+    fill="#374151"
+    letter-spacing="0.5"
+  >npm install -g @kage-core/kage-graph-mcp</text>
+</svg>

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120" width="400" height="120">
+  <defs>
+    <filter id="kanji-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="120" fill="#0a0a0a" />
+
+  <!-- Kanji badge: dark circle with border -->
+  <circle cx="58" cy="60" r="50" fill="#0f1a0f" stroke="#16a34a" stroke-width="1.5" opacity="0.9" />
+  <circle cx="58" cy="60" r="46" fill="none" stroke="#16a34a" stroke-width="0.5" opacity="0.3" />
+
+  <!-- 影 kanji inside badge -->
+  <text
+    x="58"
+    y="78"
+    text-anchor="middle"
+    font-family="'Hiragino Sans', 'Yu Gothic', 'Noto Sans JP', 'MS Gothic', sans-serif"
+    font-size="52"
+    font-weight="700"
+    fill="#16a34a"
+    filter="url(#kanji-glow)"
+  >影</text>
+
+  <!-- Vertical separator line -->
+  <line x1="124" y1="22" x2="124" y2="98" stroke="#16a34a" stroke-width="1" opacity="0.25" />
+
+  <!-- "kage" wordmark -->
+  <text
+    x="140"
+    y="62"
+    font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace"
+    font-size="42"
+    font-weight="800"
+    fill="#f0fdf4"
+    letter-spacing="-1"
+  >kage</text>
+
+  <!-- Purple accent dot after wordmark -->
+  <circle cx="275" cy="55" r="4" fill="#7c3aed" opacity="0.8" />
+
+  <!-- Tagline -->
+  <text
+    x="140"
+    y="86"
+    font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace"
+    font-size="11"
+    font-weight="400"
+    fill="#6b7280"
+    letter-spacing="0.5"
+  >repo memory for coding agents</text>
+</svg>

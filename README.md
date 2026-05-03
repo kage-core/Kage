@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/assets/kage-logo.svg" alt="Kage" width="320">
+
 # Kage
 
 ### Repo memory for coding agents

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+  <!-- Dark rounded square background -->
+  <rect width="64" height="64" rx="10" ry="10" fill="#0a0a0a" />
+  <!-- Subtle border with green tint -->
+  <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="9.5" ry="9.5" fill="none" stroke="#16a34a" stroke-width="1.5" opacity="0.55" />
+  <!-- Subtle inner glow ring -->
+  <rect x="3" y="3" width="58" height="58" rx="7.5" ry="7.5" fill="none" stroke="#16a34a" stroke-width="0.5" opacity="0.2" />
+  <!-- 影 kanji centered, green with glow -->
+  <text
+    x="32"
+    y="46"
+    text-anchor="middle"
+    font-family="'Hiragino Sans', 'Yu Gothic', 'Noto Sans JP', 'MS Gothic', sans-serif"
+    font-size="38"
+    font-weight="700"
+    fill="#16a34a"
+    filter="url(#glow)"
+    opacity="0.95"
+  >影</text>
+</svg>
