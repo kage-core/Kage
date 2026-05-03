@@ -1,0 +1,68 @@
+<svg width="1280" height="760" viewBox="0 0 1280 760" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Kage Memory Terminal viewer">
+  <rect width="1280" height="760" fill="#020503"/>
+  <rect x="28" y="24" width="1224" height="712" rx="14" fill="#041009" stroke="#1f7a45"/>
+  <text x="54" y="66" fill="#76ff9f" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" font-weight="700">KAGE://REPO-MEMORY</text>
+  <text x="54" y="112" fill="#d7f9df" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="38" font-weight="800">&gt; Memory Terminal</text>
+  <text x="54" y="146" fill="#9be7c0" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18">graph.json, code_graph.json, metrics.json loaded</text>
+
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" font-weight="700">
+    <rect x="54" y="178" width="162" height="36" rx="5" fill="#06170d" stroke="#41ff8f"/>
+    <text x="72" y="202" fill="#41ff8f">100/100</text><text x="140" y="202" fill="#9be7c0">Readiness</text>
+    <rect x="230" y="178" width="128" height="36" rx="5" fill="#06170d" stroke="#41ff8f"/>
+    <text x="248" y="202" fill="#41ff8f">0</text><text x="276" y="202" fill="#9be7c0">Pending</text>
+    <rect x="372" y="178" width="190" height="36" rx="5" fill="#06170d" stroke="#ffd166"/>
+    <text x="390" y="202" fill="#ffd166">112082</text><text x="462" y="202" fill="#9be7c0">Tokens saved</text>
+    <rect x="576" y="178" width="132" height="36" rx="5" fill="#06170d" stroke="#6ad7ff"/>
+    <text x="594" y="202" fill="#6ad7ff">MCP</text><text x="634" y="202" fill="#9be7c0">Ready</text>
+  </g>
+
+  <rect x="54" y="246" width="770" height="440" rx="8" fill="#020905" stroke="#194f30"/>
+  <text x="78" y="286" fill="#d7f9df" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" font-weight="800">GRAPH CONSOLE</text>
+  <text x="78" y="320" fill="#9be7c0" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16">memory packets + source code graph, balanced by signal</text>
+  <rect x="78" y="356" width="704" height="286" fill="#020503" stroke="#10351f"/>
+
+  <g stroke="#0c2416" stroke-width="1">
+    <path d="M78 404H782M78 452H782M78 500H782M78 548H782M78 596H782"/>
+    <path d="M126 356V642M174 356V642M222 356V642M270 356V642M318 356V642M366 356V642M414 356V642M462 356V642M510 356V642M558 356V642M606 356V642M654 356V642M702 356V642M750 356V642"/>
+  </g>
+
+  <g stroke="#41ff8f" stroke-width="1.2" opacity="0.75">
+    <path d="M130 430C236 430 252 480 342 480"/>
+    <path d="M130 506C238 506 246 552 342 552"/>
+    <path d="M132 570C244 570 254 610 360 604"/>
+    <path d="M128 456C250 456 260 428 386 430"/>
+    <path d="M136 536C248 536 286 496 420 498"/>
+  </g>
+  <g stroke="#6ad7ff" stroke-width="1" opacity="0.46">
+    <path d="M386 430C492 430 516 460 620 458"/>
+    <path d="M342 480C474 480 514 534 650 530"/>
+    <path d="M342 552C486 552 522 594 692 590"/>
+    <path d="M420 498C510 498 552 430 696 428"/>
+    <path d="M360 604C500 604 560 548 730 548"/>
+    <path d="M386 430C496 430 578 590 736 590"/>
+  </g>
+
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="700">
+    <g fill="#04140b" stroke="#41ff8f"><circle cx="130" cy="430" r="12"/><circle cx="130" cy="506" r="12"/><circle cx="132" cy="570" r="12"/><circle cx="128" cy="456" r="9"/><circle cx="136" cy="536" r="9"/></g>
+    <g fill="#06121a" stroke="#6ad7ff"><circle cx="386" cy="430" r="11"/><circle cx="342" cy="480" r="11"/><circle cx="342" cy="552" r="11"/><circle cx="420" cy="498" r="11"/><circle cx="360" cy="604" r="11"/><circle cx="620" cy="458" r="10"/><circle cx="650" cy="530" r="10"/><circle cx="692" cy="590" r="10"/><circle cx="696" cy="428" r="10"/><circle cx="730" cy="548" r="10"/></g>
+    <g fill="#191404" stroke="#ffd166"><path d="M744 428l10 10-10 10-10-10z"/><path d="M744 580l10 10-10 10-10-10z"/></g>
+    <text x="86" y="382" fill="#41ff8f">memory</text>
+    <text x="324" y="382" fill="#6ad7ff">files / symbols / tests</text>
+    <text x="654" y="382" fill="#ffd166">decisions</text>
+  </g>
+
+  <rect x="856" y="246" width="344" height="440" rx="8" fill="#030b06" stroke="#194f30"/>
+  <text x="884" y="286" fill="#d7f9df" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" font-weight="800">INSPECTOR</text>
+  <text x="884" y="326" fill="#41ff8f" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" font-weight="800">Viewer combined mode must balance memory and code</text>
+  <text x="884" y="366" fill="#9be7c0" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">type: decision</text>
+  <text x="884" y="394" fill="#9be7c0" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">scope: repo</text>
+  <text x="884" y="422" fill="#9be7c0" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">paths: mcp/viewer/app.js</text>
+  <rect x="884" y="456" width="284" height="1" fill="#194f30"/>
+  <text x="884" y="496" fill="#d7f9df" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">Agents learn locally.</text>
+  <text x="884" y="524" fill="#d7f9df" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">Memory ships in git.</text>
+  <text x="884" y="552" fill="#d7f9df" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">Future agents recall it.</text>
+  <rect x="884" y="596" width="116" height="34" rx="5" fill="#06170d" stroke="#41ff8f"/>
+  <text x="902" y="618" fill="#41ff8f" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" font-weight="800">APPROVED</text>
+  <rect x="1012" y="596" width="126" height="34" rx="5" fill="#06121a" stroke="#6ad7ff"/>
+  <text x="1030" y="618" fill="#6ad7ff" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" font-weight="800">MCP READY</text>
+</svg>
