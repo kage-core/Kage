@@ -7,6 +7,8 @@
     edges: [],
     episodesById: new Map(),
     entityById: new Map(),
+    edgeById: new Map(),
+    degreeById: new Map(),
     positions: new Map(),
     visibleEntityIds: new Set(),
     visibleEdgeIds: new Set(),
@@ -27,8 +29,12 @@
       panning: null,
       hoverNode: null,
       raf: null,
+      drawRaf: null,
       running: false,
-      lastSignature: ""
+      lastSignature: "",
+      tick: 0,
+      idleFrames: 0,
+      adjacency: new Map()
     },
     pan: null
   };
@@ -104,7 +110,7 @@
   };
 
   els.graphFile.addEventListener("change", handleFile);
-  els.searchInput.addEventListener("input", render);
+  els.searchInput.addEventListener("input", scheduleRender);
   els.viewMode.addEventListener("change", render);
   els.typeFilter.addEventListener("change", render);
   els.relationFilter.addEventListener("change", render);
@@ -183,6 +189,10 @@
     state.entityById = new Map(entities.map(function (entity) {
       return [entity.id, entity];
     }));
+    state.edgeById = new Map(edges.map(function (edge) {
+      return [edge.id, edge];
+    }));
+    state.degreeById = buildDegreeMap(edges);
     state.episodesById = new Map(episodes.map(function (episode) {
       return [episode.id, episode];
     }));
@@ -193,6 +203,15 @@
     els.emptyState.classList.add("hidden");
     els.graphSummary.textContent = fileName + " loaded: " + entities.length + " nodes, " + edges.length + " relations.";
     render();
+  }
+
+  function buildDegreeMap(edges) {
+    var degrees = new Map();
+    edges.forEach(function (edge) {
+      degrees.set(edge.from, (degrees.get(edge.from) || 0) + 1);
+      degrees.set(edge.to, (degrees.get(edge.to) || 0) + 1);
+    });
+    return degrees;
   }
 
   function loadFromUrlParams() {
@@ -471,6 +490,7 @@
     if (!state.graph) return;
 
     var query = parseSearchQuery(els.searchInput.value);
+    state.renderQuery = query;
     var mode = els.viewMode.value;
     var type = els.typeFilter.value;
     var relation = els.relationFilter.value;
@@ -509,6 +529,7 @@
       type: type,
       relation: relation,
       scope: els.scopeFilter.value,
+      mode: mode,
       maxNodes: Number(els.maxNodes.value || 90),
       showDependencies: els.showDependencies.checked
     });
@@ -526,6 +547,14 @@
     renderMetrics();
     renderReviewQueue();
     renderProof();
+  }
+
+  function scheduleRender() {
+    if (state.renderRaf) return;
+    state.renderRaf = window.requestAnimationFrame(function () {
+      state.renderRaf = null;
+      render();
+    });
   }
 
   function refineVisibleGraph(entityIds, edgeIds, options) {
@@ -552,7 +581,9 @@
         return entityImportance(state.entityById.get(b)) - entityImportance(state.entityById.get(a)) ||
           displayName(state.entityById.get(a)).localeCompare(displayName(state.entityById.get(b)));
       });
-      entities = new Set(ranked.slice(0, options.maxNodes));
+      entities = options.mode === "combined"
+        ? balancedSignalEntities(ranked, options.maxNodes)
+        : new Set(ranked.slice(0, options.maxNodes));
       if (state.selected && state.selected.kind === "entity") entities.add(state.selected.id);
       edges = edgesWithVisibleEndpoints(edges, entities);
     }
@@ -566,6 +597,33 @@
     }
 
     return { entities: entities, edges: edgesWithVisibleEndpoints(edges, entities) };
+  }
+
+  function balancedSignalEntities(rankedIds, maxNodes) {
+    var result = new Set();
+    var memoryIds = rankedIds.filter(function (id) {
+      var entity = state.entityById.get(id);
+      return entity && entity.graph_kind === "memory" && ["memory", "repo", "memory_type", "command"].indexOf(entity.type) !== -1;
+    });
+    var codeIds = rankedIds.filter(function (id) {
+      var entity = state.entityById.get(id);
+      return entity && entity.graph_kind === "code";
+    });
+    var otherMemoryIds = rankedIds.filter(function (id) {
+      var entity = state.entityById.get(id);
+      return entity && entity.graph_kind === "memory" && !memoryIds.includes(id);
+    });
+
+    var memoryBudget = clamp(Math.round(maxNodes * 0.34), 18, Math.min(44, maxNodes));
+    memoryIds.slice(0, memoryBudget).forEach(function (id) { result.add(id); });
+    otherMemoryIds.slice(0, Math.max(0, Math.round(memoryBudget * 0.35))).forEach(function (id) { result.add(id); });
+    codeIds.forEach(function (id) {
+      if (result.size < maxNodes) result.add(id);
+    });
+    rankedIds.forEach(function (id) {
+      if (result.size < maxNodes) result.add(id);
+    });
+    return result;
   }
 
   function focusSelection(entityIds, edgeIds, selection) {
@@ -599,7 +657,7 @@
 
   function edgesWithVisibleEndpoints(edgeIds, entityIds) {
     return new Set(Array.from(edgeIds).filter(function (id) {
-      var edge = state.edges.find(function (candidate) { return candidate.id === id; });
+      var edge = state.edgeById.get(id);
       return edge && entityIds.has(edge.from) && entityIds.has(edge.to);
     }));
   }
@@ -656,6 +714,22 @@
     state.sim.edges = state.edges.filter(function (edge) {
       return state.visibleEdgeIds.has(edge.id) && state.sim.nodeById.has(edge.from) && state.sim.nodeById.has(edge.to);
     });
+    state.sim.adjacency = buildAdjacency(state.sim.edges);
+    if (forceReset) {
+      state.sim.tick = 0;
+      state.sim.idleFrames = 0;
+    }
+  }
+
+  function buildAdjacency(edges) {
+    var adjacency = new Map();
+    edges.forEach(function (edge) {
+      if (!adjacency.has(edge.from)) adjacency.set(edge.from, new Set());
+      if (!adjacency.has(edge.to)) adjacency.set(edge.to, new Set());
+      adjacency.get(edge.from).add(edge.to);
+      adjacency.get(edge.to).add(edge.from);
+    });
+    return adjacency;
   }
 
   function seededPosition(index, total) {
@@ -673,16 +747,28 @@
     state.sim.raf = window.requestAnimationFrame(simulationTick);
   }
 
+  function stopSimulation() {
+    state.sim.running = false;
+    if (state.sim.raf) window.cancelAnimationFrame(state.sim.raf);
+    state.sim.raf = null;
+  }
+
   function simulationTick() {
     if (!state.sim.running) return;
-    stepSimulation();
+    var maxVelocity = stepSimulation();
     drawCanvasGraph();
+    state.sim.tick += 1;
+    state.sim.idleFrames = maxVelocity < 0.035 ? state.sim.idleFrames + 1 : 0;
+    if (!state.sim.dragNode && (state.sim.idleFrames > 24 || state.sim.tick > 220)) {
+      stopSimulation();
+      return;
+    }
     state.sim.raf = window.requestAnimationFrame(simulationTick);
   }
 
   function stepSimulation() {
     var nodes = state.sim.nodes;
-    if (!nodes.length) return;
+    if (!nodes.length) return 0;
     var nodeMap = state.sim.nodeById;
     var count = nodes.length;
     var repulsion = count > 120 ? 3600 : count > 70 ? 2500 : 1700;
@@ -736,11 +822,16 @@
       }
     });
 
+    var maxVelocity = 0;
     nodes.forEach(function (node) {
       if (state.sim.dragNode === node) return;
-      node.x += clamp(node.vx, -8, 8);
-      node.y += clamp(node.vy, -8, 8);
+      var vx = clamp(node.vx, -8, 8);
+      var vy = clamp(node.vy, -8, 8);
+      node.x += vx;
+      node.y += vy;
+      maxVelocity = Math.max(maxVelocity, Math.abs(vx), Math.abs(vy));
     });
+    return maxVelocity;
   }
 
   function drawCanvasGraph() {
@@ -803,7 +894,7 @@
   function drawCanvasEdges(ctx) {
     var nodeMap = state.sim.nodeById;
     var focusId = focusedCanvasNodeId();
-    var query = parseSearchQuery(els.searchInput.value);
+    var query = state.renderQuery || parseSearchQuery(els.searchInput.value);
     var dense = state.sim.nodes.length > 55;
     state.sim.edges.forEach(function (edge) {
       var from = nodeMap.get(edge.from);
@@ -832,15 +923,14 @@
 
   function drawCanvasNodes(ctx) {
     var focusId = focusedCanvasNodeId();
-    var query = parseSearchQuery(els.searchInput.value);
+    var query = state.renderQuery || parseSearchQuery(els.searchInput.value);
     var dense = state.sim.nodes.length > 55;
+    var focusNeighbors = focusId ? state.sim.adjacency.get(focusId) : null;
     state.sim.nodes.forEach(function (node) {
       var entity = node.entity;
       var selected = state.selected && state.selected.kind === "entity" && state.selected.id === node.id;
       var hovered = state.sim.hoverNode && state.sim.hoverNode.id === node.id;
-      var connected = focusId && (node.id === focusId || state.sim.edges.some(function (edge) {
-        return (edge.from === focusId && edge.to === node.id) || (edge.to === focusId && edge.from === node.id);
-      }));
+      var connected = focusId && (node.id === focusId || (focusNeighbors && focusNeighbors.has(node.id)));
       var matches = matchesSearchQuery(entity, query);
       var alpha = !matches ? 0.12 : focusId && !connected ? 0.20 : 1;
       var color = nodeThemeColor(entity);
@@ -1376,9 +1466,7 @@
   }
 
   function degreeOf(id) {
-    return state.edges.reduce(function (sum, edge) {
-      return sum + (edge.from === id || edge.to === id ? 1 : 0);
-    }, 0);
+    return state.degreeById.get(id) || 0;
   }
 
   function entityImportance(entity) {
@@ -1442,6 +1530,9 @@
       state.sim.dragNode.y = world.y;
       state.sim.dragNode.vx = 0;
       state.sim.dragNode.vy = 0;
+      state.sim.tick = 0;
+      state.sim.idleFrames = 0;
+      startSimulation();
     } else if (state.sim.panning) {
       var dx = event.clientX - state.sim.panning.x;
       var dy = event.clientY - state.sim.panning.y;
@@ -1451,7 +1542,7 @@
     }
     state.sim.hoverNode = findCanvasNode(world.x, world.y);
     updateCanvasTooltip(event);
-    drawCanvasGraph();
+    scheduleCanvasDraw();
   }
 
   function endCanvasPointer() {
@@ -1471,7 +1562,7 @@
     state.sim.dragNode = null;
     state.sim.panning = null;
     if (els.tooltip) els.tooltip.classList.remove("visible");
-    drawCanvasGraph();
+    scheduleCanvasDraw();
   }
 
   function handleCanvasWheel(event) {
@@ -1482,7 +1573,15 @@
     state.sim.zoom = clamp(state.sim.zoom * factor, 0.14, 4.5);
     state.sim.panX = event.clientX - rect.left - before.x * state.sim.zoom;
     state.sim.panY = event.clientY - rect.top - before.y * state.sim.zoom;
-    drawCanvasGraph();
+    scheduleCanvasDraw();
+  }
+
+  function scheduleCanvasDraw() {
+    if (state.sim.drawRaf) return;
+    state.sim.drawRaf = window.requestAnimationFrame(function () {
+      state.sim.drawRaf = null;
+      drawCanvasGraph();
+    });
   }
 
   function handleCanvasDoubleClick(event) {
