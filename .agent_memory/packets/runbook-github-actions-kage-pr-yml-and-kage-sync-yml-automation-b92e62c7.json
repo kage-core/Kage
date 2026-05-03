@@ -1,0 +1,63 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:runbook:github-actions-kage-pr-yml-and-kage-sync-yml-automation-1777792673130",
+  "title": "GitHub Actions: kage-pr.yml and kage-sync.yml automation",
+  "summary": "Two GitHub Actions workflows automate kage memory maintenance. kage pr.yml fires on every PR — builds kage CLI, runs quality + pr check, posts a memory health comment via gh. kage sync.yml fires on every merge to master",
+  "body": "Two GitHub Actions workflows automate kage memory maintenance. kage-pr.yml fires on every PR — builds kage CLI, runs quality + pr check, posts a memory health comment via gh. kage-sync.yml fires on every merge to master — runs kage refresh (rebuilds code graph, knowledge graph, indexes), kage propose --from-diff (captures change memory), and auto-deprecates stale packets with no helpful votes, then commits updated .agent_memory/ back with [skip ci]. kage-pr.yml requires id-token: write permission for Claude OAuth token exchange. Workflow files must be identical on PR branch and master for the OAuth flow to work.\nVerified by: PR #4 successfully triggered both workflows green",
+  "type": "runbook",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "github-actions",
+    "ci",
+    "kage-sync",
+    "kage-pr",
+    "automation"
+  ],
+  "paths": [
+    ".github/workflows/kage-pr.yml",
+    ".github/workflows/kage-sync.yml"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-03T07:17:53.130Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-03T07:17:53.130Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 82,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [
+      "some referenced paths are missing: mcp/.github/workflows/kage-pr.yml"
+    ],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 171
+  },
+  "created_at": "2026-05-03T07:17:53.130Z",
+  "updated_at": "2026-05-03T07:19:15.915Z"
+}
