@@ -1,0 +1,267 @@
+{
+  "entities": [
+    {
+      "id": "repo:kage",
+      "type": "repo",
+      "name": "Kage",
+      "summary": "Repo memory and source graph for coding agents.",
+      "aliases": ["kage-core/Kage"],
+      "evidence": ["episode:demo-launch"]
+    },
+    {
+      "id": "memory:viewer-balance",
+      "type": "memory",
+      "name": "Viewer balances memory and code",
+      "summary": "Combined mode reserves visible space for memory packets before filling the rest with code graph nodes.",
+      "aliases": ["viewer", "memory graph", "code graph"],
+      "evidence": ["episode:demo-viewer"]
+    },
+    {
+      "id": "memory:kage-context",
+      "type": "memory",
+      "name": "kage_context starts agent sessions",
+      "summary": "Agents should call kage_context at session start to receive repo memory, code graph, metrics, and policy hints.",
+      "aliases": ["codex", "claude code", "mcp"],
+      "evidence": ["episode:demo-context"]
+    },
+    {
+      "id": "memory:repo-local",
+      "type": "memory",
+      "name": "Repo-local memory is git-native",
+      "summary": "Approved repo memory is written as JSON packets under .agent_memory/packets and travels with the repo.",
+      "aliases": ["git", "packets"],
+      "evidence": ["episode:demo-repo-memory"]
+    },
+    {
+      "id": "memory:review-boundary",
+      "type": "memory",
+      "name": "Org/global promotion is reviewed",
+      "summary": "Agents can write repo-local memory, but org/global/public promotion requires explicit human review.",
+      "aliases": ["trust", "review"],
+      "evidence": ["episode:demo-trust"]
+    },
+    {
+      "id": "type:decision",
+      "type": "memory_type",
+      "name": "decision",
+      "summary": "Durable architectural or product choice.",
+      "aliases": [],
+      "evidence": ["episode:demo-viewer"]
+    },
+    {
+      "id": "type:runbook",
+      "type": "memory_type",
+      "name": "runbook",
+      "summary": "How to run, test, debug, or operate the repo.",
+      "aliases": [],
+      "evidence": ["episode:demo-context"]
+    },
+    {
+      "id": "command:kage-viewer",
+      "type": "command",
+      "name": "kage viewer --project .",
+      "summary": "Launches the local auto-loaded Memory Terminal for a repo.",
+      "aliases": ["viewer"],
+      "evidence": ["episode:demo-viewer"]
+    },
+    {
+      "id": "command:kage-refresh",
+      "type": "command",
+      "name": "kage refresh --project .",
+      "summary": "Rebuilds indexes, code graph, memory graph, metrics, and stale memory metadata.",
+      "aliases": ["refresh"],
+      "evidence": ["episode:demo-context"]
+    },
+    {
+      "id": "path:mcp-viewer-app",
+      "type": "path",
+      "name": "mcp/viewer/app.js",
+      "summary": "Static Memory Terminal canvas graph and inspector.",
+      "aliases": ["viewer app"],
+      "evidence": ["episode:demo-viewer"]
+    },
+    {
+      "id": "path:mcp-kernel",
+      "type": "path",
+      "name": "mcp/kernel.ts",
+      "summary": "Memory kernel, validation, indexing, graph, recall, setup, metrics, and PR checks.",
+      "aliases": ["kernel"],
+      "evidence": ["episode:demo-context"]
+    },
+    {
+      "id": "tag:viewer",
+      "type": "tag",
+      "name": "viewer",
+      "summary": "Graph and memory terminal experience.",
+      "aliases": [],
+      "evidence": ["episode:demo-viewer"]
+    },
+    {
+      "id": "tag:repo-memory",
+      "type": "tag",
+      "name": "repo-memory",
+      "summary": "Git-native memory packets shared across agents.",
+      "aliases": [],
+      "evidence": ["episode:demo-repo-memory"]
+    },
+    {
+      "id": "tag:mcp",
+      "type": "tag",
+      "name": "mcp",
+      "summary": "Model Context Protocol integration for coding agents.",
+      "aliases": [],
+      "evidence": ["episode:demo-context"]
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge:repo:viewer",
+      "from": "repo:kage",
+      "to": "memory:viewer-balance",
+      "relation": "contains_memory",
+      "fact": "Kage contains a viewer memory about balancing memory and code graph nodes.",
+      "confidence": 0.95,
+      "evidence": ["episode:demo-viewer"]
+    },
+    {
+      "id": "edge:repo:context",
+      "from": "repo:kage",
+      "to": "memory:kage-context",
+      "relation": "contains_memory",
+      "fact": "Kage contains a session-start memory about kage_context.",
+      "confidence": 0.95,
+      "evidence": ["episode:demo-context"]
+    },
+    {
+      "id": "edge:repo:local",
+      "from": "repo:kage",
+      "to": "memory:repo-local",
+      "relation": "contains_memory",
+      "fact": "Kage contains a memory about git-native repo-local packets.",
+      "confidence": 0.95,
+      "evidence": ["episode:demo-repo-memory"]
+    },
+    {
+      "id": "edge:repo:review",
+      "from": "repo:kage",
+      "to": "memory:review-boundary",
+      "relation": "contains_memory",
+      "fact": "Kage contains a trust-boundary memory for org/global promotion.",
+      "confidence": 0.95,
+      "evidence": ["episode:demo-trust"]
+    },
+    {
+      "id": "edge:viewer:type",
+      "from": "memory:viewer-balance",
+      "to": "type:decision",
+      "relation": "has_type",
+      "fact": "Viewer balance is a product decision.",
+      "confidence": 0.9,
+      "evidence": ["episode:demo-viewer"]
+    },
+    {
+      "id": "edge:context:type",
+      "from": "memory:kage-context",
+      "to": "type:runbook",
+      "relation": "has_type",
+      "fact": "kage_context is operational runbook memory.",
+      "confidence": 0.9,
+      "evidence": ["episode:demo-context"]
+    },
+    {
+      "id": "edge:viewer:path",
+      "from": "memory:viewer-balance",
+      "to": "path:mcp-viewer-app",
+      "relation": "affects_path",
+      "fact": "Viewer balance applies to the static viewer app.",
+      "confidence": 0.92,
+      "evidence": ["episode:demo-viewer"]
+    },
+    {
+      "id": "edge:context:path",
+      "from": "memory:kage-context",
+      "to": "path:mcp-kernel",
+      "relation": "affects_path",
+      "fact": "kage_context is implemented through the memory kernel and MCP server.",
+      "confidence": 0.88,
+      "evidence": ["episode:demo-context"]
+    },
+    {
+      "id": "edge:viewer:command",
+      "from": "memory:viewer-balance",
+      "to": "command:kage-viewer",
+      "relation": "documents_command",
+      "fact": "The viewer memory documents the kage viewer command.",
+      "confidence": 0.9,
+      "evidence": ["episode:demo-viewer"]
+    },
+    {
+      "id": "edge:context:refresh",
+      "from": "memory:kage-context",
+      "to": "command:kage-refresh",
+      "relation": "documents_command",
+      "fact": "Agent context should be refreshed after meaningful changes.",
+      "confidence": 0.86,
+      "evidence": ["episode:demo-context"]
+    },
+    {
+      "id": "edge:viewer:tag",
+      "from": "memory:viewer-balance",
+      "to": "tag:viewer",
+      "relation": "mentions_tag",
+      "fact": "Viewer balance is tagged viewer.",
+      "confidence": 0.9,
+      "evidence": ["episode:demo-viewer"]
+    },
+    {
+      "id": "edge:local:tag",
+      "from": "memory:repo-local",
+      "to": "tag:repo-memory",
+      "relation": "mentions_tag",
+      "fact": "Repo-local memory is tagged repo-memory.",
+      "confidence": 0.9,
+      "evidence": ["episode:demo-repo-memory"]
+    },
+    {
+      "id": "edge:context:tag",
+      "from": "memory:kage-context",
+      "to": "tag:mcp",
+      "relation": "mentions_tag",
+      "fact": "kage_context is exposed through MCP.",
+      "confidence": 0.9,
+      "evidence": ["episode:demo-context"]
+    }
+  ],
+  "episodes": [
+    {
+      "id": "episode:demo-launch",
+      "summary": "Kage demo graph for the hosted Memory Terminal.",
+      "source": "hosted_demo",
+      "created_at": "2026-05-03T00:00:00.000Z"
+    },
+    {
+      "id": "episode:demo-viewer",
+      "summary": "The viewer should show memory and code graph together, not an empty shell.",
+      "source": "hosted_demo",
+      "created_at": "2026-05-03T00:00:00.000Z"
+    },
+    {
+      "id": "episode:demo-context",
+      "summary": "Agents use kage_context and refresh to avoid rediscovery.",
+      "source": "hosted_demo",
+      "created_at": "2026-05-03T00:00:00.000Z"
+    },
+    {
+      "id": "episode:demo-repo-memory",
+      "summary": "Repo-local packets are git-native durable memory.",
+      "source": "hosted_demo",
+      "created_at": "2026-05-03T00:00:00.000Z"
+    },
+    {
+      "id": "episode:demo-trust",
+      "summary": "Org/global sharing is review-gated.",
+      "source": "hosted_demo",
+      "created_at": "2026-05-03T00:00:00.000Z"
+    }
+  ]
+}
