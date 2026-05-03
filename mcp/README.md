@@ -158,6 +158,11 @@ ranking: text, graph, path/type/tag, freshness, quality, feedback, and a vector
 placeholder for future local or external embedding providers. Current fallback
 is deterministic text plus graph retrieval.
 
+`kage_context` is the primary MCP entrypoint for agents. It validates repo
+memory, recalls relevant packets, and returns code/knowledge graph context in
+one call. Agents should use it at task start instead of loading separate
+`kage_validate`, `kage_recall`, `kage_code_graph`, and `kage_graph` schemas.
+
 `kage daemon start` exposes the optional local REST runtime on
 `127.0.0.1:3111`:
 
@@ -203,6 +208,7 @@ confidence, and token-savings metrics connect.
 
 Local repo tools:
 
+- `kage_context`
 - `kage_recall`
 - `kage_code_graph`
 - `kage_metrics`
@@ -288,14 +294,12 @@ Minimum policy:
 
 ```md
 Before code changes or repo-specific answers:
-1. Call `kage_validate`.
-2. Call `kage_recall` with the user task as the query.
-3. Call `kage_graph` with the user task as the query.
-4. Capture reusable learnings with `kage_learn` or `kage_capture`.
-5. After meaningful file changes, call `kage_refresh`.
-6. Before finishing changed-file tasks, call `kage_propose_from_diff` or `kage_pr_summarize`.
-7. Before merge, call `kage_pr_check`.
-8. Never publish or promote org/global memory automatically.
+1. Call `kage_context` with `project_dir` and the user task as `query`.
+2. Capture reusable learnings with `kage_learn` or `kage_capture`.
+3. After meaningful file changes, call `kage_refresh`.
+4. Before finishing changed-file tasks, call `kage_propose_from_diff` or `kage_pr_summarize`.
+5. Before merge, call `kage_pr_check`.
+6. Never publish or promote org/global memory automatically.
 ```
 
 Run `kage setup verify-agent --agent codex --project <repo>` after setup. The

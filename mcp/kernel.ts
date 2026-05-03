@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, relative } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import * as ts from "typescript";
 import { createPublicCandidateBundleManifest, createSignedManifest, generateOrgRegistryManifest } from "./registry/index.js";
 
@@ -1002,6 +1002,10 @@ function repoKey(projectDir: string): string {
   return slugify(basename(projectDir));
 }
 
+function repoDisplayName(projectDir: string): string {
+  return basename(resolve(projectDir));
+}
+
 export function makePacketId(projectDir: string, type: MemoryType, title: string, suffix?: string): string {
   const raw = suffix ? `${title}-${suffix}` : title;
   return `repo:${repoKey(projectDir)}:${type}:${slugify(raw)}`;
@@ -1610,7 +1614,7 @@ function createRepoOverviewPacket(projectDir: string): MemoryPacket | null {
   const readmePath = join(projectDir, "README.md");
   if (!existsSync(packagePath) && !existsSync(readmePath)) return null;
 
-  let title = `${basename(projectDir)} repo overview`;
+  let title = `${repoDisplayName(projectDir)} repo overview`;
   const tags = ["repo", "overview"];
   const bodyParts: string[] = [];
   const paths = ["root"];
@@ -1618,7 +1622,7 @@ function createRepoOverviewPacket(projectDir: string): MemoryPacket | null {
 
   if (existsSync(packagePath)) {
     const pkg = readJson<Record<string, unknown>>(packagePath);
-    title = `${String(pkg.name ?? basename(projectDir))} repo overview`;
+    title = `${String(pkg.name ?? repoDisplayName(projectDir))} repo overview`;
     const scripts = pkg.scripts && typeof pkg.scripts === "object" ? Object.keys(pkg.scripts as Record<string, unknown>) : [];
     const deps = {
       ...(pkg.dependencies as Record<string, string> | undefined),
@@ -1728,8 +1732,8 @@ function createRepoStructurePacket(projectDir: string): MemoryPacket | null {
 
   return {
     schema_version: PACKET_SCHEMA_VERSION,
-    id: makePacketId(projectDir, "repo_map", `${basename(projectDir)} repo structure`, "auto-structure"),
-    title: `${basename(projectDir)} repo structure`,
+    id: makePacketId(projectDir, "repo_map", `${repoDisplayName(projectDir)} repo structure`, "auto-structure"),
+    title: `${repoDisplayName(projectDir)} repo structure`,
     summary: summarize(body),
     body,
     type: "repo_map",
@@ -1762,7 +1766,20 @@ function createRepoStructurePacket(projectDir: string): MemoryPacket | null {
 
 function upsertGeneratedPacket(projectDir: string, packet: MemoryPacket): void {
   const dir = packetsDir(projectDir);
-  const existing = loadPacketsFromDir(dir).find((candidate) => candidate.id === packet.id);
+  const entries = loadPacketEntriesFromDir(dir);
+  const generatedKind = packet.tags.includes("overview") ? "overview" : packet.tags.includes("structure") ? "structure" : null;
+  for (const entry of entries) {
+    if (
+      generatedKind &&
+      entry.packet.id !== packet.id &&
+      entry.packet.type === packet.type &&
+      entry.packet.quality?.reviewer === "kage-indexer" &&
+      entry.packet.tags.includes(generatedKind)
+    ) {
+      unlinkSync(entry.path);
+    }
+  }
+  const existing = entries.find((entry) => entry.packet.id === packet.id)?.packet;
   if (existing && existing.quality?.reviewer !== "kage-indexer") return;
   if (existing) {
     const comparableFields: (keyof MemoryPacket)[] = ["title", "summary", "body", "tags", "paths", "stack", "source_refs", "freshness"];
@@ -4211,10 +4228,8 @@ fi
 if [[ -z "$POLICY" ]]; then
   POLICY="This repo uses Kage as an automatic memory harness for coding agents.
 Before making code changes or answering implementation questions:
-1. Call kage_validate for this repo.
-2. Call kage_recall with the user task as the query.
-3. Call kage_code_graph for file, symbol, route, test, or dependency questions.
-4. Call kage_graph for decisions, bugs, workflows, and conventions.
+1. Call kage_context with project_dir and the user task as query.
+2. Use returned memory only when it is relevant, source-backed, and not stale.
 When you learn something reusable: kage_learn.
 After meaningful file changes: kage_refresh.
 Before finishing a task that changed files: kage_pr_summarize or kage_propose_from_diff, then kage_pr_check.

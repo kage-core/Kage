@@ -20,6 +20,7 @@ function textContent(result: Awaited<ReturnType<typeof callTool>>): string {
 
 test("MCP lists repo-local memory tools", () => {
   const names = listTools().map((tool) => tool.name);
+  assert.equal(names.includes("kage_context"), true);
   assert.equal(names.includes("kage_recall"), true);
   assert.equal(names.includes("kage_graph"), true);
   assert.equal(names.includes("kage_code_graph"), true);
@@ -43,6 +44,19 @@ test("MCP lists repo-local memory tools", () => {
   assert.equal(names.includes("kage_export_public_bundle"), true);
   assert.equal(names.includes("kage_review_artifact"), true);
   assert.equal(names.includes("kage_validate"), true);
+});
+
+test("MCP kage_context returns combined repo context", async () => {
+  const project = tempProject();
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
+  const result = await callTool("kage_context", {
+    project_dir: project,
+    query: "how do I run tests",
+  });
+  const text = textContent(result);
+  assert.match(text, /Kage Context/);
+  assert.match(text, /Graph Facts/);
+  assert.match(text, /Memory healthy|Warnings/);
 });
 
 test("MCP kage_recall returns agent-ready context", async () => {

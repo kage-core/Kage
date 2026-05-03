@@ -121,7 +121,7 @@ function arrayArg(value: unknown): string[] {
 }
 
 const server = new Server(
-  { name: "kage-graph", version: "1.1.0" },
+  { name: "kage-graph", version: "1.1.7" },
   { capabilities: { tools: {} } }
 );
 

@@ -324,6 +324,16 @@ Kage keeps three things separate:
 That separation is the product. Kage does not turn every session log into a
 junk graph.
 
+Primary agent entrypoint:
+
+```text
+kage_context
+```
+
+`kage_context` validates repo memory, recalls relevant packets, and queries the
+code and knowledge graphs in one tool call. Agents should use it at task start
+instead of making the user ask for memory manually.
+
 ## How It Works
 
 ```mermaid
@@ -535,6 +545,7 @@ kage global build --project /path/to/repo --org acme
 
 Local repo tools:
 
+- `kage_context`
 - `kage_recall`
 - `kage_code_graph`
 - `kage_metrics`
@@ -577,15 +588,13 @@ Kage becomes ambient through the `AGENTS.md` policy installed by `kage init` or
 
 For normal coding tasks, the agent should:
 
-1. Call `kage_validate`.
-2. Call `kage_recall` with the user task.
-3. Call `kage_graph` or `kage_code_graph` when source flow matters.
-4. Use returned memory only when relevant and source-backed.
-5. Capture reusable learnings with `kage_learn`.
-6. Call `kage_refresh` after meaningful file changes so graphs, indexes, metrics, and stale-memory checks are current.
-7. Call `kage_pr_summarize` or `kage_propose_from_diff` before final response when files changed; this creates a branch summary and repo-local change-memory packet.
-8. Call `kage_pr_check` before final handoff or merge-readiness claims.
-9. Never publish, promote, or install org/global/shared assets automatically.
+1. Call `kage_context` with the user task.
+2. Use returned memory only when relevant and source-backed.
+3. Capture reusable learnings with `kage_learn`.
+4. Call `kage_refresh` after meaningful file changes so graphs, indexes, metrics, and stale-memory checks are current.
+5. Call `kage_pr_summarize` or `kage_propose_from_diff` before final response when files changed; this creates a branch summary and repo-local change-memory packet.
+6. Call `kage_pr_check` before final handoff or merge-readiness claims.
+7. Never publish, promote, or install org/global/shared assets automatically.
 
 The user should not have to manually ask for recall or memory capture during
 normal work. The harness tells the agent when to use the tools. Where an agent
