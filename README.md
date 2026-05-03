@@ -19,9 +19,17 @@ teams stop rediscovering commands, decisions, gotchas, bugs, and code flows.
 </p>
 
 <p>
+  <strong>Website:</strong>
+  <a href="https://kage-core.github.io/Kage/">https://kage-core.github.io/Kage/</a>
+  ·
+  <strong>Live viewer:</strong>
+  <a href="https://kage-core.github.io/Kage/viewer/">https://kage-core.github.io/Kage/viewer/</a>
+</p>
+
+<p>
   <a href="#install">Install</a> ·
   <a href="#viewer">Viewer</a> ·
-  <a href="https://kage-core.github.io/Kage/viewer/">Open Viewer</a> ·
+  <a href="https://kage-core.github.io/Kage/">Website</a> ·
   <a href="#codex-and-claude-code">Codex + Claude</a> ·
   <a href="#what-kage-stores">Memory Model</a> ·
   <a href="#proof">Proof</a>

@@ -1,68 +1,134 @@
-<svg width="1280" height="760" viewBox="0 0 1280 760" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Kage Memory Terminal viewer">
-  <rect width="1280" height="760" fill="#020503"/>
-  <rect x="28" y="24" width="1224" height="712" rx="14" fill="#041009" stroke="#1f7a45"/>
-  <text x="54" y="66" fill="#76ff9f" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" font-weight="700">KAGE://REPO-MEMORY</text>
-  <text x="54" y="112" fill="#d7f9df" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="38" font-weight="800">&gt; Memory Terminal</text>
-  <text x="54" y="146" fill="#9be7c0" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18">graph.json, code_graph.json, metrics.json loaded</text>
+<svg width="1280" height="760" viewBox="0 0 1280 760" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Kage repo hive memory demo" overflow="hidden">
+  <defs>
+    <linearGradient id="shell" x1="0" y1="0" x2="1280" y2="760" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#071720"/>
+      <stop offset="0.52" stop-color="#03080b"/>
+      <stop offset="1" stop-color="#03170d"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#0a1d27"/>
+      <stop offset="1" stop-color="#05090c"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
 
-  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" font-weight="700">
-    <rect x="54" y="178" width="162" height="36" rx="5" fill="#06170d" stroke="#41ff8f"/>
-    <text x="72" y="202" fill="#41ff8f">100/100</text><text x="140" y="202" fill="#9be7c0">Readiness</text>
-    <rect x="230" y="178" width="128" height="36" rx="5" fill="#06170d" stroke="#41ff8f"/>
-    <text x="248" y="202" fill="#41ff8f">0</text><text x="276" y="202" fill="#9be7c0">Pending</text>
-    <rect x="372" y="178" width="190" height="36" rx="5" fill="#06170d" stroke="#ffd166"/>
-    <text x="390" y="202" fill="#ffd166">112082</text><text x="462" y="202" fill="#9be7c0">Tokens saved</text>
-    <rect x="576" y="178" width="132" height="36" rx="5" fill="#06170d" stroke="#6ad7ff"/>
-    <text x="594" y="202" fill="#6ad7ff">MCP</text><text x="634" y="202" fill="#9be7c0">Ready</text>
+  <rect width="1280" height="760" fill="url(#shell)"/>
+  <rect x="24" y="24" width="330" height="644" fill="#071018" stroke="#26394a"/>
+  <rect x="372" y="24" width="804" height="644" fill="#071018" stroke="#26394a"/>
+
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace">
+    <rect x="46" y="56" width="36" height="36" fill="#062f1b" stroke="#20ff86"/>
+    <text x="59" y="82" fill="#20ff86" font-size="22" font-weight="800">K</text>
+    <text x="88" y="67" fill="#ddffe8" font-size="24" font-weight="800">Kage memory</text>
+    <text x="88" y="91" fill="#8ea7b5" font-size="13">Hive context for coding agents.</text>
+
+    <g font-size="16">
+      <rect x="46" y="130" width="286" height="46" fill="#062b1b" stroke="#20ff86"/>
+      <rect x="56" y="142" width="24" height="24" fill="#101c25" stroke="#304657"/>
+      <text x="64" y="160" fill="#c8ffdc">1</text>
+      <text x="92" y="160" fill="#ddffe8" font-weight="700">Codex installs Kage</text>
+
+      <rect x="46" y="186" width="286" height="46" fill="#09141c" stroke="#26394a"/>
+      <rect x="56" y="198" width="24" height="24" fill="#101c25" stroke="#304657"/>
+      <text x="64" y="216" fill="#8ea7b5">2</text>
+      <text x="92" y="216" fill="#8ea7b5" font-weight="700">Repo graph builds</text>
+
+      <rect x="46" y="242" width="286" height="46" fill="#09141c" stroke="#26394a"/>
+      <rect x="56" y="254" width="24" height="24" fill="#101c25" stroke="#304657"/>
+      <text x="64" y="272" fill="#8ea7b5">3</text>
+      <text x="92" y="272" fill="#8ea7b5" font-weight="700">Memory ships in git</text>
+
+      <rect x="46" y="298" width="286" height="46" fill="#09141c" stroke="#26394a"/>
+      <rect x="56" y="310" width="24" height="24" fill="#101c25" stroke="#304657"/>
+      <text x="64" y="328" fill="#8ea7b5">4</text>
+      <text x="92" y="328" fill="#8ea7b5" font-weight="700">Claude recalls context</text>
+    </g>
+
+    <g>
+      <rect x="46" y="382" width="138" height="72" fill="#071018" stroke="#26394a"/>
+      <text x="58" y="416" fill="#20ff86" font-size="24" font-weight="900">64</text>
+      <text x="58" y="438" fill="#8ea7b5" font-size="12">tests passing</text>
+
+      <rect x="194" y="382" width="138" height="72" fill="#071018" stroke="#26394a"/>
+      <text x="206" y="416" fill="#20ff86" font-size="24" font-weight="900">13</text>
+      <text x="206" y="438" fill="#8ea7b5" font-size="12">agents</text>
+
+      <rect x="46" y="464" width="138" height="72" fill="#071018" stroke="#26394a"/>
+      <text x="58" y="498" fill="#20ff86" font-size="24" font-weight="900">0</text>
+      <text x="58" y="520" fill="#8ea7b5" font-size="12">external DB</text>
+
+      <rect x="194" y="464" width="138" height="72" fill="#071018" stroke="#26394a"/>
+      <text x="206" y="498" fill="#20ff86" font-size="24" font-weight="900">MCP</text>
+      <text x="206" y="520" fill="#8ea7b5" font-size="12">ready</text>
+    </g>
+
+    <rect x="46" y="570" width="286" height="52" fill="#061c13" stroke="#20ff86"/>
+    <text x="62" y="602" fill="#20ff86" font-size="17" font-weight="800">kage-core.github.io/Kage</text>
+
+    <rect x="372" y="24" width="804" height="44" fill="#0a141b" stroke="#26394a"/>
+    <circle cx="394" cy="46" r="5" fill="#ff6b6b"/>
+    <circle cx="412" cy="46" r="5" fill="#ffd166"/>
+    <circle cx="430" cy="46" r="5" fill="#20ff86"/>
+    <text x="902" y="53" fill="#ddffe8" font-size="16" font-weight="700">Repo memory terminal</text>
+
+    <rect x="392" y="88" width="410" height="560" fill="url(#panel)" stroke="#26394a"/>
+    <text x="410" y="122" fill="#20ff86" font-size="16" font-weight="800">you &gt;</text>
+    <text x="462" y="122" fill="#ddffe8" font-size="16">How do I run this repo?</text>
+
+    <text x="410" y="170" fill="#20ff86" font-size="16" font-weight="800">kage &gt;</text>
+    <text x="482" y="170" fill="#ddffe8" font-size="16" font-weight="700">recalling repo memory...</text>
+    <text x="410" y="206" fill="#41c9ff" font-size="16">✓ Runbook: npm test --prefix mcp</text>
+    <text x="410" y="238" fill="#41c9ff" font-size="16">✓ Code graph: 1,898 symbols</text>
+    <text x="410" y="270" fill="#41c9ff" font-size="16">✓ Decisions: viewer + memory policy</text>
+    <text x="410" y="302" fill="#41c9ff" font-size="16">✓ Context block ready for the agent</text>
+
+    <rect x="410" y="346" width="354" height="138" fill="#071018" stroke="#26394a"/>
+    <text x="430" y="378" fill="#8ea7b5" font-size="13" font-weight="800">AGENT CONTEXT</text>
+    <text x="430" y="412" fill="#ddffe8" font-size="15">Use repo-local packets first.</text>
+    <text x="430" y="442" fill="#ddffe8" font-size="15">Cite source files and decisions.</text>
+    <text x="430" y="472" fill="#ddffe8" font-size="15">Learn durable fixes back to git.</text>
+
+    <rect x="410" y="522" width="160" height="42" fill="#062b1b" stroke="#20ff86"/>
+    <text x="434" y="549" fill="#20ff86" font-size="15" font-weight="800">APPROVED</text>
+    <rect x="588" y="522" width="176" height="42" fill="#071625" stroke="#41c9ff"/>
+    <text x="612" y="549" fill="#41c9ff" font-size="15" font-weight="800">LOCAL FIRST</text>
+
+    <rect x="820" y="88" width="336" height="270" fill="url(#panel)" stroke="#26394a"/>
+    <text x="838" y="118" fill="#8ea7b5" font-size="14" font-weight="800">MEMORY + CODE GRAPH</text>
+    <g stroke="#26394a" stroke-width="2">
+      <path d="M990 176L900 240"/>
+      <path d="M990 176L1082 240"/>
+      <path d="M900 240L990 300"/>
+      <path d="M1082 240L990 300"/>
+    </g>
+    <rect x="940" y="138" width="104" height="38" fill="#062b1b" stroke="#20ff86"/>
+    <text x="978" y="162" fill="#20ff86" font-size="13" font-weight="800">repo</text>
+    <rect x="850" y="218" width="104" height="38" fill="#071625" stroke="#41c9ff"/>
+    <text x="870" y="242" fill="#41c9ff" font-size="13" font-weight="800">code graph</text>
+    <rect x="1032" y="218" width="104" height="38" fill="#1a1005" stroke="#ff9f1c"/>
+    <text x="1058" y="242" fill="#ff9f1c" font-size="13" font-weight="800">memory</text>
+    <rect x="940" y="298" width="104" height="38" fill="#111326" stroke="#a78bfa"/>
+    <text x="956" y="322" fill="#c4b5fd" font-size="13" font-weight="800">team recall</text>
+
+    <rect x="820" y="376" width="336" height="272" fill="url(#panel)" stroke="#26394a"/>
+    <text x="838" y="408" fill="#8ea7b5" font-size="14" font-weight="800">REVIEW QUEUE</text>
+    <rect x="838" y="424" width="300" height="72" fill="#16110a" stroke="#ff9f1c"/>
+    <text x="852" y="448" fill="#ffb15c" font-size="14" font-weight="800">No pending memory.</text>
+    <text x="852" y="474" fill="#8ea7b5" font-size="12">repo-local writes are git visible</text>
+
+    <rect x="838" y="526" width="300" height="74" fill="#071018" stroke="#26394a"/>
+    <text x="852" y="552" fill="#20ff86" font-size="14" font-weight="800">Codex learns today.</text>
+    <text x="852" y="578" fill="#ddffe8" font-size="14">Claude Code recalls tomorrow.</text>
   </g>
 
-  <rect x="54" y="246" width="770" height="440" rx="8" fill="#020905" stroke="#194f30"/>
-  <text x="78" y="286" fill="#d7f9df" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" font-weight="800">GRAPH CONSOLE</text>
-  <text x="78" y="320" fill="#9be7c0" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16">memory packets + source code graph, balanced by signal</text>
-  <rect x="78" y="356" width="704" height="286" fill="#020503" stroke="#10351f"/>
-
-  <g stroke="#0c2416" stroke-width="1">
-    <path d="M78 404H782M78 452H782M78 500H782M78 548H782M78 596H782"/>
-    <path d="M126 356V642M174 356V642M222 356V642M270 356V642M318 356V642M366 356V642M414 356V642M462 356V642M510 356V642M558 356V642M606 356V642M654 356V642M702 356V642M750 356V642"/>
+  <g opacity="0.28" stroke="#20ff86" filter="url(#glow)">
+    <path d="M1088 692C1148 644 1192 638 1230 656"/>
+    <path d="M1122 708C1178 678 1210 678 1260 700"/>
   </g>
-
-  <g stroke="#41ff8f" stroke-width="1.2" opacity="0.75">
-    <path d="M130 430C236 430 252 480 342 480"/>
-    <path d="M130 506C238 506 246 552 342 552"/>
-    <path d="M132 570C244 570 254 610 360 604"/>
-    <path d="M128 456C250 456 260 428 386 430"/>
-    <path d="M136 536C248 536 286 496 420 498"/>
-  </g>
-  <g stroke="#6ad7ff" stroke-width="1" opacity="0.46">
-    <path d="M386 430C492 430 516 460 620 458"/>
-    <path d="M342 480C474 480 514 534 650 530"/>
-    <path d="M342 552C486 552 522 594 692 590"/>
-    <path d="M420 498C510 498 552 430 696 428"/>
-    <path d="M360 604C500 604 560 548 730 548"/>
-    <path d="M386 430C496 430 578 590 736 590"/>
-  </g>
-
-  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="700">
-    <g fill="#04140b" stroke="#41ff8f"><circle cx="130" cy="430" r="12"/><circle cx="130" cy="506" r="12"/><circle cx="132" cy="570" r="12"/><circle cx="128" cy="456" r="9"/><circle cx="136" cy="536" r="9"/></g>
-    <g fill="#06121a" stroke="#6ad7ff"><circle cx="386" cy="430" r="11"/><circle cx="342" cy="480" r="11"/><circle cx="342" cy="552" r="11"/><circle cx="420" cy="498" r="11"/><circle cx="360" cy="604" r="11"/><circle cx="620" cy="458" r="10"/><circle cx="650" cy="530" r="10"/><circle cx="692" cy="590" r="10"/><circle cx="696" cy="428" r="10"/><circle cx="730" cy="548" r="10"/></g>
-    <g fill="#191404" stroke="#ffd166"><path d="M744 428l10 10-10 10-10-10z"/><path d="M744 580l10 10-10 10-10-10z"/></g>
-    <text x="86" y="382" fill="#41ff8f">memory</text>
-    <text x="324" y="382" fill="#6ad7ff">files / symbols / tests</text>
-    <text x="654" y="382" fill="#ffd166">decisions</text>
-  </g>
-
-  <rect x="856" y="246" width="344" height="440" rx="8" fill="#030b06" stroke="#194f30"/>
-  <text x="884" y="286" fill="#d7f9df" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" font-weight="800">INSPECTOR</text>
-  <text x="884" y="326" fill="#41ff8f" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" font-weight="800">Viewer combined mode must balance memory and code</text>
-  <text x="884" y="366" fill="#9be7c0" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">type: decision</text>
-  <text x="884" y="394" fill="#9be7c0" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">scope: repo</text>
-  <text x="884" y="422" fill="#9be7c0" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">paths: mcp/viewer/app.js</text>
-  <rect x="884" y="456" width="284" height="1" fill="#194f30"/>
-  <text x="884" y="496" fill="#d7f9df" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">Agents learn locally.</text>
-  <text x="884" y="524" fill="#d7f9df" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">Memory ships in git.</text>
-  <text x="884" y="552" fill="#d7f9df" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">Future agents recall it.</text>
-  <rect x="884" y="596" width="116" height="34" rx="5" fill="#06170d" stroke="#41ff8f"/>
-  <text x="902" y="618" fill="#41ff8f" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" font-weight="800">APPROVED</text>
-  <rect x="1012" y="596" width="126" height="34" rx="5" fill="#06121a" stroke="#6ad7ff"/>
-  <text x="1030" y="618" fill="#6ad7ff" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" font-weight="800">MCP READY</text>
 </svg>
