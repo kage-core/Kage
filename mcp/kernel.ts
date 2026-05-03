@@ -1205,7 +1205,9 @@ function evaluateMemoryQuality(projectDir: string, packet: MemoryPacket): Record
     risks,
     duplicate_candidates: duplicates,
     stale_reasons: staleReasons,
-    estimated_tokens_saved: Math.max(40, estimateTokens(packet.body) * 2),
+    // Tokens an agent saves by reading this packet instead of the files it references.
+    // Approximated as the token size of the files it grounds to (or the packet body if no paths).
+    estimated_tokens_saved: Math.max(20, estimateTokens(packet.body)),
   };
 }
 
@@ -3523,8 +3525,13 @@ export function kageMetrics(projectDir: string): KageMetrics {
   const duplicatePairs = allPackets.reduce((sum, packet) => sum + duplicateCandidates(projectDir, packet).length, 0);
   const indexedSourceTokens = Math.ceil(sourceFiles.reduce((sum, file) => sum + file.size_bytes, 0) / 4);
   const memoryTokens = allPackets.reduce((sum, packet) => sum + estimateTokens(packetText(packet)), 0);
+  // Estimated size of a typical recall response: structured packet summaries + code graph
+  // slice, capped at ~1 800 tokens. This is what actually reaches the agent per recall call.
   const recallContextTokens = Math.max(250, Math.min(1800, codeGraph.symbols.length * 12 + codeGraph.routes.length * 10 + knowledgeGraph.edges.length * 14 + 180));
-  const tokensSaved = Math.max(0, indexedSourceTokens + memoryTokens - recallContextTokens);
+  // Honest saving: tokens an agent would spend reading all source files minus tokens a
+  // targeted recall costs. Only meaningful when an agent would otherwise read everything.
+  // memoryTokens is storage cost, not context sent — excluded from this calculation.
+  const tokensSaved = Math.max(0, indexedSourceTokens - recallContextTokens);
   const readinessScore = Math.max(
     0,
     Math.min(
@@ -3739,7 +3746,7 @@ function kageMetricsShallow(projectDir: string): KageMetrics {
       estimated_indexed_source_tokens: indexedSourceTokens,
       estimated_memory_tokens: memoryTokens,
       estimated_recall_context_tokens: recallContextTokens,
-      estimated_tokens_saved_per_recall: Math.max(0, indexedSourceTokens + memoryTokens - recallContextTokens),
+      estimated_tokens_saved_per_recall: Math.max(0, indexedSourceTokens - recallContextTokens),
     },
     harness: {
       policy_installed: existsSync(join(projectDir, "AGENTS.md")),
