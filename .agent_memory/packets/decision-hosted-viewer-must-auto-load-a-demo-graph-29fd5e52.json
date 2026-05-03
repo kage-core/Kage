@@ -1,0 +1,62 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:hosted-viewer-must-auto-load-a-demo-graph-1777795604489",
+  "title": "Hosted viewer must auto-load a demo graph",
+  "summary": "A hosted GitHub Pages viewer with no default graph is not useful. The viewer now loads mcp/viewer/demo/graph.json and demo/metrics.json when opened without graph/code URL params, so https://kage core.github.io/Kage/viewe",
+  "body": "A hosted GitHub Pages viewer with no default graph is not useful. The viewer now loads mcp/viewer/demo/graph.json and demo/metrics.json when opened without graph/code URL params, so https://kage-core.github.io/Kage/viewer/ immediately shows an interactive memory graph. Local kage viewer remains preferred for real repos because it passes explicit graph/code/metrics/review/pending params.\nEvidence: Local Pages preview at http://127.0.0.1:8129/viewer/ reported hosted demo graph loaded and demo graph JSON has 14 entities, 13 edges, and 5 episodes.\nVerified by: browser DOM snapshot; npm test --prefix mcp",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "viewer",
+    "pages",
+    "demo",
+    "docs"
+  ],
+  "paths": [
+    "mcp/viewer/app.js",
+    "mcp/viewer/demo/graph.json",
+    "mcp/viewer/demo/metrics.json",
+    "README.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-03T08:06:44.489Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-03T08:06:44.489Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 152
+  },
+  "created_at": "2026-05-03T08:06:44.489Z",
+  "updated_at": "2026-05-03T08:06:54.704Z"
+}

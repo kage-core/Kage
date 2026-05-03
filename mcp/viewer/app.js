@@ -233,7 +233,7 @@
     if (reviewPath) jobs.push(fetchText(reviewPath).then(function (text) { state.reviewText = text; }).catch(function () { state.reviewText = ""; }));
     if (pendingPath) jobs.push(loadPending(pendingPath).then(function (packets) { state.pendingPackets = packets; }));
     if (!graphPaths.length && !jobs.length) {
-      setAutoLoad("manual mode", false);
+      loadHostedDemo();
       return;
     }
     setAutoLoad("loading project graph", false);
@@ -255,6 +255,21 @@
     }).catch(function (error) {
       setAutoLoad("auto-load failed", false);
       showError("Could not auto-load graph: " + error.message);
+    });
+  }
+
+  function loadHostedDemo() {
+    setAutoLoad("loading hosted demo graph", false);
+    Promise.all([
+      fetchJson("./demo/graph.json"),
+      fetchJson("./demo/metrics.json").catch(function () { return null; })
+    ]).then(function (items) {
+      var graph = items[0];
+      state.metrics = items[1];
+      loadNormalizedGraph(normalizeGraph(graph), "hosted demo graph");
+      setAutoLoad("hosted demo graph loaded", true);
+    }).catch(function () {
+      setAutoLoad("manual mode", false);
     });
   }
 
