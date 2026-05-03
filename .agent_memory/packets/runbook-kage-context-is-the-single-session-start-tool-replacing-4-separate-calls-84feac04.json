@@ -1,0 +1,63 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:runbook:kage-context-is-the-single-session-start-tool-replacing-4-separate-calls-1777792",
+  "title": "kage_context is the single session-start tool replacing 4 separate calls",
+  "summary": "kage context project dir, query replaces the old 4 step validate + recall + code graph + graph sequence. It runs all four in one call and returns a combined context block. Added in mcp/index.ts callTool handler and liste",
+  "body": "kage_context(project_dir, query) replaces the old 4-step validate + recall + code_graph + graph sequence. It runs all four in one call and returns a combined context block. Added in mcp/index.ts callTool() handler and listed first in the MCP tool list. AGENTS.md and CLAUDE.md updated to reference kage_context. Requires Claude Code v2.1.121+ with alwaysLoad: true in ~/.claude.json for tools to be immediately available (not deferred). On older versions alwaysLoad silently does nothing and tools end up deferred requiring ToolSearch.\nVerified by: 64/64 tests passing, global MCP install updated",
+  "type": "runbook",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "kage_context",
+    "session-start",
+    "mcp",
+    "alwaysLoad",
+    "deferred-tools"
+  ],
+  "paths": [
+    "mcp/index.ts",
+    "mcp/kernel.ts",
+    "AGENTS.md",
+    "CLAUDE.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-03T07:18:03.317Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-03T07:18:03.317Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 149
+  },
+  "created_at": "2026-05-03T07:18:03.317Z",
+  "updated_at": "2026-05-03T07:18:32.544Z"
+}
