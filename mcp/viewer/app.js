@@ -233,7 +233,7 @@
     if (reviewPath) jobs.push(fetchText(reviewPath).then(function (text) { state.reviewText = text; }).catch(function () { state.reviewText = ""; }));
     if (pendingPath) jobs.push(loadPending(pendingPath).then(function (packets) { state.pendingPackets = packets; }));
     if (!graphPaths.length && !jobs.length) {
-      loadHostedDemo();
+      loadHostedDefault();
       return;
     }
     setAutoLoad("loading project graph", false);
@@ -258,16 +258,32 @@
     });
   }
 
+  function loadHostedDefault() {
+    setAutoLoad("loading hosted repo graph", false);
+    Promise.all([
+      fetchJson("./data/kage/graph.json"),
+      fetchJson("./data/kage/code_graph/graph.json"),
+      fetchJson("./data/kage/metrics.json").catch(function () { return null; })
+    ]).then(function (items) {
+      var merged = mergeNormalizedGraphs([normalizeGraph(items[0]), normalizeGraph(items[1])]);
+      state.metrics = items[2];
+      loadNormalizedGraph(merged, "Kage repo graph");
+      setAutoLoad("Kage repo graph loaded", true);
+    }).catch(function () {
+      loadHostedDemo();
+    });
+  }
+
   function loadHostedDemo() {
-    setAutoLoad("loading hosted demo graph", false);
+    setAutoLoad("loading bundled demo graph", false);
     Promise.all([
       fetchJson("./demo/graph.json"),
       fetchJson("./demo/metrics.json").catch(function () { return null; })
     ]).then(function (items) {
       var graph = items[0];
       state.metrics = items[1];
-      loadNormalizedGraph(normalizeGraph(graph), "hosted demo graph");
-      setAutoLoad("hosted demo graph loaded", true);
+      loadNormalizedGraph(normalizeGraph(graph), "bundled demo graph");
+      setAutoLoad("bundled demo graph loaded", true);
     }).catch(function () {
       setAutoLoad("manual mode", false);
     });

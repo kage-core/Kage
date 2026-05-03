@@ -6,6 +6,9 @@ on:
     paths:
       - "docs/**"
       - "mcp/viewer/**"
+      - "mcp/src/**"
+      - "mcp/package*.json"
+      - ".agent_memory/packets/**"
       - "README.md"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
@@ -27,6 +30,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Build repo graph data
+        run: |
+          npm ci --prefix mcp
+          npm run build --prefix mcp
+          node mcp/dist/cli.js refresh --project .
       - uses: actions/configure-pages@v5
         with:
           enablement: true
@@ -35,6 +46,10 @@ jobs:
           rm -rf docs/viewer
           mkdir -p docs/viewer
           cp -R mcp/viewer/. docs/viewer/
+          mkdir -p docs/viewer/data/kage/code_graph
+          cp .agent_memory/graph/graph.json docs/viewer/data/kage/graph.json
+          cp .agent_memory/code_graph/graph.json docs/viewer/data/kage/code_graph/graph.json
+          cp .agent_memory/metrics.json docs/viewer/data/kage/metrics.json
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs
