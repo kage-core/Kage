@@ -7,6 +7,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import {
   SETUP_AGENTS,
+  benchmarkTaskComparison,
   benchmarkProject,
   buildGlobalCdnBundle,
   capture,
@@ -289,6 +290,19 @@ export function listTools() {
           project_dir: { type: "string" },
         },
         required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_benchmark_compare",
+      description:
+        "Compare the same task on the same repo with and without Kage. Reports estimated baseline discovery tokens/steps versus Kage recall/code-graph context, with evidence and caveats.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+          task: { type: "string" },
+        },
+        required: ["project_dir", "task"],
       },
     },
     {
@@ -791,6 +805,13 @@ export async function callTool(name: string, args: Record<string, unknown> | und
 
   if (name === "kage_benchmark") {
     const result = benchmarkProject(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_benchmark_compare") {
+    const result = benchmarkTaskComparison(String(args?.project_dir ?? ""), String(args?.task ?? ""));
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };

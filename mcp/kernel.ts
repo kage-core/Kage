@@ -372,6 +372,47 @@ export interface BenchmarkReport {
   };
 }
 
+export interface BenchmarkComparisonReport {
+  schema_version: 1;
+  project_dir: string;
+  task: string;
+  generated_at: string;
+  baseline_without_kage: {
+    strategy: "manual_repo_discovery_estimate";
+    files_examined: number;
+    full_file_tokens: number;
+    steps: number;
+    estimated_time_seconds: number;
+  };
+  with_kage: {
+    strategy: "recall_plus_code_graph";
+    recall_results: number;
+    memory_packets_used: number;
+    code_files_returned: number;
+    code_symbols_returned: number;
+    code_routes_returned: number;
+    code_tests_returned: number;
+    context_tokens: number;
+    steps: number;
+    estimated_time_seconds: number;
+  };
+  delta: {
+    estimated_tokens_saved: number;
+    context_reduction_percent: number;
+    rediscovery_steps_saved: number;
+    estimated_time_saved_seconds: number;
+    full_file_reads_avoided: number;
+    recall_hit: boolean;
+    code_graph_hit: boolean;
+  };
+  evidence: {
+    baseline_files: Array<{ path: string; tokens: number; why: string }>;
+    kage_memory: Array<{ id: string; title: string; type: MemoryType; score: number }>;
+    kage_code_facts: string[];
+  };
+  caveats: string[];
+}
+
 export interface MemoryAdmissionResult {
   admit: boolean;
   class: "episodic_only" | "candidate" | "high_signal";
@@ -3699,6 +3740,110 @@ export function benchmarkProject(projectDir: string): BenchmarkReport {
       estimated_tokens_saved: metrics.savings.estimated_tokens_saved_per_recall,
       time_to_first_use_seconds: metrics.harness.policy_installed ? 30 : 90,
     },
+  };
+}
+
+function baselineDiscoveryFiles(projectDir: string, task: string): Array<{ path: string; tokens: number; why: string; score: number }> {
+  const terms = tokenize(task);
+  const graph = buildCodeGraph(projectDir);
+  const candidatePaths = unique([
+    "README.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "package.json",
+    ...graph.files.map((file) => file.path),
+  ]).filter((path) => path && !shouldSkipRepoMemoryPath(path));
+  return candidatePaths
+    .map((path) => {
+      const absolute = join(projectDir, path);
+      if (!existsSync(absolute)) return null;
+      const stats = statSync(absolute);
+      if (!stats.isFile() || stats.size > 240_000) return null;
+      const text = readFileSync(absolute, "utf8");
+      const score = scoreText(terms, `${path}\n${text.slice(0, 8000)}`, [path]);
+      const alwaysUseful = ["README.md", "AGENTS.md", "CLAUDE.md", "package.json"].includes(path);
+      if (score <= 0 && !alwaysUseful) return null;
+      return {
+        path,
+        tokens: Math.max(1, Math.ceil(stats.size / 4)),
+        why: score > 0 ? "task terms matched path or file content" : "standard repo orientation file",
+        score: score + (alwaysUseful ? 1 : 0),
+      };
+    })
+    .filter((entry): entry is { path: string; tokens: number; why: string; score: number } => Boolean(entry))
+    .sort((a, b) => b.score - a.score || b.tokens - a.tokens || a.path.localeCompare(b.path))
+    .slice(0, 10);
+}
+
+export function benchmarkTaskComparison(projectDir: string, task: string): BenchmarkComparisonReport {
+  ensureMemoryDirs(projectDir);
+  const query = task.trim() || "how do I run tests";
+  const baselineFiles = baselineDiscoveryFiles(projectDir, query);
+  const baselineTokens = baselineFiles.reduce((sum, file) => sum + file.tokens, 0);
+  const recallResult = recall(projectDir, query, 5, true);
+  const codeResult = queryCodeGraph(projectDir, query, 10);
+  const kageContext = `${recallResult.context_block}\n\n${codeResult.context_block}`;
+  const kageTokens = estimateTokens(kageContext);
+  const codeFactLines = [
+    ...codeResult.routes.map((route) => `[route] ${route.method} ${route.path} in ${route.file_path}:${route.line}`),
+    ...codeResult.symbols.map((symbol) => `[symbol] ${symbol.kind} ${symbol.name} in ${symbol.path}:${symbol.line}`),
+    ...codeResult.tests.map((test) => `[test] ${test.title} in ${test.test_path}:${test.line}`),
+    ...codeResult.files.slice(0, 5).map((file) => `[file] ${file.path} (${file.kind}, ${file.language}, ${file.parser})`),
+  ];
+  const baselineSteps = Math.max(3, baselineFiles.length + 2);
+  const kageSteps = 3;
+  const tokensSaved = Math.max(0, baselineTokens - kageTokens);
+  const contextReduction = baselineTokens > 0 ? percent(tokensSaved, baselineTokens) : 0;
+  const timeSaved = Math.max(0, baselineSteps * 45 - kageSteps * 12);
+
+  return {
+    schema_version: 1,
+    project_dir: projectDir,
+    task: query,
+    generated_at: nowIso(),
+    baseline_without_kage: {
+      strategy: "manual_repo_discovery_estimate",
+      files_examined: baselineFiles.length,
+      full_file_tokens: baselineTokens,
+      steps: baselineSteps,
+      estimated_time_seconds: baselineSteps * 45,
+    },
+    with_kage: {
+      strategy: "recall_plus_code_graph",
+      recall_results: recallResult.results.length,
+      memory_packets_used: recallResult.results.length,
+      code_files_returned: codeResult.files.length,
+      code_symbols_returned: codeResult.symbols.length,
+      code_routes_returned: codeResult.routes.length,
+      code_tests_returned: codeResult.tests.length,
+      context_tokens: kageTokens,
+      steps: kageSteps,
+      estimated_time_seconds: kageSteps * 12,
+    },
+    delta: {
+      estimated_tokens_saved: tokensSaved,
+      context_reduction_percent: contextReduction,
+      rediscovery_steps_saved: Math.max(0, baselineSteps - kageSteps),
+      estimated_time_saved_seconds: timeSaved,
+      full_file_reads_avoided: Math.max(0, baselineFiles.length - codeResult.files.length),
+      recall_hit: recallResult.results.length > 0,
+      code_graph_hit: codeFactLines.length > 0,
+    },
+    evidence: {
+      baseline_files: baselineFiles.map(({ path, tokens, why }) => ({ path, tokens, why })),
+      kage_memory: recallResult.results.map((entry) => ({
+        id: entry.packet.id,
+        title: entry.packet.title,
+        type: entry.packet.type,
+        score: entry.score,
+      })),
+      kage_code_facts: codeFactLines.slice(0, 12),
+    },
+    caveats: [
+      "Baseline is a deterministic manual-discovery estimate, not a live human or agent timing trace.",
+      "Token savings estimate full-file reads avoided versus compact Kage recall/code-graph context.",
+      "Use this for relative proof on the same repo/task, not cross-repo absolute claims.",
+    ],
   };
 }
 

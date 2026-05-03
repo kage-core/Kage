@@ -1,0 +1,68 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:release-1-1-5-same-task-a-b-benchmark-1777786591247",
+  "title": "Release 1.1.5 same-task A/B benchmark",
+  "summary": "Release 1.1.5 adds same task A/B benchmarking. kage benchmark compare task compares baseline manual repo discovery against Kage recall plus code graph on the same repo/task, reporting estimated tokens saved, context redu",
+  "body": "Release 1.1.5 adds same-task A/B benchmarking. kage benchmark --compare --task compares baseline manual repo discovery against Kage recall plus code graph on the same repo/task, reporting estimated tokens saved, context reduction, rediscovery steps saved, time saved, full-file reads avoided, recall/code graph hits, evidence files, memory packets, code facts, and caveats. MCP exposes kage_benchmark_compare. Kage self-benchmark for PR readiness task showed 115,334 baseline tokens vs 1,906 Kage context tokens, 98% smaller context, 9 rediscovery steps avoided, and 504 estimated seconds saved. Verified by npm test, npm pack --dry-run, and npm publish.\nVerified by: npm test; npm --cache /tmp/kage-npm-cache pack --dry-run; npm publish; kage benchmark --compare",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "release",
+    "benchmark",
+    "metrics",
+    "tokens-saved",
+    "rediscovery",
+    "marketing-proof"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/cli.ts",
+    "mcp/index.ts",
+    "mcp/kernel.test.ts",
+    "mcp/mcp.test.ts",
+    "README.md",
+    "mcp/README.md",
+    "docs/index.html"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-03T05:36:31.247Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-03T05:36:31.247Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 382
+  },
+  "created_at": "2026-05-03T05:36:31.247Z",
+  "updated_at": "2026-05-03T05:36:39.256Z"
+}

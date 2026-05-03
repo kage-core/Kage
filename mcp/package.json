@@ -1,6 +1,6 @@
 {
   "name": "@kage-core/kage-graph-mcp",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "Local-first repo memory, code graph, and recall MCP server for coding agents",
   "main": "dist/index.js",
   "files": [

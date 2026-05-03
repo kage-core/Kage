@@ -5,6 +5,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { daemonDoctor, readDaemonStatus, startDaemon, startViewer, stopDaemon } from "./daemon.js";
 import {
   SETUP_AGENTS,
+  benchmarkTaskComparison,
   approvePending,
   benchmarkProject,
   buildGlobalCdnBundle,
@@ -80,6 +81,7 @@ Usage:
   kage metrics --project <dir> [--json]
   kage quality --project <dir> [--json]
   kage benchmark --project <dir> [--json]
+  kage benchmark --project <dir> --compare --task <task> [--json]
   kage code-graph --project <dir> [--json]
   kage code-graph "<query>" --project <dir> [--json]
   kage graph --project <dir> [--json]
@@ -554,6 +556,44 @@ async function main(): Promise<void> {
   }
 
   if (command === "benchmark") {
+    if (args.includes("--compare")) {
+      const result = benchmarkTaskComparison(projectArg(args), takeArg(args, "--task") ?? firstPositional(args) ?? "how do I run tests");
+      if (args.includes("--json")) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+      console.log(`Kage A/B Benchmark: ${result.project_dir}`);
+      console.log(`Task: ${result.task}`);
+      console.log("");
+      console.log("Without Kage:");
+      console.log(`  Files examined: ${result.baseline_without_kage.files_examined}`);
+      console.log(`  Full-file tokens: ${result.baseline_without_kage.full_file_tokens}`);
+      console.log(`  Steps: ${result.baseline_without_kage.steps}`);
+      console.log(`  Estimated time: ${result.baseline_without_kage.estimated_time_seconds}s`);
+      console.log("");
+      console.log("With Kage:");
+      console.log(`  Memory packets: ${result.with_kage.memory_packets_used}`);
+      console.log(`  Code facts: ${result.with_kage.code_files_returned + result.with_kage.code_symbols_returned + result.with_kage.code_routes_returned + result.with_kage.code_tests_returned}`);
+      console.log(`  Context tokens: ${result.with_kage.context_tokens}`);
+      console.log(`  Steps: ${result.with_kage.steps}`);
+      console.log(`  Estimated time: ${result.with_kage.estimated_time_seconds}s`);
+      console.log("");
+      console.log("Delta:");
+      console.log(`  Estimated tokens saved: ${result.delta.estimated_tokens_saved}`);
+      console.log(`  Context reduction: ${result.delta.context_reduction_percent}%`);
+      console.log(`  Rediscovery steps saved: ${result.delta.rediscovery_steps_saved}`);
+      console.log(`  Estimated time saved: ${result.delta.estimated_time_saved_seconds}s`);
+      console.log(`  Full-file reads avoided: ${result.delta.full_file_reads_avoided}`);
+      console.log(`  Recall hit: ${result.delta.recall_hit ? "yes" : "no"}`);
+      console.log(`  Code graph hit: ${result.delta.code_graph_hit ? "yes" : "no"}`);
+      console.log("");
+      console.log("Baseline files:");
+      for (const file of result.evidence.baseline_files.slice(0, 8)) console.log(`  - ${file.path} (${file.tokens} tokens): ${file.why}`);
+      console.log("");
+      console.log("Kage memory:");
+      for (const packet of result.evidence.kage_memory.slice(0, 5)) console.log(`  - ${packet.title} (${packet.type}, score ${packet.score})`);
+      return;
+    }
     const result = benchmarkProject(projectArg(args));
     if (args.includes("--json")) {
       console.log(JSON.stringify(result, null, 2));

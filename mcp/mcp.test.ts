@@ -29,6 +29,7 @@ test("MCP lists repo-local memory tools", () => {
   assert.equal(names.includes("kage_pr_check"), true);
   assert.equal(names.includes("kage_quality"), true);
   assert.equal(names.includes("kage_benchmark"), true);
+  assert.equal(names.includes("kage_benchmark_compare"), true);
   assert.equal(names.includes("kage_setup_agent"), true);
   assert.equal(names.includes("kage_verify_agent"), true);
   assert.equal(names.includes("kage_graph_visual"), true);
@@ -175,6 +176,9 @@ test("MCP setup, quality, benchmark, observe, and distill tools work", async () 
 
   const benchmark = await callTool("kage_benchmark", { project_dir: project });
   assert.equal(typeof JSON.parse(textContent(benchmark)).pain_metrics.estimated_tokens_saved, "number");
+
+  const comparison = await callTool("kage_benchmark_compare", { project_dir: project, task: "how do I run tests" });
+  assert.equal(typeof JSON.parse(textContent(comparison)).delta.estimated_tokens_saved, "number");
 });
 
 test("MCP kage_learn captures actual session learning", async () => {
