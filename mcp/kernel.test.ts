@@ -144,7 +144,7 @@ test("installs and updates Codex agent policy idempotently", () => {
   assert.equal(created.updated, false);
   const first = readFileSync(join(project, "AGENTS.md"), "utf8");
   assert.match(first, /Automatic Recall/);
-  assert.match(first, /kage_validate/);
+  assert.match(first, /kage_context/);
 
   const second = installAgentPolicy(project);
   assert.equal(second.created, false);
