@@ -782,11 +782,23 @@ Keep captures concise and future-facing. Do not store raw transcripts.
 
 ## End-Of-Task Proposal
 
-Before finishing a task that changed files, call \`kage_propose_from_diff\`.
+After meaningful file changes, call \`kage_refresh\` so indexes, code graph,
+memory graph, metrics, and stale-memory checks are current.
 
-This writes a branch review summary and a repo-local change-memory packet. It
-should capture what changed, why it matters, how to verify it, and what future
-agents should know. Git or PR review is the repo-level review boundary.
+Before finishing a task that changed files, call \`kage_pr_summarize\` or
+\`kage_propose_from_diff\`, then call \`kage_pr_check\`.
+
+\`kage_pr_summarize\` writes a branch review summary and a repo-local
+change-memory packet. \`kage_pr_check\` verifies validation, graph freshness,
+stale packets, and whether repo memory changed with the branch. If the check
+fails, explain the required actions instead of hiding the failure. Git or PR
+review is the repo-level review boundary.
+
+## Package Updates
+
+If the user asks to update Kage, run \`kage upgrade\`, then verify setup with
+\`kage setup verify-agent --agent <agent> --project <repo>\`. Tell the user to
+restart the agent when MCP tools need to reload.
 
 ## Feedback
 
@@ -812,7 +824,9 @@ For normal coding tasks:
 4. \`kage_graph\` for remembered decisions, bugs, workflows, and conventions
 5. Work on the task
 6. \`kage_learn\` for concrete learnings
-7. \`kage_propose_from_diff\` before the final response to create repo-local change memory
+7. \`kage_refresh\` after meaningful file changes
+8. \`kage_pr_summarize\` or \`kage_propose_from_diff\` before the final response to create repo-local change memory
+9. \`kage_pr_check\` before final handoff or merge readiness claims
 
 For quick factual questions, \`kage_recall\` alone is enough. For status or demo requests, call \`kage_metrics\`.
 ${AGENTS_POLICY_END}
@@ -4055,22 +4069,42 @@ Before making code changes or answering implementation questions:
 3. Call kage_code_graph for file, symbol, route, test, or dependency questions.
 4. Call kage_graph for decisions, bugs, workflows, and conventions.
 When you learn something reusable: kage_learn.
-Before finishing a task that changed files: kage_propose_from_diff.
+After meaningful file changes: kage_refresh.
+Before finishing a task that changed files: kage_pr_summarize or kage_propose_from_diff, then kage_pr_check.
 If recalled memory helped: kage_feedback helpful. If wrong or stale: kage_feedback wrong or stale."
 fi
 
 KAGE_MSG="$POLICY" python3 -c "import json,os; print(json.dumps({'systemMessage': os.environ['KAGE_MSG']}))"
 `;
+    const stopHookScript = `#!/usr/bin/env bash
+# Kage Stop hook — best-effort repo memory refresh before Claude Code finishes.
+# Silent if Kage is not initialized in the current project or no git changes exist.
+set -euo pipefail
+
+PAYLOAD="$(cat || true)"
+CWD="$(printf "%s" "$PAYLOAD" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('cwd',''))" 2>/dev/null || echo "")"
+
+[[ -d "$CWD/.agent_memory" ]] || exit 0
+command -v kage >/dev/null 2>&1 || exit 0
+
+if git -C "$CWD" status --porcelain -uall >/dev/null 2>&1 && [[ -n "$(git -C "$CWD" status --porcelain -uall)" ]]; then
+  kage refresh --project "$CWD" --json >/dev/null 2>&1 || true
+  kage pr summarize --project "$CWD" --json >/dev/null 2>&1 || true
+fi
+
+exit 0
+`;
     const settingsPath = join(home, ".claude", "settings.json");
     const hookEntry = {
       hooks: {
-      SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/session-start.sh", timeout: 5 }] }],
+        SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/session-start.sh", timeout: 5 }] }],
+        Stop: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/stop.sh", timeout: 20 }] }],
       },
     };
     setSnippet(path, JSON.stringify({ mcpServers: { kage: server } }, null, 2), [
       "Add the MCP server to ~/.claude.json, then restart Claude Code.",
       "alwaysLoad: true makes Kage tools immediately visible without requiring ToolSearch.",
-      `Also create ${hookDir}/session-start.sh with the hook script and add the SessionStart hook to ~/.claude/settings.json.`,
+      `Also create ${hookDir}/session-start.sh and ${hookDir}/stop.sh with the hook scripts and add SessionStart/Stop hooks to ~/.claude/settings.json.`,
       "Run `kage init --project <repo>` inside each repo to install the ambient memory policy.",
     ], true);
     if (options.write) {
@@ -4078,6 +4112,7 @@ KAGE_MSG="$POLICY" python3 -c "import json,os; print(json.dumps({'systemMessage'
       // Install the ambient session-start hook
       mkdirSync(hookDir, { recursive: true });
       writeFileSync(join(hookDir, "session-start.sh"), hookScript, { mode: 0o755 });
+      writeFileSync(join(hookDir, "stop.sh"), stopHookScript, { mode: 0o755 });
       upsertJsonSettings(settingsPath, hookEntry);
       result.wrote = true;
     }
