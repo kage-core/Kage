@@ -1,0 +1,72 @@
+name: Kage Sync
+
+on:
+  push:
+    branches: [master, main]
+
+jobs:
+  kage-sync:
+    name: Rebuild graphs and capture change memory
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+
+      - name: Install kage
+        working-directory: mcp
+        run: npm ci && npm run build
+
+      - name: Refresh indexes, code graph, and knowledge graph
+        run: node mcp/dist/cli.js refresh --project . --json
+
+      - name: Capture change memory from diff
+        run: node mcp/dist/cli.js propose --project . --from-diff --json
+        continue-on-error: true
+
+      - name: Auto-deprecate stale packets
+        run: |
+          node -e "
+            const { qualityReport, loadApprovedPackets } = require('./mcp/dist/kernel.js');
+            const { readFileSync, writeFileSync } = require('fs');
+            const report = qualityReport('.');
+            const stale = report.packets.filter(p => p.classification === 'stale' && p.suggested_action === 'mark_stale');
+            for (const s of stale) {
+              const files = require('fs').readdirSync('.agent_memory/packets').filter(f => f.includes(s.id.split(':').pop()));
+              for (const f of files) {
+                const path = \`.agent_memory/packets/\${f}\`;
+                const packet = JSON.parse(readFileSync(path, 'utf8'));
+                if (!packet.quality?.votes_up) {
+                  packet.status = 'deprecated';
+                  packet.updated_at = new Date().toISOString();
+                  writeFileSync(path, JSON.stringify(packet, null, 2));
+                  console.log('Deprecated stale packet:', packet.title);
+                }
+              }
+            }
+          "
+        continue-on-error: true
+
+      - name: Commit updated memory artifacts
+        run: |
+          git config user.name "kage-bot"
+          git config user.email "kage-bot@users.noreply.github.com"
+          git add .agent_memory/
+          if git diff --cached --quiet; then
+            echo "No memory changes to commit"
+          else
+            git commit -m "chore: kage sync — rebuild graphs and update memory [skip ci]"
+            git push
+          fi

@@ -1,0 +1,117 @@
+name: Kage PR Check
+
+on:
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  kage-check:
+    name: Memory & graph health
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+
+      - name: Install kage
+        working-directory: mcp
+        run: npm ci && npm run build
+
+      - name: Refresh indexes and graphs
+        run: node mcp/dist/cli.js refresh --project . --json
+        continue-on-error: true
+
+      - name: Run PR check
+        id: pr_check
+        run: |
+          result=$(node mcp/dist/cli.js pr check --project . --json 2>&1)
+          echo "result<<EOF" >> $GITHUB_OUTPUT
+          echo "$result" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "$result"
+
+      - name: Run quality report
+        id: quality
+        run: |
+          result=$(node mcp/dist/cli.js quality --project . --json 2>&1)
+          echo "result<<EOF" >> $GITHUB_OUTPUT
+          echo "$result" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prCheck = JSON.parse(process.env.PR_CHECK || '{}');
+            const quality = JSON.parse(process.env.QUALITY || '{}');
+
+            const ok = prCheck.ok !== false;
+            const icon = ok ? '✅' : '⚠️';
+
+            const stale = quality.totals?.stale ?? 0;
+            const dupes = quality.totals?.duplicate ?? 0;
+            const approved = quality.totals?.approved ?? 0;
+            const useful = quality.useful_memory_ratio_percent ?? 0;
+
+            const warnings = [];
+            if (stale > 0) warnings.push(`**${stale} stale packet(s)** — referenced paths no longer exist`);
+            if (dupes > 0) warnings.push(`**${dupes} duplicate packet(s)** — consider merging`);
+
+            const checks = (prCheck.checks || []).map(c => {
+              const icon = c.ok ? '✅' : '❌';
+              return `| ${icon} | ${c.name} | ${c.message || ''} |`;
+            }).join('\n');
+
+            const body = [
+              `## ${icon} Kage Memory Check`,
+              '',
+              `| Metric | Value |`,
+              `|--------|-------|`,
+              `| Approved packets | ${approved} |`,
+              `| Useful memory | ${useful}% |`,
+              `| Stale | ${stale} |`,
+              `| Duplicates | ${dupes} |`,
+              '',
+              checks ? `### Checks\n| | Check | Detail |\n|---|---|---|\n${checks}` : '',
+              '',
+              warnings.length ? `### Warnings\n${warnings.map(w => `- ${w}`).join('\n')}` : '',
+            ].filter(Boolean).join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find(c => c.body.includes('Kage Memory Check') && c.user.type === 'Bot');
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+        env:
+          PR_CHECK: ${{ steps.pr_check.outputs.result }}
+          QUALITY: ${{ steps.quality.outputs.result }}
