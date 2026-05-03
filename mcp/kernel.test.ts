@@ -23,6 +23,7 @@ import {
   exportOrgRegistry,
   graphDir,
   graphMermaid,
+  gcProject,
   initProject,
   indexProject,
   installAgentPolicy,
@@ -950,6 +951,31 @@ test("refresh rebuilds graphs and marks path-drifted memory stale", () => {
   assert.ok(packet);
   assert.equal(packet.quality.stale, true);
   assert.match((packet.quality.stale_reasons as string[]).join(" "), /missing/);
+});
+
+test("gc deprecates stale packets by exact packet file path", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  const result = capture({
+    projectDir: project,
+    title: "Removed helper runbook",
+    body: "Run tests with npm test after changing the removed helper.",
+    type: "runbook",
+    paths: ["src/removed-helper.ts"],
+    tags: ["tests"],
+  });
+  assert.equal(result.ok, true);
+
+  const dryRun = gcProject(project, { dryRun: true });
+  assert.equal(dryRun.deprecated.length, 1);
+  let packet = JSON.parse(readFileSync(result.path!, "utf8"));
+  assert.equal(packet.status, "approved");
+
+  const gc = gcProject(project);
+  assert.equal(gc.deprecated.length, 1);
+  packet = JSON.parse(readFileSync(result.path!, "utf8"));
+  assert.equal(packet.status, "deprecated");
+  assert.equal(loadApprovedPackets(project).some((candidate) => candidate.id === result.packet!.id), false);
 });
 
 test("pr summarize and check make merge-time memory health explicit", () => {

@@ -3169,12 +3169,12 @@ export interface GcResult {
 
 export function gcProject(projectDir: string, options: { dryRun?: boolean; force?: boolean } = {}): GcResult {
   ensureMemoryDirs(projectDir);
-  const packets = loadPacketsFromDir(packetsDir(projectDir));
+  const packetEntries = loadPacketEntriesFromDir(packetsDir(projectDir));
   const deprecated: GcResult["deprecated"] = [];
   const deleted: GcResult["deleted"] = [];
   const skipped: GcResult["skipped"] = [];
 
-  for (const packet of packets) {
+  for (const { path, packet } of packetEntries) {
     if (packet.status === "deprecated") {
       skipped.push({ id: packet.id, title: packet.title, reason: "already deprecated" });
       continue;
@@ -3193,26 +3193,22 @@ export function gcProject(projectDir: string, options: { dryRun?: boolean; force
     // Mark as deprecated (or hard-delete if --force)
     if (options.force && !hasHelpfulVotes) {
       if (!options.dryRun) {
-        const filePath = join(packetsDir(projectDir), `${packet.id.replace(/[^a-z0-9-]/gi, "-")}.json`);
-        const files = existsSync(packetsDir(projectDir))
-          ? readdirSync(packetsDir(projectDir)).filter((f) => f.includes(packet.id.split(":").pop()?.slice(0, 20) ?? ""))
-          : [];
-        for (const f of files) unlinkSync(join(packetsDir(projectDir), f));
+        unlinkSync(path);
       }
       deleted.push({ id: packet.id, title: packet.title });
     } else {
       if (!options.dryRun) {
-        const files = existsSync(packetsDir(projectDir))
-          ? readdirSync(packetsDir(projectDir)).filter((f) => f.includes(packet.id.split(":").pop()?.slice(0, 20) ?? ""))
-          : [];
-        for (const f of files) {
-          const filePath = join(packetsDir(projectDir), f);
-          const updated = { ...packet, status: "deprecated" as const, updated_at: nowIso() };
-          writeFileSync(filePath, JSON.stringify(updated, null, 2), "utf8");
-        }
+        const updated = { ...packet, status: "deprecated" as const, updated_at: nowIso() };
+        writeJson(path, updated);
       }
       deprecated.push({ id: packet.id, title: packet.title, reason: reasons[0] });
     }
+  }
+
+  if (!options.dryRun && (deprecated.length || deleted.length)) {
+    buildIndexes(projectDir);
+    buildKnowledgeGraph(projectDir);
+    writeJson(join(memoryRoot(projectDir), "metrics.json"), kageMetrics(projectDir));
   }
 
   return {
@@ -3221,7 +3217,7 @@ export function gcProject(projectDir: string, options: { dryRun?: boolean; force
     deprecated,
     deleted,
     skipped,
-    total_scanned: packets.length,
+    total_scanned: packetEntries.length,
   };
 }
 

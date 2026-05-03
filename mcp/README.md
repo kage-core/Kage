@@ -137,6 +137,11 @@ meaningful file changes. Refresh rebuilds indexes, code graph, memory graph,
 metrics, and stale-memory metadata. Memory is marked stale when status or
 feedback says it is stale, its TTL expires, or grounded paths disappear.
 
+Use `kage gc --project <repo> --dry-run` to preview stale packet cleanup.
+`kage gc --project <repo>` marks stale repo packets deprecated, rebuilds
+indexes/graphs/metrics, and keeps helpful-voted memories unless `--force` is
+used.
+
 Use `kage pr summarize --project <repo>` / `kage_pr_summarize` before handoff to
 write branch review metadata and repo-local change memory from the git diff.
 Use `kage pr check --project <repo>` / `kage_pr_check` before merge to verify

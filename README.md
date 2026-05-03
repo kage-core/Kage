@@ -203,6 +203,7 @@ What you inspect or promote:
 ```bash
 kage index --project .
 kage refresh --project .
+kage gc --project . --dry-run
 kage recall "what changed and why" --project .
 kage pr summarize --project .
 kage pr check --project .
@@ -250,6 +251,7 @@ Memory stays useful through refresh and PR checks:
 
 ```bash
 kage refresh --project .
+kage gc --project . --dry-run
 kage pr summarize --project .
 kage pr check --project .
 ```
@@ -258,6 +260,9 @@ kage pr check --project .
   metrics, and stale-memory metadata.
 - A packet is considered stale when it is deprecated/superseded, receives stale
   feedback, exceeds its freshness TTL, or all/some grounded paths disappear.
+- `kage gc --dry-run` shows stale packet cleanup without changing files.
+  `kage gc` deprecates stale repo packets and refreshes generated artifacts.
+  `kage gc --force` hard-deletes stale packets that do not have helpful votes.
 - `kage pr summarize` creates a branch summary and repo-local change memory from
   the current git diff.
 - `kage pr check` verifies validation, graph freshness for the current branch
