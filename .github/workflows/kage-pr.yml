@@ -2,15 +2,16 @@ name: Kage PR Check
 
 on:
   pull_request:
-    branches: [master, main]
+    types: [opened, synchronize, reopened]
 
 jobs:
   kage-check:
     name: Memory & graph health
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: write
       contents: read
+      pull-requests: write
+      issues: write
 
     steps:
       - name: Checkout
@@ -25,93 +26,39 @@ jobs:
           cache: npm
           cache-dependency-path: mcp/package-lock.json
 
-      - name: Install kage
+      - name: Build kage CLI
         working-directory: mcp
         run: npm ci && npm run build
 
-      - name: Refresh indexes and graphs
-        run: node mcp/dist/cli.js refresh --project . --json
-        continue-on-error: true
-
-      - name: Run PR check
-        id: pr_check
+      - name: Write MCP config for Claude
         run: |
-          result=$(node mcp/dist/cli.js pr check --project . --json 2>&1)
-          echo "result<<EOF" >> $GITHUB_OUTPUT
-          echo "$result" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "$result"
-
-      - name: Run quality report
-        id: quality
-        run: |
-          result=$(node mcp/dist/cli.js quality --project . --json 2>&1)
-          echo "result<<EOF" >> $GITHUB_OUTPUT
-          echo "$result" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Post PR comment
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prCheck = JSON.parse(process.env.PR_CHECK || '{}');
-            const quality = JSON.parse(process.env.QUALITY || '{}');
-
-            const ok = prCheck.ok !== false;
-            const icon = ok ? '✅' : '⚠️';
-
-            const stale = quality.totals?.stale ?? 0;
-            const dupes = quality.totals?.duplicate ?? 0;
-            const approved = quality.totals?.approved ?? 0;
-            const useful = quality.useful_memory_ratio_percent ?? 0;
-
-            const warnings = [];
-            if (stale > 0) warnings.push(`**${stale} stale packet(s)** — referenced paths no longer exist`);
-            if (dupes > 0) warnings.push(`**${dupes} duplicate packet(s)** — consider merging`);
-
-            const checks = (prCheck.checks || []).map(c => {
-              const icon = c.ok ? '✅' : '❌';
-              return `| ${icon} | ${c.name} | ${c.message || ''} |`;
-            }).join('\n');
-
-            const body = [
-              `## ${icon} Kage Memory Check`,
-              '',
-              `| Metric | Value |`,
-              `|--------|-------|`,
-              `| Approved packets | ${approved} |`,
-              `| Useful memory | ${useful}% |`,
-              `| Stale | ${stale} |`,
-              `| Duplicates | ${dupes} |`,
-              '',
-              checks ? `### Checks\n| | Check | Detail |\n|---|---|---|\n${checks}` : '',
-              '',
-              warnings.length ? `### Warnings\n${warnings.map(w => `- ${w}`).join('\n')}` : '',
-            ].filter(Boolean).join('\n');
-
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-
-            const existing = comments.find(c => c.body.includes('Kage Memory Check') && c.user.type === 'Bot');
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body,
-              });
+          cat > /tmp/kage-mcp.json << 'EOF'
+          {
+            "mcpServers": {
+              "kage": {
+                "type": "stdio",
+                "command": "node",
+                "args": ["${{ github.workspace }}/mcp/dist/index.js"]
+              }
             }
-        env:
-          PR_CHECK: ${{ steps.pr_check.outputs.result }}
-          QUALITY: ${{ steps.quality.outputs.result }}
+          }
+          EOF
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: --mcp-config /tmp/kage-mcp.json --max-turns 5
+          prompt: |
+            You are reviewing a pull request on the Kage repo.
+
+            Run the following kage tools against the project at ${{ github.workspace }}:
+            1. mcp__kage__kage_validate with project_dir="${{ github.workspace }}"
+            2. mcp__kage__kage_quality with project_dir="${{ github.workspace }}"
+            3. mcp__kage__kage_pr_check with project_dir="${{ github.workspace }}"
+
+            Then post a single PR comment summarising:
+            - Memory health (approved count, useful %, stale, duplicates)
+            - PR check results (pass/fail per check)
+            - Any recommended actions (e.g. stale packets to remove, missing memory for changed files)
+
+            Keep it concise. Use a table for the health metrics. Flag blockers clearly.

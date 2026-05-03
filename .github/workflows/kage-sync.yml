@@ -25,7 +25,7 @@ jobs:
           cache: npm
           cache-dependency-path: mcp/package-lock.json
 
-      - name: Install kage
+      - name: Build kage CLI
         working-directory: mcp
         run: npm ci && npm run build
 
@@ -39,16 +39,18 @@ jobs:
       - name: Auto-deprecate stale packets
         run: |
           node -e "
-            const { qualityReport, loadApprovedPackets } = require('./mcp/dist/kernel.js');
-            const { readFileSync, writeFileSync } = require('fs');
+            const { qualityReport } = require('./mcp/dist/kernel.js');
+            const { readFileSync, writeFileSync, readdirSync } = require('fs');
             const report = qualityReport('.');
-            const stale = report.packets.filter(p => p.classification === 'stale' && p.suggested_action === 'mark_stale');
+            const stale = report.packets.filter(p => p.classification === 'stale');
             for (const s of stale) {
-              const files = require('fs').readdirSync('.agent_memory/packets').filter(f => f.includes(s.id.split(':').pop()));
+              const shortId = s.id.split(':').pop();
+              const files = readdirSync('.agent_memory/packets').filter(f => f.includes(shortId));
               for (const f of files) {
                 const path = \`.agent_memory/packets/\${f}\`;
                 const packet = JSON.parse(readFileSync(path, 'utf8'));
-                if (!packet.quality?.votes_up) {
+                const votes = packet.quality?.votes_up ?? 0;
+                if (!votes) {
                   packet.status = 'deprecated';
                   packet.updated_at = new Date().toISOString();
                   writeFileSync(path, JSON.stringify(packet, null, 2));
