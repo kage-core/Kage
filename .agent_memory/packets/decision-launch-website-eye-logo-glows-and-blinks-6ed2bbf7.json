@@ -1,0 +1,61 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:launch-website-eye-logo-glows-and-blinks-1777798831818",
+  "title": "Launch website eye logo glows and blinks",
+  "summary": "The launch website now uses a custom glowing boxed eye logo in docs/index.html with docs/assets/kage eye.svg. The box frame should stay; the eye glow is stronger and blink animation is implemented with lightweight CSS sh",
+  "body": "The launch website now uses a custom glowing boxed eye logo in docs/index.html with docs/assets/kage-eye.svg. The box frame should stay; the eye glow is stronger and blink animation is implemented with lightweight CSS shutters.",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "website",
+    "logo",
+    "brand",
+    "visual",
+    "launch",
+    "animation"
+  ],
+  "paths": [
+    "docs/index.html",
+    "docs/assets/kage-eye.svg"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-03T09:00:31.818Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-03T09:00:31.818Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 96,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 57
+  },
+  "created_at": "2026-05-03T09:00:31.818Z",
+  "updated_at": "2026-05-03T09:00:40.232Z"
+}
