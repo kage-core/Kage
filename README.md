@@ -35,7 +35,7 @@ teams stop rediscovering commands, decisions, gotchas, bugs, and code flows.
   <a href="#proof">Proof</a>
 </p>
 
-![Kage Memory Terminal](docs/assets/kage-viewer.svg)
+![Kage Memory Terminal demo](docs/assets/kage-demo.gif)
 
 </div>
 
