@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "id": "repo:https-github-com-kage-core-kage:repo_map:kage-repo-repo-overview-auto-overview",
-  "title": "kage-repo repo overview",
+  "id": "repo:https-github-com-kage-core-kage:repo_map:kage-repo-overview-auto-overview",
+  "title": "Kage repo overview",
   "summary": "README excerpt: <div align=\"center\" Kage Repo memory for coding agents Stop rediscovering how your codebase works. Kage gives every coding agent a repo local memory, source derived code graph, and team shareable knowledg",
   "body": "README excerpt:\n<div align=\"center\">\n\n# Kage\n\n### Repo memory for coding agents\n\nStop rediscovering how your codebase works. Kage gives every coding agent a\nrepo-local memory, source-derived code graph, and team-shareable knowledge\nbase that lives with your code.\n\nCodex can discover a workflow today. Claude Code can recall it tomorrow. The\nhandoff is JSON in the repo, not a hidden agent silo.\n\n<p>\n  <img alt=\"local first\" src=\"https://img.shields.io/badge/local--first-yes-16a34a?style=for-the-badge\">\n  <img alt=\"tests\" src=\"https://img.shields.io/badge/tests-62%20passing-16a34a?style=for-the-badge\">\n  <img alt=\"agents\" src=\"https://img.shields.io/badge/agents-13-2563eb?style=for-the-badge\">\n  <img alt=\"database\" src=\"https://img.shields.io/badge/external%20DB-0-111827?style=for-the-badge\">\n  <img alt=\"mcp\" src=\"https://img.shields.io/badge/MCP-ready-7c3aed?style=for-the-badge\">\n  <img alt=\"review\" src=\"https://img.shields.io/badge/org%2Fglobal-human%20reviewed-f97316?style=for-the-badge\">\n</p>\n\n<p>\n  ",
   "type": "repo_map",
@@ -37,6 +37,6 @@
     "uses_30d": 0,
     "reports_stale": 0
   },
-  "created_at": "2026-05-03T07:30:35.531Z",
-  "updated_at": "2026-05-03T07:30:35.531Z"
+  "created_at": "2026-05-03T07:45:37.627Z",
+  "updated_at": "2026-05-03T07:45:37.627Z"
 }
