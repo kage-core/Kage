@@ -37,11 +37,23 @@ Keep captures concise and future-facing. Do not store raw transcripts.
 
 ## End-Of-Task Proposal
 
-Before finishing a task that changed files, call `kage_propose_from_diff`.
+After meaningful file changes, call `kage_refresh` so indexes, code graph,
+memory graph, metrics, and stale-memory checks are current.
 
-This writes a branch review summary and a repo-local change-memory packet. It
-should capture what changed, why it matters, how to verify it, and what future
-agents should know. Git or PR review is the repo-level review boundary.
+Before finishing a task that changed files, call `kage_pr_summarize` or
+`kage_propose_from_diff`, then call `kage_pr_check`.
+
+`kage_pr_summarize` writes a branch review summary and a repo-local
+change-memory packet. `kage_pr_check` verifies validation, graph freshness,
+stale packets, and whether repo memory changed with the branch. If the check
+fails, explain the required actions instead of hiding the failure. Git or PR
+review is the repo-level review boundary.
+
+## Package Updates
+
+If the user asks to update Kage, run `kage upgrade`, then verify setup with
+`kage setup verify-agent --agent <agent> --project <repo>`. Tell the user to
+restart the agent when MCP tools need to reload.
 
 ## Feedback
 
@@ -67,7 +79,9 @@ For normal coding tasks:
 4. `kage_graph` for remembered decisions, bugs, workflows, and conventions
 5. Work on the task
 6. `kage_learn` for concrete learnings
-7. `kage_propose_from_diff` before the final response to create repo-local change memory
+7. `kage_refresh` after meaningful file changes
+8. `kage_pr_summarize` or `kage_propose_from_diff` before the final response to create repo-local change memory
+9. `kage_pr_check` before final handoff or merge readiness claims
 
 For quick factual questions, `kage_recall` alone is enough. For status or demo requests, call `kage_metrics`.
 <!-- END_KAGE_MEMORY_POLICY_V1 -->
