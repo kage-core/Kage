@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.1.12 - 2026-05-03
+
+- Added explicit npm release notes to the package README.
+- Updated the root README hero to use the animated demo GIF.
+- Added clear website and live viewer links near the top of the README.
+- Verified hosted GitHub Pages viewer publishes Kage repo memory graph, code
+  graph, and metrics as static data.
+
+## v1.1.11 - 2026-05-03
+
+- Published hosted viewer repo graph data on GitHub Pages.
+- Pages now builds Kage in CI, refreshes repo memory/code graph artifacts, and
+  writes metrics before publishing the static viewer.
+- Published `@kage-core/kage-graph-mcp@1.1.11`.
+
 ## v1.1.0 - 2026-05-02
 
 - Added cross-agent launch flow: Codex can create reviewed repo memory that Claude Code and other MCP agents can recall.
