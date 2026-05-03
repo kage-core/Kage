@@ -3,7 +3,7 @@
   "id": "repo:https-github-com-kage-core-kage:repo_map:kage-repo-overview-auto-overview",
   "title": "Kage repo overview",
   "summary": "README excerpt: <div align=\"center\" Kage Repo memory and code graph for coding agents Codex learns it today. Claude Code recalls it tomorrow. Kage gives every coding agent the same repo local memory, source derived code ",
-  "body": "README excerpt:\n<div align=\"center\">\n\n# Kage\n\n### Repo memory and code graph for coding agents\n\nCodex learns it today. Claude Code recalls it tomorrow.\n\nKage gives every coding agent the same repo-local memory, source-derived code\ngraph, and visual memory terminal. The memory lives with the repo as JSON, so\nteams stop rediscovering commands, decisions, gotchas, bugs, and code flows.\n\n<p>\n  <img alt=\"local first\" src=\"https://img.shields.io/badge/local--first-yes-16a34a?style=for-the-badge\">\n  <img alt=\"tests\" src=\"https://img.shields.io/badge/tests-64%20passing-16a34a?style=for-the-badge\">\n  <img alt=\"agents\" src=\"https://img.shields.io/badge/agents-13-2563eb?style=for-the-badge\">\n  <img alt=\"database\" src=\"https://img.shields.io/badge/external%20DB-0-111827?style=for-the-badge\">\n  <img alt=\"mcp\" src=\"https://img.shields.io/badge/MCP-ready-7c3aed?style=for-the-badge\">\n</p>\n\n<p>\n  <a href=\"#install\">Install</a> ·\n  <a href=\"#viewer\">Viewer</a> ·\n  <a href=\"https://kage-core.github.io/Kage/viewer/\">Open",
+  "body": "README excerpt:\n<div align=\"center\">\n\n# Kage\n\n### Repo memory and code graph for coding agents\n\nCodex learns it today. Claude Code recalls it tomorrow.\n\nKage gives every coding agent the same repo-local memory, source-derived code\ngraph, and visual memory terminal. The memory lives with the repo as JSON, so\nteams stop rediscovering commands, decisions, gotchas, bugs, and code flows.\n\n<p>\n  <img alt=\"local first\" src=\"https://img.shields.io/badge/local--first-yes-16a34a?style=for-the-badge\">\n  <img alt=\"tests\" src=\"https://img.shields.io/badge/tests-64%20passing-16a34a?style=for-the-badge\">\n  <img alt=\"agents\" src=\"https://img.shields.io/badge/agents-13-2563eb?style=for-the-badge\">\n  <img alt=\"database\" src=\"https://img.shields.io/badge/external%20DB-0-111827?style=for-the-badge\">\n  <img alt=\"mcp\" src=\"https://img.shields.io/badge/MCP-ready-7c3aed?style=for-the-badge\">\n</p>\n\n<p>\n  <strong>Website:</strong>\n  <a href=\"https://kage-core.github.io/Kage/\">https://kage-core.github.io/Kage/</a>\n  ·\n  <strong",
   "type": "repo_map",
   "scope": "repo",
   "visibility": "team",
@@ -38,5 +38,5 @@
     "reports_stale": 0
   },
   "created_at": "2026-05-03T07:45:37.627Z",
-  "updated_at": "2026-05-03T08:00:38.805Z"
+  "updated_at": "2026-05-03T08:35:35.889Z"
 }
