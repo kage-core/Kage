@@ -1,0 +1,62 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:kage-1-1-8-adds-stale-memory-gc-1777792236400",
+  "title": "Kage 1.1.8 adds stale memory GC",
+  "summary": "Kage 1.1.8 adds kage gc for stale memory cleanup: dry-run preview, exact-file deprecation, forced delete for low-signal stale packets, and artifact refresh.",
+  "body": "Kage 1.1.8 adds kage gc for stale memory cleanup. The command scans repo packets, previews stale cleanup with --dry-run, marks stale packets deprecated by exact packet file path, rebuilds indexes/knowledge graph/metrics after mutation, and keeps helpful-voted stale memory unless --force is used.\nEvidence: npm test --prefix mcp passed 64 tests; kage validate passed; npm pack --dry-run included dist/cli.js and dist/kernel.js for version 1.1.8.\nVerified by: npm test --prefix mcp",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "release",
+    "gc",
+    "stale-memory"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/cli.ts",
+    "mcp/kernel.test.ts",
+    "README.md",
+    "mcp/README.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-03T07:10:36.400Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-03T07:10:36.400Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 120
+  },
+  "created_at": "2026-05-03T07:10:36.400Z",
+  "updated_at": "2026-05-03T07:10:42.572Z"
+}
