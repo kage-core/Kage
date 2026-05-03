@@ -38,6 +38,7 @@ jobs:
           npm ci --prefix mcp
           npm run build --prefix mcp
           node mcp/dist/cli.js refresh --project .
+          node mcp/dist/cli.js metrics --project . --json > .agent_memory/metrics.json
       - uses: actions/configure-pages@v5
         with:
           enablement: true
