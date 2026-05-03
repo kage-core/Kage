@@ -31,35 +31,55 @@ jobs:
         working-directory: mcp
         run: npm ci && npm run build
 
-      - name: Write MCP config for Claude
+      - name: Run kage checks and post PR comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cat > /tmp/kage-mcp.json << 'EOF'
-          {
-            "mcpServers": {
-              "kage": {
-                "type": "stdio",
-                "command": "node",
-                "args": ["${{ github.workspace }}/mcp/dist/index.js"]
-              }
-            }
-          }
-          EOF
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          REPO=${{ github.repository }}
+          PROJECT=${{ github.workspace }}
 
-      - uses: anthropics/claude-code-action@v1
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: --mcp-config /tmp/kage-mcp.json --max-turns 5
-          prompt: |
-            You are reviewing a pull request on the Kage repo.
+          # Run kage checks
+          QUALITY=$(node mcp/dist/cli.js quality --project "$PROJECT" --json 2>/dev/null || echo '{}')
+          PR_CHECK=$(node mcp/dist/cli.js pr check --project "$PROJECT" --json 2>/dev/null || echo '{}')
 
-            Run the following kage tools against the project at ${{ github.workspace }}:
-            1. mcp__kage__kage_validate with project_dir="${{ github.workspace }}"
-            2. mcp__kage__kage_quality with project_dir="${{ github.workspace }}"
-            3. mcp__kage__kage_pr_check with project_dir="${{ github.workspace }}"
+          # Parse metrics
+          APPROVED=$(echo "$QUALITY" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.totals?.approved??0)")
+          USEFUL=$(echo "$QUALITY" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.useful_memory_ratio_percent??0)")
+          STALE=$(echo "$QUALITY" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.totals?.stale??0)")
+          DUPES=$(echo "$QUALITY" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.totals?.duplicate??0)")
+          OK=$(echo "$PR_CHECK" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.ok!==false?'✅ Pass':'⚠️ Issues found')")
 
-            Then post a single PR comment summarising:
-            - Memory health (approved count, useful %, stale, duplicates)
-            - PR check results (pass/fail per check)
-            - Any recommended actions (e.g. stale packets to remove, missing memory for changed files)
+          # Build comment
+          COMMENT="## 🧠 Kage Memory Check
 
-            Keep it concise. Use a table for the health metrics. Flag blockers clearly.
+          | Metric | Value |
+          |--------|-------|
+          | Approved packets | $APPROVED |
+          | Useful memory | $USEFUL% |
+          | Stale | $STALE |
+          | Duplicates | $DUPES |
+          | PR check | $OK |"
+
+          if [ "$STALE" -gt 0 ]; then
+            COMMENT="$COMMENT
+
+          > ⚠️ **$STALE stale packet(s)** detected — referenced paths no longer exist. Run \`kage quality --project .\` to review."
+          fi
+
+          if [ "$DUPES" -gt 0 ]; then
+            COMMENT="$COMMENT
+
+          > ⚠️ **$DUPES duplicate packet(s)** — consider merging with \`kage review --project .\`."
+          fi
+
+          # Post or update comment
+          EXISTING=$(gh api repos/$REPO/issues/$PR_NUMBER/comments \
+            --jq '.[] | select(.body | contains("Kage Memory Check")) | .id' 2>/dev/null | head -1)
+
+          if [ -n "$EXISTING" ]; then
+            gh api repos/$REPO/issues/comments/$EXISTING \
+              -X PATCH -f body="$COMMENT" > /dev/null
+          else
+            gh pr comment $PR_NUMBER --repo $REPO --body "$COMMENT"
+          fi
