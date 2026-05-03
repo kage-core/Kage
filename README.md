@@ -262,4 +262,8 @@ npm --prefix mcp pack --dry-run
 
 ## License
 
-MIT
+GPL-3.0-only. See [LICENSE](LICENSE).
+
+Note: Kage releases before the GPL switch were published under MIT. Future
+versions are GPL-3.0-only unless a separate written commercial license says
+otherwise.

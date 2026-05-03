@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.1.13 - 2026-05-03
+
+- Switched future Kage releases from MIT to GPL-3.0-only.
+- Added the official GPLv3 license text as `LICENSE`.
+- Updated README and npm package metadata to clarify the GPL license.
+- Note: older versions already published under MIT remain available under the
+  terms they were originally published with.
+
 ## v1.1.12 - 2026-05-03
 
 - Added explicit npm release notes to the package README.

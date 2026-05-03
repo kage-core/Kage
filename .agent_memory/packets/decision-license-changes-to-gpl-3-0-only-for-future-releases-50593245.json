@@ -1,0 +1,63 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:license-changes-to-gpl-3-0-only-for-future-releases-1777806259803",
+  "title": "License changes to GPL-3.0-only for future releases",
+  "summary": "Kage is switching future releases to GPL 3.0 only. GPL allows commercial use and selling, but distributed modified versions/derivatives must keep source available under GPL. README and npm metadata should say GPL 3.0 onl",
+  "body": "Kage is switching future releases to GPL-3.0-only. GPL allows commercial use and selling, but distributed modified versions/derivatives must keep source available under GPL. README and npm metadata should say GPL-3.0-only, with a note that older MIT releases remain under their original terms.",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "license",
+    "gpl",
+    "release",
+    "npm",
+    "legal"
+  ],
+  "paths": [
+    "LICENSE",
+    "README.md",
+    "mcp/package.json",
+    "mcp/README.md",
+    "CHANGELOG.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-03T11:04:19.802Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-03T11:04:19.802Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 96,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 74
+  },
+  "created_at": "2026-05-03T11:04:19.802Z",
+  "updated_at": "2026-05-03T11:05:45.495Z"
+}
