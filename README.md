@@ -12,7 +12,7 @@ teams stop rediscovering commands, decisions, gotchas, bugs, and code flows.
 
 <p>
   <img alt="local first" src="https://img.shields.io/badge/local--first-yes-16a34a?style=for-the-badge">
-  <img alt="tests" src="https://img.shields.io/badge/tests-64%20passing-16a34a?style=for-the-badge">
+  <img alt="tests" src="https://img.shields.io/badge/tests-79%20passing-16a34a?style=for-the-badge">
   <img alt="agents" src="https://img.shields.io/badge/agents-13-2563eb?style=for-the-badge">
   <img alt="database" src="https://img.shields.io/badge/external%20DB-0-111827?style=for-the-badge">
   <img alt="mcp" src="https://img.shields.io/badge/MCP-ready-7c3aed?style=for-the-badge">
@@ -103,10 +103,10 @@ https://kage-core.github.io/Kage/viewer/
 ```
 
 The hosted viewer opens with the Kage repo's published memory graph, code graph,
-and metrics. If those artifacts are unavailable, it falls back to a bundled demo
-graph. For your private or local repo, the local command is still preferred
-because it auto-loads that repo's graph, code graph, metrics, review file, and
-pending queue:
+metrics, and inbox. If those artifacts are unavailable, it falls back to a
+bundled demo graph. For your private or local repo, the local command is still
+preferred because it auto-loads that repo's graph, code graph, metrics, inbox,
+review file, and pending queue:
 
 ```bash
 kage viewer --project .
@@ -120,7 +120,7 @@ The viewer shows:
 | Code graph | files, symbols, imports, calls, routes, tests, packages |
 | Inspector | selected node/edge details and source evidence |
 | Metrics | readiness, parser coverage, quality, estimated tokens saved |
-| Review context | pending/quarantine packets and review artifact, when present |
+| Review context | memory inbox, pending/quarantine packets, and review artifact when present |
 
 Combined mode balances memory and code so a large code graph does not hide the
 repo memory.
@@ -150,9 +150,13 @@ The ambient policy asks agents to:
 ```bash
 kage init --project .
 kage recall "how do I run tests" --project .
+kage code-index --project .
 kage code-graph "routes tests auth" --project .
 kage learn --project . --learning "Use npm test after changing parser code."
 kage refresh --project .
+kage graph-registry --project .
+kage audit --project .
+kage inbox --project .
 kage pr check --project .
 kage viewer --project .
 ```
@@ -168,6 +172,8 @@ For proof:
 
 ```bash
 kage metrics --project . --json
+kage audit --project . --json
+kage inbox --project . --json
 kage benchmark --project . --compare --task "how do I run tests"
 ```
 
@@ -177,11 +183,12 @@ Kage keeps generated code facts separate from learned repo memory.
 
 | Layer | Stored In | Purpose |
 |---|---|---|
-| Repo memory packets | `.agent_memory/packets/*.json` | durable runbooks, decisions, bug fixes, conventions, gotchas |
+| Repo memory packets | `.agent_memory/packets/*.json` | durable runbooks, decisions, rationale, issue context, code explanations, bug fixes, conventions, gotchas |
 | Generated indexes | `.agent_memory/indexes/` | rebuildable packet catalogs, paths, tags, types |
 | Memory graph | `.agent_memory/graph/graph.json` | packet relations: tags, paths, commands, evidence |
 | Code graph | `.agent_memory/code_graph/graph.json` | source-derived files, symbols, imports, calls, routes, tests |
 | Metrics | `.agent_memory/metrics.json` | readiness, quality, parser coverage, token estimates |
+| Graph registry | `.agent_memory/graph_registry/manifest.json` | signed manifest for graph artifacts, packet hashes, git state, audit/inbox evidence |
 
 Repo-local memory is written directly as git-visible packets. Org/global sharing
 is explicit and review-gated.
@@ -207,10 +214,10 @@ Current package status:
 
 | Proof | Current |
 |---|---:|
-| Tests | 64 passing |
+| Tests | 79 passing |
 | Agent setup targets | 13 |
 | External DB required | 0 |
-| MCP tools | recall, context, learn, graph, code graph, metrics, validate |
+| MCP tools | recall, context, learn, graph, graph registry, code graph, code index, metrics, audit, inbox, benchmark, validate |
 | Source graph | files, symbols, imports, calls, routes, tests, packages |
 | Safety | secret/PII scan before capture |
 
@@ -219,10 +226,10 @@ Kage on Kage itself:
 | Metric | Current |
 |---|---:|
 | Readiness | 100/100 |
-| Memory packets | 20 |
-| Memory graph edges | 224 |
-| Code files | 12 |
-| Symbols | 1,894 |
+| Memory packets | 47 |
+| Memory graph edges | 3,863 |
+| Code files | 18 |
+| Symbols | 2,330 |
 
 Same-task benchmark example:
 

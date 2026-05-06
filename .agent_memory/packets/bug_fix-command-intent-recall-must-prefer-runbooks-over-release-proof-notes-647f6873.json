@@ -1,0 +1,68 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:bug_fix:command-intent-recall-must-prefer-runbooks-over-release-proof-notes-177803958381",
+  "title": "Command-intent recall must prefer runbooks over release proof notes",
+  "summary": "Fact: Command style queries such as how do I run tests must boost runbook and repo map packets and mildly penalize release/proof decisions that only mention verification commands. Why: BM25 alone can rank a release note",
+  "body": "Fact: Command-style queries such as how do I run tests must boost runbook and repo-map packets and mildly penalize release/proof decisions that only mention verification commands. Why: BM25 alone can rank a release note above the actual runbook when the release note repeats npm test more often. Trigger: When changing recall ranking, benchmark scenarios, or command/runbook memory. Action: Preserve recallIntentBoost and regression coverage for runbook intent. Risk if forgotten: kage_context can pass benchmark gates while giving agents a top memory that proves tests ran instead of telling them how to run tests.\nEvidence: Observed benchmark top_result for how do I run tests was Kage 1.1.8 adds stale memory GC before adding intent boost.\nVerified by: npm test",
+  "type": "bug_fix",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "recall",
+    "ranking",
+    "runbook",
+    "bm25"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-06T03:53:03.812Z"
+    }
+  ],
+  "context": {
+    "fact": "Command-style queries such as how do I run tests must boost runbook and repo-map packets and mildly penalize release/proof decisions that only mention verification commands.",
+    "why": "BM25 alone can rank a release note above the actual runbook when the release note repeats npm test more often.",
+    "trigger": "When changing recall ranking, benchmark scenarios, or command/runbook memory.",
+    "action": "Preserve recallIntentBoost and regression coverage for runbook intent.",
+    "verification": "Observed benchmark top_result for how do I run tests was Kage 1.1.8 adds stale memory GC before adding intent boost.",
+    "risk_if_forgotten": "kage_context can pass benchmark gates while giving agents a top memory that proves tests ran instead of telling them how to run tests."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-06T03:53:03.812Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 191
+  },
+  "created_at": "2026-05-06T03:53:03.812Z",
+  "updated_at": "2026-05-06T03:53:17.181Z"
+}

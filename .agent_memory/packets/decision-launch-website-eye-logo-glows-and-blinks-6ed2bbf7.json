@@ -30,6 +30,15 @@
       "captured_at": "2026-05-03T09:00:31.818Z"
     }
   ],
+  "context": {
+    "fact": "The launch website uses a custom glowing boxed eye logo with lightweight CSS blink animation.",
+    "why": "The logo gives the launch page a recognizable Kage visual mark while keeping the page lightweight.",
+    "trigger": "Recall when editing docs/index.html branding, the eye logo asset, or launch-site animation.",
+    "action": "Preserve the boxed eye frame and lightweight CSS shutters unless the launch brand direction changes.",
+    "verification": "Repo-local capture grounded to docs/index.html and docs/assets/kage-eye.svg.",
+    "risk_if_forgotten": "Agents may replace the branded logo with generic text or remove the intended glow/blink behavior.",
+    "stale_when": "The launch website brand system changes or docs/assets/kage-eye.svg is removed."
+  },
   "freshness": {
     "ttl_days": 365,
     "last_verified_at": "2026-05-03T09:00:31.818Z",
@@ -57,5 +66,5 @@
     "estimated_tokens_saved": 57
   },
   "created_at": "2026-05-03T09:00:31.818Z",
-  "updated_at": "2026-05-03T09:00:40.232Z"
+  "updated_at": "2026-05-05T20:56:36.000Z"
 }

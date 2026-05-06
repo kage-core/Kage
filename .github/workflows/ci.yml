@@ -29,3 +29,9 @@ jobs:
       - name: Test
         working-directory: mcp
         run: npm test
+
+      - name: Generate Kage code index
+        run: node mcp/dist/cli.js code-index --project . --json
+
+      - name: Build Kage graph registry manifest
+        run: node mcp/dist/cli.js graph-registry --project . --json

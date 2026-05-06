@@ -1,0 +1,63 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:viewer-demo-recording-uses-scripted-product-story-1777808874612",
+  "title": "Viewer demo recording uses scripted product story",
+  "summary": "The Kage viewer demo should be scripted before recording. The current storyboard is documented in docs/VIEWER DEMO SCRIPT.md and the renderer injects captions/highlights into the deployed GitHub Pages viewer while record",
+  "body": "The Kage viewer demo should be scripted before recording. The current storyboard is documented in docs/VIEWER_DEMO_SCRIPT.md and the renderer injects captions/highlights into the deployed GitHub Pages viewer while recording a wide 1600x900 MP4. The story is: inspect repo memory, show graph scale, click memory, search runbook, separate memory/code views, search tests, end with the hive loop.\nEvidence: scripts/render-viewer-demo.mjs was rerendered successfully and produced docs/assets/kage-viewer-demo.mp4 plus docs/assets/kage-viewer-demo-poster.png.",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "launch",
+    "viewer",
+    "demo",
+    "video",
+    "storyboard"
+  ],
+  "paths": [
+    "docs/VIEWER_DEMO_SCRIPT.md",
+    "scripts/render-viewer-demo.mjs",
+    "docs/assets/kage-viewer-demo.mp4",
+    "docs/assets/kage-viewer-demo-poster.png"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-03T11:47:54.612Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-03T11:47:54.612Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 139
+  },
+  "created_at": "2026-05-03T11:47:54.612Z",
+  "updated_at": "2026-05-03T11:48:04.174Z"
+}

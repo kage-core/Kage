@@ -1,0 +1,71 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:runbook:run-kage-mcp-tests-1778039925946",
+  "title": "Run Kage MCP tests",
+  "summary": "Fact: Run the Kage MCP package test suite from the mcp directory with npm test, or from the repo root with npm test prefix mcp. Why: The test script builds TypeScript first and then runs node test over dist/ / .test.js,",
+  "body": "Fact: Run the Kage MCP package test suite from the mcp directory with npm test, or from the repo root with npm test --prefix mcp. Why: The test script builds TypeScript first and then runs node --test over dist/**/*.test.js, so it verifies both compilation and behavior. Trigger: Recall when asked how to run tests, verify recall/ranking changes, or check MCP package behavior. Action: Use npm test in mcp for the full package suite; use node --check mcp/viewer/app.js for a quick browser viewer syntax check after viewer-only edits. Risk if forgotten: Agents may cite old release proof memories that mention tests without giving the actual command.\nEvidence: mcp/package.json defines test as npm run build && node --test dist/**/*.test.js.\nVerified by: npm test",
+  "type": "runbook",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "tests",
+    "runbook",
+    "mcp",
+    "verification"
+  ],
+  "paths": [
+    "mcp/package.json",
+    "mcp/kernel.test.ts",
+    "mcp/mcp.test.ts",
+    "mcp/registry.test.ts",
+    "mcp/viewer/app.js"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-06T03:58:45.946Z"
+    }
+  ],
+  "context": {
+    "fact": "Run the Kage MCP package test suite from the mcp directory with npm test, or from the repo root with npm test --prefix mcp.",
+    "why": "The test script builds TypeScript first and then runs node --test over dist/**/*.test.js, so it verifies both compilation and behavior.",
+    "trigger": "Recall when asked how to run tests, verify recall/ranking changes, or check MCP package behavior.",
+    "action": "Use npm test in mcp for the full package suite; use node --check mcp/viewer/app.js for a quick browser viewer syntax check after viewer-only edits.",
+    "verification": "mcp/package.json defines test as npm run build && node --test dist/**/*.test.js.",
+    "risk_if_forgotten": "Agents may cite old release proof memories that mention tests without giving the actual command."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-06T03:58:45.946Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 191
+  },
+  "created_at": "2026-05-06T03:58:45.946Z",
+  "updated_at": "2026-05-06T03:58:50.785Z"
+}

@@ -1,0 +1,63 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:yc-handoff-demo-needs-cli-first-recording-proof-1777908116944",
+  "title": "YC handoff demo needs CLI-first recording proof",
+  "summary": "For the YC/team memory demo, a browser rendered product explainer is not enough when the ask is to record Codex and Claude CLI usage. Keep a CLI first artifact that shows terminal prompts, Codex output, Kage recall/code",
+  "body": "For the YC/team-memory demo, a browser-rendered product explainer is not enough when the ask is to record Codex and Claude CLI usage. Keep a CLI-first artifact that shows terminal prompts, Codex output, Kage recall/code graph facts, Claude output, and metrics from the real transcripts. Native macOS screen capture is blocked in this environment, so the practical fallback is a terminal-only video rendered from PTY/script logs, not a Chrome/product-page wrapper.\nEvidence: screencapture still image failed with 'could not create image from display'. Existing real proof logs are /tmp/kage-codex-recall-proof.log and /tmp/kage-claude-recall-proof.log. Added scripts/render-cli-recording.mjs and rendered docs/assets/kage-cli-recording.mp4; ffprobe verified 1600x900, 25.2s, 252 frames.\nVerified by: screencapture failure, script proof logs, ffprobe",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "demo",
+    "yc",
+    "cli",
+    "codex",
+    "claude-code",
+    "video"
+  ],
+  "paths": [
+    "scripts/render-cli-recording.mjs",
+    "docs/assets/kage-cli-recording.mp4",
+    "docs/assets/kage-cli-recording-poster.png"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-04T15:21:56.944Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-04T15:21:56.944Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 212
+  },
+  "created_at": "2026-05-04T15:21:56.944Z",
+  "updated_at": "2026-05-05T19:59:14.004Z"
+}

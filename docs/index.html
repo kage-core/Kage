@@ -878,7 +878,7 @@
               <a class="launch-button" href="viewer/">Open Viewer</a>
             </div>
             <div class="proof-strip" aria-label="Launch proof metrics">
-              <div class="proof"><strong>62</strong><span>passing tests</span></div>
+              <div class="proof"><strong>79</strong><span>passing tests</span></div>
               <div class="proof"><strong>13</strong><span>agent setup targets</span></div>
               <div class="proof"><strong>0</strong><span>external databases</span></div>
               <div class="proof"><strong>98%</strong><span>smaller context in same-task A/B</span></div>
@@ -988,8 +988,17 @@
               <div class="graph-side" aria-label="Graph metrics">
                 <div class="signal"><strong>files -> symbols -> calls</strong><span>Source-derived graph facts for routes, imports, tests, packages, and flow.</span></div>
                 <div class="signal"><strong>packets -> entities -> edges</strong><span>Repo memory becomes typed graph facts with provenance, freshness, and quality.</span></div>
-                <div class="signal"><strong>text + graph retrieval</strong><span>Recall blends text, graph, path, type, tag, quality, freshness, and feedback signals.</span></div>
+                <div class="signal"><strong>BM25 + graph retrieval</strong><span>Recall blends BM25 lexical ranking with graph, path, type, tag, intent, quality, freshness, and feedback signals.</span></div>
                 <div class="signal"><strong>estimated savings</strong><span>Token savings are estimated from compact context today; production telemetry is not overclaimed.</span></div>
+              </div>
+            </div>
+            <div class="viewer-demo" aria-label="Real Codex and Claude Code team memory handoff demo">
+              <video autoplay muted loop playsinline poster="assets/kage-real-team-demo-poster.png">
+                <source src="assets/kage-real-team-demo.mp4" type="video/mp4">
+              </video>
+              <div class="viewer-demo-caption">
+                <strong>Real Codex + Claude Code handoff</strong>
+                <span>Codex recalls Kage memory in one terminal session. Claude Code recalls the same packet from the same repo.</span>
               </div>
             </div>
             <div class="viewer-demo" aria-label="Kage viewer demo video">

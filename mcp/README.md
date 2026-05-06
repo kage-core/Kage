@@ -21,8 +21,8 @@ This package exposes two surfaces:
 - npm README now includes this explicit release note.
 - Root README leads with the animated Kage demo GIF.
 - README links clearly to the website and live viewer.
-- Hosted viewer publishes Kage repo graph, code graph, and metrics from GitHub
-  Pages while local repos still use `kage viewer --project .`.
+- Hosted viewer publishes Kage repo graph, code graph, metrics, and inbox from
+  GitHub Pages while local repos still use `kage viewer --project .`.
 
 ## Build
 
@@ -46,14 +46,18 @@ kage doctor --project /path/to/repo
 kage index --project /path/to/repo
 kage refresh --project /path/to/repo
 kage branch --project /path/to/repo
+kage code-index --project /path/to/repo
 kage code-graph --project /path/to/repo
 kage code-graph "createApp routes tests" --project /path/to/repo
 kage graph --project /path/to/repo
 kage graph --project /path/to/repo --mermaid
 kage graph "test command" --project /path/to/repo
+kage graph-registry --project /path/to/repo
 kage recall "how do I run tests" --project /path/to/repo
 kage recall "how do I run tests" --project /path/to/repo --explain --json
 kage quality --project /path/to/repo
+kage audit --project /path/to/repo
+kage inbox --project /path/to/repo
 kage benchmark --project /path/to/repo
 kage benchmark --project /path/to/repo --compare --task "how do I run tests"
 kage viewer --project /path/to/repo
@@ -131,6 +135,12 @@ generic extraction in metrics and file parser coverage. This keeps installation
 light while allowing teams to plug in the strongest indexer available for their
 language stack.
 
+`kage code-index --project <repo>` writes `.agent_memory/code_index/lsp-symbols.json`
+in an LSP document-symbol-compatible shape using Kage's local parser. The CI,
+PR, and sync workflows run it before refresh so the code graph has a committed
+precise-index slot while teams can still replace or augment it with SCIP/LSIF
+artifacts from their preferred toolchain.
+
 The memory graph follows the same product direction as temporal context graph
 systems such as Graphiti: immutable ingestion episodes, derived entities and
 facts, evidence/provenance on every edge, confidence, branch/commit context, and
@@ -143,11 +153,35 @@ and parser coverage, code graph counts, evidence coverage, approved vs pending
 memory, validation status, estimated tokens saved per recall, duplicate
 candidates, average memory quality, and a readiness score.
 
+Use `kage audit --project <repo>` or the `kage_audit` MCP tool before relying
+on repo memory for agent work. Audit reports validation, pending memory inbox
+size, structured context coverage, stale/duplicate risk, memory-to-code graph
+links, precise code index coverage, and concrete recommendations such as
+extending SCIP/LSIF/LSP coverage or adding structured
+`why`/`verification`/`risk_if_forgotten` fields to high-value packets.
+
+Use `kage inbox --project <repo>` or the `kage_inbox` MCP tool for the
+actionable review queue. It consolidates pending packets, stale packets,
+duplicates, missing structured context, validation warnings/errors, and concrete
+actions into one report that the viewer also loads.
+
 Use `kage benchmark --compare --task "<task>" --project <repo>` or
 `kage_benchmark_compare` to compare the same task on the same repo with and
 without Kage. It estimates manual full-file rediscovery tokens/steps, compares
 them to compact Kage recall plus code graph context, and returns evidence plus
 caveats for honest marketing proof.
+
+Plain `kage benchmark --project <repo>` now includes explicit gates and an
+overall score for recall hit rate, evidence coverage, useful memory ratio, and
+code-flow coverage, so benchmark output has pass/fail criteria instead of loose
+claims.
+
+Use `kage graph-registry --project <repo>` or `kage_graph_registry` to write
+`.agent_memory/graph_registry/manifest.json`. The manifest is signed with the
+same canonical JSON scheme as registry bundles and records memory/code graph
+artifact hashes, generated index/report paths, source packet IDs and packet
+hashes, git state, audit trust, inbox counts, and metrics readiness. CI, PR, and
+sync workflows build it after refresh.
 
 Use `kage refresh --project <repo>` or the `kage_refresh` MCP tool after
 meaningful file changes. Refresh rebuilds indexes, code graph, memory graph,
@@ -172,13 +206,15 @@ review.
 clients. It accepts session, prompt, tool, file-change, command, test, and
 session-end events; deduplicates them; scans for secrets and PII; and stores raw
 observations locally only. `kage distill` turns useful observations into
-repo-local packets with observation session source refs. It never publishes
-memory.
+repo-local packets with observation session source refs. Distillation is not
+limited to action-changing instructions: durable rationale, bug causes, issue
+state, decisions, and code explanations are valid memory when source-backed. It
+never publishes memory.
 
 `kage recall --explain --json` exposes the hybrid scoring explanation used for
-ranking: text, graph, path/type/tag, freshness, quality, feedback, and a vector
-placeholder for future local or external embedding providers. Current fallback
-is deterministic text plus graph retrieval.
+ranking: BM25 lexical score, graph, path/type/tag, intent, freshness, quality,
+feedback, and a vector placeholder for future local or external embedding providers.
+Current fallback is vectorless BM25 plus graph retrieval.
 
 `kage_context` is the primary MCP entrypoint for agents. It validates repo
 memory, recalls relevant packets, and returns code/knowledge graph context in
@@ -192,6 +228,7 @@ one call. Agents should use it at task start instead of loading separate
 - `GET /kage/status`
 - `GET /kage/metrics`
 - `GET /kage/quality`
+- `GET /kage/inbox`
 - `GET /kage/benchmark`
 - `POST /kage/recall`
 - `POST /kage/observe`
@@ -207,13 +244,13 @@ and refreshes generated graph/index artifacts after a short debounce.
 Run `kage viewer --project <repo>` to start the local terminal console. It
 serves the viewer and the selected repo's `.agent_memory/` files from the same
 localhost server, then prints a URL that auto-loads memory graph, code graph,
-metrics, review artifact, and pending packets when present. Manual JSON selection remains as
-a fallback, not the main workflow.
+metrics, memory inbox, review artifact, and pending packets when present.
+Manual JSON selection remains as a fallback, not the main workflow.
 
 The viewer renders nodes and relations in SVG, supports memory/code/combined
 modes, filters by type and relation, displays metrics, shows packets and pending
-quarantine items when present, and marks risks such as low-confidence or
-missing-evidence edges.
+quarantine items when present, surfaces the memory inbox, and marks risks such
+as low-confidence or missing-evidence edges.
 
 For demos or local docs, the viewer also accepts URL params:
 
@@ -232,8 +269,12 @@ Local repo tools:
 
 - `kage_context`
 - `kage_recall`
+- `kage_graph_registry`
 - `kage_code_graph`
+- `kage_code_index`
 - `kage_metrics`
+- `kage_audit`
+- `kage_inbox`
 - `kage_refresh`
 - `kage_pr_summarize`
 - `kage_pr_check`

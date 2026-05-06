@@ -1,0 +1,70 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:launch-site-uses-kage-core-com-custom-domain-1777801488942",
+  "title": "Launch site uses kage-core.com custom domain",
+  "summary": "Kage launch site custom domain is kage core.com. GitHub Pages needs docs/CNAME with kage core.com, and DNS should point the apex domain to GitHub Pages records. After DNS propagates, enable Enforce HTTPS in repository Pa",
+  "body": "Kage launch site custom domain is kage-core.com. GitHub Pages needs docs/CNAME with kage-core.com, and DNS should point the apex domain to GitHub Pages records. After DNS propagates, enable Enforce HTTPS in repository Pages settings.",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "website",
+    "dns",
+    "pages",
+    "launch",
+    "domain"
+  ],
+  "paths": [
+    "docs/CNAME",
+    ".github/workflows/pages.yml",
+    "docs/index.html"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-03T09:44:48.937Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage launch site uses kage-core.com as its GitHub Pages custom domain.",
+    "why": "The launch site needs a stable branded domain rather than only the github.io URL.",
+    "trigger": "Recall when changing GitHub Pages configuration, DNS, launch docs, or hosted site links.",
+    "action": "Keep docs/CNAME set to kage-core.com and enable Enforce HTTPS in Pages settings after DNS propagates.",
+    "verification": "Repo-local capture grounded to docs/CNAME, .github/workflows/pages.yml, and docs/index.html.",
+    "risk_if_forgotten": "Agents may remove the CNAME, publish only the github.io URL, or miss the HTTPS/DNS setup needed for launch.",
+    "stale_when": "The project changes domains, disables GitHub Pages, or moves the launch site away from docs/CNAME."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-03T09:44:48.937Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 96,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 59
+  },
+  "created_at": "2026-05-03T09:44:48.937Z",
+  "updated_at": "2026-05-05T20:56:36.000Z"
+}

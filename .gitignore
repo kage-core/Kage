@@ -15,4 +15,5 @@ node_modules/
 dist/
 mcp/viewer/graphs/*.json
 docs/assets/viewer-demo-frames*/
+*.mov
 *.tgz

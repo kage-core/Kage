@@ -1,0 +1,66 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:audit-trust-scoring-must-not-let-dense-graph-edges-mask-missing-context-17780111",
+  "title": "Audit trust scoring must not let dense graph edges mask missing context",
+  "summary": "Fact: Kage audit now reports structured engineering memory coverage, code graph precision, memory code evidence, and a trust score. Why: Dense memory code graph edges can make a repository look well covered even when app",
+  "body": "Fact: Kage audit now reports structured engineering-memory coverage, code graph precision, memory-code evidence, and a trust score. Why: Dense memory-code graph edges can make a repository look well-covered even when approved memories lack explicit rationale, verification, or stale conditions. Trigger: When changing audit scoring, knowledge graph edge generation, or memory admission heuristics. Action: Cap memory-code edge scoring by approved packet count and prefer explicit Fact/Why/Action/Verified by/Stale when fields in high-value memories. Verified by: npm test in mcp; node mcp/dist/cli.js audit --project . --json. Risk if forgotten: Future audit changes may overstate repository trust and hide poor structured-memory coverage.\nEvidence: Implemented structured context extraction, auditProject, memory-code graph evidence links, and a trust-score cap; tests passed and root audit reported trust_score 80 with structured-memory recommendations.\nVerified by: npm test in mcp; node mcp/dist/cli.js audit --project . --json",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "audit",
+    "memory-quality",
+    "trust-score",
+    "knowledge-graph"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts",
+    "mcp/cli.ts",
+    "mcp/index.ts",
+    "docs/MEMORY_ADMISSION.md"
+  ],
+  "stack": [
+    "TypeScript",
+    "Node.js"
+  ],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-05T19:59:00.308Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-05T19:59:00.308Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 258
+  },
+  "created_at": "2026-05-05T19:59:00.308Z",
+  "updated_at": "2026-05-05T19:59:14.004Z"
+}

@@ -6,6 +6,7 @@ import {
   distillSession,
   indexProject,
   kageMetrics,
+  memoryInbox,
   observe,
   qualityReport,
   recall,
@@ -131,6 +132,7 @@ export function daemonDoctor(projectDir: string): DaemonDoctor {
       `POST http://${DEFAULT_HOST}:${restPort}/kage/distill`,
       `GET http://${DEFAULT_HOST}:${restPort}/kage/metrics`,
       `GET http://${DEFAULT_HOST}:${restPort}/kage/quality`,
+      `GET http://${DEFAULT_HOST}:${restPort}/kage/inbox`,
       `GET http://${DEFAULT_HOST}:${restPort}/kage/benchmark`,
     ],
     warnings,
@@ -216,6 +218,10 @@ export async function startDaemon(projectDir: string, options: { host?: string; 
         json(res, 200, qualityReport(projectDir));
         return;
       }
+      if (req.method === "GET" && url.pathname === "/kage/inbox") {
+        json(res, 200, memoryInbox(projectDir));
+        return;
+      }
       if (req.method === "GET" && url.pathname === "/kage/benchmark") {
         json(res, 200, benchmarkProject(projectDir));
         return;
@@ -261,18 +267,21 @@ export async function startViewer(projectDir: string, options: { host?: string; 
   const graphPath = join(projectRoot, ".agent_memory", "graph", "graph.json");
   const codePath = join(projectRoot, ".agent_memory", "code_graph", "graph.json");
   const metricsPath = join(projectRoot, ".agent_memory", "metrics.json");
+  const inboxPath = join(projectRoot, ".agent_memory", "inbox.json");
   const reviewPath = join(projectRoot, ".agent_memory", "review", "memory-review.md");
   const pendingDir = join(projectRoot, ".agent_memory", "pending");
 
-  // Pre-generate metrics.json so the viewer can load it
+  // Pre-generate lightweight JSON reports so the viewer can load them directly.
   try {
     const metrics = kageMetrics(projectDir);
     writeFileSync(metricsPath, JSON.stringify(metrics, null, 2));
+    const inbox = memoryInbox(projectDir);
+    writeFileSync(inboxPath, JSON.stringify(inbox, null, 2));
   } catch {
-    // non-fatal: viewer will show 404 for metrics if generation fails
+    // non-fatal: viewer will show 404 for reports if generation fails
   }
 
-  const url = `http://${host}:${port}/viewer/index.html?graph=${encodeURIComponent(graphPath)}&code=${encodeURIComponent(codePath)}&metrics=${encodeURIComponent(metricsPath)}&review=${encodeURIComponent(reviewPath)}&pending=${encodeURIComponent(pendingDir)}`;
+  const url = `http://${host}:${port}/viewer/index.html?graph=${encodeURIComponent(graphPath)}&code=${encodeURIComponent(codePath)}&metrics=${encodeURIComponent(metricsPath)}&inbox=${encodeURIComponent(inboxPath)}&review=${encodeURIComponent(reviewPath)}&pending=${encodeURIComponent(pendingDir)}`;
 
   const server = createServer((req, res) => {
     const requestUrl = new URL(req.url ?? "/", `http://${host}:${port}`);

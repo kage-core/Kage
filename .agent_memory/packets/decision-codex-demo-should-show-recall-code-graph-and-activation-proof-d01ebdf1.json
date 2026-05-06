@@ -1,0 +1,61 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:codex-demo-should-show-recall-code-graph-and-activation-proof-1777873299017",
+  "title": "Codex demo should show recall, code graph, and activation proof",
+  "summary": "When demonstrating Kage with Codex, show three concrete steps: kage recall for repo memory, kage code graph for source derived context, and kage setup verify agent for activation proof. If verify agent reports mcp tool r",
+  "body": "When demonstrating Kage with Codex, show three concrete steps: kage recall for repo memory, kage code-graph for source-derived context, and kage setup verify-agent for activation proof. If verify-agent reports mcp_tool_reachable=false, present it honestly as an installed-but-dormant session that needs Codex restart/MCP reload rather than claiming live MCP usage.\nEvidence: This Codex demo recalled setup memory, queried setupAgent/code graph, and verify-agent returned config_present=true, policy_installed=true, recall_works=true, code_graph_works=true, mcp_tool_reachable=false.\nVerified by: kage recall; kage code-graph; kage setup verify-agent --agent codex --project . --json",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "codex",
+    "demo",
+    "activation",
+    "ambient-memory"
+  ],
+  "paths": [
+    "AGENTS.md",
+    "mcp/kernel.ts",
+    "README.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-04T05:41:39.017Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-04T05:41:39.017Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 171
+  },
+  "created_at": "2026-05-04T05:41:39.017Z",
+  "updated_at": "2026-05-04T05:41:44.600Z"
+}

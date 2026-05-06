@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import vm from "node:vm";
 import {
   SETUP_AGENTS,
   benchmarkTaskComparison,
@@ -13,6 +14,7 @@ import {
   buildKnowledgeGraph,
   buildBranchOverlay,
   buildMarketplace,
+  auditProject,
   capture,
   catalogDomainNodeCount,
   createReviewArtifact,
@@ -30,6 +32,7 @@ import {
   kageMetrics,
   learn,
   loadApprovedPackets,
+  memoryInbox,
   observe,
   layeredRecall,
   orgRecall,
@@ -37,6 +40,7 @@ import {
   orgStatus,
   orgUploadPacket,
   packetsDir,
+  pendingDir,
   prCheck,
   prSummarize,
   proposeFromDiff,
@@ -54,7 +58,9 @@ import {
   verifyAgentActivation,
   validatePacket,
   validateProject,
+  writeLspSymbolIndex,
 } from "./kernel.js";
+import { buildGraphRegistryManifest } from "./graph-registry.js";
 
 function tempProject(): string {
   const dir = mkdtempSync(join(tmpdir(), "kage-test-"));
@@ -135,6 +141,9 @@ test("builds generated indexes after indexing", () => {
   indexProject(project);
   const overview = loadApprovedPackets(project).find((packet) => packet.title.includes("repo overview"));
   assert.match(overview?.body ?? "", /New setup flow/);
+  const structure = loadApprovedPackets(project).find((packet) => packet.title.includes("repo structure"));
+  assert.match(overview?.context?.why ?? "", /repo orientation/i);
+  assert.match(structure?.context?.verification ?? "", /Generated from files present/);
   assert.match(readFileSync(join(project, "AGENTS.md"), "utf8"), /KAGE_MEMORY_POLICY_V1/);
 });
 
@@ -159,6 +168,80 @@ test("recall returns run command context from repo overview", () => {
   const result = recall(project, "how do I run tests");
   assert.match(result.context_block, /vitest|test/i);
   assert.equal(result.results.length > 0, true);
+});
+
+test("recall uses BM25 lexical ranking for repeated body evidence", () => {
+  const project = tempProject();
+  capture({
+    projectDir: project,
+    title: "A sparse unrelated note",
+    summary: "Operational note",
+    body: "Cache eviction appears once. Verified by: npm test.",
+    type: "reference",
+  });
+  capture({
+    projectDir: project,
+    title: "Z repeated unrelated note",
+    summary: "Operational note",
+    body: "Cache eviction cache eviction cache eviction cache eviction cache eviction. Verified by: npm test.",
+    type: "reference",
+  });
+
+  const result = recall(project, "cache eviction", 2, true);
+  assert.equal(result.results[0]?.packet.title, "Z repeated unrelated note");
+  assert.equal(result.explanations?.[0]?.provider, "bm25");
+  assert.equal((result.results[0]?.score_breakdown?.bm25 ?? 0) > 0, true);
+});
+
+test("recall prioritizes runbooks for command-intent queries", () => {
+  const project = tempProject();
+  capture({
+    projectDir: project,
+    title: "A release proof note",
+    summary: "Operational note",
+    body: "Verified by npm test. npm test passed. npm test was run again.",
+    type: "decision",
+  });
+  capture({
+    projectDir: project,
+    title: "A ranking bug note",
+    summary: "BM25 bug note",
+    body: "A previous bug made how do I run tests return release proof instead of runbooks. Verified by npm test.",
+    type: "bug_fix",
+  });
+  capture({
+    projectDir: project,
+    title: "Z local command guide",
+    summary: "Operational note",
+    body: "Use npm test to run the suite.",
+    type: "runbook",
+  });
+
+  const result = recall(project, "how do I run tests", 2, true);
+  assert.equal(result.results[0]?.packet.title, "Z local command guide");
+  assert.equal((result.results[0]?.score_breakdown?.intent ?? 0) > 0, true);
+});
+
+test("recall applies type intent for gotcha queries", () => {
+  const project = tempProject();
+  capture({
+    projectDir: project,
+    title: "A noisy branch note",
+    summary: "Branch gotchas gotchas gotchas",
+    body: "This branch note mentions gotchas several times but is not itself a gotcha.",
+    type: "workflow",
+  });
+  capture({
+    projectDir: project,
+    title: "Z config gotcha",
+    summary: "Remember the config ordering issue.",
+    body: "The config loader reads local overrides after defaults. Verified by: npm test.",
+    type: "gotcha",
+  });
+
+  const result = recall(project, "what gotchas exist", 2, true);
+  assert.equal(result.results[0]?.packet.title, "Z config gotcha");
+  assert.equal((result.results[0]?.score_breakdown?.intent ?? 0) > 0, true);
 });
 
 test("builds an evidence-backed local knowledge graph", () => {
@@ -298,6 +381,37 @@ test("code graph consumes Tree-sitter, SCIP, and LSP index artifacts when presen
   assert.equal(graph.symbols.some((symbol) => symbol.name === "LspWorker" && symbol.parser === "lsp"), true);
   assert.equal(graph.imports.some((edge) => edge.parser === "scip" && edge.specifier === "src.worker"), true);
   assert.equal(graph.files.find((file) => file.path === "src/worker.py")?.parser, "scip");
+});
+
+test("generated LSP symbol index upgrades code graph parser coverage", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "server.ts"), "export function createApp() { return {}; }\n", "utf8");
+  const before = buildCodeGraph(project);
+  assert.equal(before.files.find((file) => file.path === "src/server.ts")?.parser, "typescript-ast");
+
+  const result = writeLspSymbolIndex(project);
+  assert.equal(result.ok, true);
+  assert.equal(result.documents, 1);
+  assert.equal(result.symbols >= 1, true);
+
+  const graph = buildCodeGraph(project);
+  assert.equal(graph.files.find((file) => file.path === "src/server.ts")?.parser, "lsp");
+  assert.equal(graph.symbols.some((symbol) => symbol.path === "src/server.ts" && symbol.name === "createApp" && symbol.parser === "lsp"), true);
+});
+
+test("audit precision coverage ignores metadata-only files", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo" }), "utf8");
+  writeFileSync(join(project, "src", "server.ts"), "export function createApp() { return {}; }\n", "utf8");
+  writeLspSymbolIndex(project);
+
+  const audit = auditProject(project);
+  assert.equal(audit.checks.code_graph.files, 2);
+  assert.equal(audit.checks.code_graph.precise_files, 1);
+  assert.equal(audit.checks.code_graph.precise_coverage_percent, 100);
+  assert.equal(audit.recommendations.some((item) => item.includes("SCIP/LSIF/LSP")), false);
 });
 
 test("code graph query returns routes, symbols, and tests", () => {
@@ -485,6 +599,26 @@ test("distillation keeps ordinary prompts episodic and admits durable prompt lea
   assert.equal(packet?.type, "decision");
   assert.match(packet?.title ?? "", /Decision/);
   assert.doesNotMatch(packet?.title ?? "", /user intent/);
+
+  assert.equal(observe(project, {
+    type: "user_prompt",
+    session_id: "prompt-explanation",
+    text: "Code explanation: createApp owns HTTP app wiring. Why: callers need one setup point for middleware and routes.",
+  }).ok, true);
+  distilled = distillSession(project, "prompt-explanation");
+  const explanation = distilled.candidates[0]?.packet;
+  assert.equal(explanation?.type, "code_explanation");
+  assert.match(explanation?.context?.why ?? "", /callers need one setup point/);
+
+  assert.equal(observe(project, {
+    type: "user_prompt",
+    session_id: "prompt-issue",
+    text: "Issue context: Upload retries still fail after token refresh. Hypothesis: the refresh path does not update queued request metadata.",
+  }).ok, true);
+  distilled = distillSession(project, "prompt-issue");
+  const issue = distilled.candidates[0]?.packet;
+  assert.equal(issue?.type, "issue_context");
+  assert.match(issue?.body ?? "", /Hypothesis/);
 });
 
 test("memory admission rejects session bookkeeping and accepts durable repo knowledge", () => {
@@ -528,6 +662,9 @@ test("recall explanations, quality, and benchmark expose proof metrics", () => {
   assert.equal(typeof quality.evidence_coverage_percent, "number");
 
   const benchmark = benchmarkProject(project);
+  assert.equal(typeof benchmark.overall_score, "number");
+  assert.equal(Array.isArray(benchmark.gates), true);
+  assert.equal(benchmark.gates.some((gate) => gate.name === "recall_hit_rate"), true);
   assert.equal(typeof benchmark.pain_metrics.recall_hit_rate_percent, "number");
   assert.equal(typeof benchmark.pain_metrics.estimated_tokens_saved, "number");
 
@@ -537,6 +674,191 @@ test("recall explanations, quality, and benchmark expose proof metrics", () => {
   assert.equal(comparison.with_kage.context_tokens > 0, true);
   assert.equal(typeof comparison.delta.context_reduction_percent, "number");
   assert.equal(comparison.evidence.kage_memory.length > 0, true);
+});
+
+test("capture extracts structured engineering memory context", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "server.ts"), "export function createApp() { return {}; }\n", "utf8");
+
+  const result = capture({
+    projectDir: project,
+    title: "Decision: keep code facts separate from memory facts",
+    body: "Decision: keep source-derived code facts separate from learned memory facts.\n\nWhy: parser facts should stay rebuildable and should not be overwritten by stale human notes.\n\nVerified by: npm test\n\nRisk if forgotten: future agents may collapse code graph and memory graph into one untrusted store.\n\nStale when: memory packets can directly overwrite generated code facts.",
+    type: "decision",
+    paths: ["src/server.ts"],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.packet?.context?.why?.includes("parser facts"), true);
+  assert.equal(result.packet?.context?.risk_if_forgotten?.includes("collapse code graph"), true);
+  assert.equal(result.packet?.context?.verification, "npm test");
+  assert.equal(result.packet?.context?.stale_when?.includes("overwrite generated code facts"), true);
+});
+
+test("knowledge graph links structured memory to source symbols and verification commands", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "server.ts"), "export function createApp() { return {}; }\n", "utf8");
+  const result = capture({
+    projectDir: project,
+    title: "Code explanation: createApp owns HTTP app wiring",
+    body: "The createApp function owns HTTP app wiring. Why: callers need one setup point for middleware and routes. Verified by: node mcp/dist/cli.js audit --project . --json. Risk if forgotten: callers may bypass shared app setup.",
+    type: "code_explanation",
+    paths: ["src/server.ts"],
+  });
+  assert.equal(result.ok, true);
+  assert.match(result.packet?.context?.verification ?? "", /cli\.js audit --project \. --json/);
+
+  const graph = buildKnowledgeGraph(project);
+  assert.equal(graph.entities.some((entity) => entity.type === "symbol" && entity.name === "createApp"), true);
+  assert.equal(graph.edges.some((edge) => edge.relation === "explains_symbol" && edge.fact.includes("createApp")), true);
+  assert.equal(graph.edges.some((edge) => edge.relation === "verified_by" && edge.fact.includes("cli.js audit --project . --json")), true);
+});
+
+test("viewer coalesces memory graph code entities with code graph nodes", () => {
+  const source = readFileSync(join(process.cwd(), "viewer", "app.js"), "utf8");
+  const element = () => ({
+    addEventListener() {},
+    appendChild() {},
+    setAttribute() {},
+    querySelector() { return element(); },
+    querySelectorAll() { return []; },
+    getContext() { return null; },
+    getBoundingClientRect() { return { left: 0, top: 0, width: 1000, height: 660 }; },
+    classList: { add() {}, remove() {}, toggle() {} },
+    style: {},
+    dataset: {},
+    textContent: "",
+    innerHTML: "",
+    value: "",
+    checked: false,
+    clientWidth: 1000,
+    clientHeight: 660,
+    width: 1000,
+    height: 660,
+  });
+  const sandbox: Record<string, unknown> = {
+    console,
+    Promise,
+    Set,
+    Map,
+    URLSearchParams,
+    Option: function Option(text: string, value: string) { return { text, value }; },
+    document: {
+      getElementById() { return element(); },
+      createElementNS() { return element(); },
+      createElement() { return element(); },
+    },
+    window: {
+      location: { search: "?skipAutoLoad=1" },
+      addEventListener() {},
+      requestAnimationFrame() { return 0; },
+      cancelAnimationFrame() {},
+    },
+    fetch() { return Promise.reject(new Error("skip network")); },
+  };
+  sandbox.globalThis = sandbox;
+  vm.runInNewContext(source, sandbox);
+
+  const hooks = sandbox.__KAGE_VIEWER_TEST__ as {
+    normalizeGraph(graph: unknown): { entities: Array<{ id: string; graph_kind: string; aliases?: string[] }>; edges: Array<{ from: string; to: string; relation: string; memory_code_link?: boolean }>; episodes: unknown[] };
+    mergeNormalizedGraphs(graphs: Array<{ entities: unknown[]; edges: unknown[]; episodes: unknown[] }>): { entities: Array<{ id: string; graph_kind: string }>; edges: Array<{ from: string; to: string; relation: string; memory_code_link?: boolean }> };
+    isMemoryCodeRelation(relation: string): boolean;
+  };
+  assert.equal(typeof hooks.normalizeGraph, "function");
+
+  const symbolId = "symbol:src-server-ts:function:createapp:1";
+  const memoryGraph = hooks.normalizeGraph({
+    entities: [
+      { id: "memory:packet-1", type: "memory", name: "createApp memory", aliases: ["packet-1"], evidence: [] },
+      { id: "symbol:symbol-src-server-ts-function-createapp-1", type: "symbol", name: "createApp", aliases: [symbolId, "src/server.ts"], evidence: [] },
+    ],
+    edges: [
+      { id: "edge-1", from: "memory:packet-1", to: "symbol:symbol-src-server-ts-function-createapp-1", relation: "explains_symbol", fact: "memory explains createApp", evidence: [] },
+    ],
+    episodes: [],
+  });
+  const codeGraph = hooks.normalizeGraph({
+    files: [{ path: "src/server.ts", kind: "source", language: "typescript", parser: "lsp", line_count: 1, hash: "abc" }],
+    symbols: [{ id: symbolId, name: "createApp", kind: "function", path: "src/server.ts", line: 1, language: "typescript", signature: "function createApp()" }],
+    imports: [],
+    routes: [],
+    tests: [],
+    packages: [],
+    repo_state: {},
+  });
+  const merged = hooks.mergeNormalizedGraphs([memoryGraph, codeGraph]);
+
+  assert.equal(merged.entities.filter((entity) => entity.id === symbolId).length, 1);
+  assert.equal(merged.entities.some((entity) => entity.id === "symbol:symbol-src-server-ts-function-createapp-1"), false);
+  assert.equal(merged.edges.some((edge) => edge.to === symbolId && edge.relation === "explains_symbol" && edge.memory_code_link), true);
+  assert.equal(hooks.isMemoryCodeRelation("verified_by_test"), true);
+});
+
+test("auditProject reports trust and concrete memory/code graph recommendations", () => {
+  const project = tempProject();
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
+  const result = capture({
+    projectDir: project,
+    title: "Architecture note",
+    body: "The architecture note explains a design choice but has no structured why or risk fields.",
+    type: "reference",
+  });
+  assert.equal(result.ok, true);
+
+  const audit = auditProject(project);
+  assert.equal(audit.ok, true);
+  assert.equal(typeof audit.trust_score, "number");
+  assert.equal(audit.trust_score < 100, true);
+  assert.equal(audit.checks.structured_memory.total_packets >= 1, true);
+  assert.equal(audit.checks.memory_inbox.pending_packets, 0);
+  assert.equal(audit.checks.code_graph.precise_files >= 0, true);
+  assert.equal(audit.recommendations.some((item) => item.includes("structured context") || item.includes("SCIP")), true);
+});
+
+test("memoryInbox consolidates pending stale and structured-context work", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "server.ts"), "export function start() { return true; }\n", "utf8");
+
+  const missingContext = capture({
+    projectDir: project,
+    title: "Architecture note",
+    body: "This packet has a useful note but no rationale, verification, or stale condition.",
+    type: "reference",
+    paths: ["src/server.ts"],
+  });
+  assert.equal(missingContext.ok, true);
+
+  const stale = capture({
+    projectDir: project,
+    title: "Decision: removed file owned startup",
+    body: "Why: the removed file used to own startup wiring.\n\nVerified by: historical review",
+    type: "decision",
+    paths: ["src/removed.ts"],
+  });
+  assert.equal(stale.ok, true);
+
+  const pending = capture({
+    projectDir: project,
+    title: "Decision: review before promotion",
+    body: "Why: org/global memory needs human review.\n\nVerified by: policy review",
+    type: "decision",
+    paths: ["src/server.ts"],
+  });
+  assert.equal(pending.ok, true);
+  mkdirSync(pendingDir(project), { recursive: true });
+  writeFileSync(join(pendingDir(project), "pending-review.json"), JSON.stringify({ ...pending.packet, status: "pending" }, null, 2), "utf8");
+
+  const inbox = memoryInbox(project);
+  assert.equal(inbox.ok, false);
+  assert.equal(inbox.counts.pending, 1);
+  assert.equal(inbox.items.some((item) => item.kind === "pending" && item.packet_id === pending.packet?.id), true);
+  assert.equal(inbox.items.some((item) => item.kind === "stale" && item.packet_id === stale.packet?.id), true);
+  assert.equal(inbox.items.some((item) => item.kind === "missing_context" && item.packet_id === missingContext.packet?.id), true);
+  assert.equal(inbox.items.some((item) => item.kind === "validation_warning"), true);
+  assert.equal(inbox.recommendations.length > 0, true);
 });
 
 test("graph query returns relevant typed facts", () => {
@@ -563,7 +885,7 @@ test("learn captures actual session learning with inferred type", () => {
   writeFileSync(join(project, "mcp", "index.ts"), "", "utf8");
   const result = learn({
     projectDir: project,
-    learning: "Decision: agents should use kage_learn for actual session discoveries and diff proposal only as a fallback.",
+    learning: "Decision: agents should use kage_learn for actual session discoveries and diff proposal only as a fallback. Why: session learnings can capture cause and rationale that raw diffs cannot.",
     paths: ["mcp/index.ts"],
     tags: ["session-learning"],
     verifiedBy: "npm test",
@@ -572,6 +894,8 @@ test("learn captures actual session learning with inferred type", () => {
   assert.equal(result.packet?.type, "decision");
   assert.equal(result.packet?.tags.includes("session-learning"), true);
   assert.match(result.packet?.body ?? "", /Verified by: npm test/);
+  assert.match(result.packet?.context?.why ?? "", /cause and rationale/);
+  assert.equal(result.packet?.context?.verification, "npm test");
 });
 
 test("graph command extraction ignores prose and file references", () => {
@@ -785,6 +1109,37 @@ test("registry recommendations detect docs skills and MCPs from package metadata
   assert.equal(recommendations.some((item) => item.id === "mcp:database-inspector" && item.install === "manual_approval_required"), true);
 });
 
+test("graph registry manifest signs graph artifacts and source packet hashes", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "node --test" } }), "utf8");
+  writeFileSync(join(project, "src", "server.ts"), "export function createApp() { return {}; }\n", "utf8");
+  const packet = capture({
+    projectDir: project,
+    title: "Decision: createApp owns setup",
+    body: "Why: one setup point keeps middleware consistent.\n\nVerified by: npm test",
+    type: "decision",
+    paths: ["src/server.ts"],
+  });
+  assert.equal(packet.ok, true);
+  writeLspSymbolIndex(project);
+  refreshProject(project);
+
+  const result = buildGraphRegistryManifest(project);
+  assert.equal(result.ok, true);
+  assert.match(result.path, /graph_registry\/manifest\.json$/);
+  assert.equal(result.manifest.kind, "graph_registry");
+  assert.equal(result.manifest.signature.algorithm, "sha256-canonical-json");
+  assert.equal(result.manifest.payload.sources.packets.some((source) => source.id === packet.packet?.id && source.content_sha256.length === 64), true);
+  assert.equal(result.manifest.payload.artifacts.some((artifact) => artifact.path === ".agent_memory/graph/graph.json" && artifact.sha256.length === 64), true);
+  assert.equal(result.manifest.payload.artifacts.some((artifact) => artifact.path === ".agent_memory/code_graph/graph.json" && artifact.sha256.length === 64), true);
+  assert.equal(result.manifest.payload.reports.audit.trust_score >= 0, true);
+  assert.equal(result.manifest.payload.reports.inbox.pending, 0);
+  assert.equal(result.manifest.payload.repo_state.branch !== undefined, true);
+  assert.match(readFileSync(result.path, "utf8"), /graph_registry/);
+});
+
 test("public candidate promotion sanitizes private packet metadata", () => {
   const project = tempProject();
   writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
@@ -924,7 +1279,10 @@ test("diff proposal creates a branch review summary and repo-local change memory
   assert.equal(result.changedFiles.includes("src/runner.ts"), true);
   assert.equal(result.changedFiles.some((path) => path.includes("node_modules")), false);
   assert.equal(result.packet.paths.some((path) => path.includes("node_modules")), false);
+  assert.match(result.packet.context?.why ?? "", /git diff/);
+  assert.match(result.packet.context?.stale_when ?? "", /branch diff changes/);
   assert.match(readFileSync(result.path!, "utf8"), /git_diff/);
+  assert.equal(validateProject(project).warnings.some((warning) => warning.includes("no repo-grounded source reference")), false);
   assert.equal(recall(project, "what changed runner npm test").results.some((item) => item.packet.id === result.packet!.id), true);
 });
 

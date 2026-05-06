@@ -1,0 +1,267 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
+  "title": "Change memory: master",
+  "summary": "Repo-local context for 45 changed repo paths on master.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .github/workflows/ci.yml\n- .github/workflows/kage-pr.yml\n- .github/workflows/kage-sync.yml\n- .gitignore\n- AGENTS.md\n- CLAUDE.md\n- KAGE_COUNCIL_REVIEW.md\n- KAGE_GRAPH_REGISTRY_DESIGN.md\n- KAGE_MEMORY_HARNESS_RESEARCH.md\n- KAGE_MEMORY_SYSTEM_DESIGN.md\n- README.md\n- docs/CNAME\n- docs/MEMORY_ADMISSION.md\n- docs/assets/kage-cli-recording-poster.png\n- docs/assets/kage-cli-recording.mp4\n- docs/assets/kage-real-cli-screen-recording-cut.mp4\n- docs/assets/kage-real-cli-session.typescript\n- docs/assets/kage-real-codex-kage-recall.typescript\n- docs/assets/kage-real-team-demo-poster.png\n- docs/assets/kage-real-team-demo.mp4\n- docs/assets/kage-yc-demo-poster.png\n- docs/assets/kage-yc-demo.mp4\n- docs/assets/yc-demo-final-poster.png\n- docs/assets/yc-demo-final.mp4\n- docs/assets/yc-demo-trimmed.mp4\n- docs/assets/yc-demo-under-60-poster.png\n- docs/assets/yc-demo-under-60.mp4\n- docs/index.html\n- mcp/README.md\n- mcp/cli.ts\n- mcp/daemon.ts\n- mcp/graph-registry.ts\n- mcp/index.ts\n- mcp/kernel.test.ts\n- mcp/kernel.ts\n- mcp/mcp.test.ts\n- mcp/registry/index.ts\n- mcp/viewer/app.js\n- mcp/viewer/index.html\n- mcp/viewer/styles.css\n\nDiff summary:\n```text\nUntracked or staged files changed; inspect git status for details.\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "type": "workflow",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.62,
+  "tags": [
+    "change-memory",
+    "diff-proposal",
+    "repo-local",
+    "branch:master"
+  ],
+  "paths": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/kage-pr.yml",
+    ".github/workflows/kage-sync.yml",
+    ".gitignore",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "KAGE_COUNCIL_REVIEW.md",
+    "KAGE_GRAPH_REGISTRY_DESIGN.md",
+    "KAGE_MEMORY_HARNESS_RESEARCH.md",
+    "KAGE_MEMORY_SYSTEM_DESIGN.md",
+    "README.md",
+    "docs/CNAME",
+    "docs/MEMORY_ADMISSION.md",
+    "docs/assets/kage-cli-recording-poster.png",
+    "docs/assets/kage-cli-recording.mp4",
+    "docs/assets/kage-real-cli-screen-recording-cut.mp4",
+    "docs/assets/kage-real-cli-session.typescript",
+    "docs/assets/kage-real-codex-kage-recall.typescript",
+    "docs/assets/kage-real-team-demo-poster.png",
+    "docs/assets/kage-real-team-demo.mp4",
+    "docs/assets/kage-yc-demo-poster.png",
+    "docs/assets/kage-yc-demo.mp4",
+    "docs/assets/yc-demo-final-poster.png",
+    "docs/assets/yc-demo-final.mp4",
+    "docs/assets/yc-demo-trimmed.mp4",
+    "docs/assets/yc-demo-under-60-poster.png",
+    "docs/assets/yc-demo-under-60.mp4",
+    "docs/index.html",
+    "mcp/README.md",
+    "mcp/cli.ts",
+    "mcp/daemon.ts",
+    "mcp/graph-registry.ts",
+    "mcp/index.ts",
+    "mcp/kernel.test.ts",
+    "mcp/kernel.ts",
+    "mcp/mcp.test.ts",
+    "mcp/registry/index.ts",
+    "mcp/viewer/app.js",
+    "mcp/viewer/index.html",
+    "mcp/viewer/styles.css"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "git_diff",
+      "branch": "master",
+      "head": "85589746198116747315d3567d57498ed2a4c5b5",
+      "merge_base": "85589746198116747315d3567d57498ed2a4c5b5",
+      "changed_files": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/kage-pr.yml",
+        ".github/workflows/kage-sync.yml",
+        ".gitignore",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "KAGE_COUNCIL_REVIEW.md",
+        "KAGE_GRAPH_REGISTRY_DESIGN.md",
+        "KAGE_MEMORY_HARNESS_RESEARCH.md",
+        "KAGE_MEMORY_SYSTEM_DESIGN.md",
+        "README.md",
+        "docs/CNAME",
+        "docs/MEMORY_ADMISSION.md",
+        "docs/assets/kage-cli-recording-poster.png",
+        "docs/assets/kage-cli-recording.mp4",
+        "docs/assets/kage-real-cli-screen-recording-cut.mp4",
+        "docs/assets/kage-real-cli-session.typescript",
+        "docs/assets/kage-real-codex-kage-recall.typescript",
+        "docs/assets/kage-real-team-demo-poster.png",
+        "docs/assets/kage-real-team-demo.mp4",
+        "docs/assets/kage-yc-demo-poster.png",
+        "docs/assets/kage-yc-demo.mp4",
+        "docs/assets/yc-demo-final-poster.png",
+        "docs/assets/yc-demo-final.mp4",
+        "docs/assets/yc-demo-trimmed.mp4",
+        "docs/assets/yc-demo-under-60-poster.png",
+        "docs/assets/yc-demo-under-60.mp4",
+        "docs/index.html",
+        "mcp/README.md",
+        "mcp/cli.ts",
+        "mcp/daemon.ts",
+        "mcp/graph-registry.ts",
+        "mcp/index.ts",
+        "mcp/kernel.test.ts",
+        "mcp/kernel.ts",
+        "mcp/mcp.test.ts",
+        "mcp/registry/index.ts",
+        "mcp/viewer/app.js",
+        "mcp/viewer/index.html",
+        "mcp/viewer/styles.css",
+        "scripts/render-cli-recording.mjs",
+        "scripts/render-real-team-demo.mjs",
+        "scripts/render-team-memory-demo.mjs",
+        "scripts/render-yc-demo.mjs",
+        "scripts/run-real-cli-demo.sh"
+      ],
+      "summary_path": ".agent_memory/review/branch-summary-master.json"
+    }
+  ],
+  "context": {
+    "fact": "Current branch master changes 45 repo paths.",
+    "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
+    "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
+    "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
+    "verification": "Generated from git diff and refreshed by kage pr summarize or kage propose --from-diff.",
+    "risk_if_forgotten": "Future agents may repeat orientation work, miss branch-specific assumptions, or ignore files touched by this change.",
+    "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
+  },
+  "freshness": {
+    "last_verified_at": "2026-05-06T04:55:02.575Z",
+    "ttl_days": 180,
+    "verification": "git_diff"
+  },
+  "edges": [
+    {
+      "relation": "changes_path",
+      "to": "path:.github/workflows/ci.yml",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.github/workflows/kage-pr.yml",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.github/workflows/kage-sync.yml",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.gitignore",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:AGENTS.md",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:CLAUDE.md",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:KAGE_COUNCIL_REVIEW.md",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:KAGE_GRAPH_REGISTRY_DESIGN.md",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:KAGE_MEMORY_HARNESS_RESEARCH.md",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:KAGE_MEMORY_SYSTEM_DESIGN.md",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:README.md",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:docs/CNAME",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:docs/MEMORY_ADMISSION.md",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:docs/assets/kage-cli-recording-poster.png",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:docs/assets/kage-cli-recording.mp4",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:docs/assets/kage-real-cli-screen-recording-cut.mp4",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:docs/assets/kage-real-cli-session.typescript",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:docs/assets/kage-real-codex-kage-recall.typescript",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:docs/assets/kage-real-team-demo-poster.png",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:docs/assets/kage-real-team-demo.mp4",
+      "evidence": "git_diff"
+    }
+  ],
+  "quality": {
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "stale_reasons": [],
+    "estimated_tokens_saved": 481,
+    "admission": {
+      "admit": true,
+      "class": "candidate",
+      "score": 70,
+      "reasons": [
+        "durable memory type",
+        "has provenance",
+        "repo scoped or path grounded",
+        "has durable trigger, rationale, issue context, or explanation",
+        "substantive enough to reuse"
+      ],
+      "risks": []
+    },
+    "candidate_kind": "change_memory",
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true
+  },
+  "created_at": "2026-05-06T04:55:02.575Z",
+  "updated_at": "2026-05-06T04:55:02.575Z"
+}

@@ -1,0 +1,62 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:viewer-demo-must-show-visible-state-changes-1777809337975",
+  "title": "Viewer demo must show visible state changes",
+  "summary": "The viewer demo should not only caption actions such as searching runbook or switching Memory/Code views; it must show the viewer state change. scripts/render viewer demo.mjs now records the control action, returns to th",
+  "body": "The viewer demo should not only caption actions such as searching runbook or switching Memory/Code views; it must show the viewer state change. scripts/render-viewer-demo.mjs now records the control action, returns to the graph, and displays a live state card with query, mode, visible node count, visible relation count, and top visible nodes.\nEvidence: Inspected rendered frames: runbook search frame shows query runbook with updated counts; Memory view frame shows mode Memory and memory graph; Code graph frame shows mode Code and code graph counts/results.",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "launch",
+    "viewer",
+    "demo",
+    "video",
+    "ux"
+  ],
+  "paths": [
+    "scripts/render-viewer-demo.mjs",
+    "docs/assets/kage-viewer-demo.mp4",
+    "docs/assets/kage-viewer-demo-poster.png"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-03T11:55:37.975Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-03T11:55:37.975Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 141
+  },
+  "created_at": "2026-05-03T11:55:37.975Z",
+  "updated_at": "2026-05-03T11:55:48.807Z"
+}

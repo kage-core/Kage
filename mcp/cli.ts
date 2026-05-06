@@ -5,6 +5,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { daemonDoctor, readDaemonStatus, startDaemon, startViewer, stopDaemon } from "./daemon.js";
 import {
   SETUP_AGENTS,
+  auditProject,
   benchmarkTaskComparison,
   approvePending,
   benchmarkProject,
@@ -26,6 +27,7 @@ import {
   installAgentPolicy,
   kageMetrics,
   learn,
+  memoryInbox,
   loadPendingPackets,
   MEMORY_TYPES,
   observe,
@@ -51,11 +53,13 @@ import {
   setupDoctor,
   validateProject,
   verifyAgentActivation,
+  writeLspSymbolIndex,
   type CaptureInput,
   type MemoryType,
   type ObservationEvent,
   type SetupAgent,
 } from "./kernel.js";
+import { buildGraphRegistryManifest } from "./graph-registry.js";
 
 function usage(): never {
   console.log(`Kage repo memory and code graph
@@ -81,14 +85,18 @@ Usage:
   kage upgrade [--dry-run]
   kage branch --project <dir> [--json]
   kage metrics --project <dir> [--json]
+  kage audit --project <dir> [--json]
+  kage inbox --project <dir> [--json]
   kage quality --project <dir> [--json]
   kage benchmark --project <dir> [--json]
   kage benchmark --project <dir> --compare --task <task> [--json]
   kage code-graph --project <dir> [--json]
   kage code-graph "<query>" --project <dir> [--json]
+  kage code-index --project <dir> [--json]
   kage graph --project <dir> [--json]
   kage graph --project <dir> --mermaid
   kage graph "<query>" --project <dir> [--json]
+  kage graph-registry --project <dir> [--json]
   kage recall "<query>" --project <dir> [--json] [--explain]
   kage observe --project <dir> --event <json>
   kage distill --project <dir> --session <id>
@@ -474,6 +482,25 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "graph-registry") {
+    const result = buildGraphRegistryManifest(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage Graph Registry: ${result.project_dir}`);
+    console.log(`Manifest: ${result.path}`);
+    console.log(`Artifacts: ${result.artifacts.length}`);
+    console.log(`Packets: ${result.manifest.payload.sources.packet_count}`);
+    console.log(`Signature: ${result.manifest.signature.payload_sha256}`);
+    if (result.errors.length) {
+      console.log("\nErrors:");
+      for (const error of result.errors) console.log(`  - ${error}`);
+      process.exitCode = 2;
+    }
+    return;
+  }
+
   if (command === "code-graph") {
     const query = firstPositional(args);
     if (query) {
@@ -498,6 +525,25 @@ async function main(): Promise<void> {
     console.log(`Branch: ${graph.repo_state.branch ?? "(none)"}`);
     console.log("\nTop symbols:");
     for (const symbol of graph.symbols.slice(0, 10)) console.log(`- ${symbol.kind} ${symbol.name} (${symbol.path}:${symbol.line})`);
+    return;
+  }
+
+  if (command === "code-index") {
+    const result = writeLspSymbolIndex(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage Code Index: ${result.project_dir}`);
+    console.log(`Parser: ${result.parser}`);
+    console.log(`Path: ${result.path}`);
+    console.log(`Documents: ${result.documents}`);
+    console.log(`Symbols: ${result.symbols}`);
+    if (result.errors.length) {
+      console.log("\nErrors:");
+      for (const error of result.errors) console.log(`  - ${error}`);
+      process.exitCode = 2;
+    }
     return;
   }
 
@@ -565,6 +611,56 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "audit") {
+    const result = auditProject(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage Audit: ${result.project_dir}`);
+    console.log(`Trust score: ${result.trust_score}/100`);
+    console.log(`Validation: ${result.checks.validation.ok ? "passed" : "failed"}`);
+    console.log(`Memory inbox: ${result.checks.memory_inbox.approved_packets} approved, ${result.checks.memory_inbox.pending_packets} pending, ${result.checks.memory_inbox.stale_packets} stale`);
+    console.log(`Structured memory: ${result.checks.structured_memory.structured_packets}/${result.checks.structured_memory.total_packets} (${result.checks.structured_memory.coverage_percent}%)`);
+    console.log(`Code graph precision: ${result.checks.code_graph.precise_files}/${result.checks.code_graph.files} precise (${result.checks.code_graph.precise_coverage_percent}%), ${result.checks.code_graph.ast_files} AST, ${result.checks.code_graph.fallback_files} fallback`);
+    console.log(`Memory-code graph edges: ${result.checks.graph_links.memory_code_edges}`);
+    if (result.recommendations.length) {
+      console.log("\nRecommendations:");
+      for (const recommendation of result.recommendations) console.log(`  - ${recommendation}`);
+    }
+    if (!result.ok) process.exitCode = 2;
+    return;
+  }
+
+  if (command === "inbox") {
+    const result = memoryInbox(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage Memory Inbox: ${result.project_dir}`);
+    console.log(`Approved: ${result.counts.approved}`);
+    console.log(`Pending: ${result.counts.pending}`);
+    console.log(`Stale: ${result.counts.stale}`);
+    console.log(`Duplicates: ${result.counts.duplicates}`);
+    console.log(`Missing structured context: ${result.counts.missing_context}`);
+    console.log(`Validation: ${result.counts.validation_errors} errors, ${result.counts.validation_warnings} warnings`);
+    if (result.items.length) {
+      console.log("\nInbox items:");
+      for (const item of result.items.slice(0, 30)) {
+        console.log(`  - [${item.severity}] ${item.kind}: ${item.title ?? item.summary}`);
+        console.log(`    Action: ${item.action}`);
+      }
+      if (result.items.length > 30) console.log(`  ... ${result.items.length - 30} more item(s)`);
+    }
+    if (result.recommendations.length) {
+      console.log("\nRecommendations:");
+      for (const recommendation of result.recommendations) console.log(`  - ${recommendation}`);
+    }
+    if (!result.ok) process.exitCode = 2;
+    return;
+  }
+
   if (command === "quality") {
     const result = qualityReport(projectArg(args));
     if (args.includes("--json")) {
@@ -627,6 +723,11 @@ async function main(): Promise<void> {
       return;
     }
     console.log(`Kage Benchmark: ${result.project_dir}`);
+    console.log(`OK: ${result.ok ? "yes" : "no"}`);
+    console.log(`Overall score: ${result.overall_score}/100`);
+    console.log("Gates:");
+    for (const gate of result.gates) console.log(`  - ${gate.name}: ${gate.actual}${gate.unit === "percent" ? "%" : ""} / target ${gate.target}${gate.unit === "percent" ? "%" : ""} (${gate.pass ? "pass" : "fail"})`);
+    console.log("Pain metrics:");
     for (const [name, value] of Object.entries(result.pain_metrics)) console.log(`${name}: ${value}`);
     return;
   }

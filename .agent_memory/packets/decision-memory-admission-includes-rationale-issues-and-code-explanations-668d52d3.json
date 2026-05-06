@@ -1,0 +1,64 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:memory-admission-includes-rationale-issues-and-code-explanations-1778014131356",
+  "title": "Memory admission includes rationale, issues, and code explanations",
+  "summary": "Fact: Kage memory admission must not use \"would this change what a future agent does\" as the only gate. Source backed rationale, bug causes, issue state, decisions, and non obvious code explanations are durable memory ev",
+  "body": "Fact: Kage memory admission must not use \"would this change what a future agent does\" as the only gate. Source-backed rationale, bug causes, issue state, decisions, and non-obvious code explanations are durable memory even when they primarily change what an agent understands before acting. Why: action-only phrasing discards exactly the context that prevents agents from undoing decisions, repeating bugs, or misreading code. Action: keep raw transcripts and routine command results episodic, but admit structured engineering context with provenance.\nEvidence: User corrected the admission rule; implementation updated generated agent policy, admission docs, distillation heuristics, and tests for Code explanation and Issue context prompt observations.\nVerified by: npm test",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "memory-admission",
+    "product-policy",
+    "distillation",
+    "rationale"
+  ],
+  "paths": [
+    "AGENTS.md",
+    "docs/MEMORY_ADMISSION.md",
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts",
+    "mcp/README.md",
+    "README.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-05T20:48:51.356Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-05T20:48:51.356Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 194
+  },
+  "created_at": "2026-05-05T20:48:51.356Z",
+  "updated_at": "2026-05-05T20:49:57.818Z"
+}

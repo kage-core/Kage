@@ -14,6 +14,7 @@
     visibleEdgeIds: new Set(),
     selected: null,
     metrics: null,
+    inbox: null,
     pendingPackets: [],
     reviewText: "",
     viewBox: { x: 0, y: 0, width: 1000, height: 660 },
@@ -66,6 +67,7 @@
     code: "#6ad7ff",
     amber: "#ffd166",
     danger: "#ff6b6b",
+    bridge: "#d8ff5f",
     dependency: "#62776b",
     body: "rgba(4,12,8,0.88)",
     bodyCode: "rgba(5,16,18,0.88)",
@@ -108,6 +110,8 @@
     proofStatus: document.getElementById("proofStatus"),
     proofList: document.getElementById("proofList")
   };
+
+  var MEMORY_CODE_RELATIONS = new Set(["explains_symbol", "informs_symbol", "fixes_symbol", "applies_to_route", "verified_by_test", "affects_path"]);
 
   els.graphFile.addEventListener("change", handleFile);
   els.searchInput.addEventListener("input", scheduleRender);
@@ -223,13 +227,16 @@
       .map(function (value) { return value.trim(); })
       .filter(Boolean);
     var metricsPath = params.get("metrics");
+    var inboxPath = params.get("inbox");
     var reviewPath = params.get("review");
     var pendingPath = params.get("pending");
     var inferredRoot = inferMemoryRoot(graphPaths[0] || "");
+    if (!inboxPath && inferredRoot) inboxPath = inferredRoot + "/inbox.json";
     if (!reviewPath && inferredRoot) reviewPath = inferredRoot + "/review/memory-review.md";
     if (!pendingPath && inferredRoot) pendingPath = inferredRoot + "/pending";
     var jobs = [];
     if (metricsPath) jobs.push(fetchJson(metricsPath).then(function (metrics) { state.metrics = metrics; }));
+    if (inboxPath) jobs.push(fetchJson(inboxPath).then(function (inbox) { state.inbox = inbox; }).catch(function () { state.inbox = null; }));
     if (reviewPath) jobs.push(fetchText(reviewPath).then(function (text) { state.reviewText = text; }).catch(function () { state.reviewText = ""; }));
     if (pendingPath) jobs.push(loadPending(pendingPath).then(function (packets) { state.pendingPackets = packets; }));
     if (!graphPaths.length && !jobs.length) {
@@ -263,10 +270,12 @@
     Promise.all([
       fetchJson("./data/kage/graph.json"),
       fetchJson("./data/kage/code_graph/graph.json"),
-      fetchJson("./data/kage/metrics.json").catch(function () { return null; })
+      fetchJson("./data/kage/metrics.json").catch(function () { return null; }),
+      fetchJson("./data/kage/inbox.json").catch(function () { return null; })
     ]).then(function (items) {
       var merged = mergeNormalizedGraphs([normalizeGraph(items[0]), normalizeGraph(items[1])]);
       state.metrics = items[2];
+      state.inbox = items[3];
       loadNormalizedGraph(merged, "Kage repo graph");
       setAutoLoad("Kage repo graph loaded", true);
     }).catch(function () {
@@ -346,12 +355,62 @@
     var entities = new Map();
     var edges = new Map();
     var episodes = new Map();
+    var aliasToCodeId = new Map();
     graphs.forEach(function (graph) {
-      graph.entities.forEach(function (entity) { entities.set(entity.id, entity); });
-      graph.edges.forEach(function (edge) { edges.set(edge.id, edge); });
+      graph.entities.forEach(function (entity) {
+        if (entity.graph_kind !== "code") return;
+        aliasToCodeId.set(entity.id, entity.id);
+        (entity.aliases || []).forEach(function (alias) { aliasToCodeId.set(alias, entity.id); });
+      });
+    });
+    var remappedIds = new Map();
+    graphs.forEach(function (graph) {
+      graph.entities.forEach(function (entity) {
+        var id = canonicalEntityId(entity, aliasToCodeId);
+        remappedIds.set(entity.id, id);
+        entities.set(id, mergeViewerEntity(entities.get(id), Object.assign({}, entity, {
+          id: id,
+          aliases: unique([entity.id].concat(entity.aliases || []))
+        })));
+      });
+    });
+    graphs.forEach(function (graph) {
+      graph.edges.forEach(function (edge) {
+        var from = remappedIds.get(edge.from) || edge.from;
+        var to = remappedIds.get(edge.to) || edge.to;
+        var memoryCodeLink = Boolean(edge.memory_code_link || isMemoryCodeRelation(edge.relation));
+        var id = edge.id + ":" + from + ":" + to;
+        edges.set(id, Object.assign({}, edge, {
+          id: id,
+          from: from,
+          to: to,
+          memory_code_link: memoryCodeLink
+        }));
+      });
       graph.episodes.forEach(function (episode) { episodes.set(episode.id, episode); });
     });
     return { entities: Array.from(entities.values()), edges: Array.from(edges.values()), episodes: Array.from(episodes.values()) };
+  }
+
+  function canonicalEntityId(entity, aliasToCodeId) {
+    if (!entity) return "";
+    if (entity.graph_kind === "memory" && ["symbol", "test", "route", "file", "path"].indexOf(entity.type) !== -1) {
+      var alias = [entity.id, entity.name].concat(entity.aliases || []).find(function (value) { return aliasToCodeId.has(value); });
+      if (alias) return aliasToCodeId.get(alias);
+    }
+    return aliasToCodeId.get(entity.id) || entity.id;
+  }
+
+  function mergeViewerEntity(existing, next) {
+    if (!existing) return next;
+    var graphKinds = unique([existing.graph_kind, next.graph_kind].concat(existing.graph_kinds || []).concat(next.graph_kinds || []));
+    var preferred = next.graph_kind === "code" ? next : existing;
+    return Object.assign({}, existing, preferred, {
+      aliases: unique((existing.aliases || []).concat(next.aliases || [])),
+      evidence: unique((existing.evidence || []).concat(next.evidence || [])),
+      graph_kind: graphKinds.indexOf("code") !== -1 ? "code" : existing.graph_kind,
+      graph_kinds: graphKinds
+    });
   }
 
   function normalizeGraph(graph) {
@@ -402,7 +461,7 @@
         graph_kind: "code",
         name: file.path,
         summary: file.kind + " file, " + file.language + ", " + file.line_count + " lines",
-        aliases: [file.hash],
+        aliases: [file.hash, file.path],
         evidence: []
       });
     });
@@ -466,6 +525,10 @@
     return match ? match.id : null;
   }
 
+  function isMemoryCodeRelation(relation) {
+    return MEMORY_CODE_RELATIONS.has(String(relation || ""));
+  }
+
   function populateFilters() {
     replaceOptions(els.typeFilter, "All types", unique(state.entities.map(function (entity) {
       return entity.type || "unknown";
@@ -473,6 +536,9 @@
     replaceOptions(els.relationFilter, "All relations", unique(state.edges.map(function (edge) {
       return edge.relation || "related";
     })));
+    if (state.edges.some(function (edge) { return edge.memory_code_link; })) {
+      els.relationFilter.appendChild(new Option("Memory-Code links", "__memory_code__"));
+    }
   }
 
   function replaceOptions(select, label, values) {
@@ -540,7 +606,7 @@
       var fromMatched = matchedEntityIds.has(edge.from);
       var toMatched = matchedEntityIds.has(edge.to);
       var edgeMatchesSearch = matchesSearchQuery(edge, query);
-      var passesRelation = !relation || edge.relation === relation;
+      var passesRelation = !relation || (relation === "__memory_code__" ? edge.memory_code_link : edge.relation === relation);
       if (passesRelation && (edgeMatchesSearch || fromMatched || toMatched)) {
         matchedEdgeIds.add(edge.id);
         if (!type) {
@@ -1093,6 +1159,7 @@
   }
 
   function edgeThemeColor(edge, fromEntity, toEntity) {
+    if (edge.memory_code_link || isMemoryCodeRelation(edge.relation)) return graphPalette.bridge;
     if (edge.relation && /test|covers/i.test(edge.relation)) return graphPalette.amber;
     if (edge.relation && /invalid|risk|missing|bug/i.test(edge.relation)) return graphPalette.danger;
     if (isDependencyEntity(fromEntity) || isDependencyEntity(toEntity)) return graphPalette.dependency;
@@ -1121,7 +1188,7 @@
       var connected = selectedEdgeId === edge.id || connectedIds.edges.has(edge.id);
       var line = svgEl("path", {
         d: edgePath(from, to),
-        class: classNames("edge-line", "review-" + reviewStatus(edge).replace(/\s+/g, "-"), connected && "connected", selectedEdgeId === edge.id && "selected")
+        class: classNames("edge-line", edge.memory_code_link && "memory-code-link", "review-" + reviewStatus(edge).replace(/\s+/g, "-"), connected && "connected", selectedEdgeId === edge.id && "selected")
       });
       var hit = svgEl("path", {
         d: edgePath(from, to),
@@ -1385,14 +1452,54 @@
   function renderReviewQueue() {
     if (!els.reviewList) return;
     var packets = state.pendingPackets || [];
-    els.reviewCount.textContent = String(packets.length);
+    var inbox = state.inbox;
+    var inboxItems = inbox && Array.isArray(inbox.items) ? inbox.items : [];
+    els.reviewCount.textContent = String(packets.length + inboxItems.length);
     els.reviewList.textContent = "";
-    if (!packets.length && !state.reviewText) {
+    if (!packets.length && !inboxItems.length && !state.reviewText) {
       els.reviewList.className = "review-list details-empty";
       els.reviewList.textContent = "No pending packets loaded. Launch with `kage viewer --project <repo>` to load review context automatically.";
       return;
     }
     els.reviewList.className = "review-list";
+    if (inbox) {
+      var summary = document.createElement("div");
+      summary.className = "review-item";
+      var counts = inbox.counts || {};
+      summary.innerHTML = [
+        "<div class=\"review-title\"></div>",
+        "<div class=\"review-meta\"></div>",
+        "<div class=\"review-summary\"></div>",
+        "<div class=\"review-risks\"></div>"
+      ].join("");
+      summary.querySelector(".review-title").textContent = "Memory inbox";
+      summary.querySelector(".review-meta").textContent = [
+        "pending " + (counts.pending || 0),
+        "stale " + (counts.stale || 0),
+        "duplicates " + (counts.duplicates || 0),
+        "missing context " + (counts.missing_context || 0)
+      ].join(" | ");
+      summary.querySelector(".review-summary").textContent = Array.isArray(inbox.recommendations) && inbox.recommendations.length
+        ? inbox.recommendations.slice(0, 2).join(" ")
+        : "No inbox recommendations.";
+      summary.querySelector(".review-risks").textContent = inbox.ok ? "ready for handoff" : "requires review";
+      els.reviewList.appendChild(summary);
+    }
+    inboxItems.slice(0, 20).forEach(function (entry) {
+      var item = document.createElement("div");
+      item.className = "review-item";
+      item.innerHTML = [
+        "<div class=\"review-title\"></div>",
+        "<div class=\"review-meta\"></div>",
+        "<div class=\"review-summary\"></div>",
+        "<div class=\"review-risks\"></div>"
+      ].join("");
+      item.querySelector(".review-title").textContent = entry.title || entry.summary || entry.kind;
+      item.querySelector(".review-meta").textContent = [entry.kind, entry.severity, entry.type, entry.status].filter(Boolean).join(" | ");
+      item.querySelector(".review-summary").textContent = entry.action || entry.summary || "";
+      item.querySelector(".review-risks").textContent = Array.isArray(entry.reasons) && entry.reasons.length ? "reasons: " + entry.reasons.slice(0, 3).join(", ") : "reasons: none";
+      els.reviewList.appendChild(item);
+    });
     packets.forEach(function (packet) {
       var item = document.createElement("div");
       item.className = "review-item";
@@ -1980,6 +2087,15 @@
       element.setAttribute(key, attrs[key]);
     });
     return element;
+  }
+
+  if (typeof globalThis !== "undefined") {
+    globalThis.__KAGE_VIEWER_TEST__ = {
+      normalizeGraph: normalizeGraph,
+      normalizeCodeGraph: normalizeCodeGraph,
+      mergeNormalizedGraphs: mergeNormalizedGraphs,
+      isMemoryCodeRelation: isMemoryCodeRelation
+    };
   }
 
   function showError(message) {

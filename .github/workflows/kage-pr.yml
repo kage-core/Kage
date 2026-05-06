@@ -31,6 +31,15 @@ jobs:
         working-directory: mcp
         run: npm ci && npm run build
 
+      - name: Generate LSP-compatible code index
+        run: node mcp/dist/cli.js code-index --project . --json
+
+      - name: Refresh Kage graphs for PR review
+        run: node mcp/dist/cli.js refresh --project . --json
+
+      - name: Build graph registry manifest
+        run: node mcp/dist/cli.js graph-registry --project . --json
+
       - name: Write MCP config for Claude
         run: |
           cat > /tmp/kage-mcp.json << 'EOF'
