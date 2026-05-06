@@ -22,6 +22,8 @@ export interface ReleaseStep {
   args: string[];
   env?: Record<string, string>;
   expectEmptyStdout?: boolean;
+  retries?: number;
+  retryDelayMs?: number;
 }
 
 const DEFAULT_CACHE = "/private/tmp/kage-npm-cache";
@@ -67,7 +69,7 @@ export function buildNpmReleasePlan(context: NpmReleaseContext): ReleaseStep[] {
   if (context.publish) {
     steps.push(
       { name: "publish package", command: "npm", args: ["--cache", context.cache, "publish", "--access", "public"] },
-      { name: "verify npm version", command: "npm", args: ["view", `${context.packageName}@${context.version}`, "version"] }
+      { name: "verify npm version", command: "npm", args: ["view", `${context.packageName}@${context.version}`, "version"], retries: 10, retryDelayMs: 3000 }
     );
     if (context.smoke) {
       steps.push({
@@ -98,21 +100,35 @@ function packageMetadata(packageDir: string): { name: string; version: string } 
 
 function runStep(step: ReleaseStep, cwd: string): void {
   console.log(`release:npm: ${step.name}`);
-  if (step.expectEmptyStdout) {
-    const output = execFileSync(step.command, step.args, {
-      cwd,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "inherit"],
-      env: { ...process.env, ...step.env },
-    }).trim();
-    if (output) throw new Error(`release:npm: ${step.name} failed because output was not empty:\n${output}`);
-    return;
+  const attempts = Math.max(1, (step.retries ?? 0) + 1);
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      if (step.expectEmptyStdout) {
+        const output = execFileSync(step.command, step.args, {
+          cwd,
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "inherit"],
+          env: { ...process.env, ...step.env },
+        }).trim();
+        if (output) throw new Error(`release:npm: ${step.name} failed because output was not empty:\n${output}`);
+        return;
+      }
+      execFileSync(step.command, step.args, {
+        cwd,
+        stdio: "inherit",
+        env: { ...process.env, ...step.env },
+      });
+      return;
+    } catch (error) {
+      if (attempt >= attempts) throw error;
+      console.log(`release:npm: ${step.name} retry ${attempt}/${attempts - 1}`);
+      sleepMs(step.retryDelayMs ?? 1000);
+    }
   }
-  execFileSync(step.command, step.args, {
-    cwd,
-    stdio: "inherit",
-    env: { ...process.env, ...step.env },
-  });
+}
+
+function sleepMs(milliseconds: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }
 
 export function runNpmRelease(argv = process.argv.slice(2), packageDir = process.cwd()): void {

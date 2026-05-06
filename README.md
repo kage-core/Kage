@@ -12,7 +12,7 @@ teams stop rediscovering commands, decisions, gotchas, bugs, and code flows.
 
 <p>
   <img alt="local first" src="https://img.shields.io/badge/local--first-yes-16a34a?style=for-the-badge">
-  <img alt="tests" src="https://img.shields.io/badge/tests-83%20passing-16a34a?style=for-the-badge">
+  <img alt="tests" src="https://img.shields.io/badge/tests-84%20passing-16a34a?style=for-the-badge">
   <img alt="agents" src="https://img.shields.io/badge/agents-13-2563eb?style=for-the-badge">
   <img alt="database" src="https://img.shields.io/badge/external%20DB-0-111827?style=for-the-badge">
   <img alt="mcp" src="https://img.shields.io/badge/MCP-ready-7c3aed?style=for-the-badge">
@@ -214,34 +214,37 @@ Current package status:
 
 | Proof | Current |
 |---|---:|
-| Tests | 83 passing |
+| Tests | 84 passing |
 | Agent setup targets | 13 |
 | External DB required | 0 |
 | MCP tools | recall, context, learn, graph, graph registry, code graph, code index, metrics, audit, inbox, benchmark, validate |
 | Source graph | files, symbols, imports, calls, routes, tests, packages |
 | Safety | secret/PII scan before capture |
 
-Release guardrails:
+Maintainer release guardrails:
 
 ```bash
-npm run release:npm:dry-run --prefix mcp
-npm run release:npm --prefix mcp
+npm run build --prefix mcp
+cd mcp
+node dist/release.js --dry-run
+node dist/release.js --publish --push --smoke
 ```
 
-The release script fetches the remote branch, requires a clean worktree, blocks
-if `origin/<branch>` is not already contained in local `HEAD`, runs the package
-tests and pack dry-run, pushes before publishing, verifies npm, and uses
-`GIT_EDITOR=true` for git steps.
+The release helper is source-repo maintainer tooling, not part of the public npm
+package. It fetches the remote branch, requires a clean worktree, blocks if
+`origin/<branch>` is not already contained in local `HEAD`, runs the package
+tests and pack dry-run, pushes before publishing, verifies npm with retry/backoff,
+and uses `GIT_EDITOR=true` for git steps.
 
 Kage on Kage itself:
 
 | Metric | Current |
 |---|---:|
 | Readiness | 100/100 |
-| Memory packets | 50 |
-| Memory graph edges | 5,392 |
+| Memory packets | 52 |
+| Memory graph edges | 5,148 |
 | Code files | 20 |
-| Symbols | 3,274 |
+| Symbols | 3,278 |
 
 Same-task benchmark example:
 

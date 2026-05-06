@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.1.16 - 2026-05-06
+
+- Added retry/backoff to the guarded npm release helper's exact-version
+  registry verification so successful publishes are not reported as failed
+  during npm registry propagation.
+- Kept the release helper as source-repo maintainer tooling by removing public
+  npm release scripts from package metadata and excluding `dist/release.js` from
+  the published tarball.
+
 ## v1.1.15 - 2026-05-06
 
 - Added a guarded npm release helper with remote preflight, non-interactive git

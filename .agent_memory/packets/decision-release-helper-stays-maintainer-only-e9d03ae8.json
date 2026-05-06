@@ -1,0 +1,67 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:release-helper-stays-maintainer-only-1778051604603",
+  "title": "Release helper stays maintainer-only",
+  "summary": "The npm release helper is source repo maintainer tooling, not runtime package functionality. Keep public package metadata free of release:npm scripts, and exclude dist/release.js from the npm tarball. Maintainers can bui",
+  "body": "The npm release helper is source-repo maintainer tooling, not runtime package functionality. Keep public package metadata free of release:npm scripts, and exclude dist/release.js from the npm tarball. Maintainers can build the repo and run node mcp/dist/release.js from a checkout when publishing; installed users should only see the kage and kage-graph-mcp runtime commands.\nEvidence: User questioned why the npm publish command was part of the package after 1.1.15; 1.1.16 removes the public npm scripts and adds !dist/release.js to package files.\nVerified by: npm test --prefix mcp; npm --cache /private/tmp/kage-npm-cache pack --dry-run",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "release",
+    "npm",
+    "packaging",
+    "workflow"
+  ],
+  "paths": [
+    "mcp/package.json",
+    "mcp/release.ts",
+    "mcp/release.test.ts",
+    "mcp/README.md",
+    "README.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-06T07:13:24.603Z"
+    }
+  ],
+  "context": {
+    "fact": "The npm release helper is source-repo maintainer tooling, not runtime package functionality. Keep public package metadata free of release:npm scripts, and exclude dist/release.js from the npm tarball. Maintainers can build the repo and run node mcp/dist/release.js from a checkout when publishing; installed users should only see the kage and kage-graph-mcp runtime commands.\nEvidence: User questioned why the npm publish command was part of the package after 1.1.15; 1.1.16 removes the public npm scripts and adds !dist/release.js to package files.\nVerified by: npm test --prefix mcp; npm --cache /private/tmp/kage-npm-cache pack --dry-run",
+    "verification": "User questioned why the npm publish command was part of the package after 1.1.15; 1.1.16 removes the public npm scripts and adds !dist/release.js to package files."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-06T07:13:24.603Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 160
+  },
+  "created_at": "2026-05-06T07:13:24.603Z",
+  "updated_at": "2026-05-06T07:13:35.259Z"
+}

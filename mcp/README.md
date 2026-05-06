@@ -9,15 +9,23 @@ This package exposes two surfaces:
 
 ## Latest Release
 
-`1.1.15` hardens the npm release path and memory-only review flow:
+`1.1.16` fixes the guarded release helper's npm verification step:
 
-- `npm run release:npm:dry-run` runs the guarded release checks without
-  publishing.
-- `npm run release:npm` builds the release helper, requires a clean worktree,
-  fetches the remote branch, verifies local `HEAD` contains `origin/<branch>`,
-  runs tests and `npm pack --dry-run`, pushes the branch before publishing,
-  publishes with `--access public`, verifies npm registry metadata, and performs
-  a smoke install.
+- exact-version `npm view` checks now retry with backoff after publish so npm
+  registry propagation does not make a successful publish look failed.
+- the release helper is maintainer-only repo tooling: public package metadata no
+  longer exposes npm release scripts, and `dist/release.js` is excluded from the
+  published tarball.
+
+`1.1.15` hardened the npm release path and memory-only review flow:
+
+- the source-repo maintainer helper can run the guarded release checks without
+  publishing, or push/publish/smoke-test when explicitly invoked from a built
+  checkout.
+- it requires a clean worktree, fetches the remote branch, verifies local `HEAD`
+  contains `origin/<branch>`, runs tests and `npm pack --dry-run`, pushes the
+  branch before publishing, publishes with `--access public`, verifies npm
+  registry metadata, and performs a smoke install.
 - all git steps run with `GIT_EDITOR=true` so agent sessions cannot get stuck in
   an interactive commit or rebase editor.
 - `kage propose --from-diff` now includes repo memory packet-only changes from
@@ -54,14 +62,17 @@ This package exposes two surfaces:
 ```bash
 npm install
 npm run build
-npm run release:npm:dry-run
 ```
 
-Publishing from the repo should use the guarded release script after the release
-commit is ready:
+Publishing from the source repo should use the guarded maintainer helper after
+the release commit is ready. It is intentionally not exposed as a public npm
+script or included in the published tarball:
 
 ```bash
-npm run release:npm
+npm run build --prefix mcp
+cd mcp
+node dist/release.js --dry-run
+node dist/release.js --publish --push --smoke
 ```
 
 The script fetches the current branch and blocks if the remote branch is not an
