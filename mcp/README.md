@@ -9,7 +9,7 @@ This package exposes two surfaces:
 
 ## Latest Release
 
-Unreleased:
+`1.1.17` publishes content-based graph freshness:
 
 - `kage pr check` now uses graph input hashes, so push-only operations and
   empty/same-tree commits do not force another refresh while real source,

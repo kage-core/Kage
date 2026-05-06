@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.1.17 - 2026-05-06
 
 - Changed PR graph freshness from commit-HEAD matching to content/input
   fingerprints so push-only operations and empty/same-tree commits do not force
