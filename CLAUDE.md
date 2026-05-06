@@ -39,8 +39,10 @@ decisions, debugging, explanation, or action. Do not store raw transcripts.
 
 ## End-Of-Task Proposal
 
-After meaningful file changes, call `kage_refresh` so indexes, code graph,
-memory graph, metrics, and stale-memory checks are current.
+After meaningful file/content changes, call `kage_refresh` so indexes, code
+graph, memory graph, metrics, and stale-memory checks are current. Do not
+refresh solely because a branch was pushed, an empty commit was created, or the
+git commit changed without graph inputs changing.
 
 Before finishing a task that changed files, call `kage_pr_summarize` or
 `kage_propose_from_diff`, then call `kage_pr_check`.
@@ -78,7 +80,7 @@ For normal coding tasks:
 1. `kage_context` — validate + recall + code graph + knowledge graph in one call
 2. Work on the task
 3. `kage_learn` for concrete learnings
-4. `kage_refresh` after meaningful file changes
+4. `kage_refresh` after meaningful file/content changes, not after push-only or same-tree commits
 5. `kage_propose_from_diff` before the final response to create repo-local change memory
 
 For quick factual questions, `kage_context` alone is enough. For status or demo requests, call `kage_metrics`.

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Changed PR graph freshness from commit-HEAD matching to content/input
+  fingerprints so push-only operations and empty/same-tree commits do not force
+  another refresh.
+- Added regression coverage for same-tree commits passing and real source
+  edits staling generated graph artifacts.
+- Updated agent policy, README, package docs, and website copy to describe
+  refresh as content-change driven.
+
 ## v1.1.16 - 2026-05-06
 
 - Added retry/backoff to the guarded npm release helper's exact-version

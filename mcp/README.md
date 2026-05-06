@@ -9,6 +9,12 @@ This package exposes two surfaces:
 
 ## Latest Release
 
+Unreleased:
+
+- `kage pr check` now uses graph input hashes, so push-only operations and
+  empty/same-tree commits do not force another refresh while real source,
+  approved-memory, or code-index changes still stale generated graph artifacts.
+
 `1.1.16` fixes the guarded release helper's npm verification step:
 
 - exact-version `npm view` checks now retry with backoff after publish so npm
@@ -78,6 +84,10 @@ node dist/release.js --publish --push --smoke
 The script fetches the current branch and blocks if the remote branch is not an
 ancestor of local `HEAD`, which prevents publishing an npm version from a branch
 that cannot be pushed cleanly.
+
+Do not refresh again just because the branch was pushed. Graph freshness is
+based on source, approved memory, and code-index inputs; empty/same-tree commits
+are accepted by `kage pr check`.
 
 ## CLI
 
@@ -232,9 +242,10 @@ hashes, git state, audit trust, inbox counts, and metrics readiness. CI, PR, and
 sync workflows build it after refresh.
 
 Use `kage refresh --project <repo>` or the `kage_refresh` MCP tool after
-meaningful file changes. Refresh rebuilds indexes, code graph, memory graph,
-metrics, and stale-memory metadata. Memory is marked stale when status or
-feedback says it is stale, its TTL expires, or grounded paths disappear.
+meaningful file/content changes. Refresh rebuilds indexes, code graph, memory
+graph, metrics, and stale-memory metadata. Memory is marked stale when status or
+feedback says it is stale, its TTL expires, or grounded paths disappear. Pushes
+and empty/same-tree commits do not need another refresh.
 
 Use `kage gc --project <repo> --dry-run` to preview stale packet cleanup.
 `kage gc --project <repo>` marks stale repo packets deprecated, rebuilds
@@ -407,7 +418,7 @@ Minimum policy:
 Before code changes or repo-specific answers:
 1. Call `kage_context` with `project_dir` and the user task as `query`.
 2. Capture reusable learnings with `kage_learn` or `kage_capture`.
-3. After meaningful file changes, call `kage_refresh`.
+3. After meaningful file/content changes, call `kage_refresh`; skip it for push-only or same-tree commits.
 4. Before finishing changed-file tasks, call `kage_propose_from_diff` or `kage_pr_summarize`.
 5. Before merge, call `kage_pr_check`.
 6. Never publish or promote org/global memory automatically.

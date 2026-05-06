@@ -1,0 +1,67 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:graph-freshness-is-content-based-1778053518901",
+  "title": "Graph freshness is content based",
+  "summary": "Kage graph freshness uses input hashes for source files, approved memory packets, and code index inputs instead of requiring repo state.head to match HEAD. Push only operations and empty/same tree commits should not trig",
+  "body": "Kage graph freshness uses input hashes for source files, approved memory packets, and code-index inputs instead of requiring repo_state.head to match HEAD. Push-only operations and empty/same-tree commits should not trigger another kage refresh; real content changes still make kage pr check require refresh.\nEvidence: Implemented in mcp/kernel.ts with regression coverage in mcp/kernel.test.ts.\nVerified by: npm test --prefix mcp",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "graph",
+    "refresh",
+    "pr-check",
+    "workflow"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts",
+    "AGENTS.md",
+    "README.md",
+    "mcp/README.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-06T07:45:18.901Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage graph freshness uses input hashes for source files, approved memory packets, and code-index inputs instead of requiring repo_state.head to match HEAD. Push-only operations and empty/same-tree commits should not trigger another kage refresh; real content changes still make kage pr check require refresh.\nEvidence: Implemented in mcp/kernel.ts with regression coverage in mcp/kernel.test.ts.\nVerified by: npm test --prefix mcp",
+    "verification": "Implemented in mcp/kernel.ts with regression coverage in mcp/kernel.test.ts."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-06T07:45:18.901Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 108
+  },
+  "created_at": "2026-05-06T07:45:18.901Z",
+  "updated_at": "2026-05-06T07:45:24.509Z"
+}

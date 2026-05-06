@@ -12,7 +12,7 @@ teams stop rediscovering commands, decisions, gotchas, bugs, and code flows.
 
 <p>
   <img alt="local first" src="https://img.shields.io/badge/local--first-yes-16a34a?style=for-the-badge">
-  <img alt="tests" src="https://img.shields.io/badge/tests-84%20passing-16a34a?style=for-the-badge">
+  <img alt="tests" src="https://img.shields.io/badge/tests-86%20passing-16a34a?style=for-the-badge">
   <img alt="agents" src="https://img.shields.io/badge/agents-13-2563eb?style=for-the-badge">
   <img alt="database" src="https://img.shields.io/badge/external%20DB-0-111827?style=for-the-badge">
   <img alt="mcp" src="https://img.shields.io/badge/MCP-ready-7c3aed?style=for-the-badge">
@@ -142,7 +142,7 @@ The ambient policy asks agents to:
 1. Recall repo memory at session start.
 2. Query the code graph before changing files.
 3. Capture durable learnings as repo-local memory.
-4. Refresh indexes/graphs after meaningful changes.
+4. Refresh indexes/graphs after meaningful file/content changes, not after push-only or same-tree commits.
 5. Run the PR memory check before handoff.
 
 ## Core Commands
@@ -214,7 +214,7 @@ Current package status:
 
 | Proof | Current |
 |---|---:|
-| Tests | 84 passing |
+| Tests | 86 passing |
 | Agent setup targets | 13 |
 | External DB required | 0 |
 | MCP tools | recall, context, learn, graph, graph registry, code graph, code index, metrics, audit, inbox, benchmark, validate |
@@ -235,6 +235,11 @@ package. It fetches the remote branch, requires a clean worktree, blocks if
 `origin/<branch>` is not already contained in local `HEAD`, runs the package
 tests and pack dry-run, pushes before publishing, verifies npm with retry/backoff,
 and uses `GIT_EDITOR=true` for git steps.
+
+Graph freshness is content-based: push-only operations and empty/same-tree
+commits do not require a second `kage refresh`. Real changes to source files,
+approved memory packets, or code-index inputs still make `kage pr check` require
+refresh before merge.
 
 Kage on Kage itself:
 

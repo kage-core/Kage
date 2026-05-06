@@ -878,7 +878,7 @@
               <a class="launch-button" href="viewer/">Open Viewer</a>
             </div>
             <div class="proof-strip" aria-label="Launch proof metrics">
-              <div class="proof"><strong>84</strong><span>passing tests</span></div>
+              <div class="proof"><strong>86</strong><span>passing tests</span></div>
               <div class="proof"><strong>13</strong><span>agent setup targets</span></div>
               <div class="proof"><strong>0</strong><span>external databases</span></div>
               <div class="proof"><strong>98%</strong><span>smaller context in same-task A/B</span></div>
@@ -987,7 +987,7 @@
               </div>
               <div class="graph-side" aria-label="Graph metrics">
                 <div class="signal"><strong>files -> symbols -> calls</strong><span>Source-derived graph facts for routes, imports, tests, packages, and flow.</span></div>
-                <div class="signal"><strong>packets -> entities -> edges</strong><span>Repo memory becomes typed graph facts with provenance, freshness, and quality.</span></div>
+                <div class="signal"><strong>packets -> entities -> edges</strong><span>Repo memory becomes typed graph facts with provenance, content freshness, and quality.</span></div>
                 <div class="signal"><strong>BM25 + graph retrieval</strong><span>Recall blends BM25 lexical ranking with graph, path, type, tag, intent, quality, freshness, and feedback signals.</span></div>
                 <div class="signal"><strong>estimated savings</strong><span>Token savings are estimated from compact context today; production telemetry is not overclaimed.</span></div>
               </div>
@@ -1079,7 +1079,7 @@ kage setup verify-agent --agent claude-code --project .</pre>
               <div class="ship"><h3>CLI + MCP</h3><p>`kage` and `kage-graph-mcp` ship from npm for Codex, Claude Code, and MCP clients.</p></div>
               <div class="ship"><h3>Git-native memory</h3><p>Repo packets are plain JSON under the repo, diffable like any other code artifact.</p></div>
               <div class="ship"><h3>Code graph</h3><p>Source-derived files, symbols, imports, calls, routes, tests, and package scripts.</p></div>
-              <div class="ship"><h3>Refresh + PR checks</h3><p>Rebuild graphs, mark stale memory, summarize branches, and block drift before merge.</p></div>
+              <div class="ship"><h3>Refresh + PR checks</h3><p>Rebuild graphs, mark stale memory, summarize branches, and block content drift before merge without post-push refresh loops.</p></div>
               <div class="ship"><h3>Viewer</h3><p>Terminal-style console for graph inspection, packet inspection, and metrics exploration. <a href="viewer/">Open the hosted viewer shell.</a></p></div>
               <div class="ship"><h3>Honest boundary</h3><p>No hosted SaaS claim. No automatic public publishing. No marketplace auto-install.</p></div>
             </div>
