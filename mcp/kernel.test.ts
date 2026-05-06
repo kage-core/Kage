@@ -68,6 +68,19 @@ function tempProject(): string {
   return dir;
 }
 
+const gitIdentityEnv = {
+  ...process.env,
+  GIT_AUTHOR_NAME: "Test",
+  GIT_AUTHOR_EMAIL: "test@example.com",
+  GIT_COMMITTER_NAME: "Test",
+  GIT_COMMITTER_EMAIL: "test@example.com",
+};
+
+function commitAll(project: string, message: string): void {
+  execFileSync("git", ["add", "."], { cwd: project, stdio: "ignore" });
+  execFileSync("git", ["commit", "-m", message], { cwd: project, stdio: "ignore", env: gitIdentityEnv });
+}
+
 test("migrates legacy markdown nodes into approved packets", () => {
   const project = tempProject();
   writeFileSync(
@@ -1404,4 +1417,41 @@ test("pr summarize and check make merge-time memory health explicit", () => {
   assert.equal(check.code_graph_current, true);
   assert.equal(check.memory_graph_current, true);
   assert.equal(check.memory_packet_changes.length > 0, true);
+});
+
+test("pr check accepts same-tree commits after graph refresh", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "node --test" } }), "utf8");
+  writeFileSync(join(project, "src", "runner.js"), "export function run() { return 'ok'; }\n", "utf8");
+  commitAll(project, "initial");
+
+  const refresh = refreshProject(project);
+  assert.equal(refresh.ok, true);
+  execFileSync("git", ["commit", "--allow-empty", "-m", "metadata-only"], { cwd: project, stdio: "ignore", env: gitIdentityEnv });
+
+  const check = prCheck(project);
+  assert.equal(check.code_graph_current, true);
+  assert.equal(check.memory_graph_current, true);
+  assert.equal(check.errors.some((error) => error.includes("graph artifacts")), false);
+});
+
+test("pr check marks graphs stale when source content changes after refresh", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "node --test" } }), "utf8");
+  writeFileSync(join(project, "src", "runner.js"), "export function run() { return 'ok'; }\n", "utf8");
+  commitAll(project, "initial");
+
+  const refresh = refreshProject(project);
+  assert.equal(refresh.ok, true);
+  writeFileSync(join(project, "src", "runner.js"), "export function run() { return 'changed'; }\n", "utf8");
+
+  const check = prCheck(project);
+  assert.equal(check.code_graph_current, false);
+  assert.equal(check.memory_graph_current, false);
+  assert.equal(check.ok, false);
+  assert.match(check.errors.join("\n"), /graph artifacts/);
 });

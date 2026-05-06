@@ -524,6 +524,8 @@ export interface KnowledgeGraph {
     branch: string | null;
     head: string | null;
     merge_base: string | null;
+    tree: string | null;
+    input_hash: string | null;
   };
   episodes: GraphEpisode[];
   entities: GraphEntity[];
@@ -614,6 +616,8 @@ export interface CodeGraph {
     branch: string | null;
     head: string | null;
     merge_base: string | null;
+    tree: string | null;
+    input_hash: string | null;
   };
   files: CodeFileNode[];
   symbols: CodeSymbolNode[];
@@ -933,8 +937,10 @@ decisions, debugging, explanation, or action. Do not store raw transcripts.
 
 ## End-Of-Task Proposal
 
-After meaningful file changes, call \`kage_refresh\` so indexes, code graph,
-memory graph, metrics, and stale-memory checks are current.
+After meaningful file/content changes, call \`kage_refresh\` so indexes, code
+graph, memory graph, metrics, and stale-memory checks are current. Do not
+refresh solely because a branch was pushed, an empty commit was created, or the
+git commit changed without graph inputs changing.
 
 Before finishing a task that changed files, call \`kage_pr_summarize\` or
 \`kage_propose_from_diff\`, then call \`kage_pr_check\`.
@@ -972,7 +978,7 @@ For normal coding tasks:
 1. \`kage_context\` — validate + recall + code graph + knowledge graph in one call
 2. Work on the task
 3. \`kage_learn\` for concrete learnings
-4. \`kage_refresh\` after meaningful file changes
+4. \`kage_refresh\` after meaningful file/content changes, not after push-only or same-tree commits
 5. \`kage_propose_from_diff\` before the final response to create repo-local change memory
 
 For quick factual questions, \`kage_context\` alone is enough. For status or demo requests, call \`kage_metrics\`.
@@ -1650,6 +1656,10 @@ function gitBranch(projectDir: string): string | null {
 
 function gitHead(projectDir: string): string | null {
   return readGit(projectDir, ["rev-parse", "HEAD"]);
+}
+
+function gitTree(projectDir: string): string | null {
+  return readGit(projectDir, ["rev-parse", "HEAD^{tree}"]);
 }
 
 function gitMergeBase(projectDir: string): string | null {
@@ -2618,6 +2628,61 @@ function externalIndexFiles(projectDir: string): Array<{ path: string; parser: C
   ];
 }
 
+interface GraphInputEntry {
+  kind: "code_file" | "external_code_index" | "approved_packet" | "code_graph_input";
+  path: string;
+  sha256: string;
+}
+
+function sha256Hex(content: string | Buffer): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+function projectRelative(projectDir: string, path: string): string {
+  return relative(projectDir, path).replace(/\\/g, "/");
+}
+
+function graphInputHash(entries: GraphInputEntry[]): string {
+  const hash = createHash("sha256");
+  const sorted = entries.slice().sort((a, b) => a.kind.localeCompare(b.kind) || a.path.localeCompare(b.path));
+  for (const entry of sorted) {
+    hash.update(entry.kind);
+    hash.update("\0");
+    hash.update(entry.path);
+    hash.update("\0");
+    hash.update(entry.sha256);
+    hash.update("\0");
+  }
+  return hash.digest("hex");
+}
+
+function fileInputEntries(projectDir: string, paths: string[], kind: GraphInputEntry["kind"]): GraphInputEntry[] {
+  return paths
+    .filter((path) => existsSync(path))
+    .map((path) => ({
+      kind,
+      path: projectRelative(projectDir, path),
+      sha256: sha256Hex(readFileSync(path)),
+    }));
+}
+
+function codeGraphInputHash(projectDir: string): string {
+  return graphInputHash([
+    ...fileInputEntries(projectDir, listCodeFiles(projectDir), "code_file"),
+    ...fileInputEntries(projectDir, externalIndexFiles(projectDir).map((index) => index.path), "external_code_index"),
+  ]);
+}
+
+function knowledgeGraphInputHash(projectDir: string, codeInputHash = codeGraphInputHash(projectDir)): string {
+  const packetEntries = loadPacketEntriesFromDir(packetsDir(projectDir))
+    .filter((entry) => entry.packet.status === "approved")
+    .map((entry) => entry.path);
+  return graphInputHash([
+    { kind: "code_graph_input", path: ".agent_memory/code_graph/input", sha256: codeInputHash },
+    ...fileInputEntries(projectDir, packetEntries, "approved_packet"),
+  ]);
+}
+
 function normalizeExternalKind(value: unknown): CodeSymbolNode["kind"] {
   const kind = String(value ?? "").toLowerCase();
   if (["function", "method", "class", "constant", "route", "test"].includes(kind)) return kind as CodeSymbolNode["kind"];
@@ -2842,7 +2907,9 @@ export function buildCodeGraph(projectDir: string): CodeGraph {
   ensureMemoryDirs(projectDir);
   const branch = gitBranch(projectDir);
   const head = gitHead(projectDir);
+  const tree = gitTree(projectDir);
   const mergeBase = gitMergeBase(projectDir);
+  const inputHash = codeGraphInputHash(projectDir);
   const absoluteFiles = listCodeFiles(projectDir);
   const knownFiles = new Set(absoluteFiles.map((path) => relative(projectDir, path).replace(/\\/g, "/")));
   const files: CodeFileNode[] = [];
@@ -2922,7 +2989,7 @@ export function buildCodeGraph(projectDir: string): CodeGraph {
     project_dir: projectDir,
     repo_key: repoKey(projectDir),
     generated_at: nowIso(),
-    repo_state: { branch, head, merge_base: mergeBase },
+    repo_state: { branch, head, merge_base: mergeBase, tree, input_hash: inputHash },
     files: files.sort((a, b) => a.path.localeCompare(b.path)),
     symbols: symbols.sort((a, b) => a.path.localeCompare(b.path) || a.line - b.line || a.name.localeCompare(b.name)),
     imports: imports.sort((a, b) => a.from_path.localeCompare(b.from_path) || a.line - b.line || a.specifier.localeCompare(b.specifier)),
@@ -2948,6 +3015,7 @@ export function buildKnowledgeGraph(projectDir: string): KnowledgeGraph {
   const packets = loadApprovedPackets(projectDir).sort((a, b) => a.id.localeCompare(b.id));
   const branch = gitBranch(projectDir);
   const head = gitHead(projectDir);
+  const tree = gitTree(projectDir);
   const mergeBase = gitMergeBase(projectDir);
   const entities = new Map<string, GraphEntity>();
   const edges = new Map<string, GraphEdge>();
@@ -2955,6 +3023,7 @@ export function buildKnowledgeGraph(projectDir: string): KnowledgeGraph {
   const repoEntityId = graphEntityId("repo", repoKey(projectDir));
   const generatedFrom = packets.map((packet) => packet.updated_at).sort().at(-1) ?? null;
   const codeGraph = buildCodeGraph(projectDir);
+  const inputHash = knowledgeGraphInputHash(projectDir, codeGraph.repo_state.input_hash ?? codeGraphInputHash(projectDir));
 
   addEntity(entities, {
     id: repoEntityId,
@@ -3287,7 +3356,7 @@ export function buildKnowledgeGraph(projectDir: string): KnowledgeGraph {
     project_dir: projectDir,
     repo_key: repoKey(projectDir),
     generated_from_updated_at: generatedFrom,
-    repo_state: { branch, head, merge_base: mergeBase },
+    repo_state: { branch, head, merge_base: mergeBase, tree, input_hash: inputHash },
     episodes: episodes.sort((a, b) => a.id.localeCompare(b.id)),
     entities: [...entities.values()].sort((a, b) => a.id.localeCompare(b.id)),
     edges: [...edges.values()].sort((a, b) => a.id.localeCompare(b.id)),
@@ -5067,7 +5136,7 @@ Before making code changes or answering implementation questions:
 1. Call kage_context with project_dir and the user task as query.
 2. Use returned memory only when it is relevant, source-backed, and not stale.
 When you learn something reusable: kage_learn.
-After meaningful file changes: kage_refresh.
+After meaningful file/content changes: kage_refresh. Push-only or same-tree commits do not need another refresh.
 Before finishing a task that changed files: kage_pr_summarize or kage_propose_from_diff, then kage_pr_check.
 If recalled memory helped: kage_feedback helpful. If wrong or stale: kage_feedback wrong or stale."
 fi
@@ -5809,13 +5878,23 @@ export function createReviewArtifact(projectDir: string): ReviewArtifactResult {
   return { path, pending: pending.length };
 }
 
-function graphIsCurrent(projectDir: string, relativePath: string, head: string | null): boolean {
+interface GraphFreshnessInput {
+  head: string | null;
+  tree: string | null;
+  inputHash: string | null;
+}
+
+function graphIsCurrent(projectDir: string, relativePath: string, expected: GraphFreshnessInput): boolean {
   const path = join(projectDir, relativePath);
   if (!existsSync(path)) return false;
-  if (!head) return true;
   try {
-    const graph = readJson<{ repo_state?: { head?: string | null } }>(path);
-    return graph.repo_state?.head === head;
+    const graph = readJson<{ repo_state?: { head?: string | null; tree?: string | null; input_hash?: string | null } }>(path);
+    const repoState = graph.repo_state;
+    if (!repoState) return false;
+    if (expected.inputHash && repoState.input_hash) return repoState.input_hash === expected.inputHash;
+    if (expected.tree && repoState.tree) return repoState.tree === expected.tree;
+    if (!expected.head) return true;
+    return repoState.head === expected.head;
   } catch {
     return false;
   }
@@ -5849,6 +5928,9 @@ export function prCheck(projectDir: string): PrCheckResult {
   const overlay = buildBranchOverlay(projectDir);
   const rawStatus = readGit(projectDir, ["status", "--porcelain", "-uall"]) ?? "";
   const validation = validateProject(projectDir);
+  const tree = gitTree(projectDir);
+  const codeInputHash = codeGraphInputHash(projectDir);
+  const memoryInputHash = knowledgeGraphInputHash(projectDir, codeInputHash);
   const stalePackets = loadPacketsFromDir(packetsDir(projectDir))
     .map((packet) => ({ packet, reasons: staleMemoryReasons(projectDir, packet) }))
     .filter((entry) => entry.reasons.length)
@@ -5860,8 +5942,8 @@ export function prCheck(projectDir: string): PrCheckResult {
       .map((path) => path.replace(/^.* -> /, ""))
       .filter((path) => path.startsWith(".agent_memory/packets/") && path.endsWith(".json"))
   ).sort();
-  const codeGraphCurrent = graphIsCurrent(projectDir, ".agent_memory/code_graph/graph.json", overlay.head);
-  const memoryGraphCurrent = graphIsCurrent(projectDir, ".agent_memory/graph/graph.json", overlay.head);
+  const codeGraphCurrent = graphIsCurrent(projectDir, ".agent_memory/code_graph/graph.json", { head: overlay.head, tree, inputHash: codeInputHash });
+  const memoryGraphCurrent = graphIsCurrent(projectDir, ".agent_memory/graph/graph.json", { head: overlay.head, tree, inputHash: memoryInputHash });
   const errors = [...validation.errors];
   const warnings = [...validation.warnings];
   const requiredActions: string[] = [];
@@ -5871,7 +5953,7 @@ export function prCheck(projectDir: string): PrCheckResult {
     requiredActions.push("Run kage refresh, then update or supersede stale packets.");
   }
   if (!codeGraphCurrent || !memoryGraphCurrent) {
-    errors.push("Generated graph artifacts are missing or not current for this branch head.");
+    errors.push("Generated graph artifacts are missing or not current for this working tree content.");
     requiredActions.push("Run kage refresh --project <dir> before merge.");
   }
   if (!memoryPacketChanges.length && overlay.changed_files.some((path) => !path.startsWith(".agent_memory/"))) {

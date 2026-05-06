@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
-  "summary": "Repo-local context for 11 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/bug_fix-release-1-1-16-retries-npm-registry-verification-3c120e23.json\n- .agent_memory/packets/decision-release-helper-stays-maintainer-only-e9d03ae8.json\n- .agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json\n- CHANGELOG.md\n- README.md\n- docs/index.html\n- mcp/README.md\n- mcp/package-lock.json\n- mcp/package.json\n- mcp/release.test.ts\n- mcp/release.ts\n\nDiff summary:\n```text\n.../repo_map-kage-repo-overview-a522f3a0.json      |  4 +-\n CHANGELOG.md                                       |  9 +++++\n README.md                                          | 27 +++++++------\n docs/index.html                                    |  2 +-\n mcp/README.md                                      | 37 +++++++++++------\n mcp/package-lock.json                              |  4 +-\n mcp/package.json                                   |  7 ++--\n mcp/release.test.ts                                | 14 +++++++\n mcp/release.ts                                     | 46 +++++++++++++++-------\n 9 files changed, 101 insertions(+), 49 deletions(-)\n.agent_memory/packets/bug_fix-release-1-1-16-retries-npm-registry-verification-3c120e23.json | untracked\n.agent_memory/packets/decision-release-helper-stays-maintainer-only-e9d03ae8.json | untracked\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "summary": "Repo-local context for 12 changed repo paths on master.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/decision-graph-freshness-is-content-based-646b2446.json\n- .agent_memory/packets/decision-release-1-1-3-memory-lifecycle-dff31776.json\n- .agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json\n- AGENTS.md\n- CHANGELOG.md\n- CLAUDE.md\n- README.md\n- docs/index.html\n- mcp/README.md\n- mcp/index.ts\n- mcp/kernel.test.ts\n- mcp/kernel.ts\n\nDiff summary:\n```text\n...on-release-1-1-3-memory-lifecycle-dff31776.json |   4 +-\n .../repo_map-kage-repo-overview-a522f3a0.json      |   4 +-\n AGENTS.md                                          |   8 +-\n CHANGELOG.md                                       |  10 ++\n CLAUDE.md                                          |   8 +-\n README.md                                          |  11 ++-\n docs/index.html                                    |   6 +-\n mcp/README.md                                      |  19 +++-\n mcp/index.ts                                       |   2 +-\n mcp/kernel.test.ts                                 |  50 ++++++++++\n mcp/kernel.ts                                      | 108 ++++++++++++++++++---\n 11 files changed, 196 insertions(+), 34 deletions(-)\n.agent_memory/packets/decision-graph-freshness-is-content-based-646b2446.json | untracked\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -17,43 +17,45 @@
     "branch:master"
   ],
   "paths": [
-    ".agent_memory/packets/bug_fix-release-1-1-16-retries-npm-registry-verification-3c120e23.json",
-    ".agent_memory/packets/decision-release-helper-stays-maintainer-only-e9d03ae8.json",
+    ".agent_memory/packets/decision-graph-freshness-is-content-based-646b2446.json",
+    ".agent_memory/packets/decision-release-1-1-3-memory-lifecycle-dff31776.json",
     ".agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json",
+    "AGENTS.md",
     "CHANGELOG.md",
+    "CLAUDE.md",
     "README.md",
     "docs/index.html",
     "mcp/README.md",
-    "mcp/package-lock.json",
-    "mcp/package.json",
-    "mcp/release.test.ts",
-    "mcp/release.ts"
+    "mcp/index.ts",
+    "mcp/kernel.test.ts",
+    "mcp/kernel.ts"
   ],
   "stack": [],
   "source_refs": [
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "b4f45bf2a184bf527ffb53aeafd88f62f88447bb",
-      "merge_base": "b4f45bf2a184bf527ffb53aeafd88f62f88447bb",
+      "head": "097ef87bb7885dba286ed8ae0efedf07bb1fda91",
+      "merge_base": "097ef87bb7885dba286ed8ae0efedf07bb1fda91",
       "changed_files": [
-        ".agent_memory/packets/bug_fix-release-1-1-16-retries-npm-registry-verification-3c120e23.json",
-        ".agent_memory/packets/decision-release-helper-stays-maintainer-only-e9d03ae8.json",
+        ".agent_memory/packets/decision-graph-freshness-is-content-based-646b2446.json",
+        ".agent_memory/packets/decision-release-1-1-3-memory-lifecycle-dff31776.json",
         ".agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json",
+        "AGENTS.md",
         "CHANGELOG.md",
+        "CLAUDE.md",
         "README.md",
         "docs/index.html",
         "mcp/README.md",
-        "mcp/package-lock.json",
-        "mcp/package.json",
-        "mcp/release.test.ts",
-        "mcp/release.ts"
+        "mcp/index.ts",
+        "mcp/kernel.test.ts",
+        "mcp/kernel.ts"
       ],
       "summary_path": ".agent_memory/review/branch-summary-master.json"
     }
   ],
   "context": {
-    "fact": "Current branch master changes 11 repo paths.",
+    "fact": "Current branch master changes 12 repo paths.",
     "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
     "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
     "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
@@ -62,19 +64,19 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-05-06T07:15:27.820Z",
+    "last_verified_at": "2026-05-06T07:47:45.408Z",
     "ttl_days": 180,
     "verification": "git_diff"
   },
   "edges": [
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-release-1-1-16-retries-npm-registry-verification-3c120e23.json",
+      "to": "path:.agent_memory/packets/decision-graph-freshness-is-content-based-646b2446.json",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-release-helper-stays-maintainer-only-e9d03ae8.json",
+      "to": "path:.agent_memory/packets/decision-release-1-1-3-memory-lifecycle-dff31776.json",
       "evidence": "git_diff"
     },
     {
@@ -84,7 +86,17 @@
     },
     {
       "relation": "changes_path",
+      "to": "path:AGENTS.md",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
       "to": "path:CHANGELOG.md",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:CLAUDE.md",
       "evidence": "git_diff"
     },
     {
@@ -104,22 +116,17 @@
     },
     {
       "relation": "changes_path",
-      "to": "path:mcp/package-lock.json",
+      "to": "path:mcp/index.ts",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
-      "to": "path:mcp/package.json",
+      "to": "path:mcp/kernel.test.ts",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
-      "to": "path:mcp/release.test.ts",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:mcp/release.ts",
+      "to": "path:mcp/kernel.ts",
       "evidence": "git_diff"
     }
   ],
@@ -135,7 +142,7 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 493,
+    "estimated_tokens_saved": 485,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -153,6 +160,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-05-06T07:15:27.820Z",
-  "updated_at": "2026-05-06T07:15:33.256Z"
+  "created_at": "2026-05-06T07:47:45.408Z",
+  "updated_at": "2026-05-06T07:47:52.243Z"
 }

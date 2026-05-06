@@ -304,7 +304,7 @@ export function listTools() {
     {
       name: "kage_refresh",
       description:
-        "Rebuild repo indexes, code graph, memory graph, metrics, and stale-memory metadata. Agents should run this after meaningful file changes and before PR checks.",
+        "Rebuild repo indexes, code graph, memory graph, metrics, and stale-memory metadata. Agents should run this after meaningful file/content changes before PR checks; push-only or same-tree commits do not need another refresh.",
       inputSchema: {
         type: "object",
         properties: {
