@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.1.14 - 2026-05-06
+
+- Added BM25 lexical recall ranking with intent-aware runbook/gotcha/decision
+  boosts while keeping graph, path/type/tag, freshness, quality, and feedback
+  signals in the final score.
+- Added graph registry, audit, inbox, and code-index documentation and release
+  proof for the Kage MCP package.
+- Updated the viewer to coalesce memory graph code entities with source-derived
+  code graph nodes and highlight memory-code links.
+- Updated the root README and website to show the current 79-test proof state,
+  current Kage-on-Kage graph metrics, and BM25 retrieval wording.
+
 ## v1.1.13 - 2026-05-03
 
 - Switched future Kage releases from MIT to GPL-3.0-only.

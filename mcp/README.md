@@ -9,6 +9,17 @@ This package exposes two surfaces:
 
 ## Latest Release
 
+`1.1.14` publishes the memory/code graph trust and retrieval pass:
+
+- recall now uses vectorless BM25 lexical ranking with graph, path/type/tag,
+  intent, freshness, quality, and feedback boosts.
+- `kage audit`, `kage inbox`, `kage code-index`, and `kage graph-registry`
+  are documented as first-class CLI and MCP surfaces.
+- the viewer coalesces memory graph code entities with code graph nodes and
+  highlights memory-code links.
+- README and the website now report the current 79-test proof state and BM25
+  retrieval behavior.
+
 `1.1.13` switches future Kage releases to GPL-3.0-only:
 
 - package metadata now advertises `GPL-3.0-only`.
