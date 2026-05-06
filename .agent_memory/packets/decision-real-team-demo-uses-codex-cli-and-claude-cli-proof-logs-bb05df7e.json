@@ -1,0 +1,63 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:real-team-demo-uses-codex-cli-and-claude-cli-proof-logs-1777906609138",
+  "title": "Real team demo uses Codex CLI and Claude CLI proof logs",
+  "summary": "The YC/team handoff demo should use a real two agent proof path: run Codex CLI against a temp repo to recall Kage memory, run Claude CLI against the same repo to recall the same packet, then render a wide demo video from",
+  "body": "The YC/team handoff demo should use a real two-agent proof path: run Codex CLI against a temp repo to recall Kage memory, run Claude CLI against the same repo to recall the same packet, then render a wide demo video from those real proof logs plus Kage recall/code-graph/metrics. Native macOS screencapture failed in this environment, so the shippable artifact is a deterministic Puppeteer/ffmpeg render backed by actual CLI transcripts rather than a GUI screen recording.\nEvidence: Ran Codex CLI via script into /tmp/kage-codex-recall-proof.log; it attempted kage_context, fell back to kage CLI, recalled the Payment webhook retry validation gotcha, and answered with src/payments.ts. Ran Claude CLI via script into /tmp/kage-claude-recall-proof.log; it recalled the same packet and source path. Rendered docs/assets/kage-real-team-demo.mp4 and poster with scripts/render-real-team-demo.mjs; ffprobe verified 1600x900, 73.25s, 586 frames.\nVerified by: Codex CLI proof log, Claude CLI proof log, kage recall/code-graph/metrics, ffprobe",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "demo",
+    "yc",
+    "codex",
+    "claude-code",
+    "video",
+    "team-memory"
+  ],
+  "paths": [
+    "scripts/render-real-team-demo.mjs",
+    "docs/assets/kage-real-team-demo.mp4",
+    "docs/assets/kage-real-team-demo-poster.png"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-04T14:56:49.137Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-04T14:56:49.137Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 259
+  },
+  "created_at": "2026-05-04T14:56:49.137Z",
+  "updated_at": "2026-05-04T14:57:09.536Z"
+}

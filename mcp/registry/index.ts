@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 export const REGISTRY_MANIFEST_SCHEMA_VERSION = 1;
 export const PUBLIC_CANDIDATE_BUNDLE_SCHEMA_VERSION = 1;
 
-export type RegistryManifestKind = "public_candidate_bundle" | "org_registry";
+export type RegistryManifestKind = "public_candidate_bundle" | "org_registry" | "graph_registry";
 
 export interface ManifestSignature {
   algorithm: "sha256-canonical-json";
@@ -184,7 +184,7 @@ export function verifySignedManifest<TPayload>(manifest: SignedManifest<TPayload
   if (manifest.schema_version !== REGISTRY_MANIFEST_SCHEMA_VERSION) {
     errors.push("manifest schema_version must be 1");
   }
-  if (!["public_candidate_bundle", "org_registry"].includes(String(manifest.kind))) {
+  if (!["public_candidate_bundle", "org_registry", "graph_registry"].includes(String(manifest.kind))) {
     errors.push("manifest kind is not supported");
   }
   if (!isNonEmptyString(manifest.name)) {

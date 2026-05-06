@@ -527,6 +527,7 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
 .item-meta { color: var(--terminal-dim); font-size: 11px; overflow-wrap: anywhere; }
 
 .edge-line { stroke: var(--edge); stroke-width: 1.35; marker-end: url(#arrow); opacity: 0.50; }
+.edge-line.memory-code-link { stroke: #d8ff5f; stroke-width: 2.2; opacity: 0.88; }
 .edge-line.filtered { opacity: 0.05; }
 .edge-line.selected, .edge-line.connected { stroke: var(--terminal-strong); stroke-width: 2.8; opacity: 1; }
 .edge-line.review-low-confidence { stroke-dasharray: 5 4; stroke: var(--warn); }

@@ -7,6 +7,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import {
   SETUP_AGENTS,
+  auditProject,
   benchmarkTaskComparison,
   benchmarkProject,
   buildGlobalCdnBundle,
@@ -23,6 +24,7 @@ import {
   installAgentPolicy,
   kageMetrics,
   learn,
+  memoryInbox,
   layeredRecall,
   observe,
   orgRecall,
@@ -41,10 +43,12 @@ import {
   setupAgent,
   validateProject,
   verifyAgentActivation,
+  writeLspSymbolIndex,
   type MemoryType,
   type ObservationEvent,
   type SetupAgent,
 } from "./kernel.js";
+import { buildGraphRegistryManifest } from "./graph-registry.js";
 
 const BASE_URL = "https://raw.githubusercontent.com/kage-core/kage-graph/master";
 
@@ -223,6 +227,18 @@ export function listTools() {
       },
     },
     {
+      name: "kage_graph_registry",
+      description:
+        "Build a signed graph-registry manifest for generated memory graph, code graph, indexes, metrics, audit, inbox, source packet IDs, packet hashes, and repo git state.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
       name: "kage_code_graph",
       description:
         "Query the source-derived codebase graph: files, symbols, imports, calls, routes, tests, package scripts. This is generated from code, not learned memory.",
@@ -238,9 +254,45 @@ export function listTools() {
       },
     },
     {
+      name: "kage_code_index",
+      description:
+        "Write .agent_memory/code_index/lsp-symbols.json, an LSP-compatible symbol artifact consumed by the code graph for higher parser coverage.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
       name: "kage_metrics",
       description:
         "Return concise Kage adoption and quality metrics: code graph counts, language/parser coverage, memory graph evidence coverage, pending/approved packets, validation state, and readiness score.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_audit",
+      description:
+        "Audit whether repo memory and code intelligence are trustworthy: validation, memory inbox, structured context coverage, code graph precision, graph links, and concrete recommendations.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_inbox",
+      description:
+        "Return an actionable memory review inbox: pending packets, stale packets, duplicates, missing structured context, validation issues, and recommended actions.",
       inputSchema: {
         type: "object",
         properties: {
@@ -790,6 +842,14 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     };
   }
 
+  if (name === "kage_graph_registry") {
+    const result = buildGraphRegistryManifest(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      isError: !result.ok,
+    };
+  }
+
   if (name === "kage_code_graph") {
     const projectDir = String(args?.project_dir ?? "");
     const query = typeof args?.query === "string" ? args.query : "";
@@ -805,10 +865,34 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     };
   }
 
+  if (name === "kage_code_index") {
+    const result = writeLspSymbolIndex(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      isError: !result.ok,
+    };
+  }
+
   if (name === "kage_metrics") {
     const result = kageMetrics(String(args?.project_dir ?? ""));
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_audit") {
+    const result = auditProject(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      isError: !result.ok,
+    };
+  }
+
+  if (name === "kage_inbox") {
+    const result = memoryInbox(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      isError: !result.ok,
     };
   }
 

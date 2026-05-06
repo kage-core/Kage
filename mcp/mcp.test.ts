@@ -23,12 +23,16 @@ test("MCP lists repo-local memory tools", () => {
   assert.equal(names.includes("kage_context"), true);
   assert.equal(names.includes("kage_recall"), true);
   assert.equal(names.includes("kage_graph"), true);
+  assert.equal(names.includes("kage_graph_registry"), true);
   assert.equal(names.includes("kage_code_graph"), true);
+  assert.equal(names.includes("kage_code_index"), true);
   assert.equal(names.includes("kage_metrics"), true);
+  assert.equal(names.includes("kage_inbox"), true);
   assert.equal(names.includes("kage_refresh"), true);
   assert.equal(names.includes("kage_pr_summarize"), true);
   assert.equal(names.includes("kage_pr_check"), true);
   assert.equal(names.includes("kage_quality"), true);
+  assert.equal(names.includes("kage_audit"), true);
   assert.equal(names.includes("kage_benchmark"), true);
   assert.equal(names.includes("kage_benchmark_compare"), true);
   assert.equal(names.includes("kage_setup_agent"), true);
@@ -116,6 +120,29 @@ test("MCP kage_graph returns evidence-backed graph facts", async () => {
   assert.match(textContent(result), /npm run test/);
 });
 
+test("MCP kage_graph_registry writes a signed artifact manifest", async () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "node --test" } }), "utf8");
+  writeFileSync(join(project, "src", "server.ts"), "export function createApp() { return {}; }\n", "utf8");
+  await callTool("kage_capture", {
+    project_dir: project,
+    title: "Decision: createApp owns app setup",
+    body: "Why: app setup should be centralized.\n\nVerified by: npm test",
+    type: "decision",
+    paths: ["src/server.ts"],
+  });
+
+  const result = await callTool("kage_graph_registry", { project_dir: project });
+  assert.equal(result.isError, false);
+  const body = JSON.parse(textContent(result));
+  assert.equal(body.manifest.kind, "graph_registry");
+  assert.equal(body.artifacts.some((artifact: { kind: string }) => artifact.kind === "memory_graph"), true);
+  assert.equal(body.manifest.payload.sources.packet_count >= 1, true);
+  assert.equal(body.manifest.payload.sources.packets.some((packet: { title: string; content_sha256: string }) => packet.title === "Decision: createApp owns app setup" && packet.content_sha256.length === 64), true);
+});
+
 test("MCP kage_code_graph returns source-derived code facts", async () => {
   const project = tempProject();
   mkdirSync(join(project, "src"), { recursive: true });
@@ -130,6 +157,19 @@ test("MCP kage_code_graph returns source-derived code facts", async () => {
   assert.match(text, /createApp|\/tasks/);
 });
 
+test("MCP kage_code_index writes an LSP symbol index artifact", async () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "server.ts"), "export function serve() { return true; }\n", "utf8");
+
+  const result = await callTool("kage_code_index", { project_dir: project });
+  assert.equal(result.isError, false);
+  const body = JSON.parse(textContent(result));
+  assert.equal(body.parser, "lsp");
+  assert.equal(body.documents, 1);
+  assert.equal(body.symbols >= 1, true);
+});
+
 test("MCP kage_metrics returns coverage and readiness metrics", async () => {
   const project = tempProject();
   mkdirSync(join(project, "src"), { recursive: true });
@@ -141,6 +181,36 @@ test("MCP kage_metrics returns coverage and readiness metrics", async () => {
   assert.equal(metrics.code_graph.indexer_coverage_percent, 100);
   assert.equal(typeof metrics.harness.readiness_score, "number");
   assert.equal(typeof metrics.pain.estimated_tokens_saved, "number");
+});
+
+test("MCP kage_audit returns trust and recommendation details", async () => {
+  const project = tempProject();
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "node --test" } }), "utf8");
+  const result = await callTool("kage_audit", { project_dir: project });
+  const audit = JSON.parse(textContent(result));
+  assert.equal(audit.ok, true);
+  assert.equal(typeof audit.trust_score, "number");
+  assert.equal(typeof audit.checks.memory_inbox.pending_packets, "number");
+});
+
+test("MCP kage_inbox returns actionable memory review items", async () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "server.ts"), "export function serve() { return true; }\n", "utf8");
+  await callTool("kage_capture", {
+    project_dir: project,
+    title: "Architecture note",
+    body: "This packet needs structured follow-up context.",
+    type: "reference",
+    paths: ["src/server.ts"],
+  });
+
+  const result = await callTool("kage_inbox", { project_dir: project });
+  assert.equal(result.isError, false);
+  const inbox = JSON.parse(textContent(result));
+  assert.equal(typeof inbox.counts.approved, "number");
+  assert.equal(inbox.items.some((item: { kind: string }) => item.kind === "missing_context"), true);
+  assert.equal(Array.isArray(inbox.recommendations), true);
 });
 
 test("MCP refresh and PR tools expose merge readiness", async () => {

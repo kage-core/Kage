@@ -29,8 +29,14 @@ jobs:
         working-directory: mcp
         run: npm ci && npm run build
 
+      - name: Generate LSP-compatible code index
+        run: node mcp/dist/cli.js code-index --project . --json
+
       - name: Refresh indexes, code graph, and knowledge graph
         run: node mcp/dist/cli.js refresh --project . --json
+
+      - name: Build graph registry manifest
+        run: node mcp/dist/cli.js graph-registry --project . --json
 
       - name: Capture change memory from diff
         run: node mcp/dist/cli.js propose --project . --from-diff --json

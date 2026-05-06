@@ -28,6 +28,15 @@
       "captured_at": "2026-05-03T08:35:24.003Z"
     }
   ],
+  "context": {
+    "fact": "README hero images render small on GitHub, so long terminal labels and inspector titles become unreadable.",
+    "why": "Launch media must remain legible at GitHub README scale, not only at full-size local preview.",
+    "trigger": "Recall when editing README hero screenshots, SVG posters, or launch demo imagery.",
+    "action": "Use short step labels, compact metric tiles, concise terminal output, and visible website/viewer links.",
+    "verification": "Repo-local capture grounded to README.md and docs/assets/kage-viewer.svg.",
+    "risk_if_forgotten": "Agents may create attractive full-size art that fails when rendered inside the README.",
+    "stale_when": "GitHub README rendering changes or the hero is replaced by a media format that does not shrink labels."
+  },
   "freshness": {
     "ttl_days": 365,
     "last_verified_at": "2026-05-03T08:35:24.003Z",
@@ -55,5 +64,5 @@
     "estimated_tokens_saved": 76
   },
   "created_at": "2026-05-03T08:35:24.003Z",
-  "updated_at": "2026-05-03T08:35:36.304Z"
+  "updated_at": "2026-05-05T20:56:36.000Z"
 }

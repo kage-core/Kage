@@ -1,0 +1,63 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:bug_fix:structured-memory-parser-must-preserve-dotted-commands-and-explicit-decisions-17",
+  "title": "Structured memory parser must preserve dotted commands and explicit decisions",
+  "summary": "Fact: Inline structured memory labels must be parsed up to the next known label instead of the next period. Why: Verification commands often contain dotted paths such as mcp/dist/cli.js, and truncating at a period loses",
+  "body": "Fact: Inline structured memory labels must be parsed up to the next known label instead of the next period. Why: Verification commands often contain dotted paths such as mcp/dist/cli.js, and truncating at a period loses the actual proof command. Trigger: When editing labeled memory parsing, kage_learn inference, or audit structured-context detection. Action: Use known-label boundaries for inline fields and make explicit Decision wording win before generic Why/Rationale classification. Verified by: npm test in mcp. Risk if forgotten: Kage may store or graph incomplete verification commands, and decision memories with Why sections may be misclassified as rationale.\nEvidence: A new test with `node mcp/dist/cli.js audit --project . --json` first exposed command truncation risk, then adding Why to a Decision learning made `learn()` return rationale. Parser and classifier were fixed; npm test passed with 68/68.\nVerified by: npm test in mcp",
+  "type": "bug_fix",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "structured-memory",
+    "parser",
+    "type-inference",
+    "bug-fix"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts"
+  ],
+  "stack": [
+    "TypeScript",
+    "Node.js"
+  ],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-05T20:06:57.218Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-05T20:06:57.218Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 237
+  },
+  "created_at": "2026-05-05T20:06:57.218Z",
+  "updated_at": "2026-05-05T20:06:59.774Z"
+}

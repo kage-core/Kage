@@ -1,0 +1,74 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:code-index-inbox-and-benchmark-gates-harden-kage-handoff-quality-1778012973215",
+  "title": "Code index, inbox, and benchmark gates harden Kage handoff quality",
+  "summary": "Fact: Kage now has a first class memory inbox report, an LSP compatible code index command, CI/PR/sync workflow steps that generate that index before refresh, and benchmark gates with an overall score. Why: Audit and PR",
+  "body": "Fact: Kage now has a first-class memory inbox report, an LSP-compatible code-index command, CI/PR/sync workflow steps that generate that index before refresh, and benchmark gates with an overall score. Why: Audit and PR handoff should expose actionable review work, precise source-index coverage, and benchmark pass/fail gates instead of loose proof metrics. Trigger: When changing audit, viewer, CI, benchmark, or PR handoff behavior. Action: Run `kage code-index --project .` before `kage refresh --project .`, use `kage inbox --project .` for review work, and treat benchmark gates as the proof boundary. Verified by: npm test in mcp; node mcp/dist/cli.js audit --project . --json. Risk if forgotten: Future agents may rely on stale AST-only code graphs, scattered review artifacts, or marketing metrics without explicit gates.\nEvidence: Implemented writeLspSymbolIndex/kage_code_index, memoryInbox/kage_inbox, viewer inbox loading, CI code-index steps, benchmark gates, and audit precision denominator fix. Tests passed with 73/73; root audit reports validation warnings 0 and precise source coverage 100%.\nVerified by: npm test in mcp; node mcp/dist/cli.js audit --project . --json",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "code-index",
+    "memory-inbox",
+    "benchmark",
+    "audit",
+    "ci"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts",
+    "mcp/index.ts",
+    "mcp/cli.ts",
+    "mcp/daemon.ts",
+    "mcp/viewer/app.js",
+    ".github/workflows/ci.yml",
+    ".github/workflows/kage-pr.yml",
+    ".github/workflows/kage-sync.yml",
+    "mcp/README.md",
+    "README.md"
+  ],
+  "stack": [
+    "TypeScript",
+    "Node.js",
+    "GitHub Actions"
+  ],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-05T20:29:33.215Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-05T20:29:33.215Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 297
+  },
+  "created_at": "2026-05-05T20:29:33.215Z",
+  "updated_at": "2026-05-05T20:29:39.812Z"
+}

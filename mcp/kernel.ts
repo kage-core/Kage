@@ -12,11 +12,16 @@ export const MEMORY_TYPES = [
   "runbook",
   "bug_fix",
   "decision",
+  "rationale",
   "convention",
   "workflow",
   "gotcha",
   "reference",
   "policy",
+  "issue_context",
+  "code_explanation",
+  "negative_result",
+  "constraint",
 ] as const;
 
 export type MemoryType = (typeof MEMORY_TYPES)[number];
@@ -42,11 +47,23 @@ export interface MemoryPacket {
   paths: string[];
   stack: string[];
   source_refs: Array<Record<string, unknown>>;
+  context?: EngineeringMemoryContext;
   freshness: Record<string, unknown>;
   edges: Array<Record<string, unknown>>;
   quality: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+}
+
+export interface EngineeringMemoryContext {
+  fact?: string;
+  why?: string;
+  trigger?: string;
+  action?: string;
+  verification?: string;
+  risk_if_forgotten?: string;
+  stale_when?: string;
+  rejected_alternatives?: string[];
 }
 
 export interface IndexResult {
@@ -96,9 +113,11 @@ export interface RecallResult {
 }
 
 export interface RecallScoreBreakdown {
+  bm25: number;
   text: number;
   graph: number;
   path_type_tag: number;
+  intent: number;
   vector: number;
   freshness: number;
   quality: number;
@@ -109,7 +128,7 @@ export interface RecallScoreBreakdown {
 export interface RecallExplanation {
   packet_id: string;
   title: string;
-  provider: "text" | "graph" | "vector-local" | "vector-external";
+  provider: "bm25" | "text" | "graph" | "vector-local" | "vector-external";
   score_breakdown: RecallScoreBreakdown;
   why_matched: string[];
 }
@@ -123,6 +142,7 @@ export interface CaptureInput {
   tags?: string[];
   paths?: string[];
   stack?: string[];
+  context?: EngineeringMemoryContext;
 }
 
 export interface CaptureResult {
@@ -142,6 +162,7 @@ export interface LearnInput {
   stack?: string[];
   evidence?: string;
   verifiedBy?: string;
+  context?: EngineeringMemoryContext;
 }
 
 export type LearnResult = CaptureResult;
@@ -352,6 +373,16 @@ export interface BenchmarkReport {
   schema_version: 1;
   project_dir: string;
   generated_at: string;
+  ok: boolean;
+  overall_score: number;
+  gates: Array<{
+    name: "recall_hit_rate" | "evidence_coverage" | "useful_memory_ratio" | "code_flow_coverage";
+    target: number;
+    actual: number;
+    unit: "percent";
+    pass: boolean;
+    required: boolean;
+  }>;
   scenarios: Array<{
     query: string;
     expected: string;
@@ -446,7 +477,7 @@ export interface PolicyInstallResult {
   updated: boolean;
 }
 
-export type GraphEntityType = "repo" | "memory" | "path" | "tag" | "package" | "command" | "memory_type";
+export type GraphEntityType = "repo" | "memory" | "path" | "tag" | "package" | "command" | "memory_type" | "symbol" | "route" | "test";
 
 export interface GraphEpisode {
   id: string;
@@ -650,6 +681,83 @@ export interface KageMetrics {
   quality?: Omit<QualityReport, "schema_version" | "project_dir" | "generated_at" | "packets">;
 }
 
+export interface AuditReport {
+  schema_version: 1;
+  project_dir: string;
+  generated_at: string;
+  ok: boolean;
+  trust_score: number;
+  checks: {
+    validation: ValidationResult;
+    memory_inbox: {
+      approved_packets: number;
+      pending_packets: number;
+      stale_packets: number;
+      duplicate_candidates: number;
+    };
+    structured_memory: {
+      total_packets: number;
+      structured_packets: number;
+      coverage_percent: number;
+      missing_context_packet_ids: string[];
+    };
+    code_graph: {
+      files: number;
+      precise_files: number;
+      ast_files: number;
+      fallback_files: number;
+      precise_coverage_percent: number;
+      indexer_coverage_percent: number;
+    };
+    graph_links: {
+      memory_code_edges: number;
+      evidence_coverage_percent: number;
+    };
+  };
+  recommendations: string[];
+}
+
+export interface CodeIndexArtifactResult {
+  ok: boolean;
+  project_dir: string;
+  path: string;
+  parser: "lsp";
+  documents: number;
+  symbols: number;
+  errors: string[];
+}
+
+export interface MemoryInboxItem {
+  kind: "pending" | "stale" | "duplicate" | "missing_context" | "validation_error" | "validation_warning";
+  severity: "blocker" | "warning" | "info";
+  packet_id?: string;
+  title?: string;
+  type?: MemoryType;
+  status?: MemoryStatus;
+  paths?: string[];
+  summary: string;
+  reasons: string[];
+  action: string;
+}
+
+export interface MemoryInboxReport {
+  schema_version: 1;
+  project_dir: string;
+  generated_at: string;
+  ok: boolean;
+  counts: {
+    approved: number;
+    pending: number;
+    stale: number;
+    duplicates: number;
+    missing_context: number;
+    validation_errors: number;
+    validation_warnings: number;
+  };
+  items: MemoryInboxItem[];
+  recommendations: string[];
+}
+
 export interface BranchOverlay {
   schema_version: 1;
   project_dir: string;
@@ -815,10 +923,13 @@ Capture examples:
 - A bug cause and verified fix.
 - A convention future agents should follow.
 - A decision and its rationale.
+- Why code, architecture, product, or release behavior ended up this way.
+- A non-obvious issue state, failed approach, or code explanation.
 - A gotcha that caused rediscovery or wasted time.
 - A path-specific workflow or dependency relationship.
 
-Keep captures concise and future-facing. Do not store raw transcripts.
+Keep captures concise, source-backed, and useful for future understanding,
+decisions, debugging, explanation, or action. Do not store raw transcripts.
 
 ## End-Of-Task Proposal
 
@@ -910,6 +1021,10 @@ export function indexesDir(projectDir: string): string {
 
 export function graphDir(projectDir: string): string {
   return join(memoryRoot(projectDir), "graph");
+}
+
+export function graphRegistryDir(projectDir: string): string {
+  return join(memoryRoot(projectDir), "graph_registry");
 }
 
 export function codeGraphDir(projectDir: string): string {
@@ -1190,7 +1305,7 @@ function evaluateMemoryQuality(projectDir: string, packet: MemoryPacket): Record
   const bodyTokens = tokenize(packet.body);
   const hasEvidence = packet.source_refs.length > 0;
   const hasPaths = packet.paths.length > 0;
-  const highValueType = ["runbook", "bug_fix", "decision", "convention", "workflow", "gotcha", "policy"].includes(packet.type);
+  const highValueType = ["runbook", "bug_fix", "decision", "rationale", "convention", "workflow", "gotcha", "policy", "issue_context", "code_explanation", "negative_result", "constraint"].includes(packet.type);
 
   if (highValueType) {
     score += 14;
@@ -1257,7 +1372,7 @@ export function evaluateMemoryAdmission(projectDir: string, packet: MemoryPacket
   const text = `${packet.title}\n${packet.summary}\n${packet.body}`.toLowerCase();
   let score = 0;
 
-  if (["runbook", "bug_fix", "decision", "convention", "workflow", "gotcha", "policy"].includes(packet.type)) {
+  if (["runbook", "bug_fix", "decision", "rationale", "convention", "workflow", "gotcha", "policy", "issue_context", "code_explanation", "negative_result", "constraint"].includes(packet.type)) {
     score += 18;
     reasons.push("durable memory type");
   }
@@ -1269,9 +1384,9 @@ export function evaluateMemoryAdmission(projectDir: string, packet: MemoryPacket
     score += 12;
     reasons.push("repo scoped or path grounded");
   }
-  if (/(when|after|before|because|requires|must|avoid|prefer|use this|run this|root cause|decision|convention|gotcha|workaround|fix|policy)/i.test(packet.body)) {
+  if (/(when|after|before|because|requires|must|avoid|prefer|use this|run this|root cause|rationale|decision|convention|gotcha|workaround|fix|policy|issue|hypothesis|unresolved|explains?|data flow|invariant|coupling|constraint)/i.test(packet.body)) {
     score += 18;
-    reasons.push("has future trigger or rationale");
+    reasons.push("has durable trigger, rationale, issue context, or explanation");
   }
   if (/(verified by|evidence:|test passed|reproduced|root cause)/i.test(packet.body)) {
     score += 10;
@@ -1662,6 +1777,15 @@ function createRepoOverviewPacket(projectDir: string): MemoryPacket | null {
       ...(existsSync(packagePath) ? [{ kind: "file", path: "package.json" }] : []),
       ...(existsSync(readmePath) ? [{ kind: "file", path: "README.md" }] : []),
     ],
+    context: {
+      fact: "Generated repo overview summarizes package metadata and the README as a navigation aid for agent startup.",
+      why: "Agents need fast repo orientation before deeper recall or code graph queries, but generated overview memory should stay separate from human rationale.",
+      trigger: "Recall when an agent needs first-pass repo purpose, scripts, stack, or README context.",
+      action: "Use this as orientation only, then inspect source-backed memory and code graph facts for implementation decisions.",
+      verification: "Generated from package.json and README.md when present.",
+      risk_if_forgotten: "Agents may waste context rediscovering basic repo purpose or treat generated overview text as deeper semantic memory.",
+      stale_when: "package.json or README.md changes enough that the generated overview no longer matches the repo.",
+    },
     freshness: {
       ttl_days: 90,
       last_verified_at: createdAt.slice(0, 10),
@@ -1746,6 +1870,15 @@ function createRepoStructurePacket(projectDir: string): MemoryPacket | null {
     paths: existing.filter((entry) => pathExistsInRepo(projectDir, entry)),
     stack: [],
     source_refs: existing.map((path) => ({ kind: "file", path })),
+    context: {
+      fact: "Generated repo structure summarizes top-level files, workflows, and test files as a navigation aid.",
+      why: "Agents need a quick map of repo entry points before choosing which files, workflows, or tests to inspect.",
+      trigger: "Recall when orienting to this repo's layout, CI workflows, or test locations.",
+      action: "Use this as a starting map and verify details against the current filesystem or code graph before editing.",
+      verification: "Generated from files present in the repository.",
+      risk_if_forgotten: "Agents may miss important entry points such as AGENTS.md, workflows, or MCP tests during initial orientation.",
+      stale_when: "Top-level repo structure, workflow files, or test files change.",
+    },
     freshness: {
       ttl_days: 30,
       last_verified_at: createdAt.slice(0, 10),
@@ -1782,7 +1915,7 @@ function upsertGeneratedPacket(projectDir: string, packet: MemoryPacket): void {
   const existing = entries.find((entry) => entry.packet.id === packet.id)?.packet;
   if (existing && existing.quality?.reviewer !== "kage-indexer") return;
   if (existing) {
-    const comparableFields: (keyof MemoryPacket)[] = ["title", "summary", "body", "tags", "paths", "stack", "source_refs", "freshness"];
+    const comparableFields: (keyof MemoryPacket)[] = ["title", "summary", "body", "tags", "paths", "stack", "source_refs", "context", "freshness"];
     const same = comparableFields.every((field) => JSON.stringify(existing[field]) === JSON.stringify(packet[field]));
     if (same) return;
     packet.created_at = existing.created_at;
@@ -1851,6 +1984,9 @@ function packetGroundingWarnings(projectDir: string, packet: MemoryPacket, sourc
 
   const hasGroundedSource = packet.source_refs.some((ref) => {
     if (typeof ref.path === "string") return !shouldSkipRepoMemoryPath(ref.path) && pathExistsInRepo(projectDir, ref.path);
+    if (Array.isArray(ref.changed_files)) {
+      return ref.changed_files.some((path) => typeof path === "string" && !shouldSkipRepoMemoryPath(path) && pathExistsInRepo(projectDir, path));
+    }
     if (typeof ref.kind === "string" && ["explicit_capture", "local_public_candidate"].includes(ref.kind)) return true;
     return typeof ref.url === "string";
   });
@@ -2539,6 +2675,55 @@ function parseLspDocumentSymbols(projectDir: string, path: string): ExternalCode
   return { symbols, imports: [], calls: [] };
 }
 
+export function writeLspSymbolIndex(projectDir: string): CodeIndexArtifactResult {
+  ensureMemoryDirs(projectDir);
+  const outDir = join(memoryRoot(projectDir), "code_index");
+  ensureDir(outDir);
+  const outPath = join(outDir, "lsp-symbols.json");
+  const documents: Array<{ path: string; symbols: Array<Record<string, unknown>> }> = [];
+  let symbolCount = 0;
+  const errors: string[] = [];
+
+  for (const absolutePath of listCodeFiles(projectDir)) {
+    const rel = relative(projectDir, absolutePath).replace(/\\/g, "/");
+    if (!TS_AST_EXTENSIONS.has(extensionOf(rel))) continue;
+    try {
+      const content = readFileSync(absolutePath, "utf8");
+      const symbols = extractSymbols(rel, content).map((symbol) => ({
+        name: symbol.name,
+        kind: symbol.kind,
+        detail: symbol.signature,
+        range: {
+          start: { line: Math.max(0, symbol.line - 1), character: 0 },
+          end: { line: Math.max(0, (symbol.end_line ?? symbol.line) - 1), character: 0 },
+        },
+      }));
+      if (!symbols.length) continue;
+      symbolCount += symbols.length;
+      documents.push({ path: rel, symbols });
+    } catch (error) {
+      errors.push(`${rel}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  writeJson(outPath, {
+    schema_version: 1,
+    generator: "kage-lsp-symbol-index",
+    generated_at: nowIso(),
+    documents,
+  });
+
+  return {
+    ok: errors.length === 0,
+    project_dir: projectDir,
+    path: outPath,
+    parser: "lsp",
+    documents: documents.length,
+    symbols: symbolCount,
+    errors,
+  };
+}
+
 function parseLsif(projectDir: string, path: string): ExternalCodeFacts {
   const docs = new Map<number, string>();
   const ranges = new Map<number, CodeSymbolNode>();
@@ -2666,8 +2851,13 @@ export function buildCodeGraph(projectDir: string): CodeGraph {
   const fileByPath = new Map(files.map((file) => [file.path, file]));
   const addSymbol = (symbol: CodeSymbolNode) => {
     if (!fileByPath.has(symbol.path)) return;
-    if (symbols.some((existing) => existing.id === symbol.id)) return;
     const file = fileByPath.get(symbol.path);
+    const existing = symbols.find((candidate) => candidate.id === symbol.id);
+    if (existing) {
+      existing.parser = strongerParser(existing.parser, symbol.parser);
+      if (file) file.parser = strongerParser(file.parser, symbol.parser);
+      return;
+    }
     if (file) file.parser = strongerParser(file.parser, symbol.parser);
     symbols.push(symbol);
   };
@@ -2738,6 +2928,7 @@ export function buildKnowledgeGraph(projectDir: string): KnowledgeGraph {
   const episodes: GraphEpisode[] = [];
   const repoEntityId = graphEntityId("repo", repoKey(projectDir));
   const generatedFrom = packets.map((packet) => packet.updated_at).sort().at(-1) ?? null;
+  const codeGraph = buildCodeGraph(projectDir);
 
   addEntity(entities, {
     id: repoEntityId,
@@ -2901,6 +3092,121 @@ export function buildKnowledgeGraph(projectDir: string): KnowledgeGraph {
         to: commandId,
         relation: "documents_command",
         fact: `"${packet.title}" documents command "${command}".`,
+        confidence: packet.confidence,
+        valid_from: packet.updated_at,
+        invalidated_at: null,
+        branch,
+        commit: head,
+        evidence: [episodeId],
+      });
+    }
+
+    const context = engineeringContextFor(packet);
+    if (context.verification) {
+      const command = normalizeCommandText(context.verification);
+      if (command) {
+        const commandId = graphEntityId("command", command);
+        addEntity(entities, {
+          id: commandId,
+          type: "command",
+          name: command,
+          summary: `Verification command from structured memory context.`,
+          first_seen_at: packet.created_at,
+          last_seen_at: packet.updated_at,
+          evidence: [episodeId],
+        });
+        addEdge(edges, {
+          from: memoryId,
+          to: commandId,
+          relation: "verified_by",
+          fact: `"${packet.title}" is verified by "${command}".`,
+          confidence: packet.confidence,
+          valid_from: packet.updated_at,
+          invalidated_at: null,
+          branch,
+          commit: head,
+          evidence: [episodeId],
+        });
+      }
+    }
+
+    const packetTextLower = `${packet.title}\n${packet.summary}\n${packet.body}`.toLowerCase();
+    const packetPathSet = new Set(packet.paths);
+    const symbolRelation = packet.type === "bug_fix"
+      ? "fixes_symbol"
+      : packet.type === "decision" || packet.type === "rationale" || packet.type === "constraint"
+        ? "informs_symbol"
+        : "explains_symbol";
+    for (const symbol of codeGraph.symbols.filter((symbol) => packetPathSet.has(symbol.path))) {
+      if (packet.type !== "code_explanation" && !packetTextLower.includes(symbol.name.toLowerCase())) continue;
+      const symbolEntityId = graphEntityId("symbol", symbol.id);
+      addEntity(entities, {
+        id: symbolEntityId,
+        type: "symbol",
+        name: symbol.name,
+        aliases: [symbol.id, symbol.path],
+        summary: `${symbol.kind} in ${symbol.path}:${symbol.line}`,
+        first_seen_at: packet.created_at,
+        last_seen_at: packet.updated_at,
+        evidence: [episodeId],
+      });
+      addEdge(edges, {
+        from: memoryId,
+        to: symbolEntityId,
+        relation: symbolRelation,
+        fact: `"${packet.title}" ${symbolRelation.replace(/_/g, " ")} ${symbol.name} in ${symbol.path}.`,
+        confidence: packet.confidence,
+        valid_from: packet.updated_at,
+        invalidated_at: null,
+        branch,
+        commit: head,
+        evidence: [episodeId],
+      });
+    }
+
+    for (const route of codeGraph.routes.filter((route) => packetPathSet.has(route.file_path) && packetTextLower.includes(route.path.toLowerCase()))) {
+      const routeEntityId = graphEntityId("route", route.id);
+      addEntity(entities, {
+        id: routeEntityId,
+        type: "route",
+        name: `${route.method} ${route.path}`,
+        aliases: [route.id, route.file_path],
+        summary: `${route.framework} route in ${route.file_path}:${route.line}`,
+        first_seen_at: packet.created_at,
+        last_seen_at: packet.updated_at,
+        evidence: [episodeId],
+      });
+      addEdge(edges, {
+        from: memoryId,
+        to: routeEntityId,
+        relation: "applies_to_route",
+        fact: `"${packet.title}" applies to route ${route.method} ${route.path}.`,
+        confidence: packet.confidence,
+        valid_from: packet.updated_at,
+        invalidated_at: null,
+        branch,
+        commit: head,
+        evidence: [episodeId],
+      });
+    }
+
+    for (const test of codeGraph.tests.filter((test) => packetPathSet.has(test.test_path) || Boolean(test.covers_path && packetPathSet.has(test.covers_path)))) {
+      const testEntityId = graphEntityId("test", test.test_symbol);
+      addEntity(entities, {
+        id: testEntityId,
+        type: "test",
+        name: test.title,
+        aliases: [test.test_symbol, test.test_path],
+        summary: `Test in ${test.test_path}:${test.line}${test.covers_symbol ? ` covers ${test.covers_symbol}` : ""}`,
+        first_seen_at: packet.created_at,
+        last_seen_at: packet.updated_at,
+        evidence: [episodeId],
+      });
+      addEdge(edges, {
+        from: memoryId,
+        to: testEntityId,
+        relation: "verified_by_test",
+        fact: `"${packet.title}" is related to test "${test.title}".`,
         confidence: packet.confidence,
         valid_from: packet.updated_at,
         invalidated_at: null,
@@ -3364,39 +3670,153 @@ function scorePacket(queryTerms: string[], packet: MemoryPacket): { score: numbe
   return { score, why: unique(why).slice(0, 8) };
 }
 
+type Bm25Field = "title" | "summary" | "tag" | "path" | "type" | "body";
+
+interface Bm25Document {
+  packet: MemoryPacket;
+  termFrequency: Map<string, number>;
+  fieldHits: Map<string, Set<Bm25Field>>;
+  length: number;
+}
+
+const BM25_K1 = 1.2;
+const BM25_B = 0.75;
+const BM25_FIELD_WEIGHTS: Record<Bm25Field, number> = {
+  title: 4,
+  summary: 2.4,
+  tag: 2.8,
+  path: 2.4,
+  type: 1.8,
+  body: 1,
+};
+
+function lexicalStem(term: string): string {
+  if (term.length > 5 && term.endsWith("ing")) return term.slice(0, -3);
+  if (term.length > 4 && term.endsWith("ies")) return `${term.slice(0, -3)}y`;
+  if (term.length > 4 && term.endsWith("es")) return term.slice(0, -2);
+  if (term.length > 3 && term.endsWith("s")) return term.slice(0, -1);
+  return term;
+}
+
+function expandQueryTerms(terms: string[]): string[] {
+  return unique(terms.flatMap((term) => unique([term, lexicalStem(term)].filter(Boolean))));
+}
+
+function bm25Document(packet: MemoryPacket): Bm25Document {
+  const termFrequency = new Map<string, number>();
+  const fieldHits = new Map<string, Set<Bm25Field>>();
+  let length = 0;
+  const addField = (field: Bm25Field, text: string): void => {
+    const weight = BM25_FIELD_WEIGHTS[field];
+    for (const token of tokenize(text)) {
+      termFrequency.set(token, (termFrequency.get(token) ?? 0) + weight);
+      if (!fieldHits.has(token)) fieldHits.set(token, new Set());
+      fieldHits.get(token)!.add(field);
+      length += weight;
+    }
+  };
+
+  addField("title", packet.title);
+  addField("summary", packet.summary);
+  addField("tag", packet.tags.join(" "));
+  addField("path", packet.paths.join(" "));
+  addField("type", packet.type);
+  addField("body", packet.body);
+  return { packet, termFrequency, fieldHits, length: Math.max(1, length) };
+}
+
+function scorePacketsBm25(queryTerms: string[], packets: MemoryPacket[]): Map<string, { score: number; why: string[] }> {
+  const terms = expandQueryTerms(queryTerms);
+  const documents = packets.map(bm25Document);
+  const result = new Map<string, { score: number; why: string[] }>();
+  if (!terms.length || !documents.length) return result;
+
+  const averageLength = documents.reduce((sum, document) => sum + document.length, 0) / documents.length || 1;
+  const documentFrequency = new Map<string, number>();
+  for (const term of terms) {
+    documentFrequency.set(term, documents.filter((document) => document.termFrequency.has(term)).length);
+  }
+
+  for (const document of documents) {
+    let score = 0;
+    const why: string[] = [];
+    for (const term of terms) {
+      const termFrequency = document.termFrequency.get(term) ?? 0;
+      if (termFrequency <= 0) continue;
+      const df = documentFrequency.get(term) ?? 0;
+      const idf = Math.log(1 + (documents.length - df + 0.5) / (df + 0.5));
+      const denominator = termFrequency + BM25_K1 * (1 - BM25_B + BM25_B * (document.length / averageLength));
+      score += idf * ((termFrequency * (BM25_K1 + 1)) / denominator);
+      const fields = Array.from(document.fieldHits.get(term) ?? []).sort();
+      if (fields.length) why.push(`bm25:${fields.join("+")}:${term}`);
+    }
+    if (score > 0) result.set(document.packet.id, { score: Number(score.toFixed(2)), why: unique(why).slice(0, 8) });
+  }
+
+  return result;
+}
+
+function recallIntentBoost(queryTerms: string[], packet: MemoryPacket): number {
+  const terms = new Set(expandQueryTerms(queryTerms));
+  const commandIntent = ["run", "test", "tests", "build", "command", "commands"].some((term) => terms.has(term));
+  const debugIntent = ["bug", "fix", "error", "fail", "debug"].some((term) => terms.has(term));
+  const gotchaIntent = terms.has("gotcha");
+  const decisionIntent = terms.has("decision");
+  const packetText = `${packet.title}\n${packet.summary}\n${packet.body}\n${packet.tags.join(" ")}`;
+  const hasCommandEvidence = /\b(?:npm|pnpm|yarn|bun|node|python|pytest|vitest|cargo|go)\s+(?:run\s+)?(?:test|tests|build|dev|start)\b|package\.json|scripts?/i.test(packetText);
+  let score = 0;
+
+  if (commandIntent) {
+    if (packet.type === "runbook") score += hasCommandEvidence ? 22 : 8;
+    if (packet.type === "repo_map" && hasCommandEvidence) score += 34;
+    if (!["runbook", "repo_map", "workflow"].includes(packet.type) && !debugIntent) score -= 8;
+    if (packet.type === "decision" && /release|verified by|passed|published/i.test(`${packet.title}\n${packet.body}`)) score -= 3;
+  }
+  if (debugIntent && packet.type === "bug_fix") score += 10;
+  if (gotchaIntent) score += packet.type === "gotcha" ? 18 : -4;
+  if (decisionIntent) score += packet.type === "decision" ? 12 : 0;
+  return score;
+}
+
 function recallBreakdown(projectDir: string, terms: string[], packet: MemoryPacket, textScore: number): RecallScoreBreakdown {
   const graph = buildKnowledgeGraph(projectDir);
   const packetEntityId = graph.entities.find((entity) => entity.type === "memory" && entity.aliases.includes(packet.id))?.id;
-  const graphScore = packetEntityId
+  const rawGraphScore = packetEntityId
     ? graph.edges.filter((edge) => edge.from === packetEntityId || edge.to === packetEntityId).reduce((sum, edge) => sum + scoreText(terms, edge.fact), 0)
     : 0;
+  const graphScore = Math.min(rawGraphScore * 0.45, textScore > 0 ? textScore * 1.5 + 12 : 8);
   const pathTypeTag = scoreText(terms, `${packet.type} ${packet.tags.join(" ")} ${packet.paths.join(" ")}`, [packet.type, ...packet.tags, ...packet.paths]);
+  const intent = recallIntentBoost(terms, packet);
   const freshness = packet.status === "approved" ? 2 : packet.status === "pending" ? 0 : -5;
   const quality = Number((packet.quality as Record<string, unknown>).score ?? evaluateMemoryQuality(projectDir, packet).score) / 10;
   const feedback = packetFeedbackScore(packet);
   const vector = 0;
-  const final = Number((textScore + graphScore * 0.45 + pathTypeTag * 0.8 + vector + freshness + quality + feedback).toFixed(2));
-  return { text: textScore, graph: graphScore, path_type_tag: pathTypeTag, vector, freshness, quality: Number(quality.toFixed(2)), feedback, final };
+  const final = Number((textScore + graphScore + pathTypeTag * 0.8 + intent + vector + freshness + quality + feedback).toFixed(2));
+  return { bm25: textScore, text: textScore, graph: Number(graphScore.toFixed(2)), path_type_tag: pathTypeTag, intent, vector, freshness, quality: Number(quality.toFixed(2)), feedback, final };
 }
 
 export function recall(projectDir: string, query: string, limit = 5, explain = false): RecallResult {
   indexProject(projectDir);
   const terms = tokenize(query);
-  const scored = loadApprovedPackets(projectDir)
+  const approvedPackets = loadApprovedPackets(projectDir);
+  const lexicalScores = scorePacketsBm25(terms, approvedPackets);
+  const scored = approvedPackets
     .map((packet) => {
-      const { score, why } = scorePacket(terms, packet);
+      const { score, why } = lexicalScores.get(packet.id) ?? { score: 0, why: [] };
       const score_breakdown = recallBreakdown(projectDir, terms, packet, score);
-      const relevance = score + score_breakdown.graph + score_breakdown.path_type_tag + score_breakdown.vector;
-      return { packet, score: explain ? score_breakdown.final : score, relevance, why_matched: why, score_breakdown };
+      const relevance = score + score_breakdown.graph + score_breakdown.path_type_tag + score_breakdown.intent + score_breakdown.vector;
+      return { packet, score: score_breakdown.final, relevance, why_matched: why, score_breakdown };
     })
     .filter((entry) => entry.relevance > 0)
     .sort((a, b) => b.score - a.score || a.packet.title.localeCompare(b.packet.title))
     .slice(0, limit)
     .map(({ relevance, ...entry }) => entry);
   const pendingSeen = new Set<string>();
-  const pendingScored = recallablePendingPackets(projectDir)
+  const pendingPackets = recallablePendingPackets(projectDir);
+  const pendingLexicalScores = scorePacketsBm25(terms, pendingPackets);
+  const pendingScored = pendingPackets
     .map((packet) => {
-      const { score, why } = scorePacket(terms, packet);
+      const { score, why } = pendingLexicalScores.get(packet.id) ?? { score: 0, why: [] };
       return { packet, score, why_matched: why };
     })
     .filter((entry) => entry.score > 0)
@@ -3452,7 +3872,7 @@ export function recall(projectDir: string, query: string, limit = 5, explain = f
       ? scored.map((entry) => ({
           packet_id: entry.packet.id,
           title: entry.packet.title,
-          provider: "text",
+          provider: "bm25",
           score_breakdown: entry.score_breakdown!,
           why_matched: entry.why_matched,
         }))
@@ -3722,6 +4142,227 @@ export function kageMetrics(projectDir: string): KageMetrics {
   };
 }
 
+export function auditProject(projectDir: string): AuditReport {
+  ensureMemoryDirs(projectDir);
+  const validation = validateProject(projectDir);
+  const quality = qualityReport(projectDir);
+  const codeGraph = buildCodeGraph(projectDir);
+  const knowledgeGraph = buildKnowledgeGraph(projectDir);
+  const approved = loadApprovedPackets(projectDir);
+  const pending = loadPendingPackets(projectDir);
+  const structuredPackets = approved.filter(hasStructuredEngineeringContext);
+  const preciseParsers: CodeParser[] = ["scip", "lsif", "lsp"];
+  const astParsers: CodeParser[] = ["typescript-ast", "tree-sitter"];
+  const indexableFiles = codeGraph.files.filter((file) => file.parser !== "metadata").length;
+  const preciseFiles = codeGraph.files.filter((file) => preciseParsers.includes(file.parser)).length;
+  const astFiles = codeGraph.files.filter((file) => astParsers.includes(file.parser)).length;
+  const fallbackFiles = codeGraph.files.filter((file) => file.parser === "generic-static" || file.parser === "metadata").length;
+  const memoryCodeEdges = knowledgeGraph.edges.filter((edge) => ["explains_symbol", "informs_symbol", "fixes_symbol", "applies_to_route", "verified_by_test"].includes(edge.relation)).length;
+  const stalePackets = quality.totals.stale;
+  const duplicateCandidatesTotal = quality.totals.duplicate;
+  const structuredCoverage = percent(structuredPackets.length, approved.length);
+  const preciseCoverage = percent(preciseFiles, indexableFiles);
+  const memoryCodeCoverage = percent(Math.min(memoryCodeEdges, approved.length), approved.length);
+  const recommendations: string[] = [];
+
+  if (structuredPackets.length < approved.length) {
+    recommendations.push("Add structured context fields to high-value memories: why, verification, risk_if_forgotten, and stale_when.");
+  }
+  if (pending.length) {
+    recommendations.push("Review pending memory inbox packets and approve, reject, merge, or supersede them before handoff.");
+  }
+  if (stalePackets) {
+    recommendations.push("Run kage gc --dry-run and update or deprecate stale memory before trusting recall.");
+  }
+  if (duplicateCandidatesTotal) {
+    recommendations.push("Merge or supersede duplicate memory packets so agents do not receive conflicting context.");
+  }
+  if (preciseFiles < indexableFiles) {
+    recommendations.push("Add or extend SCIP/LSIF/LSP index artifacts in CI for remaining source files; keep AST/static extraction as fallback.");
+  }
+  if (!memoryCodeEdges && approved.length && codeGraph.symbols.length) {
+    recommendations.push("Link memory packets to symbols, routes, and tests with code_explanation, bug_fix, decision, and verification context.");
+  }
+  if (!validation.ok) {
+    recommendations.push("Fix validation errors before relying on Kage in PR or agent-start workflows.");
+  }
+
+  const trustScore = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        (validation.ok ? 25 : 0) +
+          quality.useful_memory_ratio_percent * 0.25 +
+          structuredCoverage * 0.2 +
+          memoryCodeCoverage * 0.15 +
+          Math.max(0, 15 - pending.length * 3 - stalePackets * 5 - duplicateCandidatesTotal * 4)
+      )
+    )
+  );
+
+  return {
+    schema_version: 1,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    ok: validation.ok && stalePackets === 0 && duplicateCandidatesTotal === 0,
+    trust_score: trustScore,
+    checks: {
+      validation,
+      memory_inbox: {
+        approved_packets: approved.length,
+        pending_packets: pending.length,
+        stale_packets: stalePackets,
+        duplicate_candidates: duplicateCandidatesTotal,
+      },
+      structured_memory: {
+        total_packets: approved.length,
+        structured_packets: structuredPackets.length,
+        coverage_percent: structuredCoverage,
+        missing_context_packet_ids: approved.filter((packet) => !structuredPackets.includes(packet)).map((packet) => packet.id),
+      },
+      code_graph: {
+        files: codeGraph.files.length,
+        precise_files: preciseFiles,
+        ast_files: astFiles,
+        fallback_files: fallbackFiles,
+        precise_coverage_percent: preciseCoverage,
+        indexer_coverage_percent: percent(codeGraph.files.filter((file) => file.parser !== "metadata").length, indexableFiles),
+      },
+      graph_links: {
+        memory_code_edges: memoryCodeEdges,
+        evidence_coverage_percent: percent(knowledgeGraph.edges.filter((edge) => edge.evidence.length > 0).length, knowledgeGraph.edges.length),
+      },
+    },
+    recommendations,
+  };
+}
+
+export function memoryInbox(projectDir: string): MemoryInboxReport {
+  ensureMemoryDirs(projectDir);
+  const validation = validateProject(projectDir);
+  const quality = qualityReport(projectDir);
+  const approved = loadApprovedPackets(projectDir);
+  const pending = loadPendingPackets(projectDir);
+  const items: MemoryInboxItem[] = [];
+
+  for (const packet of pending) {
+    const qualityDetails = evaluateMemoryQuality(projectDir, packet);
+    items.push({
+      kind: "pending",
+      severity: "warning",
+      packet_id: packet.id,
+      title: packet.title,
+      type: packet.type,
+      status: packet.status,
+      paths: packet.paths,
+      summary: packet.summary,
+      reasons: [
+        ...((qualityDetails.risks as string[] | undefined) ?? []),
+        `quality score ${qualityDetails.score}/100`,
+      ],
+      action: "Approve, reject, merge, or keep pending after reviewing source refs and sensitivity.",
+    });
+  }
+
+  for (const packet of approved) {
+    const reasons = staleMemoryReasons(projectDir, packet);
+    if (reasons.length) {
+      items.push({
+        kind: "stale",
+        severity: "blocker",
+        packet_id: packet.id,
+        title: packet.title,
+        type: packet.type,
+        status: packet.status,
+        paths: packet.paths,
+        summary: packet.summary,
+        reasons,
+        action: `${staleSuggestedAction(reasons)} this packet before trusting recall.`,
+      });
+    }
+  }
+
+  for (const packet of approved.filter((packet) => !hasStructuredEngineeringContext(packet))) {
+    items.push({
+      kind: "missing_context",
+      severity: "info",
+      packet_id: packet.id,
+      title: packet.title,
+      type: packet.type,
+      status: packet.status,
+      paths: packet.paths,
+      summary: packet.summary,
+      reasons: ["missing explicit why, verification, risk, stale condition, trigger, or action"],
+      action: "Add structured context if this packet carries durable rationale, bug, issue, or code explanation.",
+    });
+  }
+
+  for (const packet of quality.packets.filter((packet) => packet.classification === "duplicate")) {
+    const source = [...approved, ...pending].find((candidate) => candidate.id === packet.id);
+    items.push({
+      kind: "duplicate",
+      severity: "warning",
+      packet_id: packet.id,
+      title: packet.title,
+      type: packet.type,
+      status: packet.status,
+      paths: source?.paths,
+      summary: source?.summary ?? packet.title,
+      reasons: packet.risks.length ? packet.risks : ["duplicate candidate detected by quality report"],
+      action: "Merge, supersede, or deprecate overlapping memory before handoff.",
+    });
+  }
+
+  for (const error of validation.errors) {
+    items.push({
+      kind: "validation_error",
+      severity: "blocker",
+      summary: error,
+      reasons: [error],
+      action: "Fix validation errors before relying on Kage in agent or PR workflows.",
+    });
+  }
+
+  for (const warning of validation.warnings) {
+    items.push({
+      kind: "validation_warning",
+      severity: "warning",
+      summary: warning,
+      reasons: [warning],
+      action: "Review grounding, indexes, generated artifacts, or packet quality.",
+    });
+  }
+
+  const counts = {
+    approved: approved.length,
+    pending: pending.length,
+    stale: items.filter((item) => item.kind === "stale").length,
+    duplicates: items.filter((item) => item.kind === "duplicate").length,
+    missing_context: items.filter((item) => item.kind === "missing_context").length,
+    validation_errors: validation.errors.length,
+    validation_warnings: validation.warnings.length,
+  };
+  const recommendations = unique([
+    ...(counts.pending ? ["Review pending memory packets before handoff."] : []),
+    ...(counts.stale ? ["Update, verify, supersede, or deprecate stale memory packets."] : []),
+    ...(counts.duplicates ? ["Merge or supersede duplicate memory packets."] : []),
+    ...(counts.missing_context ? ["Add structured why, verification, risk, and stale_when context to high-value packets."] : []),
+    ...(counts.validation_errors ? ["Fix validation errors before trusting recall."] : []),
+    ...(counts.validation_warnings ? ["Review validation warnings so memory remains source-grounded."] : []),
+  ]);
+
+  return {
+    schema_version: 1,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    ok: counts.pending === 0 && counts.stale === 0 && counts.duplicates === 0 && counts.validation_errors === 0,
+    counts,
+    items,
+    recommendations,
+  };
+}
+
 export function qualityReport(projectDir: string): QualityReport {
   ensureMemoryDirs(projectDir);
   const packets = [...loadPacketsFromDir(packetsDir(projectDir)), ...loadPacketsFromDir(pendingDir(projectDir))];
@@ -3800,17 +4441,59 @@ export function benchmarkProject(projectDir: string): BenchmarkReport {
   const metrics = kageMetricsShallow(projectDir);
   const quality = qualityReport(projectDir);
   const typeCoverage = quality.memory_type_coverage;
+  const recallHitRate = percent(scenarios.filter((scenario) => scenario.hit).length, scenarios.length);
+  const codeFlowCoverage = metrics.code_graph.files > 0 && metrics.code_graph.symbols > 0 ? 100 : 0;
+  const gates: BenchmarkReport["gates"] = [
+    {
+      name: "recall_hit_rate",
+      target: 60,
+      actual: recallHitRate,
+      unit: "percent",
+      pass: recallHitRate >= 60,
+      required: true,
+    },
+    {
+      name: "evidence_coverage",
+      target: 80,
+      actual: quality.evidence_coverage_percent,
+      unit: "percent",
+      pass: quality.evidence_coverage_percent >= 80,
+      required: true,
+    },
+    {
+      name: "useful_memory_ratio",
+      target: 70,
+      actual: quality.useful_memory_ratio_percent,
+      unit: "percent",
+      pass: quality.useful_memory_ratio_percent >= 70,
+      required: true,
+    },
+    {
+      name: "code_flow_coverage",
+      target: 100,
+      actual: codeFlowCoverage,
+      unit: "percent",
+      pass: codeFlowCoverage >= 100,
+      required: true,
+    },
+  ];
+  const gateScore = Math.round(
+    gates.reduce((sum, gate) => sum + Math.min(100, Math.round((gate.actual / Math.max(1, gate.target)) * 100)), 0) / gates.length
+  );
   return {
     schema_version: 1,
     project_dir: projectDir,
     generated_at: nowIso(),
+    ok: gates.filter((gate) => gate.required).every((gate) => gate.pass),
+    overall_score: gateScore,
+    gates,
     scenarios,
     pain_metrics: {
       setup_runbook_coverage_percent: typeCoverage.runbook ? 100 : 0,
       bug_fix_coverage_percent: typeCoverage.bug_fix ? 100 : 0,
       decision_coverage_percent: typeCoverage.decision ? 100 : 0,
-      code_flow_coverage_percent: metrics.code_graph.files > 0 && metrics.code_graph.symbols > 0 ? 100 : 0,
-      recall_hit_rate_percent: percent(scenarios.filter((scenario) => scenario.hit).length, scenarios.length),
+      code_flow_coverage_percent: codeFlowCoverage,
+      recall_hit_rate_percent: recallHitRate,
       estimated_rediscovery_avoided: scenarios.filter((scenario) => scenario.hit).length,
       estimated_tokens_saved: metrics.savings.estimated_tokens_saved_per_recall,
       time_to_first_use_seconds: metrics.harness.policy_installed ? 30 : 90,
@@ -3981,8 +4664,13 @@ function kageMetricsShallow(projectDir: string): KageMetrics {
 function inferLearningType(input: LearnInput): MemoryType {
   if (input.type) return input.type;
   const text = `${input.title ?? ""} ${input.learning}`.toLowerCase();
+  if (/(issue context|issue|hypothesis|blocked|unresolved|attempted fix)/.test(text)) return "issue_context";
   if (/(bug|fix|error|fail|failure|broken|regression)/.test(text)) return "bug_fix";
-  if (/(decided|decision|rationale|tradeoff|chose|choose)/.test(text)) return "decision";
+  if (/(code explanation|explains|data flow|invariant|coupling|module purpose)/.test(text)) return "code_explanation";
+  if (/(constraint|external requirement|legal|compliance|performance budget)/.test(text)) return "constraint";
+  if (/(negative result|tried|failed because|rejected)/.test(text)) return "negative_result";
+  if (/(decided|decision|tradeoff|chose|choose)/.test(text)) return "decision";
+  if (/(why|rationale|because)/.test(text)) return "rationale";
   if (/(run|command|setup|install|build|test|deploy)/.test(text)) return "runbook";
   if (/(convention|always|prefer|avoid|pattern)/.test(text)) return "convention";
   if (/(gotcha|careful|pitfall|surprise|watch out)/.test(text)) return "gotcha";
@@ -3992,6 +4680,63 @@ function inferLearningType(input: LearnInput): MemoryType {
 function titleFromLearning(learning: string): string {
   const sentence = learning.split(/[.!?]\s+/)[0]?.trim() || learning.trim();
   return sentence.slice(0, 90) || "Session learning";
+}
+
+const MEMORY_CONTEXT_FIELD_LABELS = [
+  "Fact",
+  "Decision",
+  "Why",
+  "Rationale",
+  "Because",
+  "When",
+  "Trigger",
+  "Action",
+  "Do",
+  "Use",
+  "Verified by",
+  "Verification",
+  "Evidence",
+  "Risk if forgotten",
+  "Risk",
+  "Stale when",
+  "Invalid when",
+  "Revisit when",
+  "Rejected alternatives",
+];
+
+function labeledMemoryField(text: string, labels: string[]): string | undefined {
+  const escaped = labels.map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  const allLabels = MEMORY_CONTEXT_FIELD_LABELS.map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  const match = text.match(new RegExp(`(?:^|\\n|\\b)(?:${escaped})\\s*:\\s*([\\s\\S]*?)(?=(?:\\s|\\n)+(?:${allLabels})\\s*:|$)`, "i"));
+  return match?.[1]?.trim().replace(/\s+$/, "");
+}
+
+function inferEngineeringContext(input: { title: string; body: string; context?: EngineeringMemoryContext }): EngineeringMemoryContext {
+  const body = input.body.trim();
+  const firstParagraph = body
+    .split(/\n\s*\n/)
+    .find((part) => !/^\s*(why|verified by|verification|risk if forgotten|stale when|trigger|action|rejected alternatives)\s*:/i.test(part))
+    ?.trim();
+  const context: EngineeringMemoryContext = {
+    fact: input.context?.fact ?? labeledMemoryField(body, ["Fact", "Decision"]) ?? firstParagraph ?? input.title,
+    why: input.context?.why ?? labeledMemoryField(body, ["Why", "Rationale", "Because"]),
+    trigger: input.context?.trigger ?? labeledMemoryField(body, ["When", "Trigger"]),
+    action: input.context?.action ?? labeledMemoryField(body, ["Action", "Do", "Use"]),
+    verification: input.context?.verification ?? labeledMemoryField(body, ["Verified by", "Verification", "Evidence"]),
+    risk_if_forgotten: input.context?.risk_if_forgotten ?? labeledMemoryField(body, ["Risk if forgotten", "Risk"]),
+    stale_when: input.context?.stale_when ?? labeledMemoryField(body, ["Stale when", "Invalid when", "Revisit when"]),
+    rejected_alternatives: input.context?.rejected_alternatives,
+  };
+  return Object.fromEntries(Object.entries(context).filter(([, value]) => Array.isArray(value) ? value.length : Boolean(value))) as EngineeringMemoryContext;
+}
+
+function engineeringContextFor(packet: MemoryPacket): EngineeringMemoryContext {
+  return inferEngineeringContext({ title: packet.title, body: packet.body, context: packet.context });
+}
+
+function hasStructuredEngineeringContext(packet: MemoryPacket): boolean {
+  const context = engineeringContextFor(packet);
+  return Boolean(context.why || context.verification || context.risk_if_forgotten || context.stale_when || context.trigger || context.action);
 }
 
 export function learn(input: LearnInput): LearnResult {
@@ -4012,6 +4757,7 @@ export function learn(input: LearnInput): LearnResult {
     tags: unique(["session-learning", ...(input.tags ?? [])]),
     paths: input.paths,
     stack: input.stack,
+    context: input.context,
   });
 }
 
@@ -4052,6 +4798,7 @@ export function capture(input: CaptureInput): CaptureResult {
         captured_at: createdAt,
       },
     ],
+    context: inferEngineeringContext({ title: input.title, body: input.body, context: input.context }),
     freshness: {
       ttl_days: 365,
       last_verified_at: createdAt,
@@ -4609,6 +5356,15 @@ function reusableFileObservation(event: ObservationRecord): string {
     "dispatch",
     "convention",
     "decision",
+    "rationale",
+    "root cause",
+    "issue",
+    "hypothesis",
+    "unresolved",
+    "code explanation",
+    "explains",
+    "data flow",
+    "invariant",
     "gotcha",
     "workflow",
     "runbook",
@@ -4678,9 +5434,20 @@ function reusablePromptObservation(event: ObservationRecord): string {
     "convention",
     "policy",
     "gotcha",
+    "bug",
+    "issue",
+    "issue context",
+    "hypothesis",
+    "unresolved",
+    "rationale",
+    "why:",
+    "because",
+    "code explanation",
+    "explains",
+    "data flow",
+    "root cause",
     "runbook",
     "workflow",
-    "root cause",
     "use this",
     "always",
     "never",
@@ -4688,7 +5455,7 @@ function reusablePromptObservation(event: ObservationRecord): string {
     "avoid",
   ];
   if (!durableSignals.some((signal) => lower.includes(signal))) return "";
-  if (/^(fix|build|create|implement|update|continue|show me|what is|why is|can you)\b/i.test(text) && !/(decision|convention|policy|gotcha|remember|prefer|avoid)/i.test(text)) return "";
+  if (/^(fix|build|create|implement|update|continue|show me|what is|why is|can you)\b/i.test(text) && !/(decision|convention|policy|gotcha|remember|prefer|avoid|bug|issue|hypothesis|rationale|because|root cause|code explanation|explains)/i.test(text)) return "";
   return text;
 }
 
@@ -4820,7 +5587,8 @@ function createDiffChangeMemory(projectDir: string, summary: BranchReviewSummary
     "",
     "Improve this packet when more context is known:",
     "- The actual feature, fix, or refactor rationale.",
-    "- The package, API, command, or architectural pattern future agents should reuse.",
+    "- Why the change was made, including relevant bugs, issues, decisions, and code explanations.",
+    "- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.",
     "- Any gotchas, follow-up risks, or branch-specific assumptions.",
     "",
     "Promote beyond this repo only after explicit org/global review.",
@@ -4851,6 +5619,15 @@ function createDiffChangeMemory(projectDir: string, summary: BranchReviewSummary
         summary_path: join(reviewDir(projectDir), `branch-summary-${slugify(branch)}.json`),
       },
     ],
+    context: {
+      fact: `Current branch ${branch} changes ${summary.changed_files.length} repo path${summary.changed_files.length === 1 ? "" : "s"}.`,
+      why: "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
+      trigger: "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
+      action: "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
+      verification: "Generated from git diff and refreshed by kage pr summarize or kage propose --from-diff.",
+      risk_if_forgotten: "Future agents may repeat orientation work, miss branch-specific assumptions, or ignore files touched by this change.",
+      stale_when: "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it.",
+    },
     freshness: {
       last_verified_at: now,
       ttl_days: 180,
@@ -5157,9 +5934,10 @@ function loadOrgInboxPackets(projectDir: string, org: string): MemoryPacket[] {
 
 function recallFromPackets(query: string, packets: MemoryPacket[], limit: number, label: string): RecallResult {
   const terms = tokenize(query);
+  const lexicalScores = scorePacketsBm25(terms, packets);
   const scored = packets
     .map((packet) => {
-      const { score, why } = scorePacket(terms, packet);
+      const { score, why } = lexicalScores.get(packet.id) ?? { score: 0, why: [] };
       return { packet, score, why_matched: why };
     })
     .filter((result) => result.score > 0)

@@ -29,10 +29,13 @@ Capture examples:
 - A bug cause and verified fix.
 - A convention future agents should follow.
 - A decision and its rationale.
+- Why code, architecture, product, or release behavior ended up this way.
+- A non-obvious issue state, failed approach, or code explanation.
 - A gotcha that caused rediscovery or wasted time.
 - A path-specific workflow or dependency relationship.
 
-Keep captures concise and future-facing. Do not store raw transcripts.
+Keep captures concise, source-backed, and useful for future understanding,
+decisions, debugging, explanation, or action. Do not store raw transcripts.
 
 ## End-Of-Task Proposal
 
