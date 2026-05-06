@@ -9,6 +9,20 @@ This package exposes two surfaces:
 
 ## Latest Release
 
+`1.1.15` hardens the npm release path and memory-only review flow:
+
+- `npm run release:npm:dry-run` runs the guarded release checks without
+  publishing.
+- `npm run release:npm` builds the release helper, requires a clean worktree,
+  fetches the remote branch, verifies local `HEAD` contains `origin/<branch>`,
+  runs tests and `npm pack --dry-run`, pushes the branch before publishing,
+  publishes with `--access public`, verifies npm registry metadata, and performs
+  a smoke install.
+- all git steps run with `GIT_EDITOR=true` so agent sessions cannot get stuck in
+  an interactive commit or rebase editor.
+- `kage propose --from-diff` now includes repo memory packet-only changes from
+  `.agent_memory/packets/*.json` and `.agent_memory/pending/*.json`.
+
 `1.1.14` publishes the memory/code graph trust and retrieval pass:
 
 - recall now uses vectorless BM25 lexical ranking with graph, path/type/tag,
@@ -40,7 +54,19 @@ This package exposes two surfaces:
 ```bash
 npm install
 npm run build
+npm run release:npm:dry-run
 ```
+
+Publishing from the repo should use the guarded release script after the release
+commit is ready:
+
+```bash
+npm run release:npm
+```
+
+The script fetches the current branch and blocks if the remote branch is not an
+ancestor of local `HEAD`, which prevents publishing an npm version from a branch
+that cannot be pushed cleanly.
 
 ## CLI
 

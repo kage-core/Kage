@@ -1,0 +1,68 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:release-1-1-15-adds-guarded-npm-release-flow-1778050457712",
+  "title": "Release 1.1.15 adds guarded npm release flow",
+  "summary": "Release 1.1.15 adds a guarded npm release helper and fixes memory only diff proposals. The release helper defaults to dry run unless publish is explicit, uses GIT EDITOR=true for git steps, fetches the current remote bra",
+  "body": "Release 1.1.15 adds a guarded npm release helper and fixes memory-only diff proposals. The release helper defaults to dry-run unless --publish is explicit, uses GIT_EDITOR=true for git steps, fetches the current remote branch, blocks when origin/<branch> is not an ancestor of HEAD, runs package tests and npm pack dry-run, can push before publish, verifies npm metadata, and can smoke install the published package. kage propose --from-diff now includes reviewable repo memory packet changes under .agent_memory/packets/*.json and .agent_memory/pending/*.json instead of filtering them as generated noise.\nEvidence: Implemented in mcp/release.ts and mcp/kernel.ts with regression coverage in mcp/release.test.ts and mcp/kernel.test.ts.\nVerified by: npm test --prefix mcp; npm --cache /private/tmp/kage-npm-cache pack --dry-run; npm view @kage-core/kage-graph-mcp version; npm view @kage-core/kage-graph-mcp@1.1.15 version returned 404 before publish",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "release",
+    "npm",
+    "workflow",
+    "propose",
+    "git"
+  ],
+  "paths": [
+    "mcp/release.ts",
+    "mcp/release.test.ts",
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts",
+    "mcp/package.json"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-06T06:54:17.712Z"
+    }
+  ],
+  "context": {
+    "fact": "Release 1.1.15 adds a guarded npm release helper and fixes memory-only diff proposals. The release helper defaults to dry-run unless --publish is explicit, uses GIT_EDITOR=true for git steps, fetches the current remote branch, blocks when origin/<branch> is not an ancestor of HEAD, runs package tests and npm pack dry-run, can push before publish, verifies npm metadata, and can smoke install the published package. kage propose --from-diff now includes reviewable repo memory packet changes under .agent_memory/packets/*.json and .agent_memory/pending/*.json instead of filtering them as generated noise.\nEvidence: Implemented in mcp/release.ts and mcp/kernel.ts with regression coverage in mcp/release.test.ts and mcp/kernel.test.ts.\nVerified by: npm test --prefix mcp; npm --cache /private/tmp/kage-npm-cache pack --dry-run; npm view @kage-core/kage-graph-mcp version; npm view @kage-core/kage-graph-mcp@1.1.15 version returned 404 before publish",
+    "verification": "Implemented in mcp/release.ts and mcp/kernel.ts with regression coverage in mcp/release.test.ts and mcp/kernel.test.ts."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-06T06:54:17.712Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 238
+  },
+  "created_at": "2026-05-06T06:54:17.712Z",
+  "updated_at": "2026-05-06T06:54:22.036Z"
+}
