@@ -1,0 +1,69 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:release-1-1-17-content-based-graph-freshness-1778054404602",
+  "title": "Release 1.1.17 content-based graph freshness",
+  "summary": "Release 1.1.17 publishes content based graph freshness for kage pr check. Graph artifacts use input hashes for source/config files, approved memory packets, and code index inputs, so push only operations and empty/same t",
+  "body": "Release 1.1.17 publishes content-based graph freshness for kage pr check. Graph artifacts use input hashes for source/config files, approved memory packets, and code-index inputs, so push-only operations and empty/same-tree commits no longer require another kage refresh while real content changes still stale generated graph artifacts.\nEvidence: Implemented in mcp/kernel.ts, documented in CHANGELOG.md and mcp/README.md, and versioned in mcp/package.json.\nVerified by: npm test --prefix mcp; npm --cache /private/tmp/kage-npm-cache pack --dry-run",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "release",
+    "npm",
+    "graph",
+    "refresh",
+    "pr-check"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts",
+    "mcp/package.json",
+    "mcp/package-lock.json",
+    "CHANGELOG.md",
+    "mcp/README.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-06T08:00:04.602Z"
+    }
+  ],
+  "context": {
+    "fact": "Release 1.1.17 publishes content-based graph freshness for kage pr check. Graph artifacts use input hashes for source/config files, approved memory packets, and code-index inputs, so push-only operations and empty/same-tree commits no longer require another kage refresh while real content changes still stale generated graph artifacts.\nEvidence: Implemented in mcp/kernel.ts, documented in CHANGELOG.md and mcp/README.md, and versioned in mcp/package.json.\nVerified by: npm test --prefix mcp; npm --cache /private/tmp/kage-npm-cache pack --dry-run",
+    "verification": "Implemented in mcp/kernel.ts, documented in CHANGELOG.md and mcp/README.md, and versioned in mcp/package.json."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-06T08:00:04.602Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 137
+  },
+  "created_at": "2026-05-06T08:00:04.602Z",
+  "updated_at": "2026-05-06T08:00:16.340Z"
+}
