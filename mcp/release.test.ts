@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { buildNpmReleasePlan, parseReleaseArgs } from "./release.js";
 
 test("release args default to a dry run unless publish is explicit", () => {
@@ -39,6 +40,8 @@ test("npm release plan preflights remote state and pushes before publish", () =>
   assert.equal(names.indexOf("push branch") < names.indexOf("publish package"), true);
   assert.equal(names.includes("verify npm version"), true);
   assert.equal(names.includes("smoke install published package"), true);
+  assert.equal(plan.find((step) => step.name === "verify npm version")?.retries, 10);
+  assert.equal(plan.find((step) => step.name === "verify npm version")?.retryDelayMs, 3000);
 
   const gitSteps = plan.filter((step) => step.command === "git");
   assert.equal(gitSteps.every((step) => step.env?.GIT_EDITOR === "true"), true);
@@ -55,4 +58,15 @@ test("npm release plan preflights remote state and pushes before publish", () =>
     "--access",
     "public",
   ]);
+});
+
+test("maintainer release helper is not exposed in public package metadata", () => {
+  const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
+    files?: string[];
+    scripts?: Record<string, string>;
+  };
+
+  assert.equal(pkg.scripts?.["release:npm"], undefined);
+  assert.equal(pkg.scripts?.["release:npm:dry-run"], undefined);
+  assert.equal(pkg.files?.includes("!dist/release.js"), true);
 });
