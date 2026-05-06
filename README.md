@@ -226,8 +226,8 @@ Kage on Kage itself:
 | Metric | Current |
 |---|---:|
 | Readiness | 100/100 |
-| Memory packets | 47 |
-| Memory graph edges | 3,863 |
+| Memory packets | 48 |
+| Memory graph edges | 3,962 |
 | Code files | 18 |
 | Symbols | 2,330 |
 
