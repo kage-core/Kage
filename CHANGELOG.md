@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.1.15 - 2026-05-06
+
+- Added a guarded npm release helper with remote preflight, non-interactive git
+  environment, package tests, pack dry-run, optional branch push, npm publish,
+  registry verification, and smoke install.
+- Fixed `kage propose --from-diff` so repo memory packet-only changes under
+  `.agent_memory/packets/*.json` and `.agent_memory/pending/*.json` are included
+  in branch review summaries instead of being filtered as generated noise.
+- Added regression coverage for the release workflow and memory-only/mixed
+  tracked-untracked diff proposals, bringing the package suite to 83 passing
+  tests.
+
 ## v1.1.14 - 2026-05-06
 
 - Added BM25 lexical recall ranking with intent-aware runbook/gotcha/decision

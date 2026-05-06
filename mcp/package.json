@@ -1,6 +1,6 @@
 {
   "name": "@kage-core/kage-graph-mcp",
-  "version": "1.1.14",
+  "version": "1.1.15",
   "description": "Local-first repo memory, code graph, and recall MCP server for coding agents",
   "main": "dist/index.js",
   "files": [
@@ -21,7 +21,9 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node index.ts",
-    "test": "npm run build && node --test dist/**/*.test.js"
+    "test": "npm run build && node --test dist/**/*.test.js",
+    "release:npm:dry-run": "npm run build && node dist/release.js --dry-run",
+    "release:npm": "npm run build && node dist/release.js --publish --push --smoke"
   },
   "keywords": [
     "mcp",

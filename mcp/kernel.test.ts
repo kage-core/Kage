@@ -1286,6 +1286,54 @@ test("diff proposal creates a branch review summary and repo-local change memory
   assert.equal(recall(project, "what changed runner npm test").results.some((item) => item.packet.id === result.packet!.id), true);
 });
 
+test("diff proposal includes repo memory packet-only changes", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  writeFileSync(join(project, "README.md"), "hello\n", "utf8");
+  execFileSync("git", ["add", "README.md"], { cwd: project, stdio: "ignore" });
+  execFileSync("git", ["commit", "-m", "initial"], {
+    cwd: project,
+    stdio: "ignore",
+    env: { ...process.env, GIT_AUTHOR_NAME: "Test", GIT_AUTHOR_EMAIL: "test@example.com", GIT_COMMITTER_NAME: "Test", GIT_COMMITTER_EMAIL: "test@example.com" },
+  });
+
+  const learned = learn({
+    projectDir: project,
+    title: "Release workflow gotcha",
+    learning: "Use GIT_EDITOR=true for non-interactive release rebases and fetch before npm publish.",
+    type: "gotcha",
+    tags: ["release", "npm"],
+    paths: ["README.md"],
+  });
+  assert.equal(learned.ok, true);
+
+  const result = proposeFromDiff(project);
+  assert.equal(result.ok, true);
+  assert.equal(result.changedFiles.some((path) => path.startsWith(".agent_memory/packets/")), true);
+  assert.equal(result.packet?.paths.some((path) => path.startsWith(".agent_memory/packets/")), true);
+  assert.match(result.summary?.diff_stat ?? "", /\.agent_memory\/packets\//);
+});
+
+test("diff proposal stat includes untracked files alongside tracked diffs", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "README.md"), "hello\n", "utf8");
+  execFileSync("git", ["add", "README.md"], { cwd: project, stdio: "ignore" });
+  execFileSync("git", ["commit", "-m", "initial"], {
+    cwd: project,
+    stdio: "ignore",
+    env: { ...process.env, GIT_AUTHOR_NAME: "Test", GIT_AUTHOR_EMAIL: "test@example.com", GIT_COMMITTER_NAME: "Test", GIT_COMMITTER_EMAIL: "test@example.com" },
+  });
+  writeFileSync(join(project, "README.md"), "hello again\n", "utf8");
+  writeFileSync(join(project, "src", "new-release.ts"), "export const release = true;\n", "utf8");
+
+  const result = proposeFromDiff(project);
+  assert.equal(result.ok, true);
+  assert.match(result.summary?.diff_stat ?? "", /README\.md/);
+  assert.match(result.summary?.diff_stat ?? "", /src\/new-release\.ts/);
+});
+
 test("refresh rebuilds graphs and marks path-drifted memory stale", () => {
   const project = tempProject();
   execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });

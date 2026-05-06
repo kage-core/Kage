@@ -3,7 +3,7 @@
   "id": "repo:https-github-com-kage-core-kage:repo_map:kage-repo-structure-auto-structure",
   "title": "Kage repo structure",
   "summary": "Detected repo structure: README.md, CLAUDE.md, AGENTS.md, .github/workflows, mcp. CI workflows: .github/workflows/ci.yml, .github/workflows/claude.yml, .github/workflows/kage pr.yml, .github/workflows/kage sync.yml, .git",
-  "body": "Detected repo structure: README.md, CLAUDE.md, AGENTS.md, .github/workflows, mcp.\nCI workflows: .github/workflows/ci.yml, .github/workflows/claude.yml, .github/workflows/kage-pr.yml, .github/workflows/kage-sync.yml, .github/workflows/pages.yml, .github/workflows/release.yml.\nTest files: mcp/dist/kernel.test.js, mcp/dist/mcp.test.js, mcp/dist/registry.test.js, mcp/kernel.test.ts, mcp/mcp.test.ts, mcp/registry.test.ts.\nThis packet is generated and should be treated as a navigation aid, not deep semantic understanding.",
+  "body": "Detected repo structure: README.md, CLAUDE.md, AGENTS.md, .github/workflows, mcp.\nCI workflows: .github/workflows/ci.yml, .github/workflows/claude.yml, .github/workflows/kage-pr.yml, .github/workflows/kage-sync.yml, .github/workflows/pages.yml, .github/workflows/release.yml.\nTest files: mcp/dist/kernel.test.js, mcp/dist/mcp.test.js, mcp/dist/registry.test.js, mcp/dist/release.test.js, mcp/kernel.test.ts, mcp/mcp.test.ts, mcp/registry.test.ts, mcp/release.test.ts.\nThis packet is generated and should be treated as a navigation aid, not deep semantic understanding.",
   "type": "repo_map",
   "scope": "repo",
   "visibility": "team",
@@ -68,5 +68,5 @@
     "reports_stale": 0
   },
   "created_at": "2026-05-03T07:45:37.669Z",
-  "updated_at": "2026-05-06T02:49:22.747Z"
+  "updated_at": "2026-05-06T06:54:21.386Z"
 }

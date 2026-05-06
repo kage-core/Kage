@@ -1683,7 +1683,12 @@ const NOISE_PATH_PREFIXES = [
   "elm-stuff/",
 ];
 
+function isReviewableMemoryPath(filePath: string): boolean {
+  return /^\.agent_memory\/(?:packets|pending)\/[^/]+\.json$/.test(filePath);
+}
+
 function isNoisePath(filePath: string): boolean {
+  if (isReviewableMemoryPath(filePath)) return false;
   return NOISE_PATH_PREFIXES.some((prefix) => filePath.startsWith(prefix));
 }
 
@@ -1703,7 +1708,28 @@ function parsePorcelainPath(line: string): string {
   return raw.trim();
 }
 
+function branchDiffStat(projectDir: string, changedFiles: string[]): string {
+  const diffStats = [
+    readGit(projectDir, ["diff", "--stat"]),
+    readGit(projectDir, ["diff", "--cached", "--stat"]),
+  ].filter(Boolean).join("\n").trim();
+  const untracked = new Set(
+    (readGit(projectDir, ["ls-files", "--others", "--exclude-standard"]) ?? "")
+      .split(/\r?\n/)
+      .map((path) => path.trim())
+      .filter(Boolean)
+      .filter((path) => changedFiles.includes(path))
+  );
+  const untrackedStats = [...untracked]
+    .filter((file) => !diffStats.includes(file))
+    .map((file) => `${file} | untracked`)
+    .join("\n");
+  return [diffStats, untrackedStats].filter(Boolean).join("\n").trim()
+    || changedFiles.map((file) => `${file} | changed`).join("\n");
+}
+
 function shouldSkipRepoMemoryPath(relativePath: string): boolean {
+  if (isReviewableMemoryPath(relativePath)) return false;
   return isNoisePath(relativePath) || shouldSkipCodePath(relativePath);
 }
 
@@ -5661,7 +5687,7 @@ export function proposeFromDiff(projectDir: string): DiffProposalResult {
   const changedFiles = parsePorcelainStatus(status);
   if (changedFiles.length === 0) return { ok: false, changedFiles: [], errors: ["No changed files found."] };
 
-  const stat = readGit(projectDir, ["diff", "--stat"]) || "Untracked or staged files changed; inspect git status for details.";
+  const stat = branchDiffStat(projectDir, changedFiles);
   const branch = gitBranch(projectDir);
   const summary: BranchReviewSummary = {
     schema_version: 1,
