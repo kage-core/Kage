@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:init-uses-packet-only-bootstrap-refresh-builds-full-graphs-1778261051194",
+  "title": "Init uses packet-only bootstrap; refresh builds full graphs",
+  "summary": "kage init should prioritize fast first use: install policy/settings, migrate or generate repo memory packets, write lightweight packet indexes, and use packet only recall for the preview. It must not build the full knowl",
+  "body": "kage init should prioritize fast first use: install policy/settings, migrate or generate repo memory packets, write lightweight packet indexes, and use packet-only recall for the preview. It must not build the full knowledge graph or code graph during init. kage index, kage refresh, doctor, and normal recall remain the full graph-building paths. Tradeoff: after init, validation/doctor may report graph/code-graph indexes missing until the user runs refresh or index.\nEvidence: Implemented by adding packet-only index building and calling indexProject(project, { graphs: false }) from initProject in mcp/kernel.ts; covered by mcp/kernel.test.ts asserting init does not create graph.json or code_graph/graph.json.\nVerified by: npm test --prefix mcp",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "init",
+    "indexing",
+    "performance",
+    "ux"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-08T17:24:11.194Z"
+    }
+  ],
+  "context": {
+    "fact": "kage init should prioritize fast first use: install policy/settings, migrate or generate repo memory packets, write lightweight packet indexes, and use packet-only recall for the preview. It must not build the full knowledge graph or code graph during init. kage index, kage refresh, doctor, and normal recall remain the full graph-building paths. Tradeoff: after init, validation/doctor may report graph/code-graph indexes missing until the user runs refresh or index.\nEvidence: Implemented by adding packet-only index building and calling indexProject(project, { graphs: false }) from initProject in mcp/kernel.ts; covered by mcp/kernel.test.ts asserting init does not create graph.json or code_graph/graph.json.\nVerified by: npm test --prefix mcp",
+    "action": "install policy/settings, migrate or generate repo memory packets, write lightweight packet indexes, and use packet-only recall for the preview. It must not build the full knowledge graph or code graph during init. kage index, kage refresh, doctor, and normal recall remain the full graph-building paths. Tradeoff: after init, validation/doctor may report graph/code-graph indexes missing until the user runs refresh or index.",
+    "verification": "Implemented by adding packet-only index building and calling indexProject(project, { graphs: false }) from initProject in mcp/kernel.ts; covered by mcp/kernel.test.ts asserting init does not create graph.json or code_graph/graph.json."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-08T17:24:11.194Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 188
+  },
+  "created_at": "2026-05-08T17:24:11.194Z",
+  "updated_at": "2026-05-08T17:24:24.934Z"
+}

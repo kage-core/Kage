@@ -9,6 +9,19 @@ This package exposes two surfaces:
 
 ## Latest Release
 
+`1.1.18` publishes the end-to-end performance pass:
+
+- read-only commands reuse current graph artifacts instead of rebuilding them
+  when inputs are fresh.
+- MCP sessions keep an in-process graph cache, so repeated agent calls do not
+  keep reparsing the same graph JSON.
+- `kage refresh` reports lightweight freshness metrics and leaves deep
+  benchmark/quality work to explicit `kage metrics` and `kage benchmark` calls.
+- recall builds graph lookup maps once per query instead of scanning all graph
+  entities and edges for every memory packet.
+- `kage init` remains a packet-only bootstrap path; full graph generation stays
+  with `kage refresh` and `kage index`.
+
 `1.1.17` publishes content-based graph freshness:
 
 - `kage pr check` now uses graph input hashes, so push-only operations and

@@ -1,0 +1,63 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:refresh-reuses-graph-builds-and-stays-lightweight-1778261859020",
+  "title": "Refresh reuses graph builds and stays lightweight",
+  "summary": "Refresh should reuse the code and knowledge graph objects produced during indexing and report lightweight metrics only. Full quality and benchmark calculations belong in the explicit metrics or benchmark commands because",
+  "body": "Refresh should reuse the code and knowledge graph objects produced during indexing and report lightweight metrics only. Full quality and benchmark calculations belong in the explicit metrics or benchmark commands because running them inside refresh multiplies graph rebuilds and recall work.\nVerified by: npm test --prefix mcp; /usr/bin/time -p node mcp/dist/cli.js refresh --project . --json",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "performance",
+    "refresh",
+    "indexing"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-08T17:37:39.020Z"
+    }
+  ],
+  "context": {
+    "fact": "Refresh should reuse the code and knowledge graph objects produced during indexing and report lightweight metrics only. Full quality and benchmark calculations belong in the explicit metrics or benchmark commands because running them inside refresh multiplies graph rebuilds and recall work.\nVerified by: npm test --prefix mcp; /usr/bin/time -p node mcp/dist/cli.js refresh --project . --json",
+    "verification": "npm test --prefix mcp; /usr/bin/time -p node mcp/dist/cli.js refresh --project . --json"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-08T17:37:39.020Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 98
+  },
+  "created_at": "2026-05-08T17:37:39.020Z",
+  "updated_at": "2026-05-08T17:37:44.408Z"
+}

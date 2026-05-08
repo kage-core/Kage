@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import vm from "node:vm";
@@ -11,6 +11,7 @@ import {
   benchmarkProject,
   buildGlobalCdnBundle,
   buildCodeGraph,
+  buildIndexes,
   buildKnowledgeGraph,
   buildBranchOverlay,
   buildMarketplace,
@@ -23,6 +24,7 @@ import {
   doctorProject,
   exportPublicBundle,
   exportOrgRegistry,
+  codeGraphDir,
   graphDir,
   graphMermaid,
   gcProject,
@@ -183,6 +185,39 @@ test("recall returns run command context from repo overview", () => {
   assert.equal(result.results.length > 0, true);
 });
 
+test("recall reuses current graph artifacts without rewriting them", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ scripts: { test: "node --test" } }), "utf8");
+  writeFileSync(join(project, "src", "runner.js"), "export function run() { return 'ok'; }\n", "utf8");
+  const captured = capture({
+    projectDir: project,
+    title: "Run tests",
+    body: "Run tests with npm test. Verified by package scripts.",
+    type: "runbook",
+    paths: ["package.json"],
+    tags: ["tests"],
+  });
+  assert.equal(captured.ok, true);
+  buildIndexes(project);
+
+  const codeGraphPath = join(codeGraphDir(project), "graph.json");
+  const memoryGraphPath = join(graphDir(project), "graph.json");
+  const codeGraph = JSON.parse(readFileSync(codeGraphPath, "utf8"));
+  const memoryGraph = JSON.parse(readFileSync(memoryGraphPath, "utf8"));
+  codeGraph.generated_at = "sentinel-code";
+  memoryGraph.generated_at = "sentinel-memory";
+  writeFileSync(codeGraphPath, JSON.stringify(codeGraph, null, 2), "utf8");
+  writeFileSync(memoryGraphPath, JSON.stringify(memoryGraph, null, 2), "utf8");
+
+  const result = recall(project, "how do I run tests");
+
+  assert.equal(result.results[0]?.packet.title, "Run tests");
+  assert.equal(JSON.parse(readFileSync(codeGraphPath, "utf8")).generated_at, "sentinel-code");
+  assert.equal(JSON.parse(readFileSync(memoryGraphPath, "utf8")).generated_at, "sentinel-memory");
+});
+
 test("recall uses BM25 lexical ranking for repeated body evidence", () => {
   const project = tempProject();
   capture({
@@ -317,6 +352,92 @@ test('createApp routes tasks', () => createApp());
   assert.equal(graph.routes.some((route) => route.method === "GET" && route.path === "/tasks"), true);
   assert.equal(graph.calls.some((call) => call.to_symbol.includes("createtaskstore")), true);
   assert.equal(graph.tests.some((edge) => edge.covers_symbol === "createApp"), true);
+});
+
+test("code graph skips huge source blobs during first-run indexing", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "small.js"), "export function small() { return true; }\n", "utf8");
+  writeFileSync(join(project, "src", "bundle.js"), `export const blob = "${"x".repeat(600_000)}";\n`, "utf8");
+
+  const graph = buildCodeGraph(project);
+
+  assert.equal(graph.files.some((file) => file.path === "src/small.js"), true);
+  assert.equal(graph.files.some((file) => file.path === "src/bundle.js"), false);
+  const manifest = JSON.parse(readFileSync(join(project, ".agent_memory", "code_graph", "index-manifest.json"), "utf8"));
+  assert.equal(manifest.coverage.indexed_files, 1);
+  assert.equal(manifest.coverage.deferred_files, 1);
+  assert.equal(manifest.deferred_files[0].path, "src/bundle.js");
+  assert.equal(manifest.deferred_files[0].reason, "over_quick_file_size_limit");
+});
+
+test("code graph caps noisy call extraction", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  const functions = Array.from({ length: 360 }, (_, index) => `export function target${index}() { return ${index}; }`).join("\n");
+  const calls = Array.from({ length: 360 }, (_, index) => `  target${index}();`).join("\n");
+  writeFileSync(join(project, "src", "calls.js"), `${functions}\nexport function run() {\n${calls}\n}\n`, "utf8");
+
+  const graph = buildCodeGraph(project);
+
+  assert.equal(graph.calls.length <= 250, true);
+});
+
+test("code graph records deferred files when quick index file budget is exhausted", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  for (let index = 0; index < 2003; index++) {
+    writeFileSync(join(project, "src", `unit-${String(index).padStart(4, "0")}.js`), `export const value${index} = ${index};\n`, "utf8");
+  }
+
+  const graph = buildCodeGraph(project);
+  const manifest = JSON.parse(readFileSync(join(project, ".agent_memory", "code_graph", "index-manifest.json"), "utf8"));
+
+  assert.equal(graph.files.length, 2000);
+  assert.equal(manifest.coverage.indexable_files, 2003);
+  assert.equal(manifest.coverage.indexed_files, 2000);
+  assert.equal(manifest.coverage.deferred_files, 3);
+  assert.equal(manifest.coverage.coverage_percent, 100);
+  assert.equal(manifest.coverage.complete, false);
+  assert.equal(manifest.deferred_files.every((file: { reason: string }) => file.reason === "over_quick_file_count_limit"), true);
+});
+
+test("code graph reuses per-file cached facts until source content changes", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "worker.ts"), "export function work() { return 1; }\n", "utf8");
+
+  buildCodeGraph(project);
+  const cacheDir = join(project, ".agent_memory", "code_graph", "file-cache");
+  const cachePath = join(cacheDir, readdirSync(cacheDir).find((name) => name.includes("src-worker-ts")) ?? "");
+  const cached = JSON.parse(readFileSync(cachePath, "utf8"));
+  cached.symbols.push({
+    id: "symbol:src-worker-ts:function:cache-only:99",
+    name: "cacheOnly",
+    kind: "function",
+    path: "src/worker.ts",
+    language: "typescript",
+    parser: "typescript-ast",
+    export: true,
+    line: 99,
+    end_line: null,
+    signature: "cacheOnly()",
+  });
+  writeFileSync(cachePath, JSON.stringify(cached, null, 2), "utf8");
+
+  const cachedGraph = buildCodeGraph(project);
+  const cachedManifest = JSON.parse(readFileSync(join(project, ".agent_memory", "code_graph", "index-manifest.json"), "utf8"));
+  assert.equal(cachedGraph.symbols.some((symbol) => symbol.name === "cacheOnly"), true);
+  assert.equal(cachedManifest.cache.hits, 1);
+  assert.equal(cachedManifest.cache.misses, 0);
+
+  writeFileSync(join(project, "src", "worker.ts"), "export function workChanged() { return 2; }\n", "utf8");
+  const changedGraph = buildCodeGraph(project);
+  const changedManifest = JSON.parse(readFileSync(join(project, ".agent_memory", "code_graph", "index-manifest.json"), "utf8"));
+  assert.equal(changedGraph.symbols.some((symbol) => symbol.name === "cacheOnly"), false);
+  assert.equal(changedGraph.symbols.some((symbol) => symbol.name === "workChanged"), true);
+  assert.equal(changedManifest.cache.hits, 0);
+  assert.equal(changedManifest.cache.misses, 1);
 });
 
 test("builds a multi-language code graph with generic static extractors", () => {
@@ -1090,10 +1211,13 @@ test("init and doctor expose first-run health and recall preview", () => {
   const init = initProject(project);
   assert.equal(init.validation.ok, true);
   assert.match(init.sampleRecall.context_block, /vitest|test/i);
+  assert.equal(init.index.indexes.some((path) => path.endsWith("indexes/catalog.json")), true);
+  assert.equal(existsSync(join(project, ".agent_memory", "code_graph", "graph.json")), false);
+  assert.equal(existsSync(join(project, ".agent_memory", "graph", "graph.json")), false);
 
   const doctor = doctorProject(project);
   assert.equal(doctor.validation.ok, true);
-  assert.equal(doctor.indexesMissing.length, 0);
+  assert.equal(doctor.indexesMissing.includes("code-graph.json"), true);
   assert.equal(doctor.graphEntities > 0, true);
   assert.equal(doctor.graphEdges > 0, true);
   assert.match(doctor.sampleRecall, /Kage Context/);
@@ -1370,6 +1494,24 @@ test("refresh rebuilds graphs and marks path-drifted memory stale", () => {
   assert.ok(packet);
   assert.equal(packet.quality.stale, true);
   assert.match((packet.quality.stale_reasons as string[]).join(" "), /missing/);
+});
+
+test("refresh uses lightweight metrics and leaves benchmarks to metrics command", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "node --test" } }), "utf8");
+  writeFileSync(join(project, "src", "runner.js"), "export function run() { return 'ok'; }\n", "utf8");
+
+  const refresh = refreshProject(project);
+  assert.equal(refresh.ok, true);
+  assert.equal(refresh.metrics.pain, undefined);
+  assert.equal(refresh.metrics.quality, undefined);
+  assert.equal(refresh.metrics.code_graph.files > 0, true);
+
+  const metrics = kageMetrics(project);
+  assert.ok(metrics.pain);
+  assert.ok(metrics.quality);
 });
 
 test("gc deprecates stale packets by exact packet file path", () => {

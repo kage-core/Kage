@@ -1,0 +1,64 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:code-graph-reuses-per-file-facts-by-content-hash-1778258781235",
+  "title": "Code graph reuses per-file facts by content hash",
+  "summary": "Kage code graph generation should cache per file extracted facts under .agent memory/code graph/file cache keyed by the file content hash. Unchanged files reuse cached file metadata, symbols, and imports; changed files m",
+  "body": "Kage code graph generation should cache per-file extracted facts under .agent_memory/code_graph/file-cache keyed by the file content hash. Unchanged files reuse cached file metadata, symbols, and imports; changed files miss the cache and regenerate facts. The cache is an internal performance layer, not durable memory, and global call edges still rebuild so cross-file relationships do not go stale. Manifest and metrics should expose cache_hits and cache_misses.\nEvidence: Implemented in mcp/kernel.ts with FileCodeFacts cache helpers and CodeIndexManifest cache counters; covered by mcp/kernel.test.ts test 'code graph reuses per-file cached facts until source content changes'.\nVerified by: npm test --prefix mcp",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "indexing",
+    "performance",
+    "code-graph",
+    "large-repo"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-08T16:46:21.235Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage code graph generation should cache per-file extracted facts under .agent_memory/code_graph/file-cache keyed by the file content hash. Unchanged files reuse cached file metadata, symbols, and imports; changed files miss the cache and regenerate facts. The cache is an internal performance layer, not durable memory, and global call edges still rebuild so cross-file relationships do not go stale. Manifest and metrics should expose cache_hits and cache_misses.\nEvidence: Implemented in mcp/kernel.ts with FileCodeFacts cache helpers and CodeIndexManifest cache counters; covered by mcp/kernel.test.ts test 'code graph reuses per-file cached facts until source content changes'.\nVerified by: npm test --prefix mcp",
+    "verification": "Implemented in mcp/kernel.ts with FileCodeFacts cache helpers and CodeIndexManifest cache counters; covered by mcp/kernel.test.ts test 'code graph reuses per-file cached facts until source content changes'."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-08T16:46:21.235Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 179
+  },
+  "created_at": "2026-05-08T16:46:21.235Z",
+  "updated_at": "2026-05-08T16:46:36.606Z"
+}

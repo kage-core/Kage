@@ -112,6 +112,7 @@
   };
 
   var MEMORY_CODE_RELATIONS = new Set(["explains_symbol", "informs_symbol", "fixes_symbol", "applies_to_route", "verified_by_test", "affects_path"]);
+  var INSPECTOR_CONNECTION_LIMIT = 8;
 
   els.graphFile.addEventListener("change", handleFile);
   els.searchInput.addEventListener("input", scheduleRender);
@@ -1373,6 +1374,97 @@
     els.selectionDetails.appendChild(title);
     els.selectionDetails.appendChild(kind);
     els.selectionDetails.appendChild(rows);
+    renderInspectorConnections(item);
+  }
+
+  function renderInspectorConnections(item) {
+    if (state.selected.kind !== "entity") {
+      if (item && isMemoryCodeEdge(item)) {
+        els.selectionDetails.appendChild(detailSection("Memory-Code Link", [
+          connectionText(item, state.entityById.get(item.from), state.entityById.get(item.to))
+        ], 0));
+      }
+      return;
+    }
+
+    var links = memoryCodeConnections(item.id);
+    if (!links.length) return;
+    var rows = links.slice(0, INSPECTOR_CONNECTION_LIMIT).map(function (link) {
+      return connectionText(link.edge, item, link.other);
+    });
+    els.selectionDetails.appendChild(detailSection("Memory-Code Evidence", rows, links.length - rows.length));
+  }
+
+  function memoryCodeConnections(entityId) {
+    return state.edges
+      .filter(function (edge) { return isMemoryCodeEdge(edge) && (edge.from === entityId || edge.to === entityId); })
+      .map(function (edge) {
+        var otherId = edge.from === entityId ? edge.to : edge.from;
+        return { edge: edge, other: state.entityById.get(otherId) };
+      })
+      .filter(function (link) { return Boolean(link.other); })
+      .sort(function (a, b) {
+        return connectionImportance(b) - connectionImportance(a) ||
+          displayName(a.other).localeCompare(displayName(b.other));
+      });
+  }
+
+  function isMemoryCodeEdge(edge) {
+    return Boolean(edge && (edge.memory_code_link || isMemoryCodeRelation(edge.relation)));
+  }
+
+  function connectionImportance(link) {
+    var relation = String(link.edge.relation || "");
+    var score = entityImportance(link.other);
+    if (["fixes_symbol", "verified_by_test"].indexOf(relation) !== -1) score += 36;
+    if (["explains_symbol", "applies_to_route"].indexOf(relation) !== -1) score += 24;
+    if (link.other.graph_kind === "memory") score += 18;
+    return score;
+  }
+
+  function connectionText(edge, selected, other) {
+    var from = state.entityById.get(edge.from);
+    var to = state.entityById.get(edge.to);
+    var peer = other || (selected && selected.id === edge.from ? to : from);
+    var label = peer ? displayName(peer) : displayName(from) + " -> " + displayName(to);
+    var meta = [edge.relation || "related", peer && (peer.graph_kind || peer.type)].filter(Boolean).join(" | ");
+    return {
+      label: label,
+      meta: meta,
+      body: edge.fact || "",
+      edge: edge,
+      entity: peer
+    };
+  }
+
+  function detailSection(title, items, hiddenCount) {
+    var section = document.createElement("section");
+    section.className = "detail-section";
+    var heading = document.createElement("div");
+    heading.className = "detail-section-title";
+    heading.textContent = title;
+    section.appendChild(heading);
+    items.forEach(function (item) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "detail-link";
+      button.innerHTML = "<span class=\"detail-link-title\"></span><span class=\"detail-link-meta\"></span><span class=\"detail-link-body\"></span>";
+      button.querySelector(".detail-link-title").textContent = item.label;
+      button.querySelector(".detail-link-meta").textContent = item.meta;
+      button.querySelector(".detail-link-body").textContent = item.body;
+      button.addEventListener("click", function () {
+        state.selected = item.entity ? { kind: "entity", id: item.entity.id } : { kind: "edge", id: item.edge.id };
+        render();
+      });
+      section.appendChild(button);
+    });
+    if (hiddenCount > 0) {
+      var more = document.createElement("div");
+      more.className = "detail-more";
+      more.textContent = "+" + hiddenCount + " more connected items hidden to keep the graph readable.";
+      section.appendChild(more);
+    }
+    return section;
   }
 
   function detailRow(label, value) {
@@ -1727,7 +1819,6 @@
     var node = findCanvasNode(world.x, world.y);
     if (!node) return;
     state.selected = { kind: "entity", id: node.id };
-    els.scopeFilter.value = "focus";
     render();
   }
 

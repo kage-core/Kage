@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.1.18 - 2026-05-08
+
+- Made user-facing indexing and recall paths faster by reusing current graph
+  artifacts for read-only commands instead of rebuilding and rewriting them.
+- Added in-process graph reuse for MCP sessions, lightweight refresh metrics,
+  per-file code fact caching, bounded quick indexing, and packet-only init so
+  Kage does not block first use on larger repos.
+- Changed recall graph scoring to build lookup maps once per query instead of
+  scanning all graph entities and edges for every memory packet.
+- Updated the viewer to hide unreadable raw full-graph scopes and show capped
+  memory-code evidence in the inspector.
+
 ## v1.1.17 - 2026-05-06
 
 - Changed PR graph freshness from commit-HEAD matching to content/input

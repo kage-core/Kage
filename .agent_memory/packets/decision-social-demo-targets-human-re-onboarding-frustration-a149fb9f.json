@@ -1,0 +1,68 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:social-demo-targets-human-re-onboarding-frustration-1778056309022",
+  "title": "Social demo targets human re-onboarding frustration",
+  "summary": "The Kage social demo should use doodle characters to show the human repeating repo-context bedtime stories to fresh AI agents until Kage makes the repo remember and the agent starts working on its own.",
+  "body": "The Kage social demo should be a doodle-character meme, not a graph-heavy product explainer or photoreal trailer. The story is: every time the human tries to ship work, a tiny clueless agent asks a dumb repo-context question; the human repeats the same 'once upon a time in the repo' storybook; Kage stamps runbooks, decisions, bug fixes, paths, tests, and why into repo memory; the next agent recalls context and starts working without asking stupid questions; the human realizes the child has grown.\nEvidence: Implemented in scripts/render-social-demo.mjs with rendered assets docs/assets/kage-social-demo.mp4 and docs/assets/kage-social-demo-poster.png, plus script notes in docs/SOCIAL_DEMO_SCRIPT.md.\nVerified by: node --check scripts/render-social-demo.mjs; node scripts/render-social-demo.mjs rendered a 1600x900, 65.00s MP4",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "demo",
+    "marketing",
+    "video",
+    "social",
+    "linkedin",
+    "x"
+  ],
+  "paths": [
+    "scripts/render-social-demo.mjs",
+    "docs/SOCIAL_DEMO_SCRIPT.md",
+    "docs/assets/kage-social-demo.mp4",
+    "docs/assets/kage-social-demo-poster.png"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-06T08:31:49.022Z"
+    }
+  ],
+  "context": {
+    "fact": "The Kage social demo should be a doodle-character meme, not a graph-heavy product explainer or photoreal trailer. The story is: every time the human tries to ship work, a tiny clueless agent asks a dumb repo-context question; the human repeats the same 'once upon a time in the repo' storybook; Kage stamps runbooks, decisions, bug fixes, paths, tests, and why into repo memory; the next agent recalls context and starts working without asking stupid questions; the human realizes the child has grown.\nEvidence: Implemented in scripts/render-social-demo.mjs with rendered assets docs/assets/kage-social-demo.mp4 and docs/assets/kage-social-demo-poster.png, plus script notes in docs/SOCIAL_DEMO_SCRIPT.md.\nVerified by: node --check scripts/render-social-demo.mjs; node scripts/render-social-demo.mjs rendered a 1600x900, 65.00s MP4",
+    "verification": "Implemented in scripts/render-social-demo.mjs with rendered assets docs/assets/kage-social-demo.mp4 and docs/assets/kage-social-demo-poster.png, plus script notes in docs/SOCIAL_DEMO_SCRIPT.md."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-06T08:31:49.022Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 186
+  },
+  "created_at": "2026-05-06T08:31:49.022Z",
+  "updated_at": "2026-05-06T08:31:55.418Z"
+}
