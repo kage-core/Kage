@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import vm from "node:vm";
@@ -424,6 +424,7 @@ test("code graph reuses per-file cached facts until source content changes", () 
     signature: "cacheOnly()",
   });
   writeFileSync(cachePath, JSON.stringify(cached, null, 2), "utf8");
+  unlinkSync(join(project, ".agent_memory", "code_graph", "graph.json"));
 
   const cachedGraph = buildCodeGraph(project);
   const cachedManifest = JSON.parse(readFileSync(join(project, ".agent_memory", "code_graph", "index-manifest.json"), "utf8"));
@@ -438,6 +439,27 @@ test("code graph reuses per-file cached facts until source content changes", () 
   assert.equal(changedGraph.symbols.some((symbol) => symbol.name === "workChanged"), true);
   assert.equal(changedManifest.cache.hits, 0);
   assert.equal(changedManifest.cache.misses, 1);
+});
+
+test("code graph returns cached graph when source stat fingerprint is unchanged", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "worker.ts"), "export function work() { return 1; }\n", "utf8");
+
+  const first = buildCodeGraph(project);
+  const graphPath = join(codeGraphDir(project), "graph.json");
+  const graphJson = JSON.parse(readFileSync(graphPath, "utf8"));
+  graphJson.generated_at = "sentinel-code-graph";
+  writeFileSync(graphPath, JSON.stringify(graphJson, null, 2), "utf8");
+
+  const second = buildCodeGraph(project);
+  const manifest = JSON.parse(readFileSync(join(codeGraphDir(project), "index-manifest.json"), "utf8"));
+
+  assert.equal(second.generated_at, "sentinel-code-graph");
+  assert.equal(second.files.length, first.files.length);
+  assert.equal(manifest.cache.hits, 1);
+  assert.equal(manifest.cache.misses, 0);
+  assert.equal(typeof manifest.fingerprint, "string");
 });
 
 test("builds a multi-language code graph with generic static extractors", () => {

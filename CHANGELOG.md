@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Added a persisted code graph stat fingerprint so repeated `kage refresh`
+  calls on unchanged large repos can reuse the existing code graph without
+  rereading and rehashing all selected source files.
+- Kept the content-hash rebuild path for changed files and missing/stale graph
+  artifacts.
+
 ## v1.1.18 - 2026-05-08
 
 - Made user-facing indexing and recall paths faster by reusing current graph

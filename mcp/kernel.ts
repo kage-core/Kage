@@ -680,6 +680,7 @@ export interface CodeIndexManifest {
     hits: number;
     misses: number;
   };
+  fingerprint?: string;
   deferred_files: CodeIndexManifestFile[];
   ignored_summary: Record<string, number>;
 }
@@ -2363,6 +2364,35 @@ function listCodeFiles(projectDir: string): string[] {
   return codeIndexSelection(projectDir).files;
 }
 
+function codeGraphStatFingerprint(projectDir: string, absoluteFiles: string[]): string {
+  const entries = [
+    ...absoluteFiles,
+    ...externalIndexFiles(projectDir).map((index) => index.path),
+    ...["package.json", "requirements.txt", "go.mod", "Cargo.toml"]
+      .map((path) => join(projectDir, path))
+      .filter((path) => existsSync(path)),
+  ]
+    .filter((path) => existsSync(path))
+    .map((path) => {
+      const stats = statSync(path);
+      return `${projectRelative(projectDir, path)}:${stats.size}:${Math.round(stats.mtimeMs)}`;
+    })
+    .sort();
+  return sha256Hex(entries.join("\n"));
+}
+
+function readCachedCodeGraph(projectDir: string, fingerprint: string): CodeGraph | null {
+  const path = join(codeGraphDir(projectDir), "graph.json");
+  if (!existsSync(path)) return null;
+  try {
+    const graph = readJson<CodeGraph>(path);
+    if (readCodeIndexManifest(projectDir).fingerprint !== fingerprint) return null;
+    return graph;
+  } catch {
+    return null;
+  }
+}
+
 interface FileCodeFacts {
   schema_version: 1;
   path: string;
@@ -3187,7 +3217,16 @@ export function buildCodeGraph(projectDir: string): CodeGraph {
   const mergeBase = gitMergeBase(projectDir);
   const selection = codeIndexSelection(projectDir);
   const absoluteFiles = selection.files;
+  const fingerprint = codeGraphStatFingerprint(projectDir, absoluteFiles);
+  const cachedGraph = readCachedCodeGraph(projectDir, fingerprint);
+  if (cachedGraph) {
+    selection.manifest.cache = { hits: absoluteFiles.length, misses: 0 };
+    selection.manifest.fingerprint = fingerprint;
+    writeCodeIndexManifest(projectDir, selection.manifest);
+    return cachedGraph;
+  }
   const inputHash = codeGraphInputHash(projectDir, absoluteFiles);
+  selection.manifest.fingerprint = fingerprint;
   writeCodeIndexManifest(projectDir, selection.manifest);
   const knownFiles = new Set(absoluteFiles.map((path) => relative(projectDir, path).replace(/\\/g, "/")));
   const files: CodeFileNode[] = [];
