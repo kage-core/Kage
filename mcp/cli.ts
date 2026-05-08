@@ -53,7 +53,7 @@ import {
   setupDoctor,
   validateProject,
   verifyAgentActivation,
-  writeLspSymbolIndex,
+  writeCodeIndex,
   type CaptureInput,
   type MemoryType,
   type ObservationEvent,
@@ -529,7 +529,7 @@ async function main(): Promise<void> {
   }
 
   if (command === "code-index") {
-    const result = writeLspSymbolIndex(projectArg(args));
+    const result = writeCodeIndex(projectArg(args));
     if (args.includes("--json")) {
       console.log(JSON.stringify(result, null, 2));
       return;
@@ -539,6 +539,10 @@ async function main(): Promise<void> {
     console.log(`Path: ${result.path}`);
     console.log(`Documents: ${result.documents}`);
     console.log(`Symbols: ${result.symbols}`);
+    if (result.warnings.length) {
+      console.log("\nWarnings:");
+      for (const warning of result.warnings) console.log(`  - ${warning}`);
+    }
     if (result.errors.length) {
       console.log("\nErrors:");
       for (const error of result.errors) console.log(`  - ${error}`);

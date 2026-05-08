@@ -7,6 +7,9 @@
   rereading and rehashing all selected source files.
 - Added `kage refresh --full` and MCP `kage_refresh` `full: true` for explicit
   clean rebuilds when maintainers want to bypass unchanged-graph reuse.
+- Changed `kage code-index` and MCP `kage_code_index` to prefer SCIP via
+  `scip-typescript` plus the `scip` CLI when available, falling back to the
+  built-in LSP-compatible symbol index when external tools are not installed.
 - Kept the content-hash rebuild path for changed files and missing/stale graph
   artifacts.
 

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { basename, delimiter, dirname, join, relative, resolve } from "node:path";
 import * as ts from "typescript";
 import { createPublicCandidateBundleManifest, createSignedManifest, generateOrgRegistryManifest } from "./registry/index.js";
 
@@ -789,9 +789,10 @@ export interface CodeIndexArtifactResult {
   ok: boolean;
   project_dir: string;
   path: string;
-  parser: "lsp";
+  parser: "scip" | "lsp";
   documents: number;
   symbols: number;
+  warnings: string[];
   errors: string[];
 }
 
@@ -3020,6 +3021,7 @@ function externalSymbol(projectDir: string, parser: CodeParser, input: Record<st
 
 function parseKageExternalIndex(projectDir: string, parser: CodeParser, path: string): ExternalCodeFacts {
   const raw = readJson<Record<string, unknown>>(path);
+  if (Array.isArray(raw.documents)) return parseScipJsonObject(projectDir, raw);
   const symbols = Array.isArray(raw.symbols)
     ? raw.symbols.flatMap((item) => isRecord(item) ? [externalSymbol(projectDir, parser, item)].filter(Boolean) as CodeSymbolNode[] : [])
     : [];
@@ -3047,6 +3049,58 @@ function parseKageExternalIndex(projectDir: string, parser: CodeParser, path: st
       })
     : [];
   return { symbols, imports, calls };
+}
+
+function scipSymbolName(symbol: string): string {
+  const local = symbol.trim().split(/\s+/).at(-1) ?? symbol;
+  const segment = local.split(/[\/#.`:]/).filter(Boolean).at(-1) ?? local;
+  return segment.replace(/\(\)?$/, "").replace(/\.$/, "") || symbol;
+}
+
+function scipRangeLine(input: unknown): number {
+  if (Array.isArray(input) && typeof input[0] === "number") return Math.max(1, input[0] + 1);
+  if (isRecord(input) && isRecord(input.start) && typeof input.start.line === "number") return Math.max(1, input.start.line + 1);
+  return 1;
+}
+
+function parseScipJsonObject(projectDir: string, raw: Record<string, unknown>): ExternalCodeFacts {
+  const symbols: CodeSymbolNode[] = [];
+  const calls: CodeCallEdge[] = [];
+  const symbolInfo = new Map<string, Record<string, unknown>>();
+  const docs = Array.isArray(raw.documents) ? raw.documents : [];
+
+  for (const doc of docs) {
+    if (!isRecord(doc)) continue;
+    const rel = String(doc.relativePath ?? doc.relative_path ?? doc.path ?? doc.uri ?? "").replace(/^file:\/\//, "").replace(/\\/g, "/");
+    if (!rel) continue;
+    for (const item of Array.isArray(doc.symbols) ? doc.symbols : []) {
+      if (isRecord(item) && typeof item.symbol === "string") symbolInfo.set(item.symbol, item);
+    }
+    for (const occurrence of Array.isArray(doc.occurrences) ? doc.occurrences : []) {
+      if (!isRecord(occurrence) || typeof occurrence.symbol !== "string") continue;
+      const role = Number(occurrence.symbolRoles ?? occurrence.symbol_roles ?? 0);
+      const line = scipRangeLine(occurrence.range);
+      const name = scipSymbolName(occurrence.symbol);
+      if (!name || name === "local") continue;
+      if ((role & 1) === 1) {
+        const info = symbolInfo.get(occurrence.symbol) ?? {};
+        const detail = Array.isArray(info.documentation) ? info.documentation.map(String).find(Boolean) : undefined;
+        const symbol = externalSymbol(projectDir, "scip", {
+          path: rel,
+          name,
+          kind: occurrence.syntaxKind ?? occurrence.syntax_kind ?? info.kind,
+          line,
+          signature: detail ?? name,
+          exported: !occurrence.symbol.startsWith("local "),
+        });
+        if (symbol && !symbols.some((candidate) => candidate.id === symbol.id)) symbols.push(symbol);
+      } else {
+        calls.push({ from_symbol: null, to_symbol: name, path: rel, line });
+      }
+    }
+  }
+
+  return { symbols, imports: [], calls };
 }
 
 function parseLspDocumentSymbols(projectDir: string, path: string): ExternalCodeFacts {
@@ -3117,7 +3171,112 @@ export function writeLspSymbolIndex(projectDir: string): CodeIndexArtifactResult
     parser: "lsp",
     documents: documents.length,
     symbols: symbolCount,
+    warnings: [],
     errors,
+  };
+}
+
+function executableOnPath(projectDir: string, command: string): string | null {
+  const local = join(projectDir, "node_modules", ".bin", command);
+  if (existsSync(local)) return local;
+  const localCmd = `${local}.cmd`;
+  if (existsSync(localCmd)) return localCmd;
+  for (const entry of (process.env.PATH ?? "").split(delimiter).filter(Boolean)) {
+    const candidate = join(entry, command);
+    if (existsSync(candidate)) return candidate;
+    const cmdCandidate = `${candidate}.cmd`;
+    if (existsSync(cmdCandidate)) return cmdCandidate;
+  }
+  return null;
+}
+
+function hasTypeScriptCode(projectDir: string): boolean {
+  return listCodeFiles(projectDir).some((path) => TS_AST_EXTENSIONS.has(extensionOf(path)));
+}
+
+function scipCliJson(scipCli: string, scipPath: string, projectDir: string): string {
+  try {
+    return execFileSync(scipCli, ["print", "--json", scipPath], {
+      cwd: projectDir,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch {
+    return execFileSync(scipCli, ["print", scipPath, "--json"], {
+      cwd: projectDir,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  }
+}
+
+function writeScipTypescriptIndex(projectDir: string): CodeIndexArtifactResult | null {
+  if (!hasTypeScriptCode(projectDir)) return null;
+  const scipTypescript = executableOnPath(projectDir, "scip-typescript");
+  if (!scipTypescript) return null;
+  const scipCli = executableOnPath(projectDir, "scip");
+  const outDir = join(memoryRoot(projectDir), "code_index");
+  ensureDir(outDir);
+  const scipPath = join(outDir, "index.scip");
+  const outPath = join(outDir, "scip.json");
+  const warnings: string[] = [];
+  const errors: string[] = [];
+
+  try {
+    const args = ["index"];
+    if (!existsSync(join(projectDir, "tsconfig.json"))) args.push("--infer-tsconfig");
+    execFileSync(scipTypescript, args, { cwd: projectDir, stdio: ["ignore", "pipe", "pipe"] });
+    const generatedScipPath = join(projectDir, "index.scip");
+    if (existsSync(generatedScipPath)) renameSync(generatedScipPath, scipPath);
+    if (!existsSync(scipPath)) throw new Error("scip-typescript completed but did not write index.scip");
+  } catch (error) {
+    errors.push(`scip-typescript failed: ${error instanceof Error ? error.message : String(error)}`);
+    return { ok: false, project_dir: projectDir, path: scipPath, parser: "scip", documents: 0, symbols: 0, warnings, errors };
+  }
+
+  if (!scipCli) {
+    warnings.push("scip-typescript wrote index.scip, but the scip CLI is not installed so Kage could not convert it into graph facts.");
+    return { ok: false, project_dir: projectDir, path: scipPath, parser: "scip", documents: 0, symbols: 0, warnings, errors };
+  }
+
+  try {
+    const raw = JSON.parse(scipCliJson(scipCli, scipPath, projectDir)) as Record<string, unknown>;
+    const facts = parseScipJsonObject(projectDir, raw);
+    writeJson(outPath, {
+      schema_version: 1,
+      generator: "scip-typescript",
+      generated_at: nowIso(),
+      source_artifact: relative(projectDir, scipPath).replace(/\\/g, "/"),
+      symbols: facts.symbols,
+      imports: facts.imports,
+      calls: facts.calls,
+    });
+    return {
+      ok: true,
+      project_dir: projectDir,
+      path: outPath,
+      parser: "scip",
+      documents: Array.isArray(raw.documents) ? raw.documents.length : 0,
+      symbols: facts.symbols.length,
+      warnings,
+      errors,
+    };
+  } catch (error) {
+    errors.push(`scip conversion failed: ${error instanceof Error ? error.message : String(error)}`);
+    return { ok: false, project_dir: projectDir, path: scipPath, parser: "scip", documents: 0, symbols: 0, warnings, errors };
+  }
+}
+
+export function writeCodeIndex(projectDir: string): CodeIndexArtifactResult {
+  const scip = writeScipTypescriptIndex(projectDir);
+  if (scip?.ok) return scip;
+  const lsp = writeLspSymbolIndex(projectDir);
+  return {
+    ...lsp,
+    warnings: [
+      ...(scip ? [...scip.warnings, ...scip.errors] : ["scip-typescript not found; used built-in LSP-compatible fallback."]),
+      ...lsp.warnings,
+    ],
   };
 }
 

@@ -162,6 +162,11 @@ kage pr check --project .
 kage viewer --project .
 ```
 
+`kage code-index` prefers a SCIP index when `scip-typescript` and the `scip`
+CLI are installed, then falls back to Kage's built-in LSP-compatible symbol
+index. This keeps first-run setup light while letting larger TypeScript/JS repos
+use an industry code-intelligence indexer for the code graph.
+
 For stale memory:
 
 ```bash

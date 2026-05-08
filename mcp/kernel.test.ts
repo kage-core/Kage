@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { delimiter, join } from "node:path";
 import { tmpdir } from "node:os";
 import vm from "node:vm";
 import {
@@ -60,6 +60,7 @@ import {
   verifyAgentActivation,
   validatePacket,
   validateProject,
+  writeCodeIndex,
   writeLspSymbolIndex,
 } from "./kernel.js";
 import { buildGraphRegistryManifest } from "./graph-registry.js";
@@ -571,6 +572,54 @@ test("generated LSP symbol index upgrades code graph parser coverage", () => {
   const graph = buildCodeGraph(project);
   assert.equal(graph.files.find((file) => file.path === "src/server.ts")?.parser, "lsp");
   assert.equal(graph.symbols.some((symbol) => symbol.path === "src/server.ts" && symbol.name === "createApp" && symbol.parser === "lsp"), true);
+});
+
+test("code index prefers scip-typescript when available", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  mkdirSync(join(project, "bin"), { recursive: true });
+  writeFileSync(join(project, "src", "server.ts"), "export function createApp() { return {}; }\n", "utf8");
+  writeFileSync(
+    join(project, "bin", "scip-typescript"),
+    `#!/usr/bin/env node
+const fs = require("fs");
+fs.writeFileSync("index.scip", "fake scip");
+`,
+    "utf8"
+  );
+  writeFileSync(
+    join(project, "bin", "scip"),
+    `#!/usr/bin/env node
+console.log(JSON.stringify({
+  documents: [{
+    relativePath: "src/server.ts",
+    occurrences: [{
+      symbol: "scip-typescript npm demo 1.0.0 src/server.ts/createApp().",
+      symbolRoles: 1,
+      range: [0, 16, 25]
+    }]
+  }]
+}));
+`,
+    "utf8"
+  );
+  chmodSync(join(project, "bin", "scip-typescript"), 0o755);
+  chmodSync(join(project, "bin", "scip"), 0o755);
+
+  const previousPath = process.env.PATH;
+  process.env.PATH = `${join(project, "bin")}${delimiter}${previousPath ?? ""}`;
+  try {
+    const result = writeCodeIndex(project);
+    assert.equal(result.ok, true);
+    assert.equal(result.parser, "scip");
+    assert.match(result.path, /code_index\/scip\.json$/);
+
+    const graph = buildCodeGraph(project);
+    assert.equal(graph.files.find((file) => file.path === "src/server.ts")?.parser, "scip");
+    assert.equal(graph.symbols.some((symbol) => symbol.path === "src/server.ts" && symbol.name === "createApp" && symbol.parser === "scip"), true);
+  } finally {
+    process.env.PATH = previousPath;
+  }
 });
 
 test("audit precision coverage ignores metadata-only files", () => {

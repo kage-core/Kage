@@ -43,7 +43,7 @@ import {
   setupAgent,
   validateProject,
   verifyAgentActivation,
-  writeLspSymbolIndex,
+  writeCodeIndex,
   type MemoryType,
   type ObservationEvent,
   type SetupAgent,
@@ -257,7 +257,7 @@ export function listTools() {
     {
       name: "kage_code_index",
       description:
-        "Write .agent_memory/code_index/lsp-symbols.json, an LSP-compatible symbol artifact consumed by the code graph for higher parser coverage.",
+        "Write external code index artifacts consumed by the code graph. Prefers SCIP when scip-typescript and scip are installed, then falls back to the built-in LSP-compatible symbol index.",
       inputSchema: {
         type: "object",
         properties: {
@@ -867,7 +867,7 @@ export async function callTool(name: string, args: Record<string, unknown> | und
   }
 
   if (name === "kage_code_index") {
-    const result = writeLspSymbolIndex(String(args?.project_dir ?? ""));
+    const result = writeCodeIndex(String(args?.project_dir ?? ""));
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       isError: !result.ok,

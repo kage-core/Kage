@@ -9,18 +9,16 @@ This package exposes two surfaces:
 
 ## Latest Release
 
-`1.1.18` publishes the end-to-end performance pass:
+`1.1.20` publishes the large-repo indexing pass:
 
-- read-only commands reuse current graph artifacts instead of rebuilding them
-  when inputs are fresh.
-- MCP sessions keep an in-process graph cache, so repeated agent calls do not
-  keep reparsing the same graph JSON.
-- `kage refresh` reports lightweight freshness metrics and leaves deep
-  benchmark/quality work to explicit `kage metrics` and `kage benchmark` calls.
-- recall builds graph lookup maps once per query instead of scanning all graph
-  entities and edges for every memory packet.
-- `kage init` remains a packet-only bootstrap path; full graph generation stays
-  with `kage refresh` and `kage index`.
+- repeated `kage refresh` calls reuse unchanged code graph artifacts by source
+  stat fingerprint, with `kage refresh --full` available for intentional clean
+  rebuilds.
+- `kage code-index` prefers SCIP via `scip-typescript` plus the `scip` CLI when
+  those tools are installed, then falls back to Kage's built-in LSP-compatible
+  symbol index.
+- read-only commands and MCP sessions reuse current graph artifacts instead of
+  rebuilding them when inputs are fresh.
 
 `1.1.17` publishes content-based graph freshness:
 
@@ -207,11 +205,13 @@ generic extraction in metrics and file parser coverage. This keeps installation
 light while allowing teams to plug in the strongest indexer available for their
 language stack.
 
-`kage code-index --project <repo>` writes `.agent_memory/code_index/lsp-symbols.json`
-in an LSP document-symbol-compatible shape using Kage's local parser. The CI,
+`kage code-index --project <repo>` now tries the best external indexer first for
+the common JS/TS case: if `scip-typescript` and the `scip` CLI are on the repo or
+shell path, it writes `.agent_memory/code_index/scip.json` from the generated
+SCIP index. If those tools are unavailable, it writes
+`.agent_memory/code_index/lsp-symbols.json` using Kage's local parser. The CI,
 PR, and sync workflows run it before refresh so the code graph has a committed
-precise-index slot while teams can still replace or augment it with SCIP/LSIF
-artifacts from their preferred toolchain.
+precise-index slot without making first-run setup depend on external binaries.
 
 The memory graph follows the same product direction as temporal context graph
 systems such as Graphiti: immutable ingestion episodes, derived entities and
