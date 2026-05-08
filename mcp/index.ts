@@ -234,6 +234,7 @@ export function listTools() {
         type: "object",
         properties: {
           project_dir: { type: "string" },
+          full: { type: "boolean", description: "Force a full code graph rebuild instead of reusing unchanged graph artifacts." },
         },
         required: ["project_dir"],
       },
@@ -897,7 +898,7 @@ export async function callTool(name: string, args: Record<string, unknown> | und
   }
 
   if (name === "kage_refresh") {
-    const result = refreshProject(String(args?.project_dir ?? ""));
+    const result = refreshProject(String(args?.project_dir ?? ""), { full: Boolean(args?.full) });
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       isError: !result.ok,

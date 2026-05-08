@@ -1,0 +1,58 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:refresh-full-mode-bypasses-unchanged-graph-reuse-1778264669081",
+  "title": "Refresh full mode bypasses unchanged graph reuse",
+  "summary": "Kage refresh defaults to reusing a persisted code graph when the selected source stat fingerprint is unchanged, but maintainers can run kage refresh full or MCP kage refresh with full: true to intentionally bypass unchan",
+  "body": "Kage refresh defaults to reusing a persisted code graph when the selected source stat fingerprint is unchanged, but maintainers can run kage refresh --full or MCP kage_refresh with full: true to intentionally bypass unchanged-graph reuse and rebuild the code graph from scratch. Verified by: npm test --prefix mcp",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning"
+  ],
+  "paths": [],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-08T18:24:29.081Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage refresh defaults to reusing a persisted code graph when the selected source stat fingerprint is unchanged, but maintainers can run kage refresh --full or MCP kage_refresh with full: true to intentionally bypass unchanged-graph reuse and rebuild the code graph from scratch. Verified by: npm test --prefix mcp",
+    "verification": "npm test --prefix mcp"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-08T18:24:29.081Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 84,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [
+      "not grounded to paths"
+    ],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 79
+  },
+  "created_at": "2026-05-08T18:24:29.081Z",
+  "updated_at": "2026-05-08T18:24:34.781Z"
+}

@@ -3209,7 +3209,7 @@ function extractPackages(projectDir: string): CodeGraph["packages"] {
   return packages.sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
 }
 
-export function buildCodeGraph(projectDir: string): CodeGraph {
+export function buildCodeGraph(projectDir: string, options: { force?: boolean } = {}): CodeGraph {
   ensureMemoryDirs(projectDir);
   const branch = gitBranch(projectDir);
   const head = gitHead(projectDir);
@@ -3218,7 +3218,7 @@ export function buildCodeGraph(projectDir: string): CodeGraph {
   const selection = codeIndexSelection(projectDir);
   const absoluteFiles = selection.files;
   const fingerprint = codeGraphStatFingerprint(projectDir, absoluteFiles);
-  const cachedGraph = readCachedCodeGraph(projectDir, fingerprint);
+  const cachedGraph = options.force ? null : readCachedCodeGraph(projectDir, fingerprint);
   if (cachedGraph) {
     selection.manifest.cache = { hits: absoluteFiles.length, misses: 0 };
     selection.manifest.fingerprint = fingerprint;
@@ -3825,9 +3825,9 @@ function currentOrBuildGraphs(projectDir: string): BuiltIndexes {
   return buildGraphIndexes(projectDir);
 }
 
-function buildGraphIndexes(projectDir: string): BuiltIndexes {
+function buildGraphIndexes(projectDir: string, options: { forceCodeGraph?: boolean } = {}): BuiltIndexes {
   const written = buildPacketIndexes(projectDir);
-  const codeGraph = buildCodeGraph(projectDir);
+  const codeGraph = buildCodeGraph(projectDir, { force: options.forceCodeGraph });
   const knowledgeGraph = buildKnowledgeGraph(projectDir, codeGraph);
   const graphIndexPath = join(indexesDir(projectDir), "graph.json");
   const codeGraphIndexPath = join(indexesDir(projectDir), "code-graph.json");
@@ -3874,7 +3874,7 @@ export function buildIndexes(projectDir: string): string[] {
   return buildGraphIndexes(projectDir).indexes;
 }
 
-function indexProjectDetailed(projectDir: string, options: { graphs?: boolean } = {}): DetailedIndexResult {
+function indexProjectDetailed(projectDir: string, options: { graphs?: boolean; full?: boolean } = {}): DetailedIndexResult {
   ensureMemoryDirs(projectDir);
   const policy = installAgentPolicy(projectDir);
   const migrated = migrateLegacyMarkdown(projectDir);
@@ -3882,7 +3882,7 @@ function indexProjectDetailed(projectDir: string, options: { graphs?: boolean } 
   if (overview) upsertGeneratedPacket(projectDir, overview);
   const structure = createRepoStructurePacket(projectDir);
   if (structure) upsertGeneratedPacket(projectDir, structure);
-  const built = options.graphs === false ? null : buildGraphIndexes(projectDir);
+  const built = options.graphs === false ? null : buildGraphIndexes(projectDir, { forceCodeGraph: options.full });
   const indexes = built?.indexes ?? buildPacketIndexes(projectDir);
   return {
     result: {
@@ -3897,7 +3897,7 @@ function indexProjectDetailed(projectDir: string, options: { graphs?: boolean } 
   };
 }
 
-export function indexProject(projectDir: string, options: { graphs?: boolean } = {}): IndexResult {
+export function indexProject(projectDir: string, options: { graphs?: boolean; full?: boolean } = {}): IndexResult {
   return indexProjectDetailed(projectDir, options).result;
 }
 
@@ -3957,15 +3957,15 @@ function refreshPacketStaleness(projectDir: string): { findings: StaleMemoryFind
   return { findings, updated };
 }
 
-export function refreshProject(projectDir: string): RefreshResult {
-  const detailedIndex = indexProjectDetailed(projectDir);
+export function refreshProject(projectDir: string, options: { full?: boolean } = {}): RefreshResult {
+  const detailedIndex = indexProjectDetailed(projectDir, { full: options.full });
   const index = detailedIndex.result;
   let codeGraph = detailedIndex.codeGraph;
   let knowledgeGraph = detailedIndex.knowledgeGraph;
   const stale = refreshPacketStaleness(projectDir);
   let indexes = index.indexes;
   if (stale.updated > 0) {
-    const rebuilt = buildGraphIndexes(projectDir);
+    const rebuilt = buildGraphIndexes(projectDir, { forceCodeGraph: options.full });
     codeGraph = rebuilt.codeGraph;
     knowledgeGraph = rebuilt.knowledgeGraph;
     indexes = rebuilt.indexes.map((path) => relative(projectDir, path));

@@ -116,6 +116,7 @@ kage policy --project /path/to/repo
 kage doctor --project /path/to/repo
 kage index --project /path/to/repo
 kage refresh --project /path/to/repo
+kage refresh --project /path/to/repo --full
 kage branch --project /path/to/repo
 kage code-index --project /path/to/repo
 kage code-graph --project /path/to/repo
@@ -258,7 +259,9 @@ Use `kage refresh --project <repo>` or the `kage_refresh` MCP tool after
 meaningful file/content changes. Refresh rebuilds indexes, code graph, memory
 graph, metrics, and stale-memory metadata. Memory is marked stale when status or
 feedback says it is stale, its TTL expires, or grounded paths disappear. Pushes
-and empty/same-tree commits do not need another refresh.
+and empty/same-tree commits do not need another refresh. Use `--full` or
+`kage_refresh` with `full: true` only when you intentionally want to bypass
+unchanged-graph reuse and rebuild the code graph from scratch.
 
 Use `kage gc --project <repo> --dry-run` to preview stale packet cleanup.
 `kage gc --project <repo>` marks stale repo packets deprecated, rebuilds

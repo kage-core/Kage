@@ -462,6 +462,23 @@ test("code graph returns cached graph when source stat fingerprint is unchanged"
   assert.equal(typeof manifest.fingerprint, "string");
 });
 
+test("code graph force option bypasses unchanged graph reuse", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "worker.ts"), "export function work() { return 1; }\n", "utf8");
+
+  buildCodeGraph(project);
+  const graphPath = join(codeGraphDir(project), "graph.json");
+  const graphJson = JSON.parse(readFileSync(graphPath, "utf8"));
+  graphJson.generated_at = "sentinel-code-graph";
+  writeFileSync(graphPath, JSON.stringify(graphJson, null, 2), "utf8");
+
+  const rebuilt = buildCodeGraph(project, { force: true });
+
+  assert.notEqual(rebuilt.generated_at, "sentinel-code-graph");
+  assert.equal(rebuilt.symbols.some((symbol) => symbol.name === "work"), true);
+});
+
 test("builds a multi-language code graph with generic static extractors", () => {
   const project = tempProject();
   mkdirSync(join(project, "app"), { recursive: true });

@@ -154,6 +154,7 @@ kage code-index --project .
 kage code-graph "routes tests auth" --project .
 kage learn --project . --learning "Use npm test after changing parser code."
 kage refresh --project .
+kage refresh --project . --full
 kage graph-registry --project .
 kage audit --project .
 kage inbox --project .
@@ -239,7 +240,8 @@ and uses `GIT_EDITOR=true` for git steps.
 Graph freshness is content-based: push-only operations and empty/same-tree
 commits do not require a second `kage refresh`. Real changes to source files,
 approved memory packets, or code-index inputs still make `kage pr check` require
-refresh before merge.
+refresh before merge. Use `kage refresh --full` only when you intentionally want
+to bypass unchanged-graph reuse and rebuild the code graph from scratch.
 
 Kage on Kage itself:
 

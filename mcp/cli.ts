@@ -78,7 +78,7 @@ Usage:
   kage daemon status --project <dir> [--json]
   kage daemon doctor --project <dir> [--json]
   kage viewer --project <dir> [--port 3113]
-  kage refresh --project <dir> [--json]
+  kage refresh --project <dir> [--full] [--json]
   kage gc --project <dir> [--dry-run] [--force] [--json]
   kage pr summarize --project <dir> [--json]
   kage pr check --project <dir> [--json]
@@ -374,7 +374,7 @@ async function main(): Promise<void> {
   }
 
   if (command === "refresh") {
-    const result = refreshProject(projectArg(args));
+    const result = refreshProject(projectArg(args), { full: args.includes("--full") });
     if (args.includes("--json")) {
       console.log(JSON.stringify(result, null, 2));
       if (!result.ok) process.exit(2);
