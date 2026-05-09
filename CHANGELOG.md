@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.1.22 - 2026-05-09
+
+- Fixed the viewer inspector so selecting high-degree nodes cannot expand the
+  page and push the canvas out of view.
+- Added bounded internal scrolling for selected-node details, connected
+  relations, and memory-code evidence groups.
+- Capped long detail rows and relation summaries so the graph console remains
+  stable while users inspect dense nodes.
+
 ## v1.1.21 - 2026-05-09
 
 - Fixed memory-code graph quality by requiring explicit, non-generic symbol and

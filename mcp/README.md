@@ -9,7 +9,15 @@ This package exposes two surfaces:
 
 ## Latest Release
 
-`1.1.21` publishes the memory-code graph quality pass:
+`1.1.22` fixes viewer inspector scrolling:
+
+- selecting high-degree nodes no longer expands the page or pushes the canvas
+  out of view.
+- selected-node details, connected relations, and memory-code evidence scroll
+  inside bounded inspector regions.
+- long summaries and relation bodies are capped so dense nodes stay readable.
+
+`1.1.21` published the memory-code graph quality pass:
 
 - precise memory-code links now require explicit, non-generic symbol/test
   mentions instead of broad path-only matches.

@@ -161,6 +161,8 @@ h2 { color: var(--terminal); font-size: 13px; letter-spacing: 0.04em; text-trans
   min-height: calc(100vh - 78px);
 }
 
+.layout > * { min-width: 0; }
+
 .control-panel, .graph-panel, .details-panel, .table-panel, .review-panel, .proof-panel {
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -425,20 +427,39 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
 
 .details-panel {
   grid-area: details;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  height: min(960px, calc(100vh - 108px));
+  max-height: calc(100vh - 108px);
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   padding: 12px;
 }
 .details-empty { color: var(--terminal-dim); }
+#selectionDetails {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
 .detail-title { margin-bottom: 8px; color: var(--text); font-weight: 780; font-size: 17px; overflow-wrap: anywhere; }
 .detail-kind { margin-bottom: 10px; color: var(--terminal-strong); background: #07130d; }
 .detail-row { padding: 9px 0; border-top: 1px solid var(--line); }
 .detail-row dt { margin: 0 0 4px; color: var(--terminal-dim); font-size: 11px; font-weight: 760; text-transform: uppercase; }
-.detail-row dd { margin: 0; color: var(--text); overflow-wrap: anywhere; white-space: pre-wrap; }
+.detail-row dd {
+  max-height: 150px;
+  margin: 0;
+  color: var(--text);
+  overflow: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
 .detail-section {
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
+  min-height: 0;
 }
 .detail-section-title {
   margin-bottom: 8px;
@@ -446,6 +467,12 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
+}
+.detail-section-list {
+  max-height: 260px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
 }
 .detail-link {
   width: 100%;
@@ -475,8 +502,12 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
   overflow-wrap: anywhere;
 }
 .detail-link-body {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
   color: var(--muted);
   font-size: 11px;
+  overflow: hidden;
   overflow-wrap: anywhere;
 }
 .detail-more {
@@ -663,6 +694,11 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
   .control-panel label, .control-panel button { margin-top: 0; }
   .graph-panel { min-height: 620px; }
   #graphCanvas, .graph-canvas-wrap, #graphSvg { min-height: 560px; }
+  .details-panel {
+    height: auto;
+    max-height: 70vh;
+  }
+  .detail-section-list { max-height: 220px; }
 }
 
 @media (max-width: 620px) {

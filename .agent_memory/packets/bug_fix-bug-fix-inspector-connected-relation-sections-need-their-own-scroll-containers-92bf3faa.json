@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:bug_fix:bug-fix-inspector-connected-relation-sections-need-their-own-scroll-containers-1",
+  "title": "Bug fix: inspector connected relation sections need their own scroll containers",
+  "summary": "Bug fix: inspector connected relation sections need their own scroll containers. Bounding only the overall inspector still leaves high degree nodes with very long Connected Relations and Memory Code Evidence content. det",
+  "body": "Bug fix: inspector connected relation sections need their own scroll containers. Bounding only the overall inspector still leaves high-degree nodes with very long Connected Relations and Memory-Code Evidence content. detailSection should render a .detail-section-list wrapper, and CSS should cap each list with internal overflow so the canvas/layout stays stable while users scroll relation groups independently. Verified by Playwright showing two 260px scroll lists with body/details heights unchanged, plus npm --prefix mcp test.\nVerified by: Playwright relation-list layout check; npm --prefix mcp test",
+  "type": "bug_fix",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "viewer",
+    "ui",
+    "inspector",
+    "canvas"
+  ],
+  "paths": [
+    "mcp/viewer/app.js",
+    "mcp/viewer/styles.css",
+    "mcp/viewer/index.html"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-09T10:43:10.495Z"
+    }
+  ],
+  "context": {
+    "fact": "Bug fix: inspector connected relation sections need their own scroll containers. Bounding only the overall inspector still leaves high-degree nodes with very long Connected Relations and Memory-Code Evidence content. detailSection should render a .detail-section-list wrapper, and CSS should cap each list with internal overflow so the canvas/layout stays stable while users scroll relation groups independently. Verified by Playwright showing two 260px scroll lists with body/details heights unchanged, plus npm --prefix mcp test.\nVerified by: Playwright relation-list layout check; npm --prefix mcp test",
+    "verification": "Playwright relation-list layout check; npm --prefix mcp test"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-09T10:43:10.495Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 152
+  },
+  "created_at": "2026-05-09T10:43:10.495Z",
+  "updated_at": "2026-05-09T10:43:18.767Z"
+}

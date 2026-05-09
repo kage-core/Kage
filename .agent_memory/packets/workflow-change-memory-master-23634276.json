@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
-  "summary": "Repo-local context for 31 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/bug_fix-bug-fix-viewer-memory-code-graphs-looked-disconnected-because-knowledge-graph-ge-bec25d3d.json\n- .agent_memory/packets/bug_fix-large-repo-benchmark-exposed-stale-read-and-exact-symbol-ranking-fixes-32327205.json\n- .agent_memory/packets/bug_fix-memory-code-relation-filter-excludes-path-only-edges-16ac4745.json\n- .agent_memory/packets/bug_fix-viewer-bridges-path-level-memory-to-code-files-bafb4993.json\n- .agent_memory/packets/bug_fix-viewer-combined-mode-must-prioritize-visible-memory-code-links-a9eb1584.json\n- .agent_memory/packets/bug_fix-viewer-must-not-map-file-path-aliases-to-arbitrary-symbols-1f76273b.json\n- .agent_memory/packets/bug_fix-viewer-node-inspector-shows-type-specific-code-details-f9763e07.json\n- .agent_memory/packets/bug_fix-viewer-signal-mode-must-preserve-code-graph-endpoints-075ba83c.json\n- .agent_memory/packets/decision-generated-graph-artifacts-use-compact-references-4c4fb191.json\n- .agent_memory/packets/decision-structural-index-is-canonical-for-code-graph-facts-31b27246.json\n- .agent_memory/packets/decision-structural-index-is-the-only-active-code-graph-file-selector-e0f97c47.json\n- .agent_memory/packets/decision-structural-index-uses-parallel-workers-on-large-repos-a5979354.json\n- .agent_memory/packets/decision-viewer-opens-structural-code-graph-mode-by-default-242b6e41.json\n- .agent_memory/packets/gotcha-viewer-root-must-redirect-to-parameterized-viewer-index-html-2dcb1d52.json\n- .agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json\n- .agent_memory/packets/repo_map-kage-repo-structure-b5f385f7.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n- CHANGELOG.md\n- README.md\n- docs/index.html\n- mcp/README.md\n- mcp/cli.ts\n- mcp/daemon.ts\n- mcp/index.ts\n- mcp/kernel.test.ts\n- mcp/kernel.ts\n- mcp/package-lock.json\n- mcp/package.json\n- mcp/structural-worker.ts\n- mcp/viewer/app.js\n- mcp/viewer/index.html\n\nDiff summary:\n```text\n.../repo_map-kage-repo-overview-a522f3a0.json      |    4 +-\n .../repo_map-kage-repo-structure-b5f385f7.json     |    4 +-\n .../workflow-change-memory-master-23634276.json    |  146 +-\n CHANGELOG.md                                       |   12 +\n README.md                                          |   14 +-\n docs/index.html                                    |    2 +-\n mcp/README.md                                      |   54 +-\n mcp/cli.ts                                         |   28 +-\n mcp/daemon.ts                                      |    7 +-\n mcp/index.ts                                       |   20 +\n mcp/kernel.test.ts                                 |  282 +++-\n mcp/kernel.ts                                      | 1553 +++++++++++++++++---\n mcp/package-lock.json                              |    4 +-\n mcp/package.json                                   |    2 +-\n mcp/viewer/app.js                                  |  571 ++++++-\n mcp/viewer/index.html                              |    4 +-\n 16 files changed, 2405 insertions(+), 302 deletions(-)\n.agent_memory/packets/bug_fix-bug-fix-viewer-memory-code-graphs-looked-disconnected-because-knowledge-graph-ge-bec25d3d.json | untracked\n.agent_memory/packets/bug_fix-large-repo-benchmark-exposed-stale-read-and-exact-symbol-ranking-fixes-32327205.json | untracked\n.agent_memory/packets/bug_fix-memory-code-relation-filter-excludes-path-only-edges-16ac4745.json | untracked\n.agent_memory/packets/bug_fix-viewer-bridges-path-level-memory-to-code-files-bafb4993.json | untracked\n.agent_memory/packets/bug_fix-viewer-combined-mode-must-prioritize-visible-memory-code-links-a9eb1584.json | untracked\n.agent_memory/packets/bug_fix-viewer-must-not-map-file-path-aliases-to-arbitrary-symbols-1f76273b.json | untracked\n.agent_memory/packets/bug_fix-viewer-node-inspector-shows-type-specific-code-details-f9763e07.json | untracked\n.agent_memory/packets/bug_fix-viewer-signal-mode-must-preserve-code-graph-endpoints-075ba83c.json | untracked\n.agent_memory/packets/decision-generated-graph-artifacts-use-compact-references-4c4fb191.json | untracked\n.agent_memory/packets/decision-structural-index-is-canonical-for-code-graph-facts-31b27246.json | untracked\n.agent_memory/packets/decision-structural-index-is-the-only-active-code-graph-file-selector-e0f97c47.json | untracked\n.agent_memory/packets/decision-structural-index-uses-parallel-workers-on-large-repos-a5979354.json | untracked\n.agent_memory/packets/decision-viewer-opens-structural-code-graph-mode-by-default-242b6e41.json | untracked\n.agent_memory/packets/gotcha-viewer-root-must-redirect-to-parameterized-viewer-index-html-2dcb1d52.json | untracked\nmcp/structural-worker.ts | untracked\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "summary": "Repo-local context for 10 changed repo paths on master.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/bug_fix-bug-fix-inspector-connected-relation-sections-need-their-own-scroll-containers-92bf3faa.json\n- .agent_memory/packets/bug_fix-bug-fix-the-viewer-inspector-could-explode-the-page-height-when-a-selected-node--95f90fca.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n- CHANGELOG.md\n- mcp/README.md\n- mcp/package-lock.json\n- mcp/package.json\n- mcp/viewer/app.js\n- mcp/viewer/index.html\n- mcp/viewer/styles.css\n\nDiff summary:\n```text\n.../workflow-change-memory-master-23634276.json    | 167 +++------------------\n CHANGELOG.md                                       |   9 ++\n mcp/README.md                                      |  10 +-\n mcp/package-lock.json                              |   4 +-\n mcp/package.json                                   |   2 +-\n mcp/viewer/app.js                                  |   7 +-\n mcp/viewer/index.html                              |   4 +-\n mcp/viewer/styles.css                              |  40 ++++-\n 8 files changed, 90 insertions(+), 153 deletions(-)\n.agent_memory/packets/bug_fix-bug-fix-inspector-connected-relation-sections-need-their-own-scroll-containers-92bf3faa.json | untracked\n.agent_memory/packets/bug_fix-bug-fix-the-viewer-inspector-could-explode-the-page-height-when-a-selected-node--95f90fca.json | untracked\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -17,83 +17,41 @@
     "branch:master"
   ],
   "paths": [
-    ".agent_memory/packets/bug_fix-bug-fix-viewer-memory-code-graphs-looked-disconnected-because-knowledge-graph-ge-bec25d3d.json",
-    ".agent_memory/packets/bug_fix-large-repo-benchmark-exposed-stale-read-and-exact-symbol-ranking-fixes-32327205.json",
-    ".agent_memory/packets/bug_fix-memory-code-relation-filter-excludes-path-only-edges-16ac4745.json",
-    ".agent_memory/packets/bug_fix-viewer-bridges-path-level-memory-to-code-files-bafb4993.json",
-    ".agent_memory/packets/bug_fix-viewer-combined-mode-must-prioritize-visible-memory-code-links-a9eb1584.json",
-    ".agent_memory/packets/bug_fix-viewer-must-not-map-file-path-aliases-to-arbitrary-symbols-1f76273b.json",
-    ".agent_memory/packets/bug_fix-viewer-node-inspector-shows-type-specific-code-details-f9763e07.json",
-    ".agent_memory/packets/bug_fix-viewer-signal-mode-must-preserve-code-graph-endpoints-075ba83c.json",
-    ".agent_memory/packets/decision-generated-graph-artifacts-use-compact-references-4c4fb191.json",
-    ".agent_memory/packets/decision-structural-index-is-canonical-for-code-graph-facts-31b27246.json",
-    ".agent_memory/packets/decision-structural-index-is-the-only-active-code-graph-file-selector-e0f97c47.json",
-    ".agent_memory/packets/decision-structural-index-uses-parallel-workers-on-large-repos-a5979354.json",
-    ".agent_memory/packets/decision-viewer-opens-structural-code-graph-mode-by-default-242b6e41.json",
-    ".agent_memory/packets/gotcha-viewer-root-must-redirect-to-parameterized-viewer-index-html-2dcb1d52.json",
-    ".agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json",
-    ".agent_memory/packets/repo_map-kage-repo-structure-b5f385f7.json",
+    ".agent_memory/packets/bug_fix-bug-fix-inspector-connected-relation-sections-need-their-own-scroll-containers-92bf3faa.json",
+    ".agent_memory/packets/bug_fix-bug-fix-the-viewer-inspector-could-explode-the-page-height-when-a-selected-node--95f90fca.json",
     ".agent_memory/packets/workflow-change-memory-master-23634276.json",
     "CHANGELOG.md",
-    "README.md",
-    "docs/index.html",
     "mcp/README.md",
-    "mcp/cli.ts",
-    "mcp/daemon.ts",
-    "mcp/index.ts",
-    "mcp/kernel.test.ts",
-    "mcp/kernel.ts",
     "mcp/package-lock.json",
     "mcp/package.json",
-    "mcp/structural-worker.ts",
     "mcp/viewer/app.js",
-    "mcp/viewer/index.html"
+    "mcp/viewer/index.html",
+    "mcp/viewer/styles.css"
   ],
   "stack": [],
   "source_refs": [
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "b59b03d47f0b476675247fe452ec19a10bfd70de",
-      "merge_base": "b59b03d47f0b476675247fe452ec19a10bfd70de",
+      "head": "dd8a3e97182b3517780aa70df22ea8c16dac4c74",
+      "merge_base": "dd8a3e97182b3517780aa70df22ea8c16dac4c74",
       "changed_files": [
-        ".agent_memory/packets/bug_fix-bug-fix-viewer-memory-code-graphs-looked-disconnected-because-knowledge-graph-ge-bec25d3d.json",
-        ".agent_memory/packets/bug_fix-large-repo-benchmark-exposed-stale-read-and-exact-symbol-ranking-fixes-32327205.json",
-        ".agent_memory/packets/bug_fix-memory-code-relation-filter-excludes-path-only-edges-16ac4745.json",
-        ".agent_memory/packets/bug_fix-viewer-bridges-path-level-memory-to-code-files-bafb4993.json",
-        ".agent_memory/packets/bug_fix-viewer-combined-mode-must-prioritize-visible-memory-code-links-a9eb1584.json",
-        ".agent_memory/packets/bug_fix-viewer-must-not-map-file-path-aliases-to-arbitrary-symbols-1f76273b.json",
-        ".agent_memory/packets/bug_fix-viewer-node-inspector-shows-type-specific-code-details-f9763e07.json",
-        ".agent_memory/packets/bug_fix-viewer-signal-mode-must-preserve-code-graph-endpoints-075ba83c.json",
-        ".agent_memory/packets/decision-generated-graph-artifacts-use-compact-references-4c4fb191.json",
-        ".agent_memory/packets/decision-structural-index-is-canonical-for-code-graph-facts-31b27246.json",
-        ".agent_memory/packets/decision-structural-index-is-the-only-active-code-graph-file-selector-e0f97c47.json",
-        ".agent_memory/packets/decision-structural-index-uses-parallel-workers-on-large-repos-a5979354.json",
-        ".agent_memory/packets/decision-viewer-opens-structural-code-graph-mode-by-default-242b6e41.json",
-        ".agent_memory/packets/gotcha-viewer-root-must-redirect-to-parameterized-viewer-index-html-2dcb1d52.json",
-        ".agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json",
-        ".agent_memory/packets/repo_map-kage-repo-structure-b5f385f7.json",
+        ".agent_memory/packets/bug_fix-bug-fix-inspector-connected-relation-sections-need-their-own-scroll-containers-92bf3faa.json",
+        ".agent_memory/packets/bug_fix-bug-fix-the-viewer-inspector-could-explode-the-page-height-when-a-selected-node--95f90fca.json",
         ".agent_memory/packets/workflow-change-memory-master-23634276.json",
         "CHANGELOG.md",
-        "README.md",
-        "docs/index.html",
         "mcp/README.md",
-        "mcp/cli.ts",
-        "mcp/daemon.ts",
-        "mcp/index.ts",
-        "mcp/kernel.test.ts",
-        "mcp/kernel.ts",
         "mcp/package-lock.json",
         "mcp/package.json",
-        "mcp/structural-worker.ts",
         "mcp/viewer/app.js",
-        "mcp/viewer/index.html"
+        "mcp/viewer/index.html",
+        "mcp/viewer/styles.css"
       ],
       "summary_path": ".agent_memory/review/branch-summary-master.json"
     }
   ],
   "context": {
-    "fact": "Current branch master changes 31 repo paths.",
+    "fact": "Current branch master changes 10 repo paths.",
     "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
     "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
     "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
@@ -102,89 +60,19 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-05-09T08:06:17.190Z",
+    "last_verified_at": "2026-05-09T11:01:44.663Z",
     "ttl_days": 180,
     "verification": "git_diff"
   },
   "edges": [
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-bug-fix-viewer-memory-code-graphs-looked-disconnected-because-knowledge-graph-ge-bec25d3d.json",
+      "to": "path:.agent_memory/packets/bug_fix-bug-fix-inspector-connected-relation-sections-need-their-own-scroll-containers-92bf3faa.json",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-large-repo-benchmark-exposed-stale-read-and-exact-symbol-ranking-fixes-32327205.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-memory-code-relation-filter-excludes-path-only-edges-16ac4745.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-viewer-bridges-path-level-memory-to-code-files-bafb4993.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-viewer-combined-mode-must-prioritize-visible-memory-code-links-a9eb1584.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-viewer-must-not-map-file-path-aliases-to-arbitrary-symbols-1f76273b.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-viewer-node-inspector-shows-type-specific-code-details-f9763e07.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-viewer-signal-mode-must-preserve-code-graph-endpoints-075ba83c.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-generated-graph-artifacts-use-compact-references-4c4fb191.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-structural-index-is-canonical-for-code-graph-facts-31b27246.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-structural-index-is-the-only-active-code-graph-file-selector-e0f97c47.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-structural-index-uses-parallel-workers-on-large-repos-a5979354.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-viewer-opens-structural-code-graph-mode-by-default-242b6e41.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/gotcha-viewer-root-must-redirect-to-parameterized-viewer-index-html-2dcb1d52.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/repo_map-kage-repo-structure-b5f385f7.json",
+      "to": "path:.agent_memory/packets/bug_fix-bug-fix-the-viewer-inspector-could-explode-the-page-height-when-a-selected-node--95f90fca.json",
       "evidence": "git_diff"
     },
     {
@@ -199,27 +87,48 @@
     },
     {
       "relation": "changes_path",
-      "to": "path:README.md",
+      "to": "path:mcp/README.md",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
-      "to": "path:docs/index.html",
+      "to": "path:mcp/package-lock.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:mcp/package.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:mcp/viewer/app.js",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:mcp/viewer/index.html",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:mcp/viewer/styles.css",
       "evidence": "git_diff"
     }
   ],
   "quality": {
-    "score": 94,
+    "score": 100,
     "reasons": [
       "high-value memory type",
       "has source evidence",
       "grounded to repo paths",
       "tagged",
+      "concise but substantive",
       "actionable rationale or verification"
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 1339,
+    "estimated_tokens_saved": 508,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -237,6 +146,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-05-09T08:06:17.190Z",
-  "updated_at": "2026-05-09T08:06:25.676Z"
+  "created_at": "2026-05-09T11:01:44.663Z",
+  "updated_at": "2026-05-09T11:01:50.417Z"
 }

@@ -1852,6 +1852,8 @@
     heading.className = "detail-section-title";
     heading.textContent = title;
     section.appendChild(heading);
+    var list = document.createElement("div");
+    list.className = "detail-section-list";
     items.forEach(function (item) {
       var button = document.createElement("button");
       button.type = "button";
@@ -1864,14 +1866,15 @@
         state.selected = item.entity ? { kind: "entity", id: item.entity.id } : { kind: "edge", id: item.edge.id };
         render();
       });
-      section.appendChild(button);
+      list.appendChild(button);
     });
     if (hiddenCount > 0) {
       var more = document.createElement("div");
       more.className = "detail-more";
       more.textContent = "+" + hiddenCount + " more connected items hidden to keep the graph readable.";
-      section.appendChild(more);
+      list.appendChild(more);
     }
+    section.appendChild(list);
     return section;
   }
 
