@@ -12,7 +12,7 @@ teams stop rediscovering commands, decisions, gotchas, bugs, and code flows.
 
 <p>
   <img alt="local first" src="https://img.shields.io/badge/local--first-yes-16a34a?style=for-the-badge">
-  <img alt="tests" src="https://img.shields.io/badge/tests-86%20passing-16a34a?style=for-the-badge">
+  <img alt="tests" src="https://img.shields.io/badge/tests-100%20passing-16a34a?style=for-the-badge">
   <img alt="agents" src="https://img.shields.io/badge/agents-13-2563eb?style=for-the-badge">
   <img alt="database" src="https://img.shields.io/badge/external%20DB-0-111827?style=for-the-badge">
   <img alt="mcp" src="https://img.shields.io/badge/MCP-ready-7c3aed?style=for-the-badge">
@@ -29,6 +29,7 @@ teams stop rediscovering commands, decisions, gotchas, bugs, and code flows.
 <p>
   <a href="#install">Install</a> ·
   <a href="#viewer">Viewer</a> ·
+  <a href="#performance">Performance</a> ·
   <a href="https://kage-core.github.io/Kage/">Website</a> ·
   <a href="#codex-and-claude-code">Codex + Claude</a> ·
   <a href="#what-kage-stores">Memory Model</a> ·
@@ -192,6 +193,64 @@ kage inbox --project . --json
 kage benchmark --project . --compare --task "how do I run tests"
 ```
 
+## Performance
+
+Kage is built so agents do not re-index the whole repo every time they ask a
+question. Learned memory, generated indexes, the memory graph, the structural
+index, and the code graph are separate layers. Read-only commands reuse current
+artifacts, while refresh only rebuilds what changed.
+
+Measured on this repo on May 9, 2026 from fresh CLI processes with hot caches:
+
+| Operation | Time |
+|---|---:|
+| `kage recall "how do I run tests"` | 0.23s |
+| `kage code-graph "routes tests auth"` | 0.20s |
+| `kage graph "memory capture decisions"` | 0.21s |
+| `kage structural-index --project .` | 0.15s |
+| `kage code-index --project .` | 0.25s |
+| `kage index --project .` | 0.48s |
+| `kage refresh --project .` | 0.67s |
+
+Current Kage-on-Kage cache and graph state:
+
+| Metric | Current |
+|---|---:|
+| Approved memory packets | 82 |
+| Memory graph | 714 entities / 1,807 edges |
+| Indexed code files | 22 |
+| Code symbols | 2,945 |
+| Calls | 1,560 |
+| Ignored generated/unsupported files | 296 |
+| Recall hit rate | 100% |
+| Evidence coverage | 100% |
+
+The important product behavior is context compression. Kage estimates this repo
+has 197,777 indexed source tokens, while a normal recall returns about 1,800
+context tokens. That is roughly 110x less context than asking an agent to reread
+the indexed source on every task.
+
+How the speedups work:
+
+- `kage init` is packet-only, so first use is not blocked by full graph builds.
+- `kage refresh` uses source/input fingerprints and reuses unchanged code graph
+  artifacts.
+- Per-file structural facts are cached by content hash; changed files miss the
+  cache, unchanged files do not.
+- Structural cache is packed into `.agent_memory/structural/file-cache.json`
+  instead of growing one stale JSON file per historical source hash.
+- Generated/vendor/cache paths are ignored, and huge files are represented
+  safely instead of deeply parsed into massive graphs.
+- Structural indexing can parallelize with worker threads on large repos.
+- `kage code-index` can consume SCIP when available, with a built-in
+  LSP-compatible fallback when external tools are not installed.
+- Recall builds graph lookup maps once per query instead of scanning every
+  graph entity and edge for every memory packet.
+
+Cold indexing on a large repo still depends on repo size, file types, and cache
+state. The design goal is that repeat work scales with changed files, not with
+the entire repository.
+
 ## What Kage Stores
 
 Kage keeps generated code facts separate from learned repo memory.
@@ -230,7 +289,7 @@ Current package status:
 
 | Proof | Current |
 |---|---:|
-| Tests | 86 passing |
+| Tests | 100 passing |
 | Agent setup targets | 13 |
 | External DB required | 0 |
 | MCP tools | recall, context, learn, graph, graph registry, code graph, code index, metrics, audit, inbox, benchmark, validate |
@@ -263,10 +322,10 @@ Kage on Kage itself:
 | Metric | Current |
 |---|---:|
 | Readiness | 100/100 |
-| Memory packets | 52 |
-| Memory graph edges | 5,148 |
-| Code files | 20 |
-| Symbols | 3,278 |
+| Memory packets | 82 |
+| Memory graph edges | 1,807 |
+| Code files | 22 |
+| Symbols | 2,945 |
 
 Same-task benchmark example:
 
