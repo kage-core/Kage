@@ -272,7 +272,7 @@
   function loadHostedDefault() {
     setAutoLoad("loading hosted repo graph", false);
     Promise.all([
-      fetchJson("./data/kage/graph.json"),
+      loadGraphPath("./data/kage/graph.json"),
       loadGraphPath("./data/kage/code_graph/graph.json"),
       fetchJson("./data/kage/metrics.json").catch(function () { return null; }),
       fetchJson("./data/kage/inbox.json").catch(function () { return null; })
