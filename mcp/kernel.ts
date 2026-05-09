@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { availableParallelism } from "node:os";
 import { basename, delimiter, dirname, join, relative, resolve } from "node:path";
+import { Worker } from "node:worker_threads";
 import * as ts from "typescript";
 import { createPublicCandidateBundleManifest, createSignedManifest, generateOrgRegistryManifest } from "./registry/index.js";
 
@@ -553,6 +555,20 @@ export interface KnowledgeGraph {
   edges: GraphEdge[];
 }
 
+interface CompactKnowledgeGraphArtifact {
+  schema_version: 1;
+  compact: true;
+  project_dir: string;
+  repo_key: string;
+  generated_from_updated_at: string | null;
+  repo_state: KnowledgeGraph["repo_state"];
+  refs: {
+    episodes: string;
+    entities: string;
+    edges: string;
+  };
+}
+
 export interface GraphQueryResult {
   query: string;
   context_block: string;
@@ -649,10 +665,33 @@ export interface CodeGraph {
   packages: Array<{ name: string; version: string; kind: "dependency" | "devDependency" | "script" }>;
 }
 
+interface CompactCodeGraphArtifact {
+  schema_version: 1;
+  compact: true;
+  artifact_format: 2;
+  project_dir: string;
+  repo_key: string;
+  generated_at: string;
+  repo_state: CodeGraph["repo_state"];
+  refs: {
+    files: string;
+    symbols: string;
+    imports: string;
+  };
+  file_parser_overrides?: Array<[path: string, parser: CodeParser]>;
+  symbol_parser_overrides?: Array<[id: string, parser: CodeParser]>;
+  extra_symbols?: CodeSymbolNode[];
+  extra_imports?: CodeImportEdge[];
+  calls: CodeCallEdge[];
+  routes: CodeRouteNode[];
+  tests: CodeTestEdge[];
+  packages: CodeGraph["packages"];
+}
+
 export interface CodeIndexManifestFile {
   path: string;
   size_bytes: number;
-  reason?: "over_quick_file_size_limit" | "over_quick_file_count_limit";
+  reason?: "over_structural_extract_file_size_limit";
 }
 
 export interface CodeIndexManifest {
@@ -660,11 +699,9 @@ export interface CodeIndexManifest {
   project_dir: string;
   repo_key: string;
   generated_at: string;
-  mode: "quick";
+  mode: "structural";
   limits: {
-    max_file_bytes: number;
-    max_files: number;
-    max_symbols: number;
+    max_extract_file_bytes: number;
     max_calls: number;
     max_calls_per_file: number;
   };
@@ -685,6 +722,98 @@ export interface CodeIndexManifest {
   ignored_summary: Record<string, number>;
 }
 
+export type StructuralGraphConfidence = "EXTRACTED" | "INFERRED" | "AMBIGUOUS";
+
+export interface StructuralFileFact {
+  schema_version: 1;
+  path: string;
+  language: string;
+  kind: CodeFileNode["kind"];
+  size_bytes: number;
+  line_count: number;
+  hash: string;
+  mtime_ms: number;
+  extraction: "structural" | "metadata-only";
+  confidence: StructuralGraphConfidence;
+  top_symbols: string[];
+  imports_preview: string[];
+  signals: string[];
+  concepts: string[];
+}
+
+export interface StructuralSymbolFact {
+  id: string;
+  name: string;
+  kind: CodeSymbolNode["kind"];
+  path: string;
+  language: string;
+  parser: CodeParser;
+  export: boolean;
+  line: number;
+  end_line: number | null;
+  signature: string;
+  confidence: StructuralGraphConfidence;
+}
+
+export interface StructuralEdgeFact {
+  source: string;
+  target: string;
+  relation: "contains" | "imports";
+  confidence: StructuralGraphConfidence;
+  source_file: string;
+  source_location: string | null;
+  weight: number;
+}
+
+export interface StructuralIndexManifestFile {
+  path: string;
+  size_bytes: number;
+  mtime_ms: number;
+  hash: string;
+  extraction: StructuralFileFact["extraction"];
+}
+
+export interface StructuralIndexManifest {
+  schema_version: 1;
+  project_dir: string;
+  repo_key: string;
+  generated_at: string;
+  provider: "kage-structural";
+  limits: {
+    max_extract_file_bytes: number;
+    max_workers: number;
+    min_parallel_files: number;
+  };
+  files: {
+    total: number;
+    indexed: number;
+    metadata_only: number;
+    ignored: number;
+  };
+  cache: {
+    hits: number;
+    misses: number;
+  };
+  symbols: number;
+  imports: number;
+  edges: number;
+  languages: Record<string, number>;
+  worker_count: number;
+  ignored_summary: Record<string, number>;
+  deleted_files: string[];
+  fingerprint: string;
+  file_entries: Record<string, StructuralIndexManifestFile>;
+}
+
+export interface StructuralIndex {
+  manifest: StructuralIndexManifest;
+  files: StructuralFileFact[];
+  symbols: StructuralSymbolFact[];
+  imports: CodeImportEdge[];
+  edges: StructuralEdgeFact[];
+  report: string;
+}
+
 export interface CodeGraphQueryResult {
   query: string;
   context_block: string;
@@ -694,6 +823,9 @@ export interface CodeGraphQueryResult {
   calls: CodeCallEdge[];
   routes: CodeRouteNode[];
   tests: CodeTestEdge[];
+  structural_files?: StructuralFileFact[];
+  structural_symbols?: StructuralSymbolFact[];
+  structural_edges?: StructuralEdgeFact[];
 }
 
 export interface KageMetrics {
@@ -718,6 +850,17 @@ export interface KageMetrics {
     indexed_files: number;
     deferred_files: number;
     ignored_files: number;
+    cache_hits: number;
+    cache_misses: number;
+  };
+  structural_index: {
+    files: number;
+    symbols: number;
+    edges: number;
+    metadata_only_files: number;
+    ignored_files: number;
+    languages: Record<string, number>;
+    worker_count: number;
     cache_hits: number;
     cache_misses: number;
   };
@@ -779,6 +922,8 @@ export interface AuditReport {
     };
     graph_links: {
       memory_code_edges: number;
+      precise_memory_code_edges: number;
+      path_memory_code_edges: number;
       evidence_coverage_percent: number;
     };
   };
@@ -1100,6 +1245,10 @@ export function graphRegistryDir(projectDir: string): string {
 
 export function codeGraphDir(projectDir: string): string {
   return join(memoryRoot(projectDir), "code_graph");
+}
+
+export function structuralIndexDir(projectDir: string): string {
+  return join(memoryRoot(projectDir), "structural");
 }
 
 export function branchesDir(projectDir: string): string {
@@ -2148,10 +2297,11 @@ const CODE_EXTENSIONS = new Set([
   ".swift",
 ]);
 const MAX_CODE_FILE_BYTES = positiveIntEnv("KAGE_MAX_CODE_FILE_BYTES", 512 * 1024);
-const MAX_CODE_GRAPH_FILES = positiveIntEnv("KAGE_MAX_CODE_GRAPH_FILES", 2000);
-const MAX_CODE_GRAPH_SYMBOLS = positiveIntEnv("KAGE_MAX_CODE_GRAPH_SYMBOLS", 25000);
 const MAX_CODE_GRAPH_CALLS = positiveIntEnv("KAGE_MAX_CODE_GRAPH_CALLS", 50000);
 const MAX_CODE_GRAPH_CALLS_PER_FILE = positiveIntEnv("KAGE_MAX_CODE_GRAPH_CALLS_PER_FILE", 250);
+const MAX_STRUCTURAL_EXTRACT_FILE_BYTES = positiveIntEnv("KAGE_MAX_STRUCTURAL_EXTRACT_FILE_BYTES", MAX_CODE_FILE_BYTES);
+const MAX_STRUCTURAL_WORKERS = positiveIntEnv("KAGE_STRUCTURAL_WORKERS", Math.max(1, Math.min(8, availableParallelism() - 1)));
+const MIN_STRUCTURAL_PARALLEL_FILES = positiveIntEnv("KAGE_STRUCTURAL_PARALLEL_MIN_FILES", 64);
 const CONFIG_NAMES = new Set([
   "package.json",
   "pyproject.toml",
@@ -2256,11 +2406,9 @@ function emptyCodeIndexManifest(projectDir: string): CodeIndexManifest {
     project_dir: projectDir,
     repo_key: repoKey(projectDir),
     generated_at: nowIso(),
-    mode: "quick",
+    mode: "structural",
     limits: {
-      max_file_bytes: MAX_CODE_FILE_BYTES,
-      max_files: MAX_CODE_GRAPH_FILES,
-      max_symbols: MAX_CODE_GRAPH_SYMBOLS,
+      max_extract_file_bytes: MAX_STRUCTURAL_EXTRACT_FILE_BYTES,
       max_calls: MAX_CODE_GRAPH_CALLS,
       max_calls_per_file: MAX_CODE_GRAPH_CALLS_PER_FILE,
     },
@@ -2285,66 +2433,6 @@ function codeIndexManifestPath(projectDir: string): string {
   return join(codeGraphDir(projectDir), "index-manifest.json");
 }
 
-function codeIndexSelection(projectDir: string): { files: string[]; manifest: CodeIndexManifest } {
-  const candidates: string[] = [];
-  const deferred: CodeIndexManifestFile[] = [];
-  const ignoredSummary: Record<string, number> = {};
-
-  const ignore = (reason: string) => {
-    ignoredSummary[reason] = (ignoredSummary[reason] ?? 0) + 1;
-  };
-
-  const visit = (dir: string) => {
-    if (!existsSync(dir)) return;
-    for (const entry of readdirSync(dir)) {
-      const absolutePath = join(dir, entry);
-      const rel = relative(projectDir, absolutePath).replace(/\\/g, "/");
-      if (shouldSkipCodePath(rel)) {
-        ignore("generated_vendor_or_cache");
-        continue;
-      }
-      const stats = statSync(absolutePath);
-      if (stats.isDirectory()) {
-        visit(absolutePath);
-        continue;
-      }
-      const extension = extensionOf(rel);
-      const indexable = CODE_EXTENSIONS.has(extension) || CONFIG_NAMES.has(basename(rel)) || rel === "README.md";
-      if (!indexable) {
-        ignore("unsupported_file_type");
-        continue;
-      }
-      if (stats.size > MAX_CODE_FILE_BYTES) {
-        deferred.push({ path: rel, size_bytes: stats.size, reason: "over_quick_file_size_limit" });
-        continue;
-      }
-      candidates.push(absolutePath);
-    }
-  };
-
-  visit(projectDir);
-  const sorted = candidates.sort((a, b) => codeFilePriority(projectDir, a) - codeFilePriority(projectDir, b) || a.localeCompare(b));
-  const indexableFiles = sorted.length + deferred.length;
-  const files = sorted.slice(0, MAX_CODE_GRAPH_FILES);
-  for (const absolutePath of sorted.slice(MAX_CODE_GRAPH_FILES)) {
-    const rel = relative(projectDir, absolutePath).replace(/\\/g, "/");
-    deferred.push({ path: rel, size_bytes: statSync(absolutePath).size, reason: "over_quick_file_count_limit" });
-  }
-
-  const manifest = emptyCodeIndexManifest(projectDir);
-  manifest.coverage = {
-    indexable_files: indexableFiles,
-    indexed_files: files.length,
-    deferred_files: deferred.length,
-    ignored_files: Object.values(ignoredSummary).reduce((sum, count) => sum + count, 0),
-    coverage_percent: percent(files.length, indexableFiles),
-    complete: deferred.length === 0,
-  };
-  manifest.deferred_files = deferred.sort((a, b) => a.path.localeCompare(b.path));
-  manifest.ignored_summary = Object.fromEntries(Object.entries(ignoredSummary).sort(([a], [b]) => a.localeCompare(b)));
-  return { files, manifest };
-}
-
 function writeCodeIndexManifest(projectDir: string, manifest: CodeIndexManifest): void {
   writeJson(codeIndexManifestPath(projectDir), manifest);
 }
@@ -2361,103 +2449,906 @@ function readCodeIndexManifest(projectDir: string): CodeIndexManifest {
   }
 }
 
+function codeIndexManifestFromStructural(
+  projectDir: string,
+  structural: StructuralIndex,
+  fingerprint: string,
+  cache: { hits: number; misses: number }
+): CodeIndexManifest {
+  const manifest = emptyCodeIndexManifest(projectDir);
+  const metadataOnly = structural.files
+    .filter((file) => file.extraction === "metadata-only")
+    .map((file) => ({ path: file.path, size_bytes: file.size_bytes, reason: "over_structural_extract_file_size_limit" as const }));
+  manifest.mode = "structural";
+  manifest.coverage = {
+    indexable_files: structural.manifest.files.total,
+    indexed_files: structural.manifest.files.indexed,
+    deferred_files: metadataOnly.length,
+    ignored_files: structural.manifest.files.ignored,
+    coverage_percent: percent(structural.manifest.files.indexed, structural.manifest.files.total),
+    complete: metadataOnly.length === 0,
+  };
+  manifest.cache = cache;
+  manifest.fingerprint = fingerprint;
+  manifest.deferred_files = metadataOnly.sort((a, b) => a.path.localeCompare(b.path));
+  manifest.ignored_summary = structural.manifest.ignored_summary;
+  return manifest;
+}
+
 function listCodeFiles(projectDir: string): string[] {
-  return codeIndexSelection(projectDir).files;
+  return scanStructuralFiles(projectDir).files;
 }
 
-function codeGraphStatFingerprint(projectDir: string, absoluteFiles: string[]): string {
-  const entries = [
-    ...absoluteFiles,
-    ...externalIndexFiles(projectDir).map((index) => index.path),
-    ...["package.json", "requirements.txt", "go.mod", "Cargo.toml"]
-      .map((path) => join(projectDir, path))
-      .filter((path) => existsSync(path)),
-  ]
-    .filter((path) => existsSync(path))
-    .map((path) => {
-      const stats = statSync(path);
-      return `${projectRelative(projectDir, path)}:${stats.size}:${Math.round(stats.mtimeMs)}`;
-    })
-    .sort();
-  return sha256Hex(entries.join("\n"));
+function codeFileFromStructural(file: StructuralFileFact): CodeFileNode {
+  return {
+    id: `file:${slugify(file.path)}`,
+    path: file.path,
+    language: file.language,
+    parser: file.extraction === "metadata-only" ? "metadata" : codeParser(file.path),
+    kind: file.kind,
+    size_bytes: file.size_bytes,
+    line_count: file.line_count,
+    hash: file.hash,
+  };
 }
 
-function readCachedCodeGraph(projectDir: string, fingerprint: string): CodeGraph | null {
+function codeSymbolFromStructural(symbol: StructuralSymbolFact): CodeSymbolNode {
+  return {
+    id: symbol.id,
+    name: symbol.name,
+    kind: symbol.kind,
+    path: symbol.path,
+    language: symbol.language,
+    parser: symbol.parser,
+    export: symbol.export ?? false,
+    line: symbol.line,
+    end_line: symbol.end_line ?? null,
+    signature: symbol.signature ?? `${symbol.name}()`,
+  };
+}
+
+function importKey(item: CodeImportEdge): string {
+  return `${item.from_path}\0${item.to_path ?? ""}\0${item.specifier}\0${item.line}\0${item.kind}`;
+}
+
+function compactCodeGraphArtifact(projectDir: string, graph: CodeGraph, structural: StructuralIndex): CompactCodeGraphArtifact {
+  const structuralFiles = new Map(structural.files.map((file) => [file.path, codeFileFromStructural(file)]));
+  const structuralSymbols = new Map(structural.symbols.map((symbol) => [symbol.id, codeSymbolFromStructural(symbol)]));
+  const structuralImports = new Set(structural.imports.map(importKey));
+  const fileParserOverrides = graph.files
+    .filter((file) => structuralFiles.get(file.path)?.parser !== file.parser)
+    .map((file) => [file.path, file.parser] as [string, CodeParser]);
+  const symbolParserOverrides = graph.symbols
+    .filter((symbol) => structuralSymbols.has(symbol.id) && structuralSymbols.get(symbol.id)?.parser !== symbol.parser)
+    .map((symbol) => [symbol.id, symbol.parser] as [string, CodeParser]);
+  const extraSymbols = graph.symbols.filter((symbol) => !structuralSymbols.has(symbol.id));
+  const extraImports = graph.imports.filter((item) => !structuralImports.has(importKey(item)));
+  return {
+    schema_version: 1,
+    compact: true,
+    artifact_format: 2,
+    project_dir: graph.project_dir,
+    repo_key: graph.repo_key,
+    generated_at: graph.generated_at,
+    repo_state: graph.repo_state,
+    refs: {
+      files: relative(codeGraphDir(projectDir), join(structuralIndexDir(projectDir), "files.json")).replace(/\\/g, "/"),
+      symbols: relative(codeGraphDir(projectDir), join(structuralIndexDir(projectDir), "symbols.json")).replace(/\\/g, "/"),
+      imports: relative(codeGraphDir(projectDir), join(structuralIndexDir(projectDir), "imports.json")).replace(/\\/g, "/"),
+    },
+    ...(fileParserOverrides.length ? { file_parser_overrides: fileParserOverrides } : {}),
+    ...(symbolParserOverrides.length ? { symbol_parser_overrides: symbolParserOverrides } : {}),
+    ...(extraSymbols.length ? { extra_symbols: extraSymbols } : {}),
+    ...(extraImports.length ? { extra_imports: extraImports } : {}),
+    calls: graph.calls,
+    routes: graph.routes,
+    tests: graph.tests,
+    packages: graph.packages,
+  };
+}
+
+function isCompactCodeGraphArtifact(value: unknown): value is CompactCodeGraphArtifact {
+  return Boolean(value && typeof value === "object" && (value as { compact?: unknown }).compact === true && (value as { artifact_format?: unknown }).artifact_format === 2);
+}
+
+function hydrateCodeGraphArtifact(projectDir: string, artifact: CodeGraph | CompactCodeGraphArtifact, structural?: StructuralIndex): CodeGraph | null {
+  if ((artifact as { compact?: unknown }).compact === true && !isCompactCodeGraphArtifact(artifact)) return null;
+  if (!isCompactCodeGraphArtifact(artifact)) return artifact as CodeGraph;
+  const index = structural ?? readCurrentStructuralIndex(projectDir);
+  if (!index) return null;
+  return {
+    schema_version: 1,
+    project_dir: artifact.project_dir,
+    repo_key: artifact.repo_key,
+    generated_at: artifact.generated_at,
+    repo_state: artifact.repo_state,
+    files: index.files.map(codeFileFromStructural).map((file) => {
+      const override = artifact.file_parser_overrides?.find(([path]) => path === file.path);
+      return override ? { ...file, parser: override[1] } : file;
+    }).sort((a, b) => a.path.localeCompare(b.path)),
+    symbols: [
+      ...index.symbols.map(codeSymbolFromStructural).map((symbol) => {
+        const override = artifact.symbol_parser_overrides?.find(([id]) => id === symbol.id);
+        return override ? { ...symbol, parser: override[1] } : symbol;
+      }),
+      ...(artifact.extra_symbols ?? []),
+    ].sort((a, b) => a.path.localeCompare(b.path) || a.line - b.line || a.name.localeCompare(b.name)),
+    imports: [
+      ...index.imports,
+      ...(artifact.extra_imports ?? []),
+    ].sort((a, b) => a.from_path.localeCompare(b.from_path) || a.line - b.line || a.specifier.localeCompare(b.specifier)),
+    calls: artifact.calls ?? [],
+    routes: artifact.routes ?? [],
+    tests: artifact.tests ?? [],
+    packages: artifact.packages ?? [],
+  };
+}
+
+function removeLegacyCodeGraphSplits(projectDir: string): void {
+  for (const name of ["files.json", "symbols.json", "imports.json", "calls.json", "routes.json", "tests.json", "packages.json"]) {
+    rmSync(join(codeGraphDir(projectDir), name), { force: true });
+  }
+}
+
+function readCachedCodeGraph(projectDir: string, fingerprint: string, structural?: StructuralIndex): CodeGraph | null {
   const path = join(codeGraphDir(projectDir), "graph.json");
   if (!existsSync(path)) return null;
   try {
-    const graph = readJson<CodeGraph>(path);
+    const artifact = readJson<CodeGraph | CompactCodeGraphArtifact>(path);
     if (readCodeIndexManifest(projectDir).fingerprint !== fingerprint) return null;
-    return graph;
+    if (!isCompactCodeGraphArtifact(artifact)) return null;
+    return hydrateCodeGraphArtifact(projectDir, artifact, structural);
   } catch {
     return null;
   }
 }
 
-interface FileCodeFacts {
+export interface StructuralCachedFile {
   schema_version: 1;
   path: string;
   hash: string;
-  file: CodeFileNode;
-  symbols: CodeSymbolNode[];
+  file: StructuralFileFact;
+  symbols: StructuralSymbolFact[];
   imports: CodeImportEdge[];
+  edges: StructuralEdgeFact[];
 }
 
-function fileFactCacheDir(projectDir: string): string {
-  return join(codeGraphDir(projectDir), "file-cache");
+type CompactStructuralFileFact = [
+  language: string,
+  kind: StructuralFileFact["kind"],
+  size_bytes: number,
+  line_count: number,
+  hash: string,
+  mtime_ms: number,
+  extraction: StructuralFileFact["extraction"],
+  confidence: StructuralGraphConfidence,
+  top_symbols: string[],
+  imports_preview: string[],
+  signals: string[],
+  concepts: string[],
+];
+
+type CompactStructuralSymbolFact = [
+  id: string,
+  name: string,
+  kind: StructuralSymbolFact["kind"],
+  parser: CodeParser,
+  exported: boolean,
+  line: number,
+  end_line: number | null,
+  signature: string,
+  confidence: StructuralGraphConfidence,
+];
+
+type CompactStructuralImportFact = [
+  to_path: string | null,
+  specifier: string,
+  imported: string[],
+  kind: CodeImportEdge["kind"],
+  parser: CodeParser,
+  line: number,
+];
+
+interface CompactStructuralCachedFile {
+  schema_version: 2;
+  path: string;
+  hash: string;
+  file: CompactStructuralFileFact;
+  symbols: CompactStructuralSymbolFact[];
+  imports: CompactStructuralImportFact[];
 }
 
-function fileFactCachePath(projectDir: string, rel: string, hash: string): string {
-  return join(fileFactCacheDir(projectDir), `${slugify(rel)}-${hash}.json`);
+interface PackedStructuralFileCache {
+  schema_version: 1;
+  provider: "kage-structural-file-cache";
+  entries: Record<string, CompactStructuralCachedFile>;
 }
 
-function readCachedFileFacts(projectDir: string, rel: string, hash: string): FileCodeFacts | null {
-  const path = fileFactCachePath(projectDir, rel, hash);
+export interface StructuralFileBuildResult {
+  cached: StructuralCachedFile;
+  entry: StructuralIndexManifestFile;
+  cacheHit: boolean;
+}
+
+export interface StructuralWorkerResultFile {
+  ok: boolean;
+  results: StructuralFileBuildResult[];
+  error?: string;
+}
+
+function structuralManifestPath(projectDir: string): string {
+  return join(structuralIndexDir(projectDir), "manifest.json");
+}
+
+function structuralFileCacheDir(projectDir: string): string {
+  return join(structuralIndexDir(projectDir), "file-cache");
+}
+
+function structuralPackedFileCachePath(projectDir: string): string {
+  return join(structuralIndexDir(projectDir), "file-cache.json");
+}
+
+function structuralFileCachePath(projectDir: string, rel: string, hash: string): string {
+  return join(structuralFileCacheDir(projectDir), `${slugify(rel)}-${hash}.json`);
+}
+
+function emptyStructuralIndexManifest(projectDir: string): StructuralIndexManifest {
+  return {
+    schema_version: 1,
+    project_dir: projectDir,
+    repo_key: repoKey(projectDir),
+    generated_at: nowIso(),
+    provider: "kage-structural",
+    limits: {
+      max_extract_file_bytes: MAX_STRUCTURAL_EXTRACT_FILE_BYTES,
+      max_workers: MAX_STRUCTURAL_WORKERS,
+      min_parallel_files: MIN_STRUCTURAL_PARALLEL_FILES,
+    },
+    files: {
+      total: 0,
+      indexed: 0,
+      metadata_only: 0,
+      ignored: 0,
+    },
+    cache: {
+      hits: 0,
+      misses: 0,
+    },
+    symbols: 0,
+    imports: 0,
+    edges: 0,
+    languages: {},
+    worker_count: 0,
+    ignored_summary: {},
+    deleted_files: [],
+    fingerprint: "",
+    file_entries: {},
+  };
+}
+
+function readStructuralIndexManifest(projectDir: string): StructuralIndexManifest {
+  const path = structuralManifestPath(projectDir);
+  if (!existsSync(path)) return emptyStructuralIndexManifest(projectDir);
+  try {
+    const manifest = readJson<StructuralIndexManifest>(path);
+    if (manifest.schema_version !== 1 || manifest.provider !== "kage-structural") return emptyStructuralIndexManifest(projectDir);
+    if (!manifest.file_entries) manifest.file_entries = {};
+    if (!manifest.cache) manifest.cache = { hits: 0, misses: 0 };
+    return manifest;
+  } catch {
+    return emptyStructuralIndexManifest(projectDir);
+  }
+}
+
+function writeStructuralIndexManifest(projectDir: string, manifest: StructuralIndexManifest): void {
+  writeJson(structuralManifestPath(projectDir), manifest);
+}
+
+function readKageIgnore(projectDir: string): string[] {
+  const path = join(projectDir, ".kageignore");
+  if (!existsSync(path)) return [];
+  return readFileSync(path, "utf8")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"));
+}
+
+function wildcardPattern(pattern: string): RegExp {
+  const escaped = pattern
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*\*/g, "\0")
+    .replace(/\*/g, "[^/]*")
+    .replace(/\0/g, ".*");
+  return new RegExp(`^${escaped}$`);
+}
+
+function kageIgnoreMatches(rel: string, pattern: string): boolean {
+  const normalized = pattern.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!normalized) return false;
+  if (normalized.endsWith("/")) return rel === normalized.slice(0, -1) || rel.startsWith(normalized);
+  if (normalized.includes("*")) return wildcardPattern(normalized).test(rel);
+  return rel === normalized || rel.startsWith(`${normalized}/`) || rel.split("/").includes(normalized);
+}
+
+function isKageIgnored(rel: string, patterns: string[]): boolean {
+  let ignored = false;
+  for (const pattern of patterns) {
+    if (pattern.startsWith("!")) {
+      if (kageIgnoreMatches(rel, pattern.slice(1))) ignored = false;
+      continue;
+    }
+    if (kageIgnoreMatches(rel, pattern)) ignored = true;
+  }
+  return ignored;
+}
+
+function isStructuralIndexable(rel: string): boolean {
+  const extension = extensionOf(rel);
+  return CODE_EXTENSIONS.has(extension) || CONFIG_NAMES.has(basename(rel)) || rel === "README.md";
+}
+
+function scanStructuralFiles(projectDir: string): { files: string[]; ignoredSummary: Record<string, number> } {
+  const files: string[] = [];
+  const ignoredSummary: Record<string, number> = {};
+  const ignorePatterns = readKageIgnore(projectDir);
+  const ignore = (reason: string) => {
+    ignoredSummary[reason] = (ignoredSummary[reason] ?? 0) + 1;
+  };
+
+  const visit = (dir: string) => {
+    if (!existsSync(dir)) return;
+    for (const entry of readdirSync(dir)) {
+      const absolutePath = join(dir, entry);
+      const rel = relative(projectDir, absolutePath).replace(/\\/g, "/");
+      if (shouldSkipCodePath(rel)) {
+        ignore("generated_vendor_or_cache");
+        continue;
+      }
+      if (isKageIgnored(rel, ignorePatterns)) {
+        ignore("kageignore");
+        continue;
+      }
+      const stats = statSync(absolutePath);
+      if (stats.isDirectory()) {
+        visit(absolutePath);
+        continue;
+      }
+      if (!isStructuralIndexable(rel)) {
+        ignore("unsupported_file_type");
+        continue;
+      }
+      files.push(absolutePath);
+    }
+  };
+
+  visit(projectDir);
+  return {
+    files: files.sort((a, b) => codeFilePriority(projectDir, a) - codeFilePriority(projectDir, b) || a.localeCompare(b)),
+    ignoredSummary: Object.fromEntries(Object.entries(ignoredSummary).sort(([a], [b]) => a.localeCompare(b))),
+  };
+}
+
+function countBufferLines(buffer: Buffer): number {
+  if (buffer.length === 0) return 0;
+  let lines = 1;
+  for (const byte of buffer) {
+    if (byte === 10) lines += 1;
+  }
+  return lines;
+}
+
+function structuralConcepts(rel: string, symbols: StructuralSymbolFact[]): string[] {
+  const pathTerms = rel
+    .replace(/\.[^.]+$/, "")
+    .split(/[\/_.-]+/)
+    .flatMap((term) => term.split(/(?=[A-Z])/));
+  const symbolTerms = symbols.flatMap((symbol) => symbol.name.split(/[_\W]+|(?=[A-Z])/));
+  return unique([...pathTerms, ...symbolTerms]
+    .map((term) => term.toLowerCase())
+    .filter((term) => term.length >= 3 && !["src", "lib", "test", "spec", "index"].includes(term)))
+    .slice(0, 16);
+}
+
+function structuralSignals(rel: string, content: string | null, kind: CodeFileNode["kind"]): string[] {
+  const signals = new Set<string>([kind]);
+  if (rel === "README.md") signals.add("readme");
+  if (CONFIG_NAMES.has(basename(rel))) signals.add("config");
+  if (content && /\b(app|router)\.(get|post|put|patch|delete)\s*\(/.test(content)) signals.add("http-route");
+  if (content && /\b(describe|it|test)\s*\(/.test(content)) signals.add("test-suite");
+  if (content && /\b(auth|login|token|session)\b/i.test(content)) signals.add("auth");
+  return [...signals].sort();
+}
+
+function structuralEdgesFromFacts(rel: string, symbols: StructuralSymbolFact[], imports: CodeImportEdge[]): StructuralEdgeFact[] {
+  const fileId = `file:${slugify(rel)}`;
+  return [
+    ...symbols.map((symbol) => ({
+      source: fileId,
+      target: symbol.id,
+      relation: "contains" as const,
+      confidence: "EXTRACTED" as const,
+      source_file: rel,
+      source_location: `L${symbol.line}`,
+      weight: 1,
+    })),
+    ...imports.map((item) => ({
+      source: fileId,
+      target: item.to_path ? `file:${slugify(item.to_path)}` : `external:${slugify(item.specifier)}`,
+      relation: "imports" as const,
+      confidence: item.to_path ? "EXTRACTED" as const : "AMBIGUOUS" as const,
+      source_file: rel,
+      source_location: `L${item.line}`,
+      weight: item.to_path ? 1 : 0.5,
+    })),
+  ];
+}
+
+function compactStructuralCachedFile(cached: StructuralCachedFile): CompactStructuralCachedFile {
+  return {
+    schema_version: 2,
+    path: cached.path,
+    hash: cached.hash,
+    file: [
+      cached.file.language,
+      cached.file.kind,
+      cached.file.size_bytes,
+      cached.file.line_count,
+      cached.file.hash,
+      cached.file.mtime_ms,
+      cached.file.extraction,
+      cached.file.confidence,
+      cached.file.top_symbols,
+      cached.file.imports_preview,
+      cached.file.signals,
+      cached.file.concepts,
+    ],
+    symbols: cached.symbols.map((symbol) => [
+      symbol.id,
+      symbol.name,
+      symbol.kind,
+      symbol.parser,
+      symbol.export,
+      symbol.line,
+      symbol.end_line,
+      symbol.signature,
+      symbol.confidence,
+    ]),
+    imports: cached.imports.map((item) => [
+      item.to_path,
+      item.specifier,
+      item.imported,
+      item.kind,
+      item.parser,
+      item.line,
+    ]),
+  };
+}
+
+function expandCompactStructuralCachedFile(compact: CompactStructuralCachedFile): StructuralCachedFile | null {
+  if (!Array.isArray(compact.file) || !Array.isArray(compact.symbols) || !Array.isArray(compact.imports)) return null;
+  const [language, kind, sizeBytes, lineCount, shortHash, mtimeMs, extraction, confidence, topSymbols, importsPreview, signals, concepts] = compact.file;
+  const file: StructuralFileFact = {
+    schema_version: 1,
+    path: compact.path,
+    language,
+    kind,
+    size_bytes: sizeBytes,
+    line_count: lineCount,
+    hash: shortHash,
+    mtime_ms: mtimeMs,
+    extraction,
+    confidence,
+    top_symbols: topSymbols,
+    imports_preview: importsPreview,
+    signals,
+    concepts,
+  };
+  const symbols: StructuralSymbolFact[] = compact.symbols.map((symbol) => ({
+    id: symbol[0],
+    name: symbol[1],
+    kind: symbol[2],
+    path: compact.path,
+    language,
+    parser: symbol[3],
+    export: symbol[4],
+    line: symbol[5],
+    end_line: symbol[6],
+    signature: symbol[7],
+    confidence: symbol[8],
+  }));
+  const imports: CodeImportEdge[] = compact.imports.map((item) => ({
+    from_path: compact.path,
+    to_path: item[0],
+    specifier: item[1],
+    imported: item[2],
+    kind: item[3],
+    parser: item[4],
+    line: item[5],
+  }));
+  return {
+    schema_version: 1,
+    path: compact.path,
+    hash: compact.hash,
+    file,
+    symbols,
+    imports,
+    edges: structuralEdgesFromFacts(compact.path, symbols, imports),
+  };
+}
+
+const packedStructuralCache = new Map<string, { mtimeMs: number; size: number; entries: Record<string, CompactStructuralCachedFile> }>();
+
+function structuralPackedCacheKey(rel: string, hash: string): string {
+  return `${rel}\0${hash}`;
+}
+
+function readPackedStructuralCache(projectDir: string): Record<string, CompactStructuralCachedFile> {
+  const path = structuralPackedFileCachePath(projectDir);
+  if (!existsSync(path)) return {};
+  const stats = statSync(path);
+  const cacheKey = resolve(projectDir);
+  const cached = packedStructuralCache.get(cacheKey);
+  if (cached && cached.mtimeMs === stats.mtimeMs && cached.size === stats.size) return cached.entries;
+  try {
+    const packed = readJson<PackedStructuralFileCache>(path);
+    const entries = packed.schema_version === 1 && packed.provider === "kage-structural-file-cache" && packed.entries ? packed.entries : {};
+    packedStructuralCache.set(cacheKey, { mtimeMs: stats.mtimeMs, size: stats.size, entries });
+    return entries;
+  } catch {
+    return {};
+  }
+}
+
+function readCachedStructuralFile(projectDir: string, rel: string, hash: string): StructuralCachedFile | null {
+  const packed = readPackedStructuralCache(projectDir)[structuralPackedCacheKey(rel, hash)];
+  if (packed) {
+    const expanded = expandCompactStructuralCachedFile(packed);
+    if (expanded && expanded.path === rel && expanded.hash === hash) return expanded;
+  }
+
+  const path = structuralFileCachePath(projectDir, rel, hash);
   if (!existsSync(path)) return null;
   try {
-    const cached = readJson<FileCodeFacts>(path);
-    if (cached.schema_version !== 1 || cached.path !== rel || cached.hash !== hash) return null;
-    if (!cached.file || !Array.isArray(cached.symbols) || !Array.isArray(cached.imports)) return null;
+    const raw = readJson<StructuralCachedFile | CompactStructuralCachedFile>(path);
+    const cached = raw.schema_version === 2 ? expandCompactStructuralCachedFile(raw) : raw;
+    if (!cached || cached.schema_version !== 1 || cached.path !== rel || cached.hash !== hash) return null;
+    if (!cached.file || !Array.isArray(cached.symbols) || !Array.isArray(cached.imports) || !Array.isArray(cached.edges)) return null;
+    if (cached.symbols.some((symbol) => typeof symbol.signature !== "string" || typeof symbol.export !== "boolean")) return null;
     return cached;
   } catch {
     return null;
   }
 }
 
-function writeCachedFileFacts(projectDir: string, facts: FileCodeFacts): void {
-  ensureDir(fileFactCacheDir(projectDir));
-  writeJson(fileFactCachePath(projectDir, facts.path, facts.hash), facts);
+function writeStructuralFileCachePack(projectDir: string, results: StructuralFileBuildResult[]): void {
+  const entries: Record<string, CompactStructuralCachedFile> = {};
+  for (const result of results) {
+    entries[structuralPackedCacheKey(result.cached.path, result.cached.hash)] = compactStructuralCachedFile(result.cached);
+  }
+  writeJson(structuralPackedFileCachePath(projectDir), {
+    schema_version: 1,
+    provider: "kage-structural-file-cache",
+    entries: Object.fromEntries(Object.entries(entries).sort(([a], [b]) => a.localeCompare(b))),
+  } satisfies PackedStructuralFileCache);
+  packedStructuralCache.delete(resolve(projectDir));
+  rmSync(structuralFileCacheDir(projectDir), { recursive: true, force: true });
 }
 
-function buildFileFacts(projectDir: string, absolutePath: string, knownFiles: Set<string>): { facts: FileCodeFacts; content: string; cacheHit: boolean } {
+function buildStructuralFile(
+  projectDir: string,
+  absolutePath: string,
+  knownFiles: Set<string>,
+  prior: StructuralIndexManifest
+): StructuralFileBuildResult {
   const rel = relative(projectDir, absolutePath).replace(/\\/g, "/");
-  const content = readFileSync(absolutePath, "utf8");
-  const fullHash = createHash("sha256").update(content).digest("hex");
-  const cached = readCachedFileFacts(projectDir, rel, fullHash);
-  if (cached) return { facts: cached, content, cacheHit: true };
-
-  const file: CodeFileNode = {
-    id: `file:${slugify(rel)}`,
-    path: rel,
-    language: codeLanguage(rel),
-    parser: codeParser(rel),
-    kind: codeFileKind(rel),
-    size_bytes: Buffer.byteLength(content),
-    line_count: content.split(/\r?\n/).length,
-    hash: fullHash.slice(0, 16),
-  };
-  const symbols: CodeSymbolNode[] = [];
-  const imports: CodeImportEdge[] = [];
-  if (TS_AST_EXTENSIONS.has(extensionOf(rel))) {
-    symbols.push(...extractSymbols(rel, content));
-    imports.push(...extractImports(projectDir, rel, content, knownFiles));
-  } else if (CODE_EXTENSIONS.has(extensionOf(rel))) {
-    symbols.push(...extractGenericSymbols(rel, content));
-    imports.push(...extractGenericImports(projectDir, rel, content, knownFiles));
+  const stats = statSync(absolutePath);
+  const priorEntry = prior.file_entries[rel];
+  const canReuseHash = priorEntry && priorEntry.size_bytes === stats.size && Math.round(priorEntry.mtime_ms) === Math.round(stats.mtimeMs);
+  let buffer: Buffer | null = canReuseHash ? null : readFileSync(absolutePath);
+  let hash = canReuseHash ? priorEntry.hash : sha256Hex(buffer ?? "");
+  let cached = readCachedStructuralFile(projectDir, rel, hash);
+  if (!cached && !buffer) {
+    buffer = readFileSync(absolutePath);
+    hash = sha256Hex(buffer);
+    cached = readCachedStructuralFile(projectDir, rel, hash);
   }
-  const facts: FileCodeFacts = { schema_version: 1, path: rel, hash: fullHash, file, symbols, imports };
-  writeCachedFileFacts(projectDir, facts);
-  return { facts, content, cacheHit: false };
+  const entry: StructuralIndexManifestFile = {
+    path: rel,
+    size_bytes: stats.size,
+    mtime_ms: stats.mtimeMs,
+    hash,
+    extraction: stats.size <= MAX_STRUCTURAL_EXTRACT_FILE_BYTES ? "structural" : "metadata-only",
+  };
+  if (cached) return { cached, entry, cacheHit: true };
+
+  const content = stats.size <= MAX_STRUCTURAL_EXTRACT_FILE_BYTES ? (buffer ?? readFileSync(absolutePath)).toString("utf8") : null;
+  const language = codeLanguage(rel);
+  const parser = content ? codeParser(rel) : "metadata";
+  const rawSymbols: CodeSymbolNode[] = [];
+  const rawImports: CodeImportEdge[] = [];
+  if (content) {
+    if (TS_AST_EXTENSIONS.has(extensionOf(rel))) {
+      rawSymbols.push(...extractSymbols(rel, content));
+      rawImports.push(...extractImports(projectDir, rel, content, knownFiles));
+    } else if (CODE_EXTENSIONS.has(extensionOf(rel))) {
+      rawSymbols.push(...extractGenericSymbols(rel, content));
+      rawImports.push(...extractGenericImports(projectDir, rel, content, knownFiles));
+    }
+  }
+  const symbols: StructuralSymbolFact[] = rawSymbols.map((symbol) => ({
+    id: symbol.id,
+    name: symbol.name,
+    kind: symbol.kind,
+    path: symbol.path,
+    language: symbol.language,
+    parser: symbol.parser,
+    export: symbol.export,
+    line: symbol.line,
+    end_line: symbol.end_line,
+    signature: symbol.signature,
+    confidence: "EXTRACTED",
+  }));
+  const edges = structuralEdgesFromFacts(rel, symbols, rawImports);
+  const file: StructuralFileFact = {
+    schema_version: 1,
+    path: rel,
+    language,
+    kind: codeFileKind(rel),
+    size_bytes: stats.size,
+    line_count: content ? content.split(/\r?\n/).length : countBufferLines(buffer ?? readFileSync(absolutePath)),
+    hash: hash.slice(0, 16),
+    mtime_ms: stats.mtimeMs,
+    extraction: entry.extraction,
+    confidence: "EXTRACTED",
+    top_symbols: symbols.slice(0, 12).map((symbol) => symbol.name),
+    imports_preview: rawImports.slice(0, 20).map((item) => item.specifier),
+    signals: structuralSignals(rel, content, codeFileKind(rel)),
+    concepts: [],
+  };
+  file.concepts = structuralConcepts(rel, symbols);
+  const next = { schema_version: 1 as const, path: rel, hash, file, symbols, imports: rawImports, edges };
+  return { cached: next, entry, cacheHit: false };
+}
+
+export function buildStructuralFileForWorker(
+  projectDir: string,
+  absolutePath: string,
+  knownFiles: string[],
+  prior: StructuralIndexManifest
+): StructuralFileBuildResult {
+  return buildStructuralFile(projectDir, absolutePath, new Set(knownFiles), prior);
+}
+
+function structuralWorkerPath(): string {
+  return join(__dirname, "structural-worker.js");
+}
+
+function structuralWorkerCount(fileCount: number): number {
+  if (fileCount < MIN_STRUCTURAL_PARALLEL_FILES) return 1;
+  return Math.max(1, Math.min(MAX_STRUCTURAL_WORKERS, fileCount));
+}
+
+function splitStructuralBatches(files: string[], count: number): string[][] {
+  const batches = Array.from({ length: count }, () => [] as string[]);
+  files.forEach((file, index) => batches[index % count].push(file));
+  return batches.filter((batch) => batch.length > 0);
+}
+
+function buildStructuralFilesSerial(
+  projectDir: string,
+  scannedFiles: string[],
+  knownFiles: Set<string>,
+  previous: StructuralIndexManifest
+): { results: StructuralFileBuildResult[]; workerCount: number } {
+  return {
+    results: scannedFiles.map((absolutePath) => buildStructuralFile(projectDir, absolutePath, knownFiles, previous)),
+    workerCount: 1,
+  };
+}
+
+function buildStructuralFilesParallel(
+  projectDir: string,
+  scannedFiles: string[],
+  knownFiles: Set<string>,
+  previous: StructuralIndexManifest
+): { results: StructuralFileBuildResult[]; workerCount: number } {
+  const workerCount = structuralWorkerCount(scannedFiles.length);
+  if (workerCount <= 1) return buildStructuralFilesSerial(projectDir, scannedFiles, knownFiles, previous);
+
+  const outDir = join(structuralIndexDir(projectDir), "worker-output", `${process.pid}-${Date.now()}`);
+  ensureDir(outDir);
+  const shared = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT);
+  const done = new Int32Array(shared);
+  const known = [...knownFiles];
+  const batches = splitStructuralBatches(scannedFiles, workerCount);
+  const workers = batches.map((files, index) => new Worker(structuralWorkerPath(), {
+    workerData: {
+      projectDir,
+      files,
+      knownFiles: known,
+      prior: previous,
+      outputPath: join(outDir, `worker-${index}.json`),
+      shared,
+    },
+  }));
+
+  const startedAt = Date.now();
+  while (Atomics.load(done, 0) < batches.length) {
+    const current = Atomics.load(done, 0);
+    Atomics.wait(done, 0, current, 1000);
+    if (Date.now() - startedAt > 10 * 60 * 1000) {
+      for (const worker of workers) void worker.terminate();
+      rmSync(outDir, { recursive: true, force: true });
+      throw new Error(`Structural index workers timed out after ${batches.length} batches`);
+    }
+  }
+
+  const results: StructuralFileBuildResult[] = [];
+  try {
+    for (let index = 0; index < batches.length; index++) {
+      const output = readJson<StructuralWorkerResultFile>(join(outDir, `worker-${index}.json`));
+      if (!output.ok) throw new Error(output.error ?? `Structural index worker ${index} failed`);
+      results.push(...output.results);
+    }
+  } finally {
+    rmSync(outDir, { recursive: true, force: true });
+  }
+  return { results, workerCount: batches.length };
+}
+
+function structuralReport(index: StructuralIndex): string {
+  const languageLines = Object.entries(index.manifest.languages)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 20)
+    .map(([language, count]) => `- ${language}: ${count}`);
+  const conceptLines = Object.entries(countBy(index.files.flatMap((file) => file.concepts), (concept) => concept))
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 20)
+    .map(([concept, count]) => `- ${concept}: ${count}`);
+  return [
+    "# Kage Structural Index",
+    "",
+    "This is the full-repo structural index used for fast large-repo orientation. It is generated, cache-backed, and separate from repo memory packets.",
+    "",
+    "## Coverage",
+    "",
+    `- Files: ${index.manifest.files.indexed}/${index.manifest.files.total}`,
+    `- Metadata-only files: ${index.manifest.files.metadata_only}`,
+    `- Ignored files: ${index.manifest.files.ignored}`,
+    `- Symbols: ${index.symbols.length}`,
+    `- Imports: ${index.imports.length}`,
+    `- Edges: ${index.edges.length}`,
+    `- Cache: ${index.manifest.cache.hits} hits, ${index.manifest.cache.misses} misses`,
+    `- Workers: ${index.manifest.worker_count}`,
+    "",
+    "## Languages",
+    "",
+    ...(languageLines.length ? languageLines : ["- none"]),
+    "",
+    "## Top Concepts",
+    "",
+    ...(conceptLines.length ? conceptLines : ["- none"]),
+    "",
+  ].join("\n");
+}
+
+export function buildStructuralIndex(projectDir: string): StructuralIndex {
+  ensureMemoryDirs(projectDir);
+  ensureDir(structuralIndexDir(projectDir));
+  const previous = readStructuralIndexManifest(projectDir);
+  const scanned = scanStructuralFiles(projectDir);
+  const knownFiles = new Set(scanned.files.map((file) => relative(projectDir, file).replace(/\\/g, "/")));
+  const files: StructuralFileFact[] = [];
+  const symbols: StructuralSymbolFact[] = [];
+  const imports: CodeImportEdge[] = [];
+  const edges: StructuralEdgeFact[] = [];
+  const fileEntries: Record<string, StructuralIndexManifestFile> = {};
+  let hits = 0;
+  let misses = 0;
+
+  const builtFiles = buildStructuralFilesParallel(projectDir, scanned.files, knownFiles, previous);
+  for (const built of builtFiles.results) {
+    if (built.cacheHit) hits += 1;
+    else misses += 1;
+    files.push(built.cached.file);
+    symbols.push(...built.cached.symbols);
+    imports.push(...built.cached.imports);
+    edges.push(...built.cached.edges);
+    fileEntries[built.entry.path] = built.entry;
+  }
+
+  files.sort((a, b) => a.path.localeCompare(b.path));
+  symbols.sort((a, b) => a.path.localeCompare(b.path) || a.line - b.line || a.name.localeCompare(b.name));
+  imports.sort((a, b) => a.from_path.localeCompare(b.from_path) || a.line - b.line || a.specifier.localeCompare(b.specifier));
+  edges.sort((a, b) => a.source.localeCompare(b.source) || a.target.localeCompare(b.target) || a.relation.localeCompare(b.relation));
+  const fingerprint = sha256Hex(Object.values(fileEntries)
+    .map((entry) => `${entry.path}:${entry.size_bytes}:${Math.round(entry.mtime_ms)}:${entry.hash}`)
+    .sort()
+    .join("\n"));
+  const deletedFiles = Object.keys(previous.file_entries).filter((path) => !fileEntries[path]).sort();
+  writeStructuralFileCachePack(projectDir, builtFiles.results);
+  const manifest: StructuralIndexManifest = {
+    schema_version: 1,
+    project_dir: projectDir,
+    repo_key: repoKey(projectDir),
+    generated_at: nowIso(),
+    provider: "kage-structural",
+    limits: {
+      max_extract_file_bytes: MAX_STRUCTURAL_EXTRACT_FILE_BYTES,
+      max_workers: MAX_STRUCTURAL_WORKERS,
+      min_parallel_files: MIN_STRUCTURAL_PARALLEL_FILES,
+    },
+    files: {
+      total: scanned.files.length,
+      indexed: files.length,
+      metadata_only: files.filter((file) => file.extraction === "metadata-only").length,
+      ignored: Object.values(scanned.ignoredSummary).reduce((sum, count) => sum + count, 0),
+    },
+    cache: {
+      hits,
+      misses,
+    },
+    symbols: symbols.length,
+    imports: imports.length,
+    edges: edges.length,
+    languages: countBy(files, (file) => file.language),
+    worker_count: builtFiles.workerCount,
+    ignored_summary: scanned.ignoredSummary,
+    deleted_files: deletedFiles,
+    fingerprint,
+    file_entries: fileEntries,
+  };
+  const index: StructuralIndex = { manifest, files, symbols, imports, edges, report: "" };
+  index.report = structuralReport(index);
+  writeJson(join(structuralIndexDir(projectDir), "files.json"), files);
+  writeJson(join(structuralIndexDir(projectDir), "symbols.json"), symbols);
+  writeJson(join(structuralIndexDir(projectDir), "imports.json"), imports);
+  writeJson(join(structuralIndexDir(projectDir), "edges.json"), edges);
+  writeFileSync(join(structuralIndexDir(projectDir), "report.md"), index.report, "utf8");
+  writeStructuralIndexManifest(projectDir, manifest);
+  writeJson(join(indexesDir(projectDir), "structural.json"), {
+    schema_version: 1,
+    provider: "kage-structural",
+    files: relative(projectDir, join(structuralIndexDir(projectDir), "files.json")),
+    symbols: relative(projectDir, join(structuralIndexDir(projectDir), "symbols.json")),
+    imports: relative(projectDir, join(structuralIndexDir(projectDir), "imports.json")),
+    edges: relative(projectDir, join(structuralIndexDir(projectDir), "edges.json")),
+    report: relative(projectDir, join(structuralIndexDir(projectDir), "report.md")),
+    manifest: relative(projectDir, structuralManifestPath(projectDir)),
+    file_count: files.length,
+    symbol_count: symbols.length,
+    import_count: imports.length,
+    edge_count: edges.length,
+    cache_hits: hits,
+    cache_misses: misses,
+    worker_count: builtFiles.workerCount,
+  });
+  return index;
+}
+
+function readCurrentStructuralIndex(projectDir: string): StructuralIndex | null {
+  const manifestPath = structuralManifestPath(projectDir);
+  const filesPath = join(structuralIndexDir(projectDir), "files.json");
+  const symbolsPath = join(structuralIndexDir(projectDir), "symbols.json");
+  const importsPath = join(structuralIndexDir(projectDir), "imports.json");
+  const edgesPath = join(structuralIndexDir(projectDir), "edges.json");
+  if (![manifestPath, filesPath, symbolsPath, importsPath, edgesPath].every((path) => existsSync(path))) return null;
+  try {
+    const manifest = readJson<StructuralIndexManifest>(manifestPath);
+    if (manifest.schema_version !== 1 || manifest.provider !== "kage-structural") return null;
+    return {
+      manifest,
+      files: readJson<StructuralFileFact[]>(filesPath),
+      symbols: readJson<StructuralSymbolFact[]>(symbolsPath),
+      imports: readJson<CodeImportEdge[]>(importsPath),
+      edges: readJson<StructuralEdgeFact[]>(edgesPath),
+      report: existsSync(join(structuralIndexDir(projectDir), "report.md"))
+        ? readFileSync(join(structuralIndexDir(projectDir), "report.md"), "utf8")
+        : "",
+    };
+  } catch {
+    return null;
+  }
 }
 
 function codeFilePriority(projectDir: string, absolutePath: string): number {
@@ -2980,6 +3871,52 @@ function codeGraphInputHash(projectDir: string, absoluteFiles = listCodeFiles(pr
   ]);
 }
 
+function codeGraphInputHashFromStructural(projectDir: string, structural: StructuralIndex): string {
+  return codeGraphInputHashFromStructuralFingerprint(projectDir, structural.manifest.fingerprint);
+}
+
+function codeGraphInputHashFromStructuralFingerprint(projectDir: string, fingerprint: string): string {
+  return graphInputHash([
+    { kind: "code_graph_input", path: ".agent_memory/structural/fingerprint", sha256: fingerprint },
+    ...fileInputEntries(projectDir, externalIndexFiles(projectDir).map((index) => index.path), "external_code_index"),
+  ]);
+}
+
+function currentStructuralFingerprint(projectDir: string, structural: StructuralIndex): string {
+  const scanned = scanStructuralFiles(projectDir);
+  const entries = scanned.files
+    .map((absolutePath) => {
+      const rel = relative(projectDir, absolutePath).replace(/\\/g, "/");
+      const stats = statSync(absolutePath);
+      const previous = structural.manifest.file_entries[rel];
+      const hash = previous && previous.size_bytes === stats.size && Math.round(previous.mtime_ms) === Math.round(stats.mtimeMs)
+        ? previous.hash
+        : sha256Hex(readFileSync(absolutePath));
+      return `${rel}:${stats.size}:${Math.round(stats.mtimeMs)}:${hash}`;
+    })
+    .sort();
+  return sha256Hex(entries.join("\n"));
+}
+
+function currentCodeGraphInputHash(projectDir: string): string {
+  const structural = readCurrentStructuralIndex(projectDir);
+  return structural ? codeGraphInputHashFromStructuralFingerprint(projectDir, currentStructuralFingerprint(projectDir, structural)) : codeGraphInputHash(projectDir);
+}
+
+function codeGraphStructuralFingerprint(projectDir: string, structural: StructuralIndex): string {
+  const entries = [
+    `structural:${structural.manifest.fingerprint}`,
+    ...externalIndexFiles(projectDir)
+      .map((index) => index.path)
+      .filter((path) => existsSync(path))
+      .map((path) => {
+        const stats = statSync(path);
+        return `external:${projectRelative(projectDir, path)}:${stats.size}:${Math.round(stats.mtimeMs)}`;
+      }),
+  ];
+  return sha256Hex(entries.sort().join("\n"));
+}
+
 function knowledgeGraphInputHash(projectDir: string, codeInputHash = codeGraphInputHash(projectDir)): string {
   const packetEntries = loadPacketEntriesFromDir(packetsDir(projectDir))
     .filter((entry) => entry.packet.status === "approved")
@@ -3374,43 +4311,31 @@ export function buildCodeGraph(projectDir: string, options: { force?: boolean } 
   const head = gitHead(projectDir);
   const tree = gitTree(projectDir);
   const mergeBase = gitMergeBase(projectDir);
-  const selection = codeIndexSelection(projectDir);
-  const absoluteFiles = selection.files;
-  const fingerprint = codeGraphStatFingerprint(projectDir, absoluteFiles);
-  const cachedGraph = options.force ? null : readCachedCodeGraph(projectDir, fingerprint);
+  const structural = buildStructuralIndex(projectDir);
+  const fingerprint = codeGraphStructuralFingerprint(projectDir, structural);
+  const cachedGraph = options.force ? null : readCachedCodeGraph(projectDir, fingerprint, structural);
   if (cachedGraph) {
-    selection.manifest.cache = { hits: absoluteFiles.length, misses: 0 };
-    selection.manifest.fingerprint = fingerprint;
-    writeCodeIndexManifest(projectDir, selection.manifest);
+    const manifest = codeIndexManifestFromStructural(projectDir, structural, fingerprint, { hits: structural.files.length, misses: 0 });
+    writeCodeIndexManifest(projectDir, manifest);
+    removeLegacyCodeGraphSplits(projectDir);
     return cachedGraph;
   }
-  const inputHash = codeGraphInputHash(projectDir, absoluteFiles);
-  selection.manifest.fingerprint = fingerprint;
-  writeCodeIndexManifest(projectDir, selection.manifest);
-  const knownFiles = new Set(absoluteFiles.map((path) => relative(projectDir, path).replace(/\\/g, "/")));
-  const files: CodeFileNode[] = [];
-  const symbols: CodeSymbolNode[] = [];
-  const imports: CodeImportEdge[] = [];
+  const inputHash = codeGraphInputHashFromStructural(projectDir, structural);
+  const files: CodeFileNode[] = structural.files.map(codeFileFromStructural);
+  const symbols: CodeSymbolNode[] = structural.symbols.map(codeSymbolFromStructural);
+  const imports: CodeImportEdge[] = structural.imports.slice();
   const contents = new Map<string, string>();
-  let cacheHits = 0;
-  let cacheMisses = 0;
-
-  for (const absolutePath of absoluteFiles) {
-    const { facts, content, cacheHit } = buildFileFacts(projectDir, absolutePath, knownFiles);
-    if (cacheHit) cacheHits++;
-    else cacheMisses++;
-    contents.set(facts.path, content);
-    files.push(facts.file);
-    symbols.push(...facts.symbols.slice(0, Math.max(0, MAX_CODE_GRAPH_SYMBOLS - symbols.length)));
-    imports.push(...facts.imports);
+  for (const file of structural.files) {
+    if (!TS_AST_EXTENSIONS.has(extensionOf(file.path))) continue;
+    if (file.size_bytes > MAX_CODE_FILE_BYTES) continue;
+    const absolutePath = join(projectDir, file.path);
+    if (existsSync(absolutePath)) contents.set(file.path, readFileSync(absolutePath, "utf8"));
   }
-  selection.manifest.cache = { hits: cacheHits, misses: cacheMisses };
-  writeCodeIndexManifest(projectDir, selection.manifest);
+  writeCodeIndexManifest(projectDir, codeIndexManifestFromStructural(projectDir, structural, fingerprint, structural.manifest.cache));
 
   const externalFacts = loadExternalCodeFacts(projectDir);
   const fileByPath = new Map(files.map((file) => [file.path, file]));
   const addSymbol = (symbol: CodeSymbolNode) => {
-    if (symbols.length >= MAX_CODE_GRAPH_SYMBOLS) return;
     if (!fileByPath.has(symbol.path)) return;
     const file = fileByPath.get(symbol.path);
     const existing = symbols.find((candidate) => candidate.id === symbol.id);
@@ -3469,16 +4394,109 @@ export function buildCodeGraph(projectDir: string, options: { force?: boolean } 
     packages: extractPackages(projectDir),
   };
 
-  writeJson(join(codeGraphDir(projectDir), "files.json"), graph.files);
-  writeJson(join(codeGraphDir(projectDir), "symbols.json"), graph.symbols);
-  writeJson(join(codeGraphDir(projectDir), "imports.json"), graph.imports);
-  writeJson(join(codeGraphDir(projectDir), "calls.json"), graph.calls);
-  writeJson(join(codeGraphDir(projectDir), "routes.json"), graph.routes);
-  writeJson(join(codeGraphDir(projectDir), "tests.json"), graph.tests);
-  writeJson(join(codeGraphDir(projectDir), "packages.json"), graph.packages);
-  writeJson(join(codeGraphDir(projectDir), "graph.json"), graph);
+  removeLegacyCodeGraphSplits(projectDir);
+  writeJson(join(codeGraphDir(projectDir), "graph.json"), compactCodeGraphArtifact(projectDir, graph, structural));
   graphMemoryCache.delete(resolve(projectDir));
   return graph;
+}
+
+const PRECISE_MEMORY_CODE_PACKET_TYPES = new Set<MemoryType>([
+  "bug_fix",
+  "code_explanation",
+  "constraint",
+  "convention",
+  "decision",
+  "gotcha",
+  "rationale",
+]);
+
+const GENERIC_MEMORY_CODE_SYMBOL_NAMES = new Set([
+  "app",
+  "body",
+  "code",
+  "config",
+  "context",
+  "current",
+  "data",
+  "edge",
+  "edges",
+  "entity",
+  "entities",
+  "file",
+  "files",
+  "from",
+  "graph",
+  "id",
+  "index",
+  "indexes",
+  "input",
+  "item",
+  "items",
+  "memory",
+  "name",
+  "next",
+  "node",
+  "nodes",
+  "output",
+  "packet",
+  "packets",
+  "path",
+  "paths",
+  "project",
+  "projectdir",
+  "query",
+  "result",
+  "results",
+  "root",
+  "state",
+  "status",
+  "summary",
+  "test",
+  "tests",
+  "title",
+  "to",
+  "type",
+  "types",
+  "value",
+]);
+
+const MAX_PRECISE_SYMBOL_LINKS_PER_PACKET = 24;
+const MAX_PRECISE_TEST_LINKS_PER_PACKET = 12;
+
+function isPreciseMemoryCodePacket(packet: MemoryPacket): boolean {
+  return PRECISE_MEMORY_CODE_PACKET_TYPES.has(packet.type);
+}
+
+function meaningfulSymbolNameForMemoryLink(name: string): boolean {
+  const normalized = name.trim();
+  if (normalized.length < 4) return false;
+  const compact = normalized.toLowerCase().replace(/[^a-z0-9_$]/g, "");
+  if (!compact || compact.length < 4) return false;
+  if (GENERIC_MEMORY_CODE_SYMBOL_NAMES.has(compact)) return false;
+  return /[a-z]/i.test(compact);
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function packetTextMentionsIdentifier(packetTextLower: string, identifier: string): boolean {
+  const text = identifier.trim().toLowerCase();
+  if (!text) return false;
+  if (/^[a-z0-9_$]+$/.test(text)) {
+    return new RegExp(`(^|[^a-z0-9_$])${escapeRegex(text)}([^a-z0-9_$]|$)`).test(packetTextLower);
+  }
+  return packetTextLower.includes(text);
+}
+
+function symbolMatchesPacketText(packetTextLower: string, symbol: CodeSymbolNode): boolean {
+  return meaningfulSymbolNameForMemoryLink(symbol.name) && packetTextMentionsIdentifier(packetTextLower, symbol.name);
+}
+
+function testMatchesPacketText(packetTextLower: string, test: CodeTestEdge): boolean {
+  return packetTextMentionsIdentifier(packetTextLower, test.title) ||
+    packetTextMentionsIdentifier(packetTextLower, test.test_symbol) ||
+    Boolean(test.covers_symbol && packetTextMentionsIdentifier(packetTextLower, test.covers_symbol));
 }
 
 export function buildKnowledgeGraph(projectDir: string, codeGraph = buildCodeGraph(projectDir)): KnowledgeGraph {
@@ -3702,14 +4720,17 @@ export function buildKnowledgeGraph(projectDir: string, codeGraph = buildCodeGra
       : packet.type === "decision" || packet.type === "rationale" || packet.type === "constraint"
         ? "informs_symbol"
         : "explains_symbol";
+    let preciseSymbolLinks = 0;
     for (const symbol of codeGraph.symbols.filter((symbol) => packetPathSet.has(symbol.path))) {
-      if (packet.type !== "code_explanation" && !packetTextLower.includes(symbol.name.toLowerCase())) continue;
+      if (!isPreciseMemoryCodePacket(packet)) continue;
+      if (preciseSymbolLinks >= MAX_PRECISE_SYMBOL_LINKS_PER_PACKET) break;
+      if (!symbolMatchesPacketText(packetTextLower, symbol)) continue;
       const symbolEntityId = graphEntityId("symbol", symbol.id);
       addEntity(entities, {
         id: symbolEntityId,
         type: "symbol",
         name: symbol.name,
-        aliases: [symbol.id, symbol.path],
+        aliases: [symbol.id],
         summary: `${symbol.kind} in ${symbol.path}:${symbol.line}`,
         first_seen_at: packet.created_at,
         last_seen_at: packet.updated_at,
@@ -3727,15 +4748,16 @@ export function buildKnowledgeGraph(projectDir: string, codeGraph = buildCodeGra
         commit: head,
         evidence: [episodeId],
       });
+      preciseSymbolLinks += 1;
     }
 
-    for (const route of codeGraph.routes.filter((route) => packetPathSet.has(route.file_path) && packetTextLower.includes(route.path.toLowerCase()))) {
+    for (const route of codeGraph.routes.filter((route) => isPreciseMemoryCodePacket(packet) && packetPathSet.has(route.file_path) && packetTextMentionsIdentifier(packetTextLower, route.path))) {
       const routeEntityId = graphEntityId("route", route.id);
       addEntity(entities, {
         id: routeEntityId,
         type: "route",
         name: `${route.method} ${route.path}`,
-        aliases: [route.id, route.file_path],
+        aliases: [route.id],
         summary: `${route.framework} route in ${route.file_path}:${route.line}`,
         first_seen_at: packet.created_at,
         last_seen_at: packet.updated_at,
@@ -3755,13 +4777,17 @@ export function buildKnowledgeGraph(projectDir: string, codeGraph = buildCodeGra
       });
     }
 
+    let preciseTestLinks = 0;
     for (const test of codeGraph.tests.filter((test) => packetPathSet.has(test.test_path) || Boolean(test.covers_path && packetPathSet.has(test.covers_path)))) {
+      if (!isPreciseMemoryCodePacket(packet)) continue;
+      if (preciseTestLinks >= MAX_PRECISE_TEST_LINKS_PER_PACKET) break;
+      if (!testMatchesPacketText(packetTextLower, test)) continue;
       const testEntityId = graphEntityId("test", test.test_symbol);
       addEntity(entities, {
         id: testEntityId,
         type: "test",
         name: test.title,
-        aliases: [test.test_symbol, test.test_path],
+        aliases: [test.test_symbol],
         summary: `Test in ${test.test_path}:${test.line}${test.covers_symbol ? ` covers ${test.covers_symbol}` : ""}`,
         first_seen_at: packet.created_at,
         last_seen_at: packet.updated_at,
@@ -3779,6 +4805,7 @@ export function buildKnowledgeGraph(projectDir: string, codeGraph = buildCodeGra
         commit: head,
         evidence: [episodeId],
       });
+      preciseTestLinks += 1;
     }
   }
 
@@ -3835,9 +4862,47 @@ export function buildKnowledgeGraph(projectDir: string, codeGraph = buildCodeGra
   writeJson(join(graphDir(projectDir), "episodes.json"), graph.episodes);
   writeJson(join(graphDir(projectDir), "entities.json"), graph.entities);
   writeJson(join(graphDir(projectDir), "edges.json"), graph.edges);
-  writeJson(join(graphDir(projectDir), "graph.json"), graph);
+  writeJson(join(graphDir(projectDir), "graph.json"), compactKnowledgeGraphArtifact(projectDir, graph));
   graphMemoryCache.delete(resolve(projectDir));
   return graph;
+}
+
+function compactKnowledgeGraphArtifact(projectDir: string, graph: KnowledgeGraph): CompactKnowledgeGraphArtifact {
+  return {
+    schema_version: 1,
+    compact: true,
+    project_dir: graph.project_dir,
+    repo_key: graph.repo_key,
+    generated_from_updated_at: graph.generated_from_updated_at,
+    repo_state: graph.repo_state,
+    refs: {
+      episodes: relative(graphDir(projectDir), join(graphDir(projectDir), "episodes.json")).replace(/\\/g, "/"),
+      entities: relative(graphDir(projectDir), join(graphDir(projectDir), "entities.json")).replace(/\\/g, "/"),
+      edges: relative(graphDir(projectDir), join(graphDir(projectDir), "edges.json")).replace(/\\/g, "/"),
+    },
+  };
+}
+
+function isCompactKnowledgeGraphArtifact(value: unknown): value is CompactKnowledgeGraphArtifact {
+  return Boolean(value && typeof value === "object" && (value as { compact?: unknown }).compact === true && (value as { refs?: unknown }).refs);
+}
+
+function hydrateKnowledgeGraphArtifact(projectDir: string, artifact: KnowledgeGraph | CompactKnowledgeGraphArtifact): KnowledgeGraph | null {
+  if (!isCompactKnowledgeGraphArtifact(artifact)) return artifact as KnowledgeGraph;
+  const episodesPath = join(graphDir(projectDir), artifact.refs.episodes);
+  const entitiesPath = join(graphDir(projectDir), artifact.refs.entities);
+  const edgesPath = join(graphDir(projectDir), artifact.refs.edges);
+  if (![episodesPath, entitiesPath, edgesPath].every((path) => existsSync(path))) return null;
+  return {
+    schema_version: 1,
+    project_dir: artifact.project_dir,
+    repo_key: artifact.repo_key,
+    generated_from_updated_at: artifact.generated_from_updated_at,
+    repo_state: artifact.repo_state,
+    episodes: readJson<GraphEpisode[]>(episodesPath),
+    entities: readJson<GraphEntity[]>(entitiesPath),
+    edges: readJson<GraphEdge[]>(edgesPath),
+  };
 }
 
 function buildPacketIndexes(projectDir: string): string[] {
@@ -3898,8 +4963,14 @@ function readCurrentCodeGraph(projectDir: string, expectedInputHash?: string): C
   const path = join(codeGraphDir(projectDir), "graph.json");
   if (!existsSync(path)) return null;
   try {
-    const graph = readJson<CodeGraph>(path);
-    const inputHash = expectedInputHash ?? codeGraphInputHash(projectDir, codeIndexSelection(projectDir).files);
+    const artifact = readJson<CodeGraph | CompactCodeGraphArtifact>(path);
+    const structural = expectedInputHash ? null : readCurrentStructuralIndex(projectDir);
+    if (!expectedInputHash && !structural) return null;
+    const inputHash = expectedInputHash ?? codeGraphInputHashFromStructuralFingerprint(projectDir, currentStructuralFingerprint(projectDir, structural!));
+    const graphInputHash = artifact.repo_state?.input_hash;
+    if (graphInputHash !== inputHash) return null;
+    const graph = hydrateCodeGraphArtifact(projectDir, artifact, structural ?? undefined);
+    if (!graph) return null;
     if (graph.repo_state?.input_hash !== inputHash) return null;
     return graph;
   } catch {
@@ -3911,8 +4982,11 @@ function readCurrentKnowledgeGraph(projectDir: string, codeGraph: CodeGraph, exp
   const path = join(graphDir(projectDir), "graph.json");
   if (!existsSync(path)) return null;
   try {
-    const graph = readJson<KnowledgeGraph>(path);
+    const artifact = readJson<KnowledgeGraph | CompactKnowledgeGraphArtifact>(path);
     const inputHash = expectedInputHash ?? knowledgeGraphInputHash(projectDir, codeGraph.repo_state.input_hash ?? codeGraphInputHash(projectDir));
+    if (artifact.repo_state?.input_hash !== inputHash) return null;
+    const graph = hydrateKnowledgeGraphArtifact(projectDir, artifact);
+    if (!graph) return null;
     if (graph.repo_state?.input_hash !== inputHash) return null;
     return graph;
   } catch {
@@ -3920,14 +4994,14 @@ function readCurrentKnowledgeGraph(projectDir: string, codeGraph: CodeGraph, exp
   }
 }
 
-function graphFastFingerprint(projectDir: string, selection = codeIndexSelection(projectDir)): string {
+function graphFastFingerprint(projectDir: string): string {
   const packetPaths = existsSync(packetsDir(projectDir))
     ? readdirSync(packetsDir(projectDir))
         .filter((name) => name.endsWith(".json"))
         .map((name) => join(packetsDir(projectDir), name))
     : [];
   const paths = [
-    ...selection.files,
+    ...scanStructuralFiles(projectDir).files,
     ...externalIndexFiles(projectDir).map((index) => index.path),
     ...packetPaths,
   ];
@@ -3942,15 +5016,16 @@ function graphFastFingerprint(projectDir: string, selection = codeIndexSelection
 }
 
 function readCurrentGraphs(projectDir: string): GraphInputs | null {
-  const selection = codeIndexSelection(projectDir);
-  const fingerprint = graphFastFingerprint(projectDir, selection);
+  const fingerprint = graphFastFingerprint(projectDir);
   const cacheKey = resolve(projectDir);
   const cached = graphMemoryCache.get(cacheKey);
   if (cached?.fingerprint === fingerprint) {
     return { codeGraph: cached.codeGraph, knowledgeGraph: cached.knowledgeGraph };
   }
 
-  const codeInputHash = codeGraphInputHash(projectDir, selection.files);
+  const structural = readCurrentStructuralIndex(projectDir);
+  if (!structural) return null;
+  const codeInputHash = codeGraphInputHashFromStructuralFingerprint(projectDir, currentStructuralFingerprint(projectDir, structural));
   const knowledgeInputHash = knowledgeGraphInputHash(projectDir, codeInputHash);
   if (cached?.codeInputHash === codeInputHash && cached.knowledgeInputHash === knowledgeInputHash) {
     cached.fingerprint = fingerprint;
@@ -3974,6 +5049,7 @@ function currentOrBuildGraphs(projectDir: string): BuiltIndexes {
         join(indexesDir(projectDir), "by-path.json"),
         join(indexesDir(projectDir), "by-tag.json"),
         join(indexesDir(projectDir), "by-type.json"),
+        join(indexesDir(projectDir), "structural.json"),
         join(indexesDir(projectDir), "graph.json"),
         join(indexesDir(projectDir), "code-graph.json"),
       ],
@@ -4001,13 +5077,11 @@ function buildGraphIndexes(projectDir: string, options: { forceCodeGraph?: boole
   });
   writeJson(codeGraphIndexPath, {
     schema_version: codeGraph.schema_version,
-    files: relative(projectDir, join(codeGraphDir(projectDir), "files.json")),
-    symbols: relative(projectDir, join(codeGraphDir(projectDir), "symbols.json")),
-    imports: relative(projectDir, join(codeGraphDir(projectDir), "imports.json")),
-    calls: relative(projectDir, join(codeGraphDir(projectDir), "calls.json")),
-    routes: relative(projectDir, join(codeGraphDir(projectDir), "routes.json")),
-    tests: relative(projectDir, join(codeGraphDir(projectDir), "tests.json")),
-    packages: relative(projectDir, join(codeGraphDir(projectDir), "packages.json")),
+    mode: "structural-references",
+    graph: relative(projectDir, join(codeGraphDir(projectDir), "graph.json")),
+    files: relative(projectDir, join(structuralIndexDir(projectDir), "files.json")),
+    symbols: relative(projectDir, join(structuralIndexDir(projectDir), "symbols.json")),
+    imports: relative(projectDir, join(structuralIndexDir(projectDir), "imports.json")),
     file_count: codeGraph.files.length,
     symbol_count: codeGraph.symbols.length,
     import_count: codeGraph.imports.length,
@@ -4023,7 +5097,7 @@ function buildGraphIndexes(projectDir: string, options: { forceCodeGraph?: boole
     knowledgeGraph,
   });
   return {
-    indexes: [...written, graphIndexPath, codeGraphIndexPath],
+    indexes: [...written, join(indexesDir(projectDir), "structural.json"), graphIndexPath, codeGraphIndexPath],
     codeGraph,
     knowledgeGraph,
   };
@@ -4622,10 +5696,19 @@ function scoreText(terms: string[], text: string, boosts: string[] = []): number
     const occurrences = haystack.split(term).length - 1;
     score += 1 + Math.min(occurrences, 4);
     if (firstIndex < 80) score += 1;
-    if (boosts.some((boost) => boost.toLowerCase().includes(term) || term.includes(boost.toLowerCase()))) score += 2;
+    score += boosts.reduce((best, boost) => Math.max(best, boostTermScore(boost, term)), 0);
   }
   if (terms.length > 1 && terms.every((term) => haystack.includes(term))) score += 3;
   return score;
+}
+
+function boostTermScore(boost: string, term: string): number {
+  const normalized = boost.toLowerCase();
+  if (normalized === term) return 8;
+  if (tokenize(normalized).includes(term)) return 5;
+  if (term.length >= 6 && normalized.includes(term)) return 2;
+  if (normalized.length >= 6 && term.includes(normalized)) return 2;
+  return 0;
 }
 
 export function queryCodeGraph(projectDir: string, query: string, limit = 10, graph?: CodeGraph): CodeGraphQueryResult {
@@ -4674,6 +5757,50 @@ export function queryCodeGraph(projectDir: string, query: string, limit = 10, gr
   const calls = graph.calls
     .filter((call) => symbolIds.has(call.to_symbol) || Boolean(call.from_symbol && symbolIds.has(call.from_symbol)))
     .slice(0, limit);
+  const structuralIndex = readCurrentStructuralIndex(projectDir);
+  const graphPaths = new Set(graph.files.map((file) => file.path));
+  const graphSymbolIds = new Set(graph.symbols.map((symbol) => symbol.id));
+  const structuralFiles = structuralIndex
+    ? structuralIndex.files
+        .map((file) => ({
+          file,
+          score: scoreText(
+            terms,
+            `${file.path} ${file.kind} ${file.language} ${file.extraction} ${file.signals.join(" ")} ${file.concepts.join(" ")} ${file.top_symbols.join(" ")}`,
+            [file.path, file.language, ...file.concepts]
+          ),
+        }))
+        .filter((entry) => entry.score > 0 && !graphPaths.has(entry.file.path))
+        .sort((a, b) => b.score - a.score || a.file.path.localeCompare(b.file.path))
+        .slice(0, limit)
+        .map((entry) => entry.file)
+    : [];
+  const structuralSymbols = structuralIndex
+    ? structuralIndex.symbols
+        .map((symbol) => ({
+          symbol,
+          score: scoreText(terms, `${symbol.name} ${symbol.kind} ${symbol.path} ${symbol.language} ${symbol.parser}`, [symbol.name, symbol.path]),
+        }))
+        .filter((entry) => entry.score > 0 && !graphSymbolIds.has(entry.symbol.id))
+        .sort((a, b) => b.score - a.score || a.symbol.path.localeCompare(b.symbol.path) || a.symbol.line - b.symbol.line)
+        .slice(0, limit)
+        .map((entry) => entry.symbol)
+    : [];
+  const structuralRelevantPaths = new Set([
+    ...structuralFiles.map((file) => file.path),
+    ...structuralSymbols.map((symbol) => symbol.path),
+  ]);
+  const structuralEdges = structuralIndex
+    ? structuralIndex.edges
+        .map((edge) => ({
+          edge,
+          score: scoreText(terms, `${edge.relation} ${edge.source} ${edge.target} ${edge.source_file}`, [edge.source_file, edge.target]),
+        }))
+        .filter((entry) => entry.score > 0 || structuralRelevantPaths.has(entry.edge.source_file))
+        .sort((a, b) => b.score - a.score || a.edge.source_file.localeCompare(b.edge.source_file) || a.edge.target.localeCompare(b.edge.target))
+        .slice(0, limit)
+        .map((entry) => entry.edge)
+    : [];
 
   const lines = [
     "# Kage Code Graph Context",
@@ -4685,6 +5812,14 @@ export function queryCodeGraph(projectDir: string, query: string, limit = 10, gr
     ...symbols.map((symbol, index) => `${index + 1}. [symbol] ${symbol.kind} ${symbol.name} in ${symbol.path}:${symbol.line} (${symbol.language}, ${symbol.parser})`),
     ...tests.map((test, index) => `${index + 1}. [test] ${test.title} in ${test.test_path}:${test.line}${test.covers_symbol ? ` covers ${test.covers_symbol}` : ""}`),
     ...files.slice(0, 5).map((file, index) => `${index + 1}. [file] ${file.path} (${file.kind}, ${file.language}, ${file.parser})`),
+    structuralFiles.length || structuralSymbols.length || structuralEdges.length ? "" : "",
+    structuralFiles.length || structuralSymbols.length || structuralEdges.length ? "## Structural Index" : "",
+    ...structuralSymbols.map((symbol, index) => `${index + 1}. [structural symbol] ${symbol.kind} ${symbol.name} in ${symbol.path}:${symbol.line} (${symbol.language}, ${symbol.parser})`),
+    ...structuralFiles.slice(0, 5).map((file, index) => `${index + 1}. [structural file] ${file.path} (${file.kind}, ${file.language}, ${file.extraction})`),
+    ...structuralEdges
+      .filter((edge) => edge.relation === "imports")
+      .slice(0, 5)
+      .map((edge, index) => `${index + 1}. [structural import] ${edge.source_file}${edge.source_location ? `:${edge.source_location.replace(/^L/, "")}` : ""} -> ${edge.target} (${edge.confidence})`),
     imports.length ? "" : "",
     imports.length ? "## Imports" : "",
     ...imports.map(({ item }, index) => `${index + 1}. ${item.from_path}:${item.line} ${item.kind} ${item.specifier}${item.to_path ? ` -> ${item.to_path}` : ""}`),
@@ -4693,7 +5828,19 @@ export function queryCodeGraph(projectDir: string, query: string, limit = 10, gr
     ...calls.map((call, index) => `${index + 1}. ${call.from_symbol ? symbolNameById.get(call.from_symbol) ?? call.from_symbol : call.path} calls ${symbolNameById.get(call.to_symbol) ?? call.to_symbol} at ${call.path}:${call.line}`),
   ];
 
-  return { query, context_block: lines.join("\n"), files, symbols, imports: imports.map((entry) => entry.item), calls, routes, tests };
+  return {
+    query,
+    context_block: lines.join("\n"),
+    files,
+    symbols,
+    imports: imports.map((entry) => entry.item),
+    calls,
+    routes,
+    tests,
+    structural_files: structuralFiles,
+    structural_symbols: structuralSymbols,
+    structural_edges: structuralEdges,
+  };
 }
 
 export function queryGraph(projectDir: string, query: string, limit = 10, graph?: KnowledgeGraph): GraphQueryResult {
@@ -4785,6 +5932,7 @@ export function kageMetrics(projectDir: string): KageMetrics {
   const policyPath = join(projectDir, "AGENTS.md");
   const policyInstalled = existsSync(policyPath) && readFileSync(policyPath, "utf8").includes(AGENTS_POLICY_MARKER);
   const indexManifest = readCodeIndexManifest(projectDir);
+  const structuralManifest = readStructuralIndexManifest(projectDir);
   const sourceFiles = codeGraph.files.filter((file) => file.kind === "source" || file.kind === "test");
   const indexedSourceFiles = sourceFiles.filter((file) => file.parser !== "metadata");
   const coverage = indexManifest.coverage.indexable_files > 0 ? indexManifest.coverage.coverage_percent : percent(indexedSourceFiles.length, sourceFiles.length);
@@ -4845,6 +5993,17 @@ export function kageMetrics(projectDir: string): KageMetrics {
       cache_hits: indexManifest.cache.hits,
       cache_misses: indexManifest.cache.misses,
     },
+    structural_index: {
+      files: structuralManifest.files.indexed,
+      symbols: structuralManifest.symbols,
+      edges: structuralManifest.edges,
+      metadata_only_files: structuralManifest.files.metadata_only,
+      ignored_files: structuralManifest.files.ignored,
+      languages: structuralManifest.languages,
+      worker_count: structuralManifest.worker_count,
+      cache_hits: structuralManifest.cache.hits,
+      cache_misses: structuralManifest.cache.misses,
+    },
     memory_graph: {
       approved_packets: approvedPackets,
       pending_packets: pendingPackets,
@@ -4899,7 +6058,9 @@ export function auditProject(projectDir: string): AuditReport {
   const preciseFiles = codeGraph.files.filter((file) => preciseParsers.includes(file.parser)).length;
   const astFiles = codeGraph.files.filter((file) => astParsers.includes(file.parser)).length;
   const fallbackFiles = codeGraph.files.filter((file) => file.parser === "generic-static" || file.parser === "metadata").length;
-  const memoryCodeEdges = knowledgeGraph.edges.filter((edge) => ["explains_symbol", "informs_symbol", "fixes_symbol", "applies_to_route", "verified_by_test"].includes(edge.relation)).length;
+  const preciseMemoryCodeEdges = knowledgeGraph.edges.filter((edge) => ["explains_symbol", "informs_symbol", "fixes_symbol", "applies_to_route", "verified_by_test"].includes(edge.relation)).length;
+  const pathMemoryCodeEdges = knowledgeGraph.edges.filter((edge) => edge.relation === "affects_path").length;
+  const memoryCodeEdges = preciseMemoryCodeEdges + pathMemoryCodeEdges;
   const stalePackets = quality.totals.stale;
   const duplicateCandidatesTotal = quality.totals.duplicate;
   const structuredCoverage = percent(structuredPackets.length, approved.length);
@@ -4922,8 +6083,10 @@ export function auditProject(projectDir: string): AuditReport {
   if (preciseFiles < indexableFiles) {
     recommendations.push("Add or extend SCIP/LSIF/LSP index artifacts in CI for remaining source files; keep AST/static extraction as fallback.");
   }
-  if (!memoryCodeEdges && approved.length && codeGraph.symbols.length) {
-    recommendations.push("Link memory packets to symbols, routes, and tests with code_explanation, bug_fix, decision, and verification context.");
+  if (!memoryCodeEdges && approved.length && codeGraph.files.length) {
+    recommendations.push("Ground memory packets to repo paths, symbols, routes, or tests so recall and the viewer can bridge memory to code.");
+  } else if (!preciseMemoryCodeEdges && pathMemoryCodeEdges && codeGraph.symbols.length) {
+    recommendations.push("Path-level memory links exist; add symbol, route, or test names to high-value memories when you need precise code evidence.");
   }
   if (!validation.ok) {
     recommendations.push("Fix validation errors before relying on Kage in PR or agent-start workflows.");
@@ -4973,6 +6136,8 @@ export function auditProject(projectDir: string): AuditReport {
       },
       graph_links: {
         memory_code_edges: memoryCodeEdges,
+        precise_memory_code_edges: preciseMemoryCodeEdges,
+        path_memory_code_edges: pathMemoryCodeEdges,
         evidence_coverage_percent: percent(knowledgeGraph.edges.filter((edge) => edge.evidence.length > 0).length, knowledgeGraph.edges.length),
       },
     },
@@ -5358,6 +6523,7 @@ function kageMetricsShallow(
   const knowledgeGraph = inputs.knowledgeGraph ?? buildKnowledgeGraph(projectDir, codeGraph);
   const validation = inputs.validation ?? validateProject(projectDir);
   const indexManifest = readCodeIndexManifest(projectDir);
+  const structuralManifest = readStructuralIndexManifest(projectDir);
   const sourceFiles = codeGraph.files.filter((file) => file.kind === "source" || file.kind === "test");
   const indexedSourceFiles = sourceFiles.filter((file) => file.parser !== "metadata");
   const coverage = indexManifest.coverage.indexable_files > 0 ? indexManifest.coverage.coverage_percent : percent(indexedSourceFiles.length, sourceFiles.length);
@@ -5389,6 +6555,17 @@ function kageMetricsShallow(
       ignored_files: indexManifest.coverage.ignored_files,
       cache_hits: indexManifest.cache.hits,
       cache_misses: indexManifest.cache.misses,
+    },
+    structural_index: {
+      files: structuralManifest.files.indexed,
+      symbols: structuralManifest.symbols,
+      edges: structuralManifest.edges,
+      metadata_only_files: structuralManifest.files.metadata_only,
+      ignored_files: structuralManifest.files.ignored,
+      languages: structuralManifest.languages,
+      worker_count: structuralManifest.worker_count,
+      cache_hits: structuralManifest.cache.hits,
+      cache_misses: structuralManifest.cache.misses,
     },
     memory_graph: {
       approved_packets: loadPacketsFromDir(packetsDir(projectDir)).length,
@@ -6590,7 +7767,7 @@ export function prCheck(projectDir: string): PrCheckResult {
   const rawStatus = readGit(projectDir, ["status", "--porcelain", "-uall"]) ?? "";
   const validation = validateProject(projectDir);
   const tree = gitTree(projectDir);
-  const codeInputHash = codeGraphInputHash(projectDir);
+  const codeInputHash = currentCodeGraphInputHash(projectDir);
   const memoryInputHash = knowledgeGraphInputHash(projectDir, codeInputHash);
   const stalePackets = loadPacketsFromDir(packetsDir(projectDir))
     .map((packet) => ({ packet, reasons: staleMemoryReasons(projectDir, packet) }))

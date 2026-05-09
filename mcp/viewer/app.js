@@ -111,8 +111,13 @@
     proofList: document.getElementById("proofList")
   };
 
-  var MEMORY_CODE_RELATIONS = new Set(["explains_symbol", "informs_symbol", "fixes_symbol", "applies_to_route", "verified_by_test", "affects_path"]);
+  var MEMORY_CODE_RELATIONS = new Set(["explains_symbol", "informs_symbol", "fixes_symbol", "applies_to_route", "verified_by_test", "affects_code_path"]);
   var INSPECTOR_CONNECTION_LIMIT = 8;
+  var PATH_BRIDGE_EDGE_LIMIT_PER_PATH = 8;
+  var PATH_BRIDGE_EDGE_LIMIT_TOTAL = 160;
+  var VISIBLE_EDGE_MULTIPLIER = 4;
+  var VISIBLE_EDGE_MIN = 160;
+  var VISIBLE_EDGE_MAX = 560;
 
   els.graphFile.addEventListener("change", handleFile);
   els.searchInput.addEventListener("input", scheduleRender);
@@ -221,12 +226,13 @@
 
   function loadFromUrlParams() {
     var params = new URLSearchParams(window.location.search);
-    var graphPaths = []
-      .concat(params.getAll("graph"))
-      .concat(params.getAll("code"))
-      .flatMap(function (value) { return String(value || "").split(","); })
-      .map(function (value) { return value.trim(); })
-      .filter(Boolean);
+    applyRequestedView(params.get("view") || params.get("mode"));
+    var memoryGraphPaths = splitParamValues(params.getAll("graph"));
+    var codeGraphPaths = splitParamValues(params.getAll("code"));
+    var graphPaths = memoryGraphPaths.concat(codeGraphPaths);
+    var graphLabels = new Map();
+    memoryGraphPaths.forEach(function (path) { graphLabels.set(path, "memory knowledge graph"); });
+    codeGraphPaths.forEach(function (path) { graphLabels.set(path, "structural code graph"); });
     var metricsPath = params.get("metrics");
     var inboxPath = params.get("inbox");
     var reviewPath = params.get("review");
@@ -246,10 +252,7 @@
     }
     setAutoLoad("loading project graph", false);
     Promise.all(graphPaths.map(function (path) {
-      return fetch(path).then(function (response) {
-        if (!response.ok) throw new Error(response.status + " " + path);
-        return response.json().then(function (graph) { return { fileName: path.split("/").pop() || path, graph: graph }; });
-      });
+      return loadGraphPath(path).then(function (graph) { return { fileName: graphLabels.get(path) || path.split("/").pop() || path, graph: graph }; });
     }).concat(jobs)).then(function (items) {
       var graphItems = items.filter(Boolean);
       if (!graphItems.length) {
@@ -270,7 +273,7 @@
     setAutoLoad("loading hosted repo graph", false);
     Promise.all([
       fetchJson("./data/kage/graph.json"),
-      fetchJson("./data/kage/code_graph/graph.json"),
+      loadGraphPath("./data/kage/code_graph/graph.json"),
       fetchJson("./data/kage/metrics.json").catch(function () { return null; }),
       fetchJson("./data/kage/inbox.json").catch(function () { return null; })
     ]).then(function (items) {
@@ -310,6 +313,58 @@
     return fetch(path).then(function (response) {
       if (!response.ok) throw new Error(response.status + " " + path);
       return response.json();
+    });
+  }
+
+  function loadGraphPath(path) {
+    return fetchJson(path).then(function (graph) {
+      return hydrateCompactCodeGraph(graph, path);
+    });
+  }
+
+  function resolveGraphRef(basePath, ref) {
+    if (!ref) return ref;
+    try {
+      return new URL(ref, new URL(basePath, window.location.href)).href;
+    } catch (_error) {
+      var base = String(basePath || "");
+      return base.replace(/\/[^/]*$/, "/" + ref);
+    }
+  }
+
+  function hydrateCompactCodeGraph(graph, basePath) {
+    if (!graph || graph.compact !== true || !graph.refs) return Promise.resolve(graph);
+    if (graph.refs.entities && graph.refs.edges) {
+      return Promise.all([
+        fetchJson(resolveGraphRef(basePath, graph.refs.entities)),
+        fetchJson(resolveGraphRef(basePath, graph.refs.edges)),
+        graph.refs.episodes ? fetchJson(resolveGraphRef(basePath, graph.refs.episodes)) : Promise.resolve([])
+      ]).then(function (items) {
+        return Object.assign({}, graph, {
+          compact: false,
+          entities: items[0],
+          edges: items[1],
+          episodes: items[2]
+        });
+      });
+    }
+    return Promise.all([
+      fetchJson(resolveGraphRef(basePath, graph.refs.files)),
+      fetchJson(resolveGraphRef(basePath, graph.refs.symbols)),
+      fetchJson(resolveGraphRef(basePath, graph.refs.imports))
+    ]).then(function (items) {
+      var fileOverrides = new Map(graph.file_parser_overrides || []);
+      var symbolOverrides = new Map(graph.symbol_parser_overrides || []);
+      return Object.assign({}, graph, {
+        compact: false,
+        files: (items[0] || []).map(function (file) {
+          return fileOverrides.has(file.path) ? Object.assign({}, file, { parser: fileOverrides.get(file.path) }) : file;
+        }),
+        symbols: (items[1] || []).map(function (symbol) {
+          return symbolOverrides.has(symbol.id) ? Object.assign({}, symbol, { parser: symbolOverrides.get(symbol.id) }) : symbol;
+        }).concat(graph.extra_symbols || []),
+        imports: (items[2] || []).concat(graph.extra_imports || [])
+      });
     });
   }
 
@@ -379,7 +434,8 @@
       graph.edges.forEach(function (edge) {
         var from = remappedIds.get(edge.from) || edge.from;
         var to = remappedIds.get(edge.to) || edge.to;
-        var memoryCodeLink = Boolean(edge.memory_code_link || isMemoryCodeRelation(edge.relation));
+        var crossesBoundary = crossesMemoryCodeBoundary(entities.get(from), entities.get(to));
+        var memoryCodeLink = Boolean(crossesBoundary && (edge.memory_code_link || isMemoryCodeRelation(edge.relation) || edge.relation === "affects_path"));
         var id = edge.id + ":" + from + ":" + to;
         edges.set(id, Object.assign({}, edge, {
           id: id,
@@ -390,16 +446,129 @@
       });
       graph.episodes.forEach(function (episode) { episodes.set(episode.id, episode); });
     });
+    addPathPrefixBridgeEdges(entities, edges);
     return { entities: Array.from(entities.values()), edges: Array.from(edges.values()), episodes: Array.from(episodes.values()) };
+  }
+
+  function crossesMemoryCodeBoundary(from, to) {
+    if (!from || !to) return false;
+    return (from.graph_kind === "memory" && to.graph_kind === "code") ||
+      (from.graph_kind === "code" && to.graph_kind === "memory");
+  }
+
+  function addPathPrefixBridgeEdges(entities, edges) {
+    var codeFiles = Array.from(entities.values()).filter(function (entity) {
+      return entity.graph_kind === "code" && entity.type === "file" && entity.path;
+    });
+    if (!codeFiles.length) return;
+
+    var codeDegree = new Map();
+    edges.forEach(function (edge) {
+      var from = entities.get(edge.from);
+      var to = entities.get(edge.to);
+      if (from && from.graph_kind === "code") codeDegree.set(from.id, (codeDegree.get(from.id) || 0) + 1);
+      if (to && to.graph_kind === "code") codeDegree.set(to.id, (codeDegree.get(to.id) || 0) + 1);
+    });
+
+    var total = 0;
+    Array.from(edges.values()).filter(function (edge) {
+      return edge.relation === "affects_path";
+    }).forEach(function (edge) {
+      if (total >= PATH_BRIDGE_EDGE_LIMIT_TOTAL) return;
+      var memoryEntity = entities.get(edge.from);
+      var pathEntity = entities.get(edge.to);
+      if (!memoryEntity || !pathEntity || memoryEntity.graph_kind !== "memory") return;
+      if (pathEntity.graph_kind === "code") return;
+
+      var memoryPath = entityPathValue(pathEntity);
+      var matches = codeFiles.filter(function (file) {
+        return fileMatchesMemoryPath(file.path, memoryPath);
+      }).sort(function (a, b) {
+        return pathBridgeFileScore(b, memoryPath, codeDegree) - pathBridgeFileScore(a, memoryPath, codeDegree) ||
+          String(a.path || "").localeCompare(String(b.path || ""));
+      }).slice(0, PATH_BRIDGE_EDGE_LIMIT_PER_PATH);
+
+      matches.forEach(function (file) {
+        if (total >= PATH_BRIDGE_EDGE_LIMIT_TOTAL) return;
+        var id = "path_bridge:" + edge.id + ":" + file.id;
+        if (edges.has(id)) return;
+        edges.set(id, {
+          id: id,
+          from: edge.from,
+          to: file.id,
+          relation: "affects_code_path",
+          fact: (memoryEntity.name || "Memory") + " applies to code under " + (memoryPath || "repo root") + ": " + file.path + ".",
+          confidence: Math.min(Number(edge.confidence || 0.7), 0.75),
+          evidence: edge.evidence || [],
+          commit: edge.commit,
+          source: "viewer_path_bridge",
+          graph_kind: "memory",
+          memory_code_link: true
+        });
+        total += 1;
+      });
+    });
+  }
+
+  function entityPathValue(entity) {
+    var candidates = [entity.path, entity.name].concat(entity.aliases || [], entity.id || []);
+    for (var index = 0; index < candidates.length; index += 1) {
+      var normalized = normalizeRepoPath(candidates[index]);
+      if (normalized || normalized === "") return normalized;
+    }
+    return null;
+  }
+
+  function normalizeRepoPath(value) {
+    if (value === null || value === undefined) return null;
+    var text = String(value).trim();
+    if (!text) return null;
+    text = text.replace(/^path:/, "").replace(/^file:/, "").replace(/\\/g, "/");
+    text = text.replace(/^\.\//, "").replace(/\/+/g, "/").replace(/\/$/, "");
+    if ([".", "/", "root"].indexOf(text.toLowerCase()) !== -1) return "";
+    return text;
+  }
+
+  function fileMatchesMemoryPath(filePath, memoryPath) {
+    var file = normalizeRepoPath(filePath);
+    if (file === null || memoryPath === null) return false;
+    if (memoryPath === "") return true;
+    return file === memoryPath || file.indexOf(memoryPath + "/") === 0;
+  }
+
+  function pathBridgeFileScore(file, memoryPath, codeDegree) {
+    var path = String(file.path || "");
+    var lower = path.toLowerCase();
+    var score = (codeDegree.get(file.id) || 0) * 6;
+    if (normalizeRepoPath(path) === memoryPath) score += 90;
+    if (/^(readme|package|agents|claude)\./i.test(path.split("/").pop() || "")) score += 28;
+    if (["source", "test"].indexOf(file.kind) !== -1) score += 14;
+    if (lower.indexOf(".agent_memory/") !== -1 || lower.indexOf("node_modules/") !== -1 || lower.indexOf("dist/") !== -1 || lower.indexOf("build/") !== -1) score -= 80;
+    score -= path.split("/").length * 2;
+    score -= Math.min(20, path.length / 60);
+    return score;
   }
 
   function canonicalEntityId(entity, aliasToCodeId) {
     if (!entity) return "";
     if (entity.graph_kind === "memory" && ["symbol", "test", "route", "file", "path"].indexOf(entity.type) !== -1) {
-      var alias = [entity.id, entity.name].concat(entity.aliases || []).find(function (value) { return aliasToCodeId.has(value); });
+      var candidates = [entity.id, entity.name].concat(entity.aliases || []).filter(function (value) {
+        return canonicalAliasMatchesEntityType(value, entity.type);
+      });
+      var alias = candidates.find(function (value) { return aliasToCodeId.has(value); });
       if (alias) return aliasToCodeId.get(alias);
     }
     return aliasToCodeId.get(entity.id) || entity.id;
+  }
+
+  function canonicalAliasMatchesEntityType(value, type) {
+    if (!value) return false;
+    var text = String(value);
+    if (type === "file" || type === "path") return true;
+    if (type === "route") return text.indexOf("route:") === 0;
+    if (type === "test") return text.indexOf("symbol:") === 0 || text.indexOf("test:") === 0;
+    if (type === "symbol") return text.indexOf("symbol:") === 0;
+    return false;
   }
 
   function mergeViewerEntity(existing, next) {
@@ -463,6 +632,13 @@
         name: file.path,
         summary: file.kind + " file, " + file.language + ", " + file.line_count + " lines",
         aliases: [file.hash, file.path],
+        path: file.path,
+        language: file.language,
+        parser: file.parser,
+        kind: file.kind,
+        size_bytes: file.size_bytes,
+        line_count: file.line_count,
+        hash: file.hash,
         evidence: []
       });
     });
@@ -474,7 +650,15 @@
         graph_kind: "code",
         name: symbol.name,
         summary: symbol.kind + " in " + symbol.path + ":" + symbol.line + (symbol.signature ? "\n" + symbol.signature : ""),
-        aliases: [symbol.path],
+        aliases: [],
+        path: symbol.path,
+        language: symbol.language,
+        parser: symbol.parser,
+        kind: symbol.kind,
+        exported: Boolean(symbol.export),
+        line: symbol.line,
+        end_line: symbol.end_line,
+        signature: symbol.signature,
         evidence: []
       });
       addEdge("file:" + symbol.path, symbol.id, "defines_symbol", symbol.path + " defines " + symbol.kind + " " + symbol.name + ".", "symbols");
@@ -500,7 +684,13 @@
         graph_kind: "code",
         name: route.method + " " + route.path,
         summary: route.framework + " route in " + route.file_path + ":" + route.line,
-        aliases: [route.file_path],
+        aliases: [],
+        path: route.file_path,
+        method: route.method,
+        route_path: route.path,
+        framework: route.framework,
+        handler_symbol: route.handler_symbol,
+        line: route.line,
         evidence: []
       });
       addEdge("file:" + route.file_path, route.id, "defines_route", route.file_path + " defines " + route.method + " " + route.path + ".", "routes");
@@ -538,7 +728,7 @@
       return edge.relation || "related";
     })));
     if (state.edges.some(function (edge) { return edge.memory_code_link; })) {
-      els.relationFilter.appendChild(new Option("Memory-Code links", "__memory_code__"));
+      els.relationFilter.appendChild(new Option("Memory <-> Code only", "__memory_code__"));
     }
   }
 
@@ -680,8 +870,8 @@
           displayName(state.entityById.get(a)).localeCompare(displayName(state.entityById.get(b)));
       });
       entities = options.mode === "combined"
-        ? balancedSignalEntities(ranked, options.maxNodes)
-        : new Set(ranked.slice(0, options.maxNodes));
+        ? balancedSignalEntities(ranked, edges, options.maxNodes)
+        : connectedSignalEntities(ranked, edges, options.maxNodes);
       if (state.selected && state.selected.kind === "entity") entities.add(state.selected.id);
       edges = edgesWithVisibleEndpoints(edges, entities);
     }
@@ -694,10 +884,78 @@
       }
     }
 
-    return { entities: entities, edges: edgesWithVisibleEndpoints(edges, entities) };
+    return { entities: entities, edges: capVisibleEdges(edgesWithVisibleEndpoints(edges, entities), entities, options) };
   }
 
-  function balancedSignalEntities(rankedIds, maxNodes) {
+  function capVisibleEdges(edgeIds, entityIds, options) {
+    var maxEdges = clamp(Math.round((options.maxNodes || 90) * VISIBLE_EDGE_MULTIPLIER), VISIBLE_EDGE_MIN, VISIBLE_EDGE_MAX);
+    if (edgeIds.size <= maxEdges) return edgeIds;
+
+    var sorted = Array.from(edgeIds).sort(function (a, b) {
+      return edgeDisplayImportance(state.edgeById.get(b), entityIds) - edgeDisplayImportance(state.edgeById.get(a), entityIds) ||
+        String(a).localeCompare(String(b));
+    });
+    if (options.mode !== "combined" || options.relation || options.query.active) {
+      return new Set(sorted.slice(0, maxEdges));
+    }
+
+    var result = new Set();
+    var codeEdges = [];
+    var memoryCodeEdges = [];
+    var memoryEdges = [];
+    var otherEdges = [];
+    sorted.forEach(function (id) {
+      var edge = state.edgeById.get(id);
+      var from = edge && state.entityById.get(edge.from);
+      var to = edge && state.entityById.get(edge.to);
+      if (!edge || !from || !to) return;
+      if (isMemoryCodeEdge(edge)) memoryCodeEdges.push(id);
+      else if (from.graph_kind === "code" && to.graph_kind === "code") codeEdges.push(id);
+      else if (from.graph_kind === "memory" && to.graph_kind === "memory") memoryEdges.push(id);
+      else otherEdges.push(id);
+    });
+
+    var codeBudget = Math.round(maxEdges * 0.30);
+    var memoryCodeBudget = Math.round(maxEdges * 0.50);
+    var memoryBudget = Math.round(maxEdges * 0.14);
+    takeEdges(result, codeEdges, codeBudget);
+    takeEdges(result, memoryCodeEdges, memoryCodeBudget);
+    takeEdges(result, memoryEdges, memoryBudget);
+    takeEdges(result, otherEdges, maxEdges - result.size);
+    takeEdges(result, sorted, maxEdges - result.size);
+    return result;
+  }
+
+  function takeEdges(result, ids, count) {
+    var target = result.size + Math.max(0, count);
+    ids.forEach(function (id) {
+      if (result.size < target) result.add(id);
+    });
+  }
+
+  function edgeDisplayImportance(edge, entityIds) {
+    if (!edge) return -1000;
+    var from = state.entityById.get(edge.from);
+    var to = state.entityById.get(edge.to);
+    var score = entityImportance(from) + entityImportance(to);
+    var relation = String(edge.relation || "");
+    if (state.selected && state.selected.kind === "edge" && state.selected.id === edge.id) score += 10000;
+    if (state.selected && state.selected.kind === "entity" && (state.selected.id === edge.from || state.selected.id === edge.to)) score += 1600;
+    if (isMemoryCodeEdge(edge)) {
+      if (relation === "affects_code_path") score += 520;
+      else if (["fixes_symbol", "verified_by_test"].indexOf(relation) !== -1) score += 420;
+      else if (["explains_symbol", "informs_symbol", "applies_to_route"].indexOf(relation) !== -1) score += 300;
+      else score += 120;
+    } else if (["defines_symbol", "calls", "covers", "imports", "defines_route", "handled_by"].indexOf(relation) !== -1) {
+      score += 360;
+    } else if (["contains_memory", "has_type", "mentions_tag", "verified_by"].indexOf(relation) !== -1) {
+      score += 160;
+    }
+    if (entityIds && entityIds.has(edge.from) && entityIds.has(edge.to)) score += 30;
+    return score;
+  }
+
+  function balancedSignalEntities(rankedIds, edgeIds, maxNodes) {
     var result = new Set();
     var memoryIds = rankedIds.filter(function (id) {
       var entity = state.entityById.get(id);
@@ -712,11 +970,81 @@
       return entity && entity.graph_kind === "memory" && !memoryIds.includes(id);
     });
 
-    var memoryBudget = clamp(Math.round(maxNodes * 0.34), 18, Math.min(44, maxNodes));
+    var memoryBudget = clamp(Math.round(maxNodes * 0.30), 14, Math.min(36, maxNodes));
     memoryIds.slice(0, memoryBudget).forEach(function (id) { result.add(id); });
     otherMemoryIds.slice(0, Math.max(0, Math.round(memoryBudget * 0.35))).forEach(function (id) { result.add(id); });
-    codeIds.forEach(function (id) {
+
+    var bridgeBudget = Math.max(0, Math.round(maxNodes * 0.22));
+    memoryCodeConnectionsForIds(result).forEach(function (id) {
+      if (result.size < maxNodes && bridgeBudget > 0 && result.size < memoryBudget + bridgeBudget) result.add(id);
+    });
+
+    var codeBudget = Math.max(0, maxNodes - result.size);
+    connectedSignalEntities(codeIds, edgeIds, codeBudget).forEach(function (id) {
       if (result.size < maxNodes) result.add(id);
+    });
+
+    memoryCodeConnectionsForIds(result).forEach(function (id) {
+      if (result.size < maxNodes) result.add(id);
+    });
+    rankedIds.forEach(function (id) {
+      if (result.size < maxNodes) result.add(id);
+    });
+    return result;
+  }
+
+  function memoryCodeConnectionsForIds(entityIds) {
+    var connected = new Map();
+    state.edges.forEach(function (edge) {
+      if (!isMemoryCodeEdge(edge)) return;
+      if (entityIds.has(edge.from) && !entityIds.has(edge.to)) {
+        connected.set(edge.to, Math.max(connected.get(edge.to) || 0, memoryCodePeerImportance(edge, edge.to)));
+      }
+      if (entityIds.has(edge.to) && !entityIds.has(edge.from)) {
+        connected.set(edge.from, Math.max(connected.get(edge.from) || 0, memoryCodePeerImportance(edge, edge.from)));
+      }
+    });
+    return Array.from(connected.keys()).sort(function (a, b) {
+      return (connected.get(b) || 0) - (connected.get(a) || 0) ||
+        displayName(state.entityById.get(a)).localeCompare(displayName(state.entityById.get(b)));
+    });
+  }
+
+  function memoryCodePeerImportance(edge, peerId) {
+    var peer = state.entityById.get(peerId);
+    var score = entityImportance(peer);
+    var relation = String(edge.relation || "");
+    if (relation === "affects_code_path") score += 900;
+    if (["fixes_symbol", "verified_by_test"].indexOf(relation) !== -1) score += 520;
+    if (["explains_symbol", "informs_symbol", "applies_to_route"].indexOf(relation) !== -1) score += 360;
+    if (peer && peer.type === "file") score += 180;
+    return score;
+  }
+
+  function connectedSignalEntities(rankedIds, edgeIds, maxNodes) {
+    var result = new Set();
+    var candidates = new Set(rankedIds);
+    var neighbors = new Map();
+    edgeIds.forEach(function (edgeId) {
+      var edge = state.edgeById.get(edgeId);
+      if (!edge || !candidates.has(edge.from) || !candidates.has(edge.to)) return;
+      if (!neighbors.has(edge.from)) neighbors.set(edge.from, []);
+      if (!neighbors.has(edge.to)) neighbors.set(edge.to, []);
+      neighbors.get(edge.from).push(edge.to);
+      neighbors.get(edge.to).push(edge.from);
+    });
+
+    rankedIds.forEach(function (id) {
+      if (result.size >= maxNodes) return;
+      result.add(id);
+      (neighbors.get(id) || [])
+        .sort(function (a, b) {
+          return entityImportance(state.entityById.get(b)) - entityImportance(state.entityById.get(a)) ||
+            displayName(state.entityById.get(a)).localeCompare(displayName(state.entityById.get(b)));
+        })
+        .forEach(function (peer) {
+          if (result.size < maxNodes) result.add(peer);
+        });
     });
     rankedIds.forEach(function (id) {
       if (result.size < maxNodes) result.add(id);
@@ -1352,7 +1680,7 @@
     els.selectionStatus.textContent = state.selected.kind === "entity" ? "Node" : reviewStatus(item);
 
     if (state.selected.kind === "entity") {
-      rows.appendChild(detailRow("Summary", item.summary || ""));
+      entityDetailRows(item).forEach(function (row) { rows.appendChild(row); });
       rows.appendChild(detailRow("Graph", item.graph_kind || ""));
       rows.appendChild(detailRow("Aliases", Array.isArray(item.aliases) ? item.aliases.join(", ") : ""));
       rows.appendChild(detailRow("Evidence", formatEvidence(item.evidence)));
@@ -1377,6 +1705,49 @@
     renderInspectorConnections(item);
   }
 
+  function entityDetailRows(entity) {
+    var rows = [detailRow("Summary", entitySummary(entity))];
+    if (entity.graph_kind === "code") {
+      if (entity.path) rows.push(detailRow("Path", entity.path));
+      if (entity.language) rows.push(detailRow("Language", entity.language));
+      if (entity.parser) rows.push(detailRow("Parser", entity.parser));
+      if (entity.kind) rows.push(detailRow("Kind", entity.kind));
+      if (entity.line) rows.push(detailRow("Line", String(entity.line)));
+      if (entity.end_line) rows.push(detailRow("End line", String(entity.end_line)));
+      if (entity.exported != null) rows.push(detailRow("Exported", entity.exported ? "yes" : "no"));
+      if (entity.signature) rows.push(detailRow("Signature", entity.signature));
+      if (entity.line_count) rows.push(detailRow("Lines", String(entity.line_count)));
+      if (entity.size_bytes != null) rows.push(detailRow("Size", formatBytes(entity.size_bytes)));
+      if (entity.hash) rows.push(detailRow("Hash", entity.hash));
+      if (entity.method) rows.push(detailRow("Method", entity.method));
+      if (entity.route_path) rows.push(detailRow("Route", entity.route_path));
+      if (entity.framework) rows.push(detailRow("Framework", entity.framework));
+      if (entity.handler_symbol) rows.push(detailRow("Handler", entity.handler_symbol));
+    }
+    return rows;
+  }
+
+  function entitySummary(entity) {
+    if (entity.summary) return entity.summary;
+    if (entity.graph_kind === "code" && entity.type === "symbol") {
+      return [entity.kind || "symbol", entity.path && "in " + entity.path, entity.line && "line " + entity.line].filter(Boolean).join(" ");
+    }
+    if (entity.graph_kind === "code" && entity.type === "file") {
+      return [entity.kind || "file", entity.language, entity.line_count && entity.line_count + " lines"].filter(Boolean).join(", ");
+    }
+    if (entity.graph_kind === "code" && entity.type === "test") {
+      return ["test", entity.path && "in " + entity.path, entity.line && "line " + entity.line].filter(Boolean).join(" ");
+    }
+    return displayName(entity);
+  }
+
+  function formatBytes(value) {
+    var bytes = Number(value || 0);
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / 1024 / 1024).toFixed(1) + " MB";
+  }
+
   function renderInspectorConnections(item) {
     if (state.selected.kind !== "entity") {
       if (item && isMemoryCodeEdge(item)) {
@@ -1385,6 +1756,14 @@
         ], 0));
       }
       return;
+    }
+
+    var direct = directConnections(item.id);
+    if (direct.length) {
+      var directRows = direct.slice(0, INSPECTOR_CONNECTION_LIMIT).map(function (link) {
+        return connectionText(link.edge, item, link.other);
+      });
+      els.selectionDetails.appendChild(detailSection("Connected Relations", directRows, direct.length - directRows.length));
     }
 
     var links = memoryCodeConnections(item.id);
@@ -1407,6 +1786,35 @@
         return connectionImportance(b) - connectionImportance(a) ||
           displayName(a.other).localeCompare(displayName(b.other));
       });
+  }
+
+  function directConnections(entityId) {
+    return state.edges
+      .filter(function (edge) { return edge.from === entityId || edge.to === entityId; })
+      .map(function (edge) {
+        var otherId = edge.from === entityId ? edge.to : edge.from;
+        return { edge: edge, other: state.entityById.get(otherId) };
+      })
+      .filter(function (link) { return Boolean(link.other); })
+      .sort(function (a, b) {
+        return connectionImportance(b) - connectionImportance(a) ||
+          displayName(a.other).localeCompare(displayName(b.other));
+      });
+  }
+
+  function splitParamValues(values) {
+    return []
+      .concat(values || [])
+      .flatMap(function (value) { return String(value || "").split(","); })
+      .map(function (value) { return value.trim(); })
+      .filter(Boolean);
+  }
+
+  function applyRequestedView(view) {
+    if (!view) return;
+    var normalized = String(view).toLowerCase();
+    if (["combined", "memory", "code"].indexOf(normalized) === -1) return;
+    els.viewMode.value = normalized;
   }
 
   function isMemoryCodeEdge(edge) {
@@ -1513,11 +1921,11 @@
     var official = state.metrics;
     var metrics = official ? [
       ["Readiness", official.harness.readiness_score + "/100"],
-      ["Tokens Saved", official.savings ? official.savings.estimated_tokens_saved_per_recall : "n/a"],
       ["Code Files", official.code_graph.files],
-      ["Memory Edges", official.memory_graph.edges],
-      ["Quality", official.memory_graph.average_quality_score + "/100"],
-      ["Evidence", official.memory_graph.evidence_coverage_percent + "%"]
+      ["Structural Symbols", official.structural_index ? official.structural_index.symbols : official.code_graph.symbols],
+      ["Parser Coverage", official.code_graph.indexer_coverage_percent + "%"],
+      ["Cache Hits", official.structural_index ? official.structural_index.cache_hits : official.code_graph.cache_hits],
+      ["Tokens Saved", official.savings ? official.savings.estimated_tokens_saved_per_recall : "n/a"]
     ] : [
       ["Nodes", visibleEntities.length + "/" + state.entities.length],
       ["Relations", visibleEdges.length + "/" + state.edges.length],
@@ -1655,9 +2063,10 @@
     var pills = official ? [
       ["Readiness", official.harness.readiness_score + "/100", ""],
       ["Pending", official.memory_graph ? String(official.memory_graph.pending_packets) : "n/a", official.memory_graph && official.memory_graph.pending_packets ? "warn" : ""],
-      ["Tokens saved", official.savings ? String(official.savings.estimated_tokens_saved_per_recall) : "n/a", "warn"],
-      ["Quality", official.memory_graph.average_quality_score + "/100", "memory"],
-      ["Parser coverage", official.code_graph.indexer_coverage_percent + "%", "code"]
+      ["Structural", official.structural_index ? official.structural_index.files + " files" : official.code_graph.files + " files", "code"],
+      ["Code symbols", String(official.code_graph.symbols), "code"],
+      ["Parser coverage", official.code_graph.indexer_coverage_percent + "%", "code"],
+      ["Memory packets", official.memory_graph ? String(official.memory_graph.approved_packets) : "n/a", "memory"]
     ] : [
       ["Memory", String(memoryCount), "memory"],
       ["Code", String(codeCount), "code"],
@@ -2172,6 +2581,101 @@
     return String(value || "unknown").toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
   }
 
+  function testSignalVisibilityForGraph(graph, maxNodes) {
+    var normalized = normalizeGraph(graph);
+    return testVisibilityForNormalized(normalized, "code", maxNodes || 90);
+  }
+
+  function testCombinedVisibilityForGraphs(graphs, maxNodes) {
+    var normalized = mergeNormalizedGraphs(graphs.map(function (graph) { return normalizeGraph(graph); }));
+    return testVisibilityForNormalized(normalized, "combined", maxNodes || 90);
+  }
+
+  function testRelationVisibilityForGraphs(graphs, relation, maxNodes) {
+    var normalized = mergeNormalizedGraphs(graphs.map(function (graph) { return normalizeGraph(graph); }));
+    state.entities = normalized.entities;
+    state.edges = normalized.edges;
+    state.entityById = new Map(state.entities.map(function (entity) { return [entity.id, entity]; }));
+    state.edgeById = new Map(state.edges.map(function (edge) { return [edge.id, edge]; }));
+    state.degreeById = buildDegreeMap(state.edges);
+    var edgeIds = new Set(state.edges.filter(function (edge) {
+      return relation === "__memory_code__" ? isMemoryCodeEdge(edge) : edge.relation === relation;
+    }).map(function (edge) { return edge.id; }));
+    var entityIds = new Set();
+    edgeIds.forEach(function (id) {
+      var edge = state.edgeById.get(id);
+      if (!edge) return;
+      entityIds.add(edge.from);
+      entityIds.add(edge.to);
+    });
+    var ranked = Array.from(entityIds).sort(function (a, b) {
+      return entityImportance(state.entityById.get(b)) - entityImportance(state.entityById.get(a)) ||
+        displayName(state.entityById.get(a)).localeCompare(displayName(state.entityById.get(b)));
+    });
+    var entities = connectedSignalEntities(ranked, edgeIds, maxNodes || 90);
+    var edges = capVisibleEdges(edgesWithVisibleEndpoints(edgeIds, entities), entities, {
+      maxNodes: maxNodes || 90,
+      mode: "combined",
+      relation: relation,
+      query: { active: false }
+    });
+    return visibilityStats(entities, edges);
+  }
+
+  function testVisibilityForNormalized(normalized, mode, maxNodes) {
+    state.entities = normalized.entities;
+    state.edges = normalized.edges;
+    state.entityById = new Map(state.entities.map(function (entity) { return [entity.id, entity]; }));
+    state.edgeById = new Map(state.edges.map(function (edge) { return [edge.id, edge]; }));
+    state.degreeById = buildDegreeMap(state.edges);
+    var ranked = state.entities
+      .filter(function (entity) { return mode === "combined" || entity.graph_kind === mode; })
+      .map(function (entity) { return entity.id; })
+      .sort(function (a, b) {
+        return entityImportance(state.entityById.get(b)) - entityImportance(state.entityById.get(a)) ||
+          displayName(state.entityById.get(a)).localeCompare(displayName(state.entityById.get(b)));
+      });
+    var edgeIds = new Set(state.edges.filter(function (edge) { return mode === "combined" || edge.graph_kind === mode; }).map(function (edge) { return edge.id; }));
+    var entities = mode === "combined"
+      ? balancedSignalEntities(ranked, edgeIds, maxNodes)
+      : connectedSignalEntities(ranked, edgeIds, maxNodes);
+    var edges = capVisibleEdges(edgesWithVisibleEndpoints(edgeIds, entities), entities, {
+      maxNodes: maxNodes,
+      mode: mode,
+      relation: "",
+      query: { active: false }
+    });
+    return visibilityStats(entities, edges);
+  }
+
+  function visibilityStats(entities, edges) {
+    return {
+      entities: entities.size,
+      edges: edges.size,
+      memoryCodeEdges: Array.from(edges).filter(function (id) {
+        return isMemoryCodeEdge(state.edgeById.get(id));
+      }).length,
+      pathBridgeEdges: Array.from(edges).filter(function (id) {
+        var edge = state.edgeById.get(id);
+        return edge && edge.relation === "affects_code_path";
+      }).length,
+      codeEdges: Array.from(edges).filter(function (id) {
+        var edge = state.edgeById.get(id);
+        var from = edge && state.entityById.get(edge.from);
+        var to = edge && state.entityById.get(edge.to);
+        return from && to && from.graph_kind === "code" && to.graph_kind === "code";
+      }).length,
+      memory: Array.from(entities).filter(function (id) {
+        var entity = state.entityById.get(id);
+        return entity && entity.graph_kind === "memory";
+      }).length,
+      code: Array.from(entities).filter(function (id) {
+        var entity = state.entityById.get(id);
+        return entity && entity.graph_kind === "code";
+      }).length
+    };
+  }
+
   function svgEl(name, attrs) {
     var element = document.createElementNS("http://www.w3.org/2000/svg", name);
     Object.keys(attrs || {}).forEach(function (key) {
@@ -2184,6 +2688,11 @@
     globalThis.__KAGE_VIEWER_TEST__ = {
       normalizeGraph: normalizeGraph,
       normalizeCodeGraph: normalizeCodeGraph,
+      hydrateCompactCodeGraph: hydrateCompactCodeGraph,
+      connectedSignalEntities: connectedSignalEntities,
+      testSignalVisibilityForGraph: testSignalVisibilityForGraph,
+      testCombinedVisibilityForGraphs: testCombinedVisibilityForGraphs,
+      testRelationVisibilityForGraphs: testRelationVisibilityForGraphs,
       mergeNormalizedGraphs: mergeNormalizedGraphs,
       isMemoryCodeRelation: isMemoryCodeRelation
     };

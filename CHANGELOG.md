@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.1.21 - 2026-05-09
+
+- Fixed memory-code graph quality by requiring explicit, non-generic symbol and
+  test mentions before creating precise memory-code edges.
+- Capped per-packet symbol/test links so broad repo memories cannot explode into
+  unreadable file hubs in the viewer.
+- Fixed viewer graph canonicalization so stale memory symbol/test path aliases
+  do not silently collapse onto code file nodes.
+- Kept path-level memory visible through capped `affects_code_path` bridge
+  edges while making the `Memory <-> Code only` view show actual cross-graph
+  links.
+
 ## v1.1.20 - 2026-05-08
 
 - Added a persisted code graph stat fingerprint so repeated `kage refresh`

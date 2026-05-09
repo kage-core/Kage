@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { delimiter, join } from "node:path";
-import { tmpdir } from "node:os";
+import { availableParallelism, tmpdir } from "node:os";
 import vm from "node:vm";
 import {
   SETUP_AGENTS,
@@ -15,6 +15,7 @@ import {
   buildKnowledgeGraph,
   buildBranchOverlay,
   buildMarketplace,
+  buildStructuralIndex,
   auditProject,
   capture,
   catalogDomainNodeCount,
@@ -55,6 +56,7 @@ import {
   scanSensitiveText,
   setupAgent,
   setupDoctor,
+  structuralIndexDir,
   qualityReport,
   evaluateMemoryAdmission,
   verifyAgentActivation,
@@ -304,6 +306,10 @@ test("builds an evidence-backed local knowledge graph", () => {
   assert.equal(graph.entities.some((entity) => entity.type === "package" && entity.name === "next"), true);
   assert.equal(graph.edges.some((edge) => edge.relation === "defines_command" && edge.evidence.length > 0), true);
   assert.equal(graph.episodes.some((episode) => episode.kind === "memory_packet"), true);
+  const graphArtifact = JSON.parse(readFileSync(join(graphDir(project), "graph.json"), "utf8"));
+  assert.equal(graphArtifact.compact, true);
+  assert.equal(Array.isArray(graphArtifact.entities), false);
+  assert.equal(graphArtifact.refs.entities, "entities.json");
   assert.ok(graphDir(project));
 });
 
@@ -355,7 +361,7 @@ test('createApp routes tasks', () => createApp());
   assert.equal(graph.tests.some((edge) => edge.covers_symbol === "createApp"), true);
 });
 
-test("code graph skips huge source blobs during first-run indexing", () => {
+test("code graph represents huge source blobs without structurally extracting them", () => {
   const project = tempProject();
   mkdirSync(join(project, "src"), { recursive: true });
   writeFileSync(join(project, "src", "small.js"), "export function small() { return true; }\n", "utf8");
@@ -364,12 +370,13 @@ test("code graph skips huge source blobs during first-run indexing", () => {
   const graph = buildCodeGraph(project);
 
   assert.equal(graph.files.some((file) => file.path === "src/small.js"), true);
-  assert.equal(graph.files.some((file) => file.path === "src/bundle.js"), false);
+  assert.equal(graph.files.some((file) => file.path === "src/bundle.js" && file.parser === "metadata"), true);
   const manifest = JSON.parse(readFileSync(join(project, ".agent_memory", "code_graph", "index-manifest.json"), "utf8"));
-  assert.equal(manifest.coverage.indexed_files, 1);
+  assert.equal(manifest.mode, "structural");
+  assert.equal(manifest.coverage.indexed_files, 2);
   assert.equal(manifest.coverage.deferred_files, 1);
   assert.equal(manifest.deferred_files[0].path, "src/bundle.js");
-  assert.equal(manifest.deferred_files[0].reason, "over_quick_file_size_limit");
+  assert.equal(manifest.deferred_files[0].reason, "over_structural_extract_file_size_limit");
 });
 
 test("code graph caps noisy call extraction", () => {
@@ -384,7 +391,7 @@ test("code graph caps noisy call extraction", () => {
   assert.equal(graph.calls.length <= 250, true);
 });
 
-test("code graph records deferred files when quick index file budget is exhausted", () => {
+test("code graph keeps complete structural coverage for large file counts", () => {
   const project = tempProject();
   mkdirSync(join(project, "src"), { recursive: true });
   for (let index = 0; index < 2003; index++) {
@@ -394,37 +401,90 @@ test("code graph records deferred files when quick index file budget is exhauste
   const graph = buildCodeGraph(project);
   const manifest = JSON.parse(readFileSync(join(project, ".agent_memory", "code_graph", "index-manifest.json"), "utf8"));
 
-  assert.equal(graph.files.length, 2000);
+  assert.equal(graph.files.length, 2003);
   assert.equal(manifest.coverage.indexable_files, 2003);
-  assert.equal(manifest.coverage.indexed_files, 2000);
-  assert.equal(manifest.coverage.deferred_files, 3);
+  assert.equal(manifest.coverage.indexed_files, 2003);
+  assert.equal(manifest.coverage.deferred_files, 0);
   assert.equal(manifest.coverage.coverage_percent, 100);
-  assert.equal(manifest.coverage.complete, false);
-  assert.equal(manifest.deferred_files.every((file: { reason: string }) => file.reason === "over_quick_file_count_limit"), true);
+  assert.equal(manifest.coverage.complete, true);
+  assert.equal(manifest.deferred_files.length, 0);
 });
 
-test("code graph reuses per-file cached facts until source content changes", () => {
+test("structural index is the source for large-repo code graph coverage", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  for (let index = 0; index < 2003; index++) {
+    writeFileSync(join(project, "src", `unit-${String(index).padStart(4, "0")}.js`), `export const value${index} = ${index};\n`, "utf8");
+  }
+
+  const graph = buildCodeGraph(project);
+  const structural = buildStructuralIndex(project);
+
+  assert.equal(graph.files.length, 2003);
+  assert.equal(structural.files.length, 2003);
+  assert.equal(structural.symbols.some((symbol) => symbol.name === "value2002"), true);
+  assert.equal(graph.symbols.some((symbol) => symbol.name === "value2002"), true);
+  if (availableParallelism() > 2) assert.equal(structural.manifest.worker_count > 1, true);
+  assert.equal(existsSync(join(structuralIndexDir(project), "report.md")), true);
+  assert.equal(existsSync(join(project, ".agent_memory", "indexes", "structural.json")), true);
+
+  const result = queryCodeGraph(project, "value2002", 5, graph);
+  assert.equal(result.symbols.some((symbol) => symbol.name === "value2002"), true);
+  assert.match(result.context_block, /\[symbol\] constant value2002/);
+});
+
+test("structural index reuses cached file facts and updates changed files", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "a.ts"), "export function alpha() { return 1; }\n", "utf8");
+  writeFileSync(join(project, "src", "b.ts"), "export function beta() { return 2; }\n", "utf8");
+
+  buildStructuralIndex(project);
+  const cached = buildStructuralIndex(project);
+  assert.equal(cached.manifest.cache.hits, 2);
+  assert.equal(cached.manifest.cache.misses, 0);
+  const cachePath = join(project, ".agent_memory", "structural", "file-cache.json");
+  assert.equal(Object.keys(JSON.parse(readFileSync(cachePath, "utf8")).entries).length, 2);
+  assert.equal(existsSync(join(project, ".agent_memory", "structural", "file-cache")), false);
+
+  writeFileSync(join(project, "src", "b.ts"), "export function betaChanged() { return 3; }\n", "utf8");
+  const changed = buildStructuralIndex(project);
+  assert.equal(changed.manifest.cache.hits, 1);
+  assert.equal(changed.manifest.cache.misses, 1);
+  assert.equal(changed.symbols.some((symbol) => symbol.name === "betaChanged"), true);
+  assert.equal(Object.keys(JSON.parse(readFileSync(cachePath, "utf8")).entries).length, 2);
+});
+
+test("structural index honors .kageignore", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src", "ignored"), { recursive: true });
+  writeFileSync(join(project, ".kageignore"), "src/ignored/\n", "utf8");
+  writeFileSync(join(project, "src", "kept.ts"), "export function kept() { return true; }\n", "utf8");
+  writeFileSync(join(project, "src", "ignored", "skipped.ts"), "export function skipped() { return false; }\n", "utf8");
+
+  const structural = buildStructuralIndex(project);
+
+  assert.equal(structural.files.some((file) => file.path === "src/kept.ts"), true);
+  assert.equal(structural.files.some((file) => file.path === "src/ignored/skipped.ts"), false);
+  assert.equal(structural.manifest.ignored_summary.kageignore, 1);
+});
+
+test("structural-backed code graph reuses per-file structural facts until source content changes", () => {
   const project = tempProject();
   mkdirSync(join(project, "src"), { recursive: true });
   writeFileSync(join(project, "src", "worker.ts"), "export function work() { return 1; }\n", "utf8");
 
   buildCodeGraph(project);
-  const cacheDir = join(project, ".agent_memory", "code_graph", "file-cache");
-  const cachePath = join(cacheDir, readdirSync(cacheDir).find((name) => name.includes("src-worker-ts")) ?? "");
-  const cached = JSON.parse(readFileSync(cachePath, "utf8"));
-  cached.symbols.push({
-    id: "symbol:src-worker-ts:function:cache-only:99",
-    name: "cacheOnly",
-    kind: "function",
-    path: "src/worker.ts",
-    language: "typescript",
-    parser: "typescript-ast",
-    export: true,
-    line: 99,
-    end_line: null,
-    signature: "cacheOnly()",
-  });
-  writeFileSync(cachePath, JSON.stringify(cached, null, 2), "utf8");
+  const cachePath = join(project, ".agent_memory", "structural", "file-cache.json");
+  const packed = JSON.parse(readFileSync(cachePath, "utf8"));
+  const cacheEntry = Object.entries(packed.entries).find(([, value]) => (value as { path?: string }).path === "src/worker.ts");
+  assert.ok(cacheEntry);
+  const cached = cacheEntry[1] as { schema_version: number; edges?: unknown; symbols: unknown[] };
+  assert.equal(cached.schema_version, 2);
+  assert.equal(cached.edges, undefined);
+  cached.symbols.push(["symbol:src-worker-ts:function:cache-only:99", "cacheOnly", "function", "typescript-ast", true, 99, null, "cacheOnly()", "EXTRACTED"]);
+  packed.entries[cacheEntry[0]] = cached;
+  writeFileSync(cachePath, JSON.stringify(packed, null, 2), "utf8");
   unlinkSync(join(project, ".agent_memory", "code_graph", "graph.json"));
 
   const cachedGraph = buildCodeGraph(project);
@@ -450,6 +510,12 @@ test("code graph returns cached graph when source stat fingerprint is unchanged"
   const first = buildCodeGraph(project);
   const graphPath = join(codeGraphDir(project), "graph.json");
   const graphJson = JSON.parse(readFileSync(graphPath, "utf8"));
+  assert.equal(graphJson.compact, true);
+  assert.equal(graphJson.artifact_format, 2);
+  assert.equal(Array.isArray(graphJson.files), false);
+  assert.equal(graphJson.refs.files, "../structural/files.json");
+  assert.equal(existsSync(join(codeGraphDir(project), "files.json")), false);
+  assert.equal(existsSync(join(codeGraphDir(project), "symbols.json")), false);
   graphJson.generated_at = "sentinel-code-graph";
   writeFileSync(graphPath, JSON.stringify(graphJson, null, 2), "utf8");
 
@@ -461,6 +527,31 @@ test("code graph returns cached graph when source stat fingerprint is unchanged"
   assert.equal(manifest.cache.hits, 1);
   assert.equal(manifest.cache.misses, 0);
   assert.equal(typeof manifest.fingerprint, "string");
+});
+
+test("read-only code graph queries rebuild stale structural artifacts after source changes", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "worker.ts"), "export function work() { return 1; }\n", "utf8");
+
+  buildCodeGraph(project);
+  writeFileSync(join(project, "src", "worker.ts"), "export function changedWork() { return 2; }\n", "utf8");
+
+  const result = queryCodeGraph(project, "changedWork", 5);
+  assert.equal(result.symbols.some((symbol) => symbol.name === "changedWork"), true);
+  assert.equal(result.symbols.some((symbol) => symbol.name === "work"), false);
+});
+
+test("code graph natural language queries prefer exact symbol identifiers over generic words", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "feature.ts"), "export function feature1999() { return 1; }\n", "utf8");
+  writeFileSync(join(project, "src", "worker.ts"), "export function Worker0() { return 2; }\n", "utf8");
+
+  const graph = buildCodeGraph(project);
+  const result = queryCodeGraph(project, "how does feature1999 work", 5, graph);
+
+  assert.equal(result.symbols[0]?.name, "feature1999");
 });
 
 test("code graph force option bypasses unchanged graph reuse", () => {
@@ -560,7 +651,7 @@ test("code graph consumes Tree-sitter, SCIP, and LSP index artifacts when presen
 test("generated LSP symbol index upgrades code graph parser coverage", () => {
   const project = tempProject();
   mkdirSync(join(project, "src"), { recursive: true });
-  writeFileSync(join(project, "src", "server.ts"), "export function createApp() { return {}; }\n", "utf8");
+  writeFileSync(join(project, "src", "server.ts"), "export const graph = {};\nexport function createApp() { return {}; }\n", "utf8");
   const before = buildCodeGraph(project);
   assert.equal(before.files.find((file) => file.path === "src/server.ts")?.parser, "typescript-ast");
 
@@ -572,13 +663,17 @@ test("generated LSP symbol index upgrades code graph parser coverage", () => {
   const graph = buildCodeGraph(project);
   assert.equal(graph.files.find((file) => file.path === "src/server.ts")?.parser, "lsp");
   assert.equal(graph.symbols.some((symbol) => symbol.path === "src/server.ts" && symbol.name === "createApp" && symbol.parser === "lsp"), true);
+
+  const cached = buildCodeGraph(project);
+  assert.equal(cached.files.find((file) => file.path === "src/server.ts")?.parser, "lsp");
+  assert.equal(cached.symbols.some((symbol) => symbol.path === "src/server.ts" && symbol.name === "createApp" && symbol.parser === "lsp"), true);
 });
 
 test("code index prefers scip-typescript when available", () => {
   const project = tempProject();
   mkdirSync(join(project, "src"), { recursive: true });
   mkdirSync(join(project, "bin"), { recursive: true });
-  writeFileSync(join(project, "src", "server.ts"), "export function createApp() { return {}; }\n", "utf8");
+  writeFileSync(join(project, "src", "server.ts"), "export const graph = {};\nexport function createApp() { return {}; }\n", "utf8");
   writeFileSync(
     join(project, "bin", "scip-typescript"),
     `#!/usr/bin/env node
@@ -921,7 +1016,7 @@ test("capture extracts structured engineering memory context", () => {
 test("knowledge graph links structured memory to source symbols and verification commands", () => {
   const project = tempProject();
   mkdirSync(join(project, "src"), { recursive: true });
-  writeFileSync(join(project, "src", "server.ts"), "export function createApp() { return {}; }\n", "utf8");
+  writeFileSync(join(project, "src", "server.ts"), "export const graph = {};\nexport function createApp() { return {}; }\n", "utf8");
   const result = capture({
     projectDir: project,
     title: "Code explanation: createApp owns HTTP app wiring",
@@ -935,6 +1030,7 @@ test("knowledge graph links structured memory to source symbols and verification
   const graph = buildKnowledgeGraph(project);
   assert.equal(graph.entities.some((entity) => entity.type === "symbol" && entity.name === "createApp"), true);
   assert.equal(graph.edges.some((edge) => edge.relation === "explains_symbol" && edge.fact.includes("createApp")), true);
+  assert.equal(graph.edges.some((edge) => edge.relation === "explains_symbol" && edge.fact.includes("graph in src/server.ts")), false);
   assert.equal(graph.edges.some((edge) => edge.relation === "verified_by" && edge.fact.includes("cli.js audit --project . --json")), true);
 });
 
@@ -985,19 +1081,33 @@ test("viewer coalesces memory graph code entities with code graph nodes", () => 
 
   const hooks = sandbox.__KAGE_VIEWER_TEST__ as {
     normalizeGraph(graph: unknown): { entities: Array<{ id: string; graph_kind: string; aliases?: string[] }>; edges: Array<{ from: string; to: string; relation: string; memory_code_link?: boolean }>; episodes: unknown[] };
-    mergeNormalizedGraphs(graphs: Array<{ entities: unknown[]; edges: unknown[]; episodes: unknown[] }>): { entities: Array<{ id: string; graph_kind: string }>; edges: Array<{ from: string; to: string; relation: string; memory_code_link?: boolean }> };
+    mergeNormalizedGraphs(graphs: Array<{ entities: unknown[]; edges: unknown[]; episodes: unknown[] }>): { entities: Array<{ id: string; graph_kind: string }>; edges: Array<{ from: string; to: string; relation: string; fact?: string; memory_code_link?: boolean }> };
     isMemoryCodeRelation(relation: string): boolean;
+    hydrateCompactCodeGraph(graph: unknown, basePath: string): Promise<unknown>;
+    testSignalVisibilityForGraph(graph: unknown, maxNodes: number): { entities: number; edges: number };
+    testCombinedVisibilityForGraphs(graphs: unknown[], maxNodes: number): { entities: number; edges: number; memoryCodeEdges: number; pathBridgeEdges: number; codeEdges: number; memory: number; code: number };
+    testRelationVisibilityForGraphs(graphs: unknown[], relation: string, maxNodes: number): { entities: number; edges: number; memoryCodeEdges: number; pathBridgeEdges: number; codeEdges: number; memory: number; code: number };
   };
   assert.equal(typeof hooks.normalizeGraph, "function");
+  assert.equal(typeof hooks.hydrateCompactCodeGraph, "function");
+  assert.equal(typeof hooks.testSignalVisibilityForGraph, "function");
+  assert.equal(typeof hooks.testCombinedVisibilityForGraphs, "function");
+  assert.equal(typeof hooks.testRelationVisibilityForGraphs, "function");
 
   const symbolId = "symbol:src-server-ts:function:createapp:1";
   const memoryGraph = hooks.normalizeGraph({
     entities: [
       { id: "memory:packet-1", type: "memory", name: "createApp memory", aliases: ["packet-1"], evidence: [] },
       { id: "symbol:symbol-src-server-ts-function-createapp-1", type: "symbol", name: "createApp", aliases: [symbolId, "src/server.ts"], evidence: [] },
+      { id: "memory:stale", type: "memory", name: "Stale symbol memory", aliases: [], evidence: [] },
+      { id: "symbol:stale-legacy-symbol", type: "symbol", name: "legacyHandler", aliases: ["src/server.ts"], evidence: [] },
+      { id: "memory:file-note", type: "memory", name: "File memory", aliases: [], evidence: [] },
+      { id: "path:src/server.ts", type: "path", name: "src/server.ts", aliases: [], evidence: [] },
     ],
     edges: [
       { id: "edge-1", from: "memory:packet-1", to: "symbol:symbol-src-server-ts-function-createapp-1", relation: "explains_symbol", fact: "memory explains createApp", evidence: [] },
+      { id: "edge-stale", from: "memory:stale", to: "symbol:stale-legacy-symbol", relation: "explains_symbol", fact: "stale symbol should not fall back to a file", evidence: [] },
+      { id: "edge-2", from: "memory:file-note", to: "path:src/server.ts", relation: "affects_path", fact: "memory applies to file", evidence: [] },
     ],
     episodes: [],
   });
@@ -1011,11 +1121,119 @@ test("viewer coalesces memory graph code entities with code graph nodes", () => 
     repo_state: {},
   });
   const merged = hooks.mergeNormalizedGraphs([memoryGraph, codeGraph]);
+  const normalizedCodeGraph = hooks.normalizeGraph({
+    files: [{ path: "src/rich.ts", kind: "source", language: "typescript", parser: "typescript-ast", line_count: 3, size_bytes: 84, hash: "rich" }],
+    symbols: [{ id: "symbol:src-rich-ts:function:rich:1", name: "rich", kind: "function", path: "src/rich.ts", line: 1, end_line: 2, language: "typescript", parser: "typescript-ast", export: true, signature: "export function rich()" }],
+    imports: [],
+    routes: [],
+    tests: [],
+    packages: [],
+    repo_state: {},
+  });
+  const richSymbol = normalizedCodeGraph.entities.find((entity) => entity.id === "symbol:src-rich-ts:function:rich:1") as Record<string, unknown> | undefined;
 
   assert.equal(merged.entities.filter((entity) => entity.id === symbolId).length, 1);
   assert.equal(merged.entities.some((entity) => entity.id === "symbol:symbol-src-server-ts-function-createapp-1"), false);
+  assert.equal(merged.entities.some((entity) => entity.id === "symbol:stale-legacy-symbol"), true);
   assert.equal(merged.edges.some((edge) => edge.to === symbolId && edge.relation === "explains_symbol" && edge.memory_code_link), true);
+  assert.equal(merged.edges.some((edge) => edge.to === "file:src/server.ts" && (edge.fact ?? "").includes("stale symbol")), false);
+  assert.equal(merged.edges.some((edge) => edge.to === "symbol:stale-legacy-symbol" && edge.relation === "explains_symbol" && edge.memory_code_link), false);
+  assert.equal(merged.edges.some((edge) => edge.from === "memory:file-note" && edge.to === "file:src/server.ts" && edge.relation === "affects_path" && edge.memory_code_link), true);
+  assert.equal(merged.edges.some((edge) => edge.from === "memory:file-note" && edge.to === symbolId), false);
   assert.equal(hooks.isMemoryCodeRelation("verified_by_test"), true);
+  assert.equal(richSymbol?.path, "src/rich.ts");
+  assert.equal(richSymbol?.parser, "typescript-ast");
+  assert.equal(richSymbol?.signature, "export function rich()");
+
+  const largeCodeGraph = {
+    files: Array.from({ length: 120 }, (_, index) => ({
+      path: `src/unit-${index}.ts`,
+      kind: "source",
+      language: "typescript",
+      line_count: 2,
+      hash: String(index),
+    })),
+    symbols: Array.from({ length: 120 }, (_, index) => ({
+      id: `symbol:unit-${index}`,
+      name: `feature${index}`,
+      kind: "function",
+      path: `src/unit-${index}.ts`,
+      language: "typescript",
+      parser: "typescript-ast",
+      line: 1,
+      signature: `feature${index}()`,
+    })),
+    calls: Array.from({ length: 119 }, (_, index) => ({
+      from_symbol: `symbol:unit-${index}`,
+      to_symbol: `symbol:unit-${index + 1}`,
+      path: `src/unit-${index}.ts`,
+      line: 2,
+    })),
+  };
+  const signal = hooks.testSignalVisibilityForGraph(largeCodeGraph, 90);
+  assert.equal(signal.entities <= 90, true);
+  assert.equal(signal.edges > 0, true);
+
+  const pathBridgeMerged = hooks.mergeNormalizedGraphs([
+    hooks.normalizeGraph({
+      entities: [
+        { id: "memory:src-note", type: "memory", name: "Source convention", aliases: [], evidence: [] },
+        { id: "path:src", type: "path", name: "src", aliases: [], evidence: [] },
+      ],
+      edges: [
+        { id: "src-path", from: "memory:src-note", to: "path:src", relation: "affects_path", fact: "Source convention applies to src.", evidence: [] },
+      ],
+      episodes: [],
+    }),
+    hooks.normalizeGraph(largeCodeGraph),
+  ]);
+  const bridgeEdges = pathBridgeMerged.edges.filter((edge) => edge.relation === "affects_code_path");
+  assert.equal(bridgeEdges.length, 8);
+  assert.equal(bridgeEdges.every((edge) => edge.from === "memory:src-note" && edge.to.startsWith("file:src/") && edge.memory_code_link), true);
+  assert.equal(pathBridgeMerged.edges.some((edge) => edge.relation === "affects_path" && edge.memory_code_link), false);
+  assert.equal(hooks.isMemoryCodeRelation("affects_path"), false);
+
+  const combined = hooks.testCombinedVisibilityForGraphs([
+    {
+      entities: [
+        { id: "memory:repo", type: "memory", name: "Repo summary", aliases: [], evidence: [] },
+        { id: "memory:decision", type: "memory", name: "Decision", aliases: [], evidence: [] },
+        { id: "path:src", type: "path", name: "src", aliases: [], evidence: [] },
+        { id: "symbol:unit-0", type: "symbol", name: "feature0", aliases: ["symbol:unit-0"], evidence: [] },
+      ],
+      edges: [
+        { id: "mem-code", from: "memory:decision", to: "symbol:unit-0", relation: "informs_symbol", fact: "Decision informs feature0", evidence: [] },
+        { id: "mem-path", from: "memory:repo", to: "path:src", relation: "affects_path", fact: "Repo summary applies to src", evidence: [] },
+      ],
+      episodes: [],
+    },
+    largeCodeGraph,
+  ], 90);
+  assert.equal(combined.entities <= 90, true);
+  assert.equal(combined.memory > 0, true);
+  assert.equal(combined.code > 0, true);
+  assert.equal(combined.edges > 0, true);
+  assert.equal(combined.edges <= 360, true);
+  assert.equal(combined.memoryCodeEdges > 0, true);
+  assert.equal(combined.pathBridgeEdges > 0, true);
+  assert.equal(combined.codeEdges > 0, true);
+
+  const memoryCodeOnly = hooks.testRelationVisibilityForGraphs([
+    {
+      entities: [
+        { id: "memory:repo", type: "memory", name: "Repo summary", aliases: [], evidence: [] },
+        { id: "path:src", type: "path", name: "src", aliases: [], evidence: [] },
+      ],
+      edges: [
+        { id: "mem-path", from: "memory:repo", to: "path:src", relation: "affects_path", fact: "Repo summary applies to src", evidence: [] },
+      ],
+      episodes: [],
+    },
+    largeCodeGraph,
+  ], "__memory_code__", 90);
+  assert.equal(memoryCodeOnly.edges, memoryCodeOnly.memoryCodeEdges);
+  assert.equal(memoryCodeOnly.pathBridgeEdges > 0, true);
+  assert.equal(memoryCodeOnly.codeEdges, 0);
 });
 
 test("auditProject reports trust and concrete memory/code graph recommendations", () => {

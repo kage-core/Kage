@@ -16,6 +16,7 @@ import {
   buildBranchOverlay,
   buildCodeGraph,
   buildMarketplace,
+  buildStructuralIndex,
   createPublicCandidate,
   createReviewArtifact,
   distillSession,
@@ -258,6 +259,18 @@ export function listTools() {
       name: "kage_code_index",
       description:
         "Write external code index artifacts consumed by the code graph. Prefers SCIP when scip-typescript and scip are installed, then falls back to the built-in LSP-compatible symbol index.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_structural_index",
+      description:
+        "Build the complete cache-backed structural index for large repos. This covers all supported source/config/doc files and writes .agent_memory/structural artifacts separate from learned memory.",
       inputSchema: {
         type: "object",
         properties: {
@@ -871,6 +884,13 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       isError: !result.ok,
+    };
+  }
+
+  if (name === "kage_structural_index") {
+    const result = buildStructuralIndex(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };
   }
 

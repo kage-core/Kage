@@ -1,0 +1,67 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:bug_fix:viewer-bridges-path-level-memory-to-code-files-1778309765609",
+  "title": "Viewer bridges path-level memory to code files",
+  "summary": "Path level memory such as affects path: src can leave combined viewer graphs looking disconnected from actual code files because path nodes do not canonicalize to file:src/... code nodes. The viewer should add capped vir",
+  "body": "Path-level memory such as affects_path: src can leave combined viewer graphs looking disconnected from actual code files because path nodes do not canonicalize to file:src/... code nodes. The viewer should add capped virtual affects_code_path edges from memory packets to representative matching code files at merge/render time, preserving compact persisted graph artifacts while making memory-code relationships visible. Audit should report path-level and precise memory-code links separately so broad grounding is not misreported as zero. Verified by npm --prefix mcp test, git diff --check, and a 20k-file benchmark viewer hook check showing 24 affects_code_path edges and 17 visible memory-code edges under the 90-node cap.\nVerified by: npm --prefix mcp test; git diff --check; 20k benchmark viewer hook check",
+  "type": "bug_fix",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "viewer",
+    "memory-code",
+    "code-graph",
+    "audit"
+  ],
+  "paths": [
+    "mcp/viewer/app.js",
+    "mcp/kernel.test.ts",
+    "mcp/kernel.ts",
+    "mcp/cli.ts",
+    "mcp/README.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-09T06:56:05.608Z"
+    }
+  ],
+  "context": {
+    "fact": "Path-level memory such as affects_path: src can leave combined viewer graphs looking disconnected from actual code files because path nodes do not canonicalize to file:src/... code nodes. The viewer should add capped virtual affects_code_path edges from memory packets to representative matching code files at merge/render time, preserving compact persisted graph artifacts while making memory-code relationships visible. Audit should report path-level and precise memory-code links separately so broad grounding is not misreported as zero. Verified by npm --prefix mcp test, git diff --check, and a 20k-file benchmark viewer hook check showing 24 affects_code_path edges and 17 visible memory-code edges under the 90-node cap.\nVerified by: npm --prefix mcp test; git diff --check; 20k benchmark viewer hook check",
+    "verification": "npm --prefix mcp test; git diff --check; 20k benchmark viewer hook check"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-09T06:56:05.608Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 204
+  },
+  "created_at": "2026-05-09T06:56:05.608Z",
+  "updated_at": "2026-05-09T06:56:17.378Z"
+}

@@ -281,13 +281,16 @@ export async function startViewer(projectDir: string, options: { host?: string; 
     // non-fatal: viewer will show 404 for reports if generation fails
   }
 
-  const url = `http://${host}:${port}/viewer/index.html?graph=${encodeURIComponent(graphPath)}&code=${encodeURIComponent(codePath)}&metrics=${encodeURIComponent(metricsPath)}&inbox=${encodeURIComponent(inboxPath)}&review=${encodeURIComponent(reviewPath)}&pending=${encodeURIComponent(pendingDir)}`;
+  const url = `http://${host}:${port}/viewer/index.html?graph=${encodeURIComponent(graphPath)}&code=${encodeURIComponent(codePath)}&metrics=${encodeURIComponent(metricsPath)}&inbox=${encodeURIComponent(inboxPath)}&review=${encodeURIComponent(reviewPath)}&pending=${encodeURIComponent(pendingDir)}&view=code`;
 
   const server = createServer((req, res) => {
     const requestUrl = new URL(req.url ?? "/", `http://${host}:${port}`);
     let filePath: string | null = null;
     if (requestUrl.pathname === "/" || requestUrl.pathname === "/viewer") {
-      filePath = join(viewerDir, "index.html");
+      const viewerSearch = requestUrl.search || new URL(url).search;
+      res.writeHead(302, { location: `/viewer/index.html${viewerSearch}` });
+      res.end();
+      return;
     } else if (requestUrl.pathname.startsWith("/viewer/")) {
       filePath = join(viewerDir, normalize(requestUrl.pathname.replace(/^\/viewer\//, "")));
     } else {

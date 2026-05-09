@@ -151,6 +151,7 @@ The ambient policy asks agents to:
 kage init --project .
 kage recall "how do I run tests" --project .
 kage code-index --project .
+kage structural-index --project .
 kage code-graph "routes tests auth" --project .
 kage learn --project . --learning "Use npm test after changing parser code."
 kage refresh --project .
@@ -166,6 +167,14 @@ kage viewer --project .
 CLI are installed, then falls back to Kage's built-in LSP-compatible symbol
 index. This keeps first-run setup light while letting larger TypeScript/JS repos
 use an industry code-intelligence indexer for the code graph.
+
+`kage structural-index` builds a complete, cache-backed structural map under
+`.agent_memory/structural/`. It covers every supported source/config/doc file,
+uses `.kageignore`, reuses unchanged per-file facts, parallelizes extraction on
+large repos, and keeps generated code facts separate from learned memory
+packets. Refresh stores structural cache entries in a packed artifact and
+migrates older per-file cache layouts automatically, so active repos do not grow
+a stale cache file for every historical source hash.
 
 For stale memory:
 
@@ -191,8 +200,9 @@ Kage keeps generated code facts separate from learned repo memory.
 |---|---|---|
 | Repo memory packets | `.agent_memory/packets/*.json` | durable runbooks, decisions, rationale, issue context, code explanations, bug fixes, conventions, gotchas |
 | Generated indexes | `.agent_memory/indexes/` | rebuildable packet catalogs, paths, tags, types |
-| Memory graph | `.agent_memory/graph/graph.json` | packet relations: tags, paths, commands, evidence |
-| Code graph | `.agent_memory/code_graph/graph.json` | source-derived files, symbols, imports, calls, routes, tests |
+| Memory graph | `.agent_memory/graph/graph.json` | compact reference artifact for packet relations: tags, paths, commands, evidence |
+| Structural index | `.agent_memory/structural/` | complete cache-backed file, symbol, and import map for large repos |
+| Code graph | `.agent_memory/code_graph/graph.json` | compact reference artifact for source-derived files, symbols, imports, calls, routes, tests |
 | Metrics | `.agent_memory/metrics.json` | readiness, quality, parser coverage, token estimates |
 | Graph registry | `.agent_memory/graph_registry/manifest.json` | signed manifest for graph artifacts, packet hashes, git state, audit/inbox evidence |
 

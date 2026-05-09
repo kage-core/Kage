@@ -1,0 +1,64 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:structural-index-is-canonical-for-code-graph-facts-1778296536480",
+  "title": "Structural index is canonical for code graph facts",
+  "summary": "Kage code graph generation should use the structural index as the canonical source for files, symbols, and imports. buildCodeGraph should no longer run the old capped per file extraction path for those facts; it should d",
+  "body": "Kage code graph generation should use the structural index as the canonical source for files, symbols, and imports. buildCodeGraph should no longer run the old capped per-file extraction path for those facts; it should derive rich bounded facts like calls, routes, tests, and packages on top of structural data, and keep limits at query/derived-fact time rather than file/symbol indexing time.\nEvidence: Implemented in mcp/kernel.ts by adding structural imports, reading structural artifacts into buildCodeGraph, deriving code graph input hashes from structural fingerprint, and updating query/tests so files beyond the old 2000-file cap are in the normal code graph.\nVerified by: npm test",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "code-graph",
+    "structural-index",
+    "large-repo",
+    "performance"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-09T03:15:36.480Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage code graph generation should use the structural index as the canonical source for files, symbols, and imports. buildCodeGraph should no longer run the old capped per-file extraction path for those facts; it should derive rich bounded facts like calls, routes, tests, and packages on top of structural data, and keep limits at query/derived-fact time rather than file/symbol indexing time.\nEvidence: Implemented in mcp/kernel.ts by adding structural imports, reading structural artifacts into buildCodeGraph, deriving code graph input hashes from structural fingerprint, and updating query/tests so files beyond the old 2000-file cap are in the normal code graph.\nVerified by: npm test",
+    "verification": "Implemented in mcp/kernel.ts by adding structural imports, reading structural artifacts into buildCodeGraph, deriving code graph input hashes from structural fingerprint, and updating query/tests so files beyond the old 2000-file cap are in the normal code graph."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-09T03:15:36.480Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 173
+  },
+  "created_at": "2026-05-09T03:15:36.480Z",
+  "updated_at": "2026-05-09T03:15:44.401Z"
+}

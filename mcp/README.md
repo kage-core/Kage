@@ -9,7 +9,17 @@ This package exposes two surfaces:
 
 ## Latest Release
 
-`1.1.20` publishes the large-repo indexing pass:
+`1.1.21` publishes the memory-code graph quality pass:
+
+- precise memory-code links now require explicit, non-generic symbol/test
+  mentions instead of broad path-only matches.
+- generated memory symbol/route/test entities no longer carry file path aliases
+  that can collapse stale graph nodes onto code file hubs.
+- the viewer's `Memory <-> Code only` relation shows actual cross-graph links,
+  while path-level memory still appears through capped `affects_code_path`
+  bridge edges.
+
+`1.1.20` published the large-repo indexing pass:
 
 - repeated `kage refresh` calls reuse unchanged code graph artifacts by source
   stat fingerprint, with `kage refresh --full` available for intentional clean
@@ -169,25 +179,43 @@ The graph builder writes evidence-backed graph artifacts under
   and memory type entities.
 - `edges.json`: typed facts such as `contains_memory`, `affects_path`,
   `mentions_tag`, `uses_package`, `documents_command`, and `defines_command`.
-- `graph.json`: the assembled graph with branch, head, and merge-base metadata.
+- `graph.json`: compact graph metadata plus references to the split graph files.
+
+In the viewer, path-level memory such as `affects_path: src` is bridged to a
+small representative set of matching code files at render time. This keeps the
+stored graph compact while still making broad repo memories visibly connected
+to the code graph.
 
 The code graph builder writes source-derived artifacts under
-`.agent_memory/code_graph/`:
-
-- `files.json`: source, test, config, manifest, and doc files, including
-  language and parser metadata.
-- `symbols.json`: functions, classes, constants, and test cases.
-- `imports.json`: local and external import edges.
-- `calls.json`: best-effort call edges between discovered symbols.
-- `routes.json`: best-effort Node/Express/Next route facts.
-- `tests.json`: test-to-symbol/file coverage hints.
-- `packages.json`: package scripts and dependencies.
-- `graph.json`: the assembled code graph.
+`.agent_memory/code_graph/`. `graph.json` is now a compact compatibility
+artifact: it keeps repo state plus calls, routes, tests, and packages inline, and
+references the canonical structural `files.json`, `symbols.json`, and
+`imports.json` instead of duplicating them.
 
 The code graph is multi-language by design. JS/TS/JSX/TSX files use the
 TypeScript compiler API for AST-backed symbols, imports, and call hints. Python,
 Go, Rust, Java, Kotlin, Ruby, PHP, C#, C/C++, and Swift use deterministic generic
 static extractors so every repo gets a useful graph immediately.
+
+For large repos, refresh also writes a complete structural index under
+`.agent_memory/structural/`:
+
+- `files.json`: every supported source/config/doc file, including files the
+  code graph represents as metadata-only because they are too large to parse.
+- `symbols.json`: extracted functions, classes, constants, routes, and tests.
+- `edges.json`: file-to-symbol and file-to-import edges with confidence labels.
+- `manifest.json`: mtime/hash entries, cache hits/misses, ignored files, and
+  deleted-file tracking.
+- `file-cache.json`: packed per-file structural facts keyed by source content
+  hash. Refresh migrates older `.agent_memory/structural/file-cache/*.json`
+  layouts and removes stale per-file cache entries.
+- `report.md`: a compact language/concept coverage report.
+
+This follows the same shape as fast graph indexers such as Graphify: discover
+files, skip generated/vendor paths, use a per-file content cache, parallelize
+extraction on large repos, rebuild only changed files, and keep generated
+structural facts separate from learned memory. Use `.kageignore` for
+repo-specific excludes.
 
 Kage also consumes external industry indexer artifacts when present:
 

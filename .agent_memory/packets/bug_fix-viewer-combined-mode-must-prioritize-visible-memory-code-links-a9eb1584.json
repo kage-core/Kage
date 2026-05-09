@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:bug_fix:viewer-combined-mode-must-prioritize-visible-memory-code-links-1778311363534",
+  "title": "Viewer combined mode must prioritize visible memory-code links",
+  "summary": "The combined viewer can still look weak after memory code bridge support if the visible edge cap spends too much budget on code code and memory only relations. In default combined signal mode, cap the canvas edge count b",
+  "body": "The combined viewer can still look weak after memory-code bridge support if the visible edge cap spends too much budget on code-code and memory-only relations. In default combined signal mode, cap the canvas edge count but reserve about half the visible edge budget for memory-code links, add memory-code peer nodes before filling the remaining code budget, and rank path bridge/file peers above generic high-degree symbols. Keep code-code edges visible for structure, but make memory-to-code the dominant visual story. Verified by npm --prefix mcp test and a viewer hook check showing Kage combined mode at 90 nodes renders 360 edges with 233 memory-code edges and 77 code-code edges.\nVerified by: npm --prefix mcp test; viewer hook check",
+  "type": "bug_fix",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "viewer",
+    "memory-code",
+    "combined-view",
+    "ux"
+  ],
+  "paths": [
+    "mcp/viewer/app.js",
+    "mcp/viewer/index.html",
+    "mcp/kernel.test.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-09T07:22:43.533Z"
+    }
+  ],
+  "context": {
+    "fact": "The combined viewer can still look weak after memory-code bridge support if the visible edge cap spends too much budget on code-code and memory-only relations. In default combined signal mode, cap the canvas edge count but reserve about half the visible edge budget for memory-code links, add memory-code peer nodes before filling the remaining code budget, and rank path bridge/file peers above generic high-degree symbols. Keep code-code edges visible for structure, but make memory-to-code the dominant visual story. Verified by npm --prefix mcp test and a viewer hook check showing Kage combined mode at 90 nodes renders 360 edges with 233 memory-code edges and 77 code-code edges.\nVerified by: npm --prefix mcp test; viewer hook check",
+    "verification": "npm --prefix mcp test; viewer hook check"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-09T07:22:43.533Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 185
+  },
+  "created_at": "2026-05-09T07:22:43.533Z",
+  "updated_at": "2026-05-09T07:22:52.395Z"
+}

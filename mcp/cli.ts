@@ -14,6 +14,7 @@ import {
   buildCodeGraph,
   buildKnowledgeGraph,
   buildMarketplace,
+  buildStructuralIndex,
   capture,
   changelog,
   createReviewArtifact,
@@ -93,6 +94,7 @@ Usage:
   kage code-graph --project <dir> [--json]
   kage code-graph "<query>" --project <dir> [--json]
   kage code-index --project <dir> [--json]
+  kage structural-index --project <dir> [--json]
   kage graph --project <dir> [--json]
   kage graph --project <dir> --mermaid
   kage graph "<query>" --project <dir> [--json]
@@ -551,6 +553,23 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "structural-index") {
+    const result = buildStructuralIndex(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage Structural Index: ${result.manifest.project_dir}`);
+    console.log(`Files: ${result.files.length}`);
+    console.log(`Symbols: ${result.symbols.length}`);
+    console.log(`Edges: ${result.edges.length}`);
+    console.log(`Metadata-only files: ${result.manifest.files.metadata_only}`);
+    console.log(`Cache: ${result.manifest.cache.hits} hits, ${result.manifest.cache.misses} misses`);
+    console.log(`Workers: ${result.manifest.worker_count}`);
+    console.log(`Path: .agent_memory/structural`);
+    return;
+  }
+
   if (command === "branch") {
     const result = buildBranchOverlay(projectArg(args));
     if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
@@ -584,6 +603,13 @@ async function main(): Promise<void> {
     console.log(`  Indexer coverage: ${result.code_graph.indexer_coverage_percent}%`);
     console.log(`  Languages: ${Object.entries(result.code_graph.languages).map(([name, count]) => `${name}=${count}`).join(", ") || "(none)"}`);
     console.log(`  Parsers: ${Object.entries(result.code_graph.parsers).map(([name, count]) => `${name}=${count}`).join(", ") || "(none)"}`);
+    console.log("\nStructural index:");
+    console.log(`  Files: ${result.structural_index.files}`);
+    console.log(`  Symbols: ${result.structural_index.symbols}`);
+    console.log(`  Edges: ${result.structural_index.edges}`);
+    console.log(`  Metadata-only files: ${result.structural_index.metadata_only_files}`);
+    console.log(`  Workers: ${result.structural_index.worker_count}`);
+    console.log(`  Cache: ${result.structural_index.cache_hits} hits, ${result.structural_index.cache_misses} misses`);
     console.log("\nMemory graph:");
     console.log(`  Approved packets: ${result.memory_graph.approved_packets}`);
     console.log(`  Pending packets: ${result.memory_graph.pending_packets}`);
@@ -627,7 +653,7 @@ async function main(): Promise<void> {
     console.log(`Memory inbox: ${result.checks.memory_inbox.approved_packets} approved, ${result.checks.memory_inbox.pending_packets} pending, ${result.checks.memory_inbox.stale_packets} stale`);
     console.log(`Structured memory: ${result.checks.structured_memory.structured_packets}/${result.checks.structured_memory.total_packets} (${result.checks.structured_memory.coverage_percent}%)`);
     console.log(`Code graph precision: ${result.checks.code_graph.precise_files}/${result.checks.code_graph.files} precise (${result.checks.code_graph.precise_coverage_percent}%), ${result.checks.code_graph.ast_files} AST, ${result.checks.code_graph.fallback_files} fallback`);
-    console.log(`Memory-code graph edges: ${result.checks.graph_links.memory_code_edges}`);
+    console.log(`Memory-code graph edges: ${result.checks.graph_links.memory_code_edges} (${result.checks.graph_links.precise_memory_code_edges} precise, ${result.checks.graph_links.path_memory_code_edges} path)`);
     if (result.recommendations.length) {
       console.log("\nRecommendations:");
       for (const recommendation of result.recommendations) console.log(`  - ${recommendation}`);
