@@ -48,8 +48,12 @@ jobs:
           mkdir -p docs/viewer
           cp -R mcp/viewer/. docs/viewer/
           mkdir -p docs/viewer/data/kage/code_graph
+          mkdir -p docs/viewer/data/kage/structural
           cp .agent_memory/graph/graph.json docs/viewer/data/kage/graph.json
           cp .agent_memory/code_graph/graph.json docs/viewer/data/kage/code_graph/graph.json
+          cp .agent_memory/structural/files.json docs/viewer/data/kage/structural/files.json
+          cp .agent_memory/structural/symbols.json docs/viewer/data/kage/structural/symbols.json
+          cp .agent_memory/structural/imports.json docs/viewer/data/kage/structural/imports.json
           cp .agent_memory/metrics.json docs/viewer/data/kage/metrics.json
       - uses: actions/upload-pages-artifact@v3
         with:
