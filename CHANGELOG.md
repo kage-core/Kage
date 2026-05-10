@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.23 - 2026-05-10
+
+- Rewrote the root README as a shorter user-first guide focused on value,
+  quick start, daily workflow, storage model, viewer, performance, trust, and
+  development.
+- Rewrote the npm package README to remove release-note clutter and make the
+  installed package page useful for setup and day-to-day commands.
+- Kept the README performance proof current with the refreshed Kage-on-Kage
+  memory and code graph metrics.
+
 ## v1.1.22 - 2026-05-09
 
 - Fixed the viewer inspector so selecting high-degree nodes cannot expand the
