@@ -331,9 +331,9 @@
 
       .proof-strip {
         display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-template-columns: repeat(6, minmax(0, 1fr));
         gap: 10px;
-        max-width: 980px;
+        max-width: 1180px;
       }
 
       .proof {
@@ -819,6 +819,7 @@
           <a href="#setup">Setup</a>
           <a href="#trust">Trust</a>
           <a href="viewer/">Viewer</a>
+          <a href="OSS_GBRAIN_CASE_STUDY.md">Case study</a>
           <a href="#ships">Ships now</a>
         </div>
         <a class="nav-cta" href="https://github.com/kage-core/Kage" target="_blank" rel="noopener">GitHub</a>
@@ -882,6 +883,7 @@
               <div class="proof"><strong>13</strong><span>agent setup targets</span></div>
               <div class="proof"><strong>0</strong><span>external databases</span></div>
               <div class="proof"><strong>98%</strong><span>smaller context in same-task A/B</span></div>
+              <div class="proof"><strong>10</strong><span>OSS PRs opened with repo memory</span></div>
               <div class="proof"><strong>MCP</strong><span>Codex, Claude Code, Cursor, more</span></div>
             </div>
           </div>
@@ -1080,6 +1082,7 @@ kage setup verify-agent --agent claude-code --project .</pre>
               <div class="ship"><h3>Git-native memory</h3><p>Repo packets are plain JSON under the repo, diffable like any other code artifact.</p></div>
               <div class="ship"><h3>Code graph</h3><p>Source-derived files, symbols, imports, calls, routes, tests, and a packed parallel structural index for large repos.</p></div>
               <div class="ship"><h3>Refresh + PR checks</h3><p>Rebuild graphs, mark stale memory, summarize branches, and block content drift before merge without post-push refresh loops.</p></div>
+              <div class="ship"><h3>OSS case study</h3><p>10 focused gbrain PRs opened with Kage recall, code graph, repo memory, and captured fix knowledge. <a href="OSS_GBRAIN_CASE_STUDY.md">Read the case study.</a></p></div>
               <div class="ship"><h3>Viewer</h3><p>Terminal-style console for graph inspection, packet inspection, and metrics exploration. <a href="viewer/">Open the hosted viewer shell.</a></p></div>
               <div class="ship"><h3>Honest boundary</h3><p>No hosted SaaS claim. No automatic public publishing. No marketplace auto-install.</p></div>
             </div>

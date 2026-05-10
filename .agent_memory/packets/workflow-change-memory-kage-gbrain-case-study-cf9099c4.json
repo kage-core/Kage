@@ -1,0 +1,127 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-kage-gbrain-case-study",
+  "title": "Change memory: kage-gbrain-case-study",
+  "summary": "Repo-local context for 5 changed repo paths on kage-gbrain-case-study.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/decision-gbrain-oss-case-study-documents-kage-assisted-issue-sprint-12e50170.json\n- .agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json\n- README.md\n- docs/OSS_GBRAIN_CASE_STUDY.md\n- docs/index.html\n\nDiff summary:\n```text\n.agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json | 4 ++--\n README.md                                                       | 6 ++++++\n docs/index.html                                                 | 7 +++++--\n 3 files changed, 13 insertions(+), 4 deletions(-)\n.agent_memory/packets/decision-gbrain-oss-case-study-documents-kage-assisted-issue-sprint-12e50170.json | untracked\ndocs/OSS_GBRAIN_CASE_STUDY.md | untracked\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "type": "workflow",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.62,
+  "tags": [
+    "change-memory",
+    "diff-proposal",
+    "repo-local",
+    "branch:kage-gbrain-case-study"
+  ],
+  "paths": [
+    ".agent_memory/packets/decision-gbrain-oss-case-study-documents-kage-assisted-issue-sprint-12e50170.json",
+    ".agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json",
+    "README.md",
+    "docs/OSS_GBRAIN_CASE_STUDY.md",
+    "docs/index.html"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "git_diff",
+      "branch": "kage-gbrain-case-study",
+      "head": "075c55adadb478a6f95255b9fd458d38f91e1b6f",
+      "merge_base": "075c55adadb478a6f95255b9fd458d38f91e1b6f",
+      "changed_files": [
+        ".agent_memory/packets/decision-gbrain-oss-case-study-documents-kage-assisted-issue-sprint-12e50170.json",
+        ".agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json",
+        "README.md",
+        "docs/OSS_GBRAIN_CASE_STUDY.md",
+        "docs/index.html"
+      ],
+      "summary_path": "/Users/kushaljain/Documents/Codex/2026-04-30/i-m-working-on-the-framework/Kage/.agent_memory/review/branch-summary-kage-gbrain-case-study.json"
+    }
+  ],
+  "context": {
+    "fact": "Current branch kage-gbrain-case-study changes 5 repo paths.",
+    "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
+    "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
+    "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
+    "verification": "Generated from git diff and refreshed by kage pr summarize or kage propose --from-diff.",
+    "risk_if_forgotten": "Future agents may repeat orientation work, miss branch-specific assumptions, or ignore files touched by this change.",
+    "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
+  },
+  "freshness": {
+    "last_verified_at": "2026-05-10T20:35:40.501Z",
+    "ttl_days": 180,
+    "verification": "git_diff"
+  },
+  "edges": [
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/decision-gbrain-oss-case-study-documents-kage-assisted-issue-sprint-12e50170.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:README.md",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:docs/OSS_GBRAIN_CASE_STUDY.md",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:docs/index.html",
+      "evidence": "git_diff"
+    }
+  ],
+  "quality": {
+    "score": 86,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [
+      "possible duplicate memory"
+    ],
+    "duplicate_candidates": [
+      {
+        "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
+        "title": "Change memory: master",
+        "score": 0.79,
+        "status": "approved"
+      }
+    ],
+    "estimated_tokens_saved": 351,
+    "admission": {
+      "admit": true,
+      "class": "candidate",
+      "score": 46,
+      "reasons": [
+        "durable memory type",
+        "has provenance",
+        "repo scoped or path grounded",
+        "has durable trigger, rationale, issue context, or explanation",
+        "substantive enough to reuse"
+      ],
+      "risks": [
+        "duplicates existing memory"
+      ]
+    },
+    "candidate_kind": "change_memory",
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true
+  },
+  "created_at": "2026-05-10T20:35:40.501Z",
+  "updated_at": "2026-05-10T20:36:14.013Z"
+}
