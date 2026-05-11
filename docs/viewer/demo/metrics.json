@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "project_dir": "hosted-demo",
+  "repo_key": "kage-core-kage",
+  "generated_at": "2026-05-03T00:00:00.000Z",
+  "code_graph": {
+    "files": 12,
+    "symbols": 1894,
+    "imports": 37,
+    "calls": 2317,
+    "routes": 3,
+    "tests": 64,
+    "packages_and_scripts": 9,
+    "languages": {
+      "typescript": 6,
+      "javascript": 3,
+      "markdown": 3
+    },
+    "parsers": {
+      "typescript": 6,
+      "javascript": 3,
+      "metadata": 3
+    },
+    "source_symbols_by_parser": {
+      "typescript": 1620,
+      "javascript": 274
+    },
+    "indexer_coverage_percent": 100
+  },
+  "memory_graph": {
+    "approved_packets": 22,
+    "pending_packets": 0,
+    "episodes": 5,
+    "entities": 14,
+    "edges": 13,
+    "evidence_backed_edges": 13,
+    "evidence_coverage_percent": 100,
+    "average_quality_score": 97,
+    "duplicate_candidate_pairs": 0
+  },
+  "savings": {
+    "estimated_indexed_source_tokens": 113882,
+    "estimated_memory_tokens": 1800,
+    "estimated_recall_context_tokens": 1800,
+    "estimated_tokens_saved_per_recall": 112082
+  },
+  "harness": {
+    "policy_installed": true,
+    "validation_ok": true,
+    "warnings": 0,
+    "errors": 0,
+    "readiness_score": 100
+  },
+  "pain": {
+    "setup_runbook_coverage_percent": 100,
+    "bug_fix_coverage_percent": 80,
+    "decision_coverage_percent": 100,
+    "code_flow_coverage_percent": 100,
+    "recall_hit_rate_percent": 100,
+    "estimated_rediscovery_avoided": 9,
+    "estimated_tokens_saved": 112082,
+    "time_to_first_use_seconds": 60
+  },
+  "quality": {
+    "totals": {
+      "approved": 22,
+      "pending": 0,
+      "high_signal": 21,
+      "needs_review": 1,
+      "duplicate": 0,
+      "stale": 0,
+      "too_generic": 0
+    },
+    "memory_type_coverage": {
+      "decision": 10,
+      "runbook": 5,
+      "gotcha": 3,
+      "reference": 4
+    },
+    "useful_memory_ratio_percent": 97,
+    "duplicate_burden": 0,
+    "stale_wrong_feedback_rate_percent": 0,
+    "evidence_coverage_percent": 100,
+    "path_grounding_coverage_percent": 100,
+    "approved_to_pending_ratio": 22
+  }
+}

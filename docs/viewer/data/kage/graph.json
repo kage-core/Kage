@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "compact": true,
+  "project_dir": ".",
+  "repo_key": "https-github-com-kage-core-kage",
+  "generated_from_updated_at": "2026-05-11T12:58:01.185Z",
+  "repo_state": {
+    "branch": "kage-gbrain-case-study",
+    "head": "cca9825ea41159847207e0b18724e21892ca9180",
+    "merge_base": "075c55adadb478a6f95255b9fd458d38f91e1b6f",
+    "tree": "18491d170f8282dbb5caf595487594d27960c883",
+    "input_hash": "a847defbc4036d305ded31a33d8337d2c5fddabd87633cd2a191a4e229e45a55"
+  },
+  "refs": {
+    "episodes": "episodes.json",
+    "entities": "entities.json",
+    "edges": "edges.json"
+  }
+}

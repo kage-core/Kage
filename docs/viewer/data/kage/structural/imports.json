@@ -1,0 +1,1164 @@
+[
+  {
+    "from_path": "mcp/cli.ts",
+    "to_path": null,
+    "specifier": "node:child_process",
+    "imported": [
+      "execFileSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 2
+  },
+  {
+    "from_path": "mcp/cli.ts",
+    "to_path": null,
+    "specifier": "node:readline/promises",
+    "imported": [
+      "createInterface"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 3
+  },
+  {
+    "from_path": "mcp/cli.ts",
+    "to_path": null,
+    "specifier": "node:process",
+    "imported": [
+      "input",
+      "output"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 4
+  },
+  {
+    "from_path": "mcp/cli.ts",
+    "to_path": null,
+    "specifier": "./daemon.js",
+    "imported": [
+      "daemonDoctor",
+      "readDaemonStatus",
+      "startDaemon",
+      "startViewer",
+      "stopDaemon"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 5
+  },
+  {
+    "from_path": "mcp/cli.ts",
+    "to_path": null,
+    "specifier": "./kernel.js",
+    "imported": [
+      "CaptureInput",
+      "MEMORY_TYPES",
+      "MemoryType",
+      "ObservationEvent",
+      "SETUP_AGENTS",
+      "SetupAgent",
+      "approvePending",
+      "auditProject",
+      "benchmarkProject",
+      "benchmarkTaskComparison",
+      "buildBranchOverlay",
+      "buildCodeGraph",
+      "buildGlobalCdnBundle",
+      "buildKnowledgeGraph",
+      "buildMarketplace",
+      "buildStructuralIndex",
+      "capture",
+      "changelog",
+      "createPublicCandidate",
+      "createReviewArtifact",
+      "distillSession",
+      "doctorProject",
+      "exportOrgRegistry",
+      "exportPublicBundle",
+      "gcProject",
+      "graphMermaid",
+      "indexProject",
+      "initProject",
+      "installAgentPolicy",
+      "kageMetrics",
+      "layeredRecall",
+      "learn",
+      "loadPendingPackets",
+      "memoryInbox",
+      "observe",
+      "orgRecall",
+      "orgReviewPacket",
+      "orgStatus",
+      "orgUploadPacket",
+      "prCheck",
+      "prSummarize",
+      "proposeFromDiff",
+      "qualityReport",
+      "queryCodeGraph",
+      "queryGraph",
+      "recall",
+      "recordFeedback",
+      "refreshProject",
+      "registryRecommendations",
+      "rejectPending",
+      "setupAgent",
+      "setupDoctor",
+      "validateProject",
+      "verifyAgentActivation",
+      "writeCodeIndex"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 6
+  },
+  {
+    "from_path": "mcp/cli.ts",
+    "to_path": null,
+    "specifier": "./graph-registry.js",
+    "imported": [
+      "buildGraphRegistryManifest"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 63
+  },
+  {
+    "from_path": "mcp/daemon.ts",
+    "to_path": null,
+    "specifier": "node:http",
+    "imported": [
+      "IncomingMessage",
+      "ServerResponse",
+      "createServer"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 1
+  },
+  {
+    "from_path": "mcp/daemon.ts",
+    "to_path": null,
+    "specifier": "node:fs",
+    "imported": [
+      "FSWatcher",
+      "existsSync",
+      "mkdirSync",
+      "readFileSync",
+      "readdirSync",
+      "statSync",
+      "watch",
+      "writeFileSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 2
+  },
+  {
+    "from_path": "mcp/daemon.ts",
+    "to_path": null,
+    "specifier": "node:path",
+    "imported": [
+      "extname",
+      "join",
+      "normalize",
+      "resolve"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 3
+  },
+  {
+    "from_path": "mcp/daemon.ts",
+    "to_path": null,
+    "specifier": "./kernel.js",
+    "imported": [
+      "ObservationEvent",
+      "benchmarkProject",
+      "distillSession",
+      "indexProject",
+      "kageMetrics",
+      "memoryInbox",
+      "observe",
+      "qualityReport",
+      "recall"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 4
+  },
+  {
+    "from_path": "mcp/graph-registry.ts",
+    "to_path": null,
+    "specifier": "node:crypto",
+    "imported": [
+      "createHash"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 1
+  },
+  {
+    "from_path": "mcp/graph-registry.ts",
+    "to_path": null,
+    "specifier": "node:child_process",
+    "imported": [
+      "execFileSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 2
+  },
+  {
+    "from_path": "mcp/graph-registry.ts",
+    "to_path": null,
+    "specifier": "node:fs",
+    "imported": [
+      "existsSync",
+      "mkdirSync",
+      "readFileSync",
+      "statSync",
+      "writeFileSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 3
+  },
+  {
+    "from_path": "mcp/graph-registry.ts",
+    "to_path": null,
+    "specifier": "node:path",
+    "imported": [
+      "dirname",
+      "join"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 4
+  },
+  {
+    "from_path": "mcp/graph-registry.ts",
+    "to_path": null,
+    "specifier": "./registry/index.js",
+    "imported": [
+      "SignedManifest",
+      "createSignedManifest"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 5
+  },
+  {
+    "from_path": "mcp/graph-registry.ts",
+    "to_path": null,
+    "specifier": "./kernel.js",
+    "imported": [
+      "MemoryPacket",
+      "MemoryStatus",
+      "MemoryType",
+      "PACKET_SCHEMA_VERSION",
+      "auditProject",
+      "buildCodeGraph",
+      "buildIndexes",
+      "buildKnowledgeGraph",
+      "ensureMemoryDirs",
+      "graphRegistryDir",
+      "kageMetrics",
+      "loadApprovedPackets",
+      "memoryInbox"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 6
+  },
+  {
+    "from_path": "mcp/index.ts",
+    "to_path": null,
+    "specifier": "@modelcontextprotocol/sdk/server/index.js",
+    "imported": [
+      "Server"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 2
+  },
+  {
+    "from_path": "mcp/index.ts",
+    "to_path": null,
+    "specifier": "@modelcontextprotocol/sdk/server/stdio.js",
+    "imported": [
+      "StdioServerTransport"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 3
+  },
+  {
+    "from_path": "mcp/index.ts",
+    "to_path": null,
+    "specifier": "@modelcontextprotocol/sdk/types.js",
+    "imported": [
+      "CallToolRequestSchema",
+      "ListToolsRequestSchema"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 4
+  },
+  {
+    "from_path": "mcp/index.ts",
+    "to_path": null,
+    "specifier": "./kernel.js",
+    "imported": [
+      "MemoryType",
+      "ObservationEvent",
+      "SETUP_AGENTS",
+      "SetupAgent",
+      "auditProject",
+      "benchmarkProject",
+      "benchmarkTaskComparison",
+      "buildBranchOverlay",
+      "buildCodeGraph",
+      "buildGlobalCdnBundle",
+      "buildMarketplace",
+      "buildStructuralIndex",
+      "capture",
+      "catalogDomainNodeCount",
+      "createPublicCandidate",
+      "createReviewArtifact",
+      "distillSession",
+      "exportPublicBundle",
+      "graphMermaid",
+      "installAgentPolicy",
+      "kageMetrics",
+      "layeredRecall",
+      "learn",
+      "memoryInbox",
+      "observe",
+      "orgRecall",
+      "orgStatus",
+      "orgUploadPacket",
+      "prCheck",
+      "prSummarize",
+      "proposeFromDiff",
+      "qualityReport",
+      "queryCodeGraph",
+      "queryGraph",
+      "recall",
+      "recordFeedback",
+      "refreshProject",
+      "registryRecommendations",
+      "setupAgent",
+      "validateProject",
+      "verifyAgentActivation",
+      "writeCodeIndex"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 8
+  },
+  {
+    "from_path": "mcp/index.ts",
+    "to_path": null,
+    "specifier": "./graph-registry.js",
+    "imported": [
+      "buildGraphRegistryManifest"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 52
+  },
+  {
+    "from_path": "mcp/kernel.test.ts",
+    "to_path": null,
+    "specifier": "node:test",
+    "imported": [
+      "test"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 1
+  },
+  {
+    "from_path": "mcp/kernel.test.ts",
+    "to_path": null,
+    "specifier": "node:assert/strict",
+    "imported": [
+      "assert"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 2
+  },
+  {
+    "from_path": "mcp/kernel.test.ts",
+    "to_path": null,
+    "specifier": "node:child_process",
+    "imported": [
+      "execFileSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 3
+  },
+  {
+    "from_path": "mcp/kernel.test.ts",
+    "to_path": null,
+    "specifier": "node:fs",
+    "imported": [
+      "chmodSync",
+      "existsSync",
+      "mkdirSync",
+      "mkdtempSync",
+      "readFileSync",
+      "readdirSync",
+      "renameSync",
+      "unlinkSync",
+      "writeFileSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 4
+  },
+  {
+    "from_path": "mcp/kernel.test.ts",
+    "to_path": null,
+    "specifier": "node:path",
+    "imported": [
+      "delimiter",
+      "join"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 5
+  },
+  {
+    "from_path": "mcp/kernel.test.ts",
+    "to_path": null,
+    "specifier": "node:os",
+    "imported": [
+      "availableParallelism",
+      "tmpdir"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 6
+  },
+  {
+    "from_path": "mcp/kernel.test.ts",
+    "to_path": null,
+    "specifier": "node:vm",
+    "imported": [
+      "vm"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 7
+  },
+  {
+    "from_path": "mcp/kernel.test.ts",
+    "to_path": null,
+    "specifier": "./kernel.js",
+    "imported": [
+      "SETUP_AGENTS",
+      "auditProject",
+      "benchmarkProject",
+      "benchmarkTaskComparison",
+      "buildBranchOverlay",
+      "buildCodeGraph",
+      "buildGlobalCdnBundle",
+      "buildIndexes",
+      "buildKnowledgeGraph",
+      "buildMarketplace",
+      "buildStructuralIndex",
+      "capture",
+      "catalogDomainNodeCount",
+      "codeGraphDir",
+      "createPublicCandidate",
+      "createReviewArtifact",
+      "distillSession",
+      "doctorProject",
+      "evaluateMemoryAdmission",
+      "exportOrgRegistry",
+      "exportPublicBundle",
+      "gcProject",
+      "graphDir",
+      "graphMermaid",
+      "indexProject",
+      "initProject",
+      "installAgentPolicy",
+      "kageMetrics",
+      "layeredRecall",
+      "learn",
+      "loadApprovedPackets",
+      "memoryInbox",
+      "observe",
+      "orgRecall",
+      "orgReviewPacket",
+      "orgStatus",
+      "orgUploadPacket",
+      "packetsDir",
+      "pendingDir",
+      "prCheck",
+      "prSummarize",
+      "proposeFromDiff",
+      "qualityReport",
+      "queryCodeGraph",
+      "queryGraph",
+      "recall",
+      "recordFeedback",
+      "refreshProject",
+      "registryRecommendations",
+      "scanSensitiveText",
+      "setupAgent",
+      "setupDoctor",
+      "structuralIndexDir",
+      "validatePacket",
+      "validateProject",
+      "verifyAgentActivation",
+      "writeCodeIndex",
+      "writeLspSymbolIndex"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 8
+  },
+  {
+    "from_path": "mcp/kernel.test.ts",
+    "to_path": null,
+    "specifier": "./graph-registry.js",
+    "imported": [
+      "buildGraphRegistryManifest"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 68
+  },
+  {
+    "from_path": "mcp/kernel.ts",
+    "to_path": null,
+    "specifier": "node:crypto",
+    "imported": [
+      "createHash"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 1
+  },
+  {
+    "from_path": "mcp/kernel.ts",
+    "to_path": null,
+    "specifier": "node:child_process",
+    "imported": [
+      "execFileSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 2
+  },
+  {
+    "from_path": "mcp/kernel.ts",
+    "to_path": null,
+    "specifier": "node:fs",
+    "imported": [
+      "existsSync",
+      "mkdirSync",
+      "readFileSync",
+      "readdirSync",
+      "renameSync",
+      "rmSync",
+      "statSync",
+      "unlinkSync",
+      "writeFileSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 3
+  },
+  {
+    "from_path": "mcp/kernel.ts",
+    "to_path": null,
+    "specifier": "node:os",
+    "imported": [
+      "availableParallelism"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 4
+  },
+  {
+    "from_path": "mcp/kernel.ts",
+    "to_path": null,
+    "specifier": "node:path",
+    "imported": [
+      "basename",
+      "delimiter",
+      "dirname",
+      "join",
+      "relative",
+      "resolve"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 5
+  },
+  {
+    "from_path": "mcp/kernel.ts",
+    "to_path": null,
+    "specifier": "node:worker_threads",
+    "imported": [
+      "Worker"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 6
+  },
+  {
+    "from_path": "mcp/kernel.ts",
+    "to_path": null,
+    "specifier": "typescript",
+    "imported": [
+      "ts"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 7
+  },
+  {
+    "from_path": "mcp/kernel.ts",
+    "to_path": null,
+    "specifier": "./registry/index.js",
+    "imported": [
+      "createPublicCandidateBundleManifest",
+      "createSignedManifest",
+      "generateOrgRegistryManifest"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 8
+  },
+  {
+    "from_path": "mcp/mcp.test.ts",
+    "to_path": null,
+    "specifier": "node:test",
+    "imported": [
+      "test"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 1
+  },
+  {
+    "from_path": "mcp/mcp.test.ts",
+    "to_path": null,
+    "specifier": "node:assert/strict",
+    "imported": [
+      "assert"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 2
+  },
+  {
+    "from_path": "mcp/mcp.test.ts",
+    "to_path": null,
+    "specifier": "node:child_process",
+    "imported": [
+      "execFileSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 3
+  },
+  {
+    "from_path": "mcp/mcp.test.ts",
+    "to_path": null,
+    "specifier": "node:fs",
+    "imported": [
+      "mkdirSync",
+      "mkdtempSync",
+      "writeFileSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 4
+  },
+  {
+    "from_path": "mcp/mcp.test.ts",
+    "to_path": null,
+    "specifier": "node:path",
+    "imported": [
+      "join"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 5
+  },
+  {
+    "from_path": "mcp/mcp.test.ts",
+    "to_path": null,
+    "specifier": "node:os",
+    "imported": [
+      "tmpdir"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 6
+  },
+  {
+    "from_path": "mcp/mcp.test.ts",
+    "to_path": null,
+    "specifier": "./index.js",
+    "imported": [
+      "callTool",
+      "listTools"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 7
+  },
+  {
+    "from_path": "mcp/registry.test.ts",
+    "to_path": null,
+    "specifier": "node:test",
+    "imported": [
+      "test"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 1
+  },
+  {
+    "from_path": "mcp/registry.test.ts",
+    "to_path": null,
+    "specifier": "node:assert/strict",
+    "imported": [
+      "assert"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 2
+  },
+  {
+    "from_path": "mcp/registry.test.ts",
+    "to_path": null,
+    "specifier": "./registry/index.js",
+    "imported": [
+      "canonicalJson",
+      "createPublicCandidateBundleManifest",
+      "createSignedManifest",
+      "generateOrgRegistryManifest",
+      "validatePublicCandidateBundle",
+      "verifySignedManifest"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 3
+  },
+  {
+    "from_path": "mcp/registry/index.ts",
+    "to_path": null,
+    "specifier": "node:crypto",
+    "imported": [
+      "createHash"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 1
+  },
+  {
+    "from_path": "mcp/release.test.ts",
+    "to_path": null,
+    "specifier": "node:test",
+    "imported": [
+      "test"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 1
+  },
+  {
+    "from_path": "mcp/release.test.ts",
+    "to_path": null,
+    "specifier": "node:assert/strict",
+    "imported": [
+      "assert"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 2
+  },
+  {
+    "from_path": "mcp/release.test.ts",
+    "to_path": null,
+    "specifier": "node:fs",
+    "imported": [
+      "readFileSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 3
+  },
+  {
+    "from_path": "mcp/release.test.ts",
+    "to_path": null,
+    "specifier": "./release.js",
+    "imported": [
+      "buildNpmReleasePlan",
+      "parseReleaseArgs"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 4
+  },
+  {
+    "from_path": "mcp/release.ts",
+    "to_path": null,
+    "specifier": "node:child_process",
+    "imported": [
+      "execFileSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 1
+  },
+  {
+    "from_path": "mcp/release.ts",
+    "to_path": null,
+    "specifier": "node:fs",
+    "imported": [
+      "mkdirSync",
+      "readFileSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 2
+  },
+  {
+    "from_path": "mcp/release.ts",
+    "to_path": null,
+    "specifier": "node:os",
+    "imported": [
+      "tmpdir"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 3
+  },
+  {
+    "from_path": "mcp/release.ts",
+    "to_path": null,
+    "specifier": "node:path",
+    "imported": [
+      "join",
+      "resolve"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 4
+  },
+  {
+    "from_path": "mcp/structural-worker.ts",
+    "to_path": null,
+    "specifier": "node:fs",
+    "imported": [
+      "mkdirSync",
+      "writeFileSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 1
+  },
+  {
+    "from_path": "mcp/structural-worker.ts",
+    "to_path": null,
+    "specifier": "node:path",
+    "imported": [
+      "dirname"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 2
+  },
+  {
+    "from_path": "mcp/structural-worker.ts",
+    "to_path": null,
+    "specifier": "node:worker_threads",
+    "imported": [
+      "workerData"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 3
+  },
+  {
+    "from_path": "mcp/structural-worker.ts",
+    "to_path": null,
+    "specifier": "./kernel.js",
+    "imported": [
+      "StructuralIndexManifest",
+      "StructuralWorkerResultFile",
+      "buildStructuralFileForWorker"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 4
+  },
+  {
+    "from_path": "scripts/render-cli-recording.mjs",
+    "to_path": null,
+    "specifier": "node:fs/promises",
+    "imported": [
+      "access",
+      "mkdir",
+      "readFile",
+      "stat",
+      "writeFile"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 1
+  },
+  {
+    "from_path": "scripts/render-cli-recording.mjs",
+    "to_path": null,
+    "specifier": "node:path",
+    "imported": [
+      "join"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 2
+  },
+  {
+    "from_path": "scripts/render-cli-recording.mjs",
+    "to_path": null,
+    "specifier": "node:child_process",
+    "imported": [
+      "spawnSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 3
+  },
+  {
+    "from_path": "scripts/render-real-team-demo.mjs",
+    "to_path": null,
+    "specifier": "node:fs/promises",
+    "imported": [
+      "access",
+      "mkdir",
+      "readFile",
+      "stat",
+      "writeFile"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 1
+  },
+  {
+    "from_path": "scripts/render-real-team-demo.mjs",
+    "to_path": null,
+    "specifier": "node:fs",
+    "imported": [
+      "existsSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 2
+  },
+  {
+    "from_path": "scripts/render-real-team-demo.mjs",
+    "to_path": null,
+    "specifier": "node:path",
+    "imported": [
+      "join"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 3
+  },
+  {
+    "from_path": "scripts/render-real-team-demo.mjs",
+    "to_path": null,
+    "specifier": "node:child_process",
+    "imported": [
+      "execFileSync",
+      "spawnSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 4
+  },
+  {
+    "from_path": "scripts/render-social-demo.mjs",
+    "to_path": null,
+    "specifier": "node:fs/promises",
+    "imported": [
+      "access",
+      "mkdir",
+      "rm",
+      "stat",
+      "writeFile"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 1
+  },
+  {
+    "from_path": "scripts/render-social-demo.mjs",
+    "to_path": null,
+    "specifier": "node:path",
+    "imported": [
+      "join"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 2
+  },
+  {
+    "from_path": "scripts/render-social-demo.mjs",
+    "to_path": null,
+    "specifier": "node:child_process",
+    "imported": [
+      "spawnSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 3
+  },
+  {
+    "from_path": "scripts/render-social-demo.mjs",
+    "to_path": null,
+    "specifier": "node:url",
+    "imported": [
+      "pathToFileURL"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 4
+  },
+  {
+    "from_path": "scripts/render-team-memory-demo.mjs",
+    "to_path": null,
+    "specifier": "node:fs/promises",
+    "imported": [
+      "access",
+      "mkdir",
+      "readFile",
+      "rm",
+      "stat",
+      "writeFile"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 1
+  },
+  {
+    "from_path": "scripts/render-team-memory-demo.mjs",
+    "to_path": null,
+    "specifier": "node:fs",
+    "imported": [
+      "existsSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 2
+  },
+  {
+    "from_path": "scripts/render-team-memory-demo.mjs",
+    "to_path": null,
+    "specifier": "node:path",
+    "imported": [
+      "join"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 3
+  },
+  {
+    "from_path": "scripts/render-team-memory-demo.mjs",
+    "to_path": null,
+    "specifier": "node:child_process",
+    "imported": [
+      "execFileSync",
+      "spawnSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 4
+  },
+  {
+    "from_path": "scripts/render-viewer-demo.mjs",
+    "to_path": null,
+    "specifier": "node:fs/promises",
+    "imported": [
+      "access",
+      "mkdir",
+      "rm",
+      "writeFile"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 1
+  },
+  {
+    "from_path": "scripts/render-viewer-demo.mjs",
+    "to_path": null,
+    "specifier": "node:path",
+    "imported": [
+      "join"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 2
+  },
+  {
+    "from_path": "scripts/render-viewer-demo.mjs",
+    "to_path": null,
+    "specifier": "node:child_process",
+    "imported": [
+      "spawnSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 3
+  },
+  {
+    "from_path": "scripts/render-yc-demo.mjs",
+    "to_path": null,
+    "specifier": "node:fs/promises",
+    "imported": [
+      "access",
+      "mkdir",
+      "stat",
+      "writeFile"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 1
+  },
+  {
+    "from_path": "scripts/render-yc-demo.mjs",
+    "to_path": null,
+    "specifier": "node:path",
+    "imported": [
+      "join"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 2
+  },
+  {
+    "from_path": "scripts/render-yc-demo.mjs",
+    "to_path": null,
+    "specifier": "node:child_process",
+    "imported": [
+      "spawnSync"
+    ],
+    "kind": "import",
+    "parser": "typescript-ast",
+    "line": 3
+  }
+]

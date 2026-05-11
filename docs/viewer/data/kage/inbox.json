@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "project_dir": ".",
+  "generated_at": "2026-05-11T08:37:39.115Z",
+  "ok": false,
+  "counts": {
+    "approved": 89,
+    "pending": 0,
+    "stale": 0,
+    "duplicates": 2,
+    "missing_context": 2,
+    "validation_errors": 0,
+    "validation_warnings": 2
+  },
+  "items": [
+    {
+      "kind": "missing_context",
+      "severity": "info",
+      "packet_id": "repo:https-github-com-kage-core-kage:bug_fix:bug-fix-github-pages-viewer-must-publish-split-memory-graph-refs-1778354849130",
+      "title": "Bug fix: GitHub Pages viewer must publish split memory graph refs",
+      "type": "bug_fix",
+      "status": "approved",
+      "paths": [
+        ".github/workflows/pages.yml"
+      ],
+      "summary": "Bug fix: GitHub Pages viewer must publish split memory graph refs. The hosted viewer loads data/kage/graph.json, and compact memory graphs reference entities.json, edges.json, and episodes.json beside graph.json. Pages m",
+      "reasons": [
+        "missing explicit why, verification, risk, stale condition, trigger, or action"
+      ],
+      "action": "Add structured context if this packet carries durable rationale, bug, issue, or code explanation."
+    },
+    {
+      "kind": "missing_context",
+      "severity": "info",
+      "packet_id": "repo:https-github-com-kage-core-kage:bug_fix:bug-fix-github-pages-viewer-must-publish-structural-code-graph-references-177835",
+      "title": "Bug fix: GitHub Pages viewer must publish structural code graph references",
+      "type": "bug_fix",
+      "status": "approved",
+      "paths": [
+        ".github/workflows/pages.yml"
+      ],
+      "summary": "Bug fix: GitHub Pages viewer must publish structural code graph references. The hosted viewer loads data/kage/code graph/graph.json, and compact code graphs reference ../structural/files.json, symbols.json, and imports.j",
+      "reasons": [
+        "missing explicit why, verification, risk, stale condition, trigger, or action"
+      ],
+      "action": "Add structured context if this packet carries durable rationale, bug, issue, or code explanation."
+    },
+    {
+      "kind": "duplicate",
+      "severity": "warning",
+      "packet_id": "repo:https-github-com-kage-core-kage:workflow:change-memory-kage-gbrain-case-study",
+      "title": "Change memory: kage-gbrain-case-study",
+      "type": "workflow",
+      "status": "approved",
+      "paths": [
+        ".agent_memory/packets/decision-gbrain-oss-case-study-documents-kage-assisted-issue-sprint-12e50170.json",
+        ".agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json",
+        "README.md",
+        "docs/OSS_GBRAIN_CASE_STUDY.md",
+        "docs/index.html"
+      ],
+      "summary": "Repo-local context for 5 changed repo paths on kage-gbrain-case-study.",
+      "reasons": [
+        "possible duplicate memory"
+      ],
+      "action": "Merge, supersede, or deprecate overlapping memory before handoff."
+    },
+    {
+      "kind": "duplicate",
+      "severity": "warning",
+      "packet_id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
+      "title": "Change memory: master",
+      "type": "workflow",
+      "status": "approved",
+      "paths": [
+        ".agent_memory/packets/decision-readme-should-stay-user-first-and-concise-52aa5ca0.json",
+        ".agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json",
+        ".agent_memory/packets/repo_map-kage-repo-structure-b5f385f7.json",
+        ".agent_memory/packets/workflow-change-memory-master-23634276.json",
+        "CHANGELOG.md",
+        "README.md",
+        "mcp/README.md",
+        "mcp/package-lock.json",
+        "mcp/package.json"
+      ],
+      "summary": "Repo-local context for 9 changed repo paths on master.",
+      "reasons": [
+        "possible duplicate memory"
+      ],
+      "action": "Merge, supersede, or deprecate overlapping memory before handoff."
+    },
+    {
+      "kind": "validation_warning",
+      "severity": "warning",
+      "summary": ".agent_memory/packets/workflow-change-memory-kage-gbrain-case-study-cf9099c4.json: possible duplicate of Change memory: master (0.79)",
+      "reasons": [
+        ".agent_memory/packets/workflow-change-memory-kage-gbrain-case-study-cf9099c4.json: possible duplicate of Change memory: master (0.79)"
+      ],
+      "action": "Review grounding, indexes, generated artifacts, or packet quality."
+    },
+    {
+      "kind": "validation_warning",
+      "severity": "warning",
+      "summary": ".agent_memory/packets/workflow-change-memory-master-23634276.json: possible duplicate of Change memory: kage-gbrain-case-study (0.79)",
+      "reasons": [
+        ".agent_memory/packets/workflow-change-memory-master-23634276.json: possible duplicate of Change memory: kage-gbrain-case-study (0.79)"
+      ],
+      "action": "Review grounding, indexes, generated artifacts, or packet quality."
+    }
+  ],
+  "recommendations": [
+    "Merge or supersede duplicate memory packets.",
+    "Add structured why, verification, risk, and stale_when context to high-value packets.",
+    "Review validation warnings so memory remains source-grounded."
+  ]
+}

@@ -263,6 +263,7 @@ export async function startViewer(projectDir: string, options: { host?: string; 
   const host = options.host ?? DEFAULT_HOST;
   const port = options.port ?? DEFAULT_VIEWER_PORT;
   const viewerDir = resolve(__dirname, "..", "viewer");
+  const threeDir = resolve(__dirname, "..", "node_modules", "three");
   const projectRoot = resolve(projectDir);
   const graphPath = join(projectRoot, ".agent_memory", "graph", "graph.json");
   const codePath = join(projectRoot, ".agent_memory", "code_graph", "graph.json");
@@ -293,13 +294,15 @@ export async function startViewer(projectDir: string, options: { host?: string; 
       return;
     } else if (requestUrl.pathname.startsWith("/viewer/")) {
       filePath = join(viewerDir, normalize(requestUrl.pathname.replace(/^\/viewer\//, "")));
+    } else if (requestUrl.pathname.startsWith("/vendor/three/")) {
+      filePath = join(threeDir, normalize(requestUrl.pathname.replace(/^\/vendor\/three\//, "")));
     } else {
       const decoded = decodeURIComponent(requestUrl.pathname);
       filePath = resolve(decoded);
       if (!isInside(projectRoot, filePath)) filePath = null;
     }
 
-    if (!filePath || (!isInside(viewerDir, filePath) && !isInside(projectRoot, filePath)) || !existsSync(filePath)) {
+    if (!filePath || (!isInside(viewerDir, filePath) && !isInside(projectRoot, filePath) && !isInside(threeDir, filePath)) || !existsSync(filePath)) {
       json(res, 404, { ok: false, error: "not_found" });
       return;
     }
