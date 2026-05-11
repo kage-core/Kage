@@ -1,0 +1,68 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:gotcha:oss-dogfood-found-kage-edge-cases-on-vercel-ai-1778481801801",
+  "title": "OSS dogfood found Kage edge cases on vercel ai",
+  "summary": "Dogfooding Kage on vercel/ai found three product gaps: root init/recall can fail on broken symlinks because README.md is a symlink whose target includes a newline; package level propose/pr check can generate root relativ",
+  "body": "Dogfooding Kage on vercel/ai found three product gaps: root init/recall can fail on broken symlinks because README.md is a symlink whose target includes a newline; package-level propose/pr-check can generate root-relative changed paths then validate them against the subdirectory project and mark its own packet stale; package-level refresh indexed ignored build output after type-check produced packages/ai/dist, so generated/ignored artifacts need stronger exclusion in package projects.\nEvidence: kage init/recall at repo root failed with ENOENT stat README.md; packages/ai kage pr check reported workflow-change-memory-main paths missing; after pnpm type-check, packages/ai/dist existed and Kage repo structure referenced dist/internal/index.test.js until dist was removed and refresh reran.\nVerified by: Dogfood run for vercel/ai PR #15154 on 2026-05-11",
+  "type": "gotcha",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "dogfood",
+    "vercel-ai",
+    "symlink",
+    "subdirectory",
+    "ignored-files"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/cli.ts",
+    "mcp/structural-worker.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-11T06:43:21.800Z"
+    }
+  ],
+  "context": {
+    "fact": "Dogfooding Kage on vercel/ai found three product gaps: root init/recall can fail on broken symlinks because README.md is a symlink whose target includes a newline; package-level propose/pr-check can generate root-relative changed paths then validate them against the subdirectory project and mark its own packet stale; package-level refresh indexed ignored build output after type-check produced packages/ai/dist, so generated/ignored artifacts need stronger exclusion in package projects.\nEvidence: kage init/recall at repo root failed with ENOENT stat README.md; packages/ai kage pr check reported workflow-change-memory-main paths missing; after pnpm type-check, packages/ai/dist existed and Kage repo structure referenced dist/internal/index.test.js until dist was removed and refresh reran.\nVerified by: Dogfood run for vercel/ai PR #15154 on 2026-05-11",
+    "verification": "kage init/recall at repo root failed with ENOENT stat README.md; packages/ai kage pr check reported workflow-change-memory-main paths missing; after pnpm type-check, packages/ai/dist existed and Kage repo structure referenced dist/internal/index.test.js until dist was removed and refresh reran."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-11T06:43:21.800Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 82,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [
+      "all referenced paths are missing: mcp/src, kage"
+    ],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 215
+  },
+  "created_at": "2026-05-11T06:43:21.800Z",
+  "updated_at": "2026-05-11T06:43:59.647Z"
+}
