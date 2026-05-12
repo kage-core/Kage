@@ -40,7 +40,10 @@ h2 { color: var(--terminal); font-size: 13px; letter-spacing: 0.04em; text-trans
 
 .app-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  grid-template-columns: minmax(360px, 1fr) auto auto;
+  grid-template-areas:
+    "brand links picker"
+    "status status autoload";
   gap: 16px;
   align-items: center;
   padding: 14px 18px;
@@ -52,7 +55,11 @@ h2 { color: var(--terminal); font-size: 13px; letter-spacing: 0.04em; text-trans
   z-index: 10;
 }
 
-.brand-block { min-width: 0; }
+.brand-block {
+  grid-area: brand;
+  min-width: 280px;
+  max-width: 620px;
+}
 .eyebrow {
   display: inline-flex;
   margin-bottom: 5px;
@@ -72,14 +79,42 @@ h2 { color: var(--terminal); font-size: 13px; letter-spacing: 0.04em; text-trans
   overflow-wrap: anywhere;
 }
 
+.site-links {
+  grid-area: links;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.site-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: rgba(13, 25, 19, 0.86);
+  color: var(--terminal-dim);
+  font-size: 11px;
+  font-weight: 780;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.site-links a:hover {
+  border-color: var(--line-strong);
+  color: var(--terminal-strong);
+}
+
 .status-strip {
+  grid-area: status;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .autoload-status {
+  grid-area: autoload;
   display: inline-flex;
   align-items: center;
   min-height: 28px;
@@ -131,6 +166,7 @@ h2 { color: var(--terminal); font-size: 13px; letter-spacing: 0.04em; text-trans
   font-weight: 780;
   box-shadow: inset 0 0 0 1px rgba(65, 255, 143, 0.10);
 }
+.file-picker { grid-area: picker; }
 .file-picker:hover, button:hover { background: #0d1f15; }
 .file-picker input {
   position: absolute;
@@ -702,6 +738,12 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
 @media (max-width: 1120px) {
   .app-header {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "brand"
+      "links"
+      "status"
+      "autoload"
+      "picker";
     align-items: stretch;
     padding: 12px 14px;
   }

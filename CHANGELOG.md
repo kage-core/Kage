@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.25 - 2026-05-12
+
+- Rebuilt the website into a darker product/docs surface with clearer install,
+  CLI, MCP, memory, graph, review, and troubleshooting documentation.
+- Added release and viewer navigation so the GitHub Pages site, docs, releases,
+  and graph viewer link back to each other cleanly.
+- Fixed generated branch change-memory validation so separate branch summaries
+  no longer warn as duplicates of each other while normal duplicate checks stay
+  active.
+
 ## v1.1.23 - 2026-05-10
 
 - Rewrote the root README as a shorter user-first guide focused on value,

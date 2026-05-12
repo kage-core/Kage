@@ -1434,6 +1434,13 @@ function packetText(packet: Pick<MemoryPacket, "title" | "summary" | "body" | "t
   return `${packet.title}\n${packet.summary}\n${packet.body}\n${packet.type}\n${packet.tags.join(" ")}\n${packet.paths.join(" ")}`;
 }
 
+function isGeneratedChangeMemory(packet: Pick<MemoryPacket, "type" | "tags" | "source_refs">): boolean {
+  return packet.type === "workflow"
+    && packet.tags.includes("change-memory")
+    && packet.tags.includes("diff-proposal")
+    && packet.source_refs.some((ref) => ref.kind === "git_diff");
+}
+
 function tokenSet(text: string): Set<string> {
   return new Set(tokenize(text).filter((term) => term.length > 2));
 }
@@ -1449,6 +1456,7 @@ function duplicateCandidates(projectDir: string, packet: MemoryPacket, threshold
   const current = tokenSet(packetText(packet));
   return [...loadApprovedPackets(projectDir), ...loadPendingPackets(projectDir)]
     .filter((candidate) => candidate.id !== packet.id)
+    .filter((candidate) => !(isGeneratedChangeMemory(packet) && isGeneratedChangeMemory(candidate)))
     .map((candidate) => ({ packet: candidate, score: jaccard(current, tokenSet(packetText(candidate))) }))
     .filter((entry) => entry.score >= threshold)
     .sort((a, b) => b.score - a.score || a.packet.title.localeCompare(b.packet.title))

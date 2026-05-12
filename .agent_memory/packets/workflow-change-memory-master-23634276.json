@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
-  "summary": "Repo-local context for 8 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/bug_fix-fix-kage-pr-check-ci-max-turns-failure-f836cbf0.json\n- .agent_memory/packets/bug_fix-fix-vercel-ai-large-repo-edge-cases-28fed3d4.json\n- .agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json\n- .agent_memory/packets/repo_map-kage-repo-structure-b5f385f7.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n- .github/workflows/kage-pr.yml\n- mcp/kernel.test.ts\n- mcp/kernel.ts\n\nDiff summary:\n```text\n.../repo_map-kage-repo-overview-a522f3a0.json      |  4 +-\n .../repo_map-kage-repo-structure-b5f385f7.json     |  4 +-\n .../workflow-change-memory-master-23634276.json    | 99 ++++++++--------------\n .github/workflows/kage-pr.yml                      | 89 ++++++++++++-------\n mcp/kernel.test.ts                                 | 33 +++++++-\n mcp/kernel.ts                                      | 89 ++++++++++++++++---\n 6 files changed, 204 insertions(+), 114 deletions(-)\n.agent_memory/packets/bug_fix-fix-kage-pr-check-ci-max-turns-failure-f836cbf0.json | untracked\n.agent_memory/packets/bug_fix-fix-vercel-ai-large-repo-edge-cases-28fed3d4.json | untracked\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "summary": "Repo-local context for 17 changed repo paths on master.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/decision-generated-change-memory-packets-should-not-duplicate-warn-across-branches-48805d0b.json\n- .agent_memory/packets/decision-website-docs-need-dark-docs-style-reference-and-viewer-backlinks-d51ff0ca.json\n- .agent_memory/packets/decision-website-revamp-positions-kage-as-serious-oss-cli-and-mcp-tool-ffb1232f.json\n- .agent_memory/packets/gotcha-vercel-ai-pr-test-failure-was-unrelated-codemod-timeout-1a15e315.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n- CHANGELOG.md\n- docs/guide.html\n- docs/index.html\n- docs/releases.html\n- docs/viewer/index.html\n- docs/viewer/styles.css\n- mcp/kernel.test.ts\n- mcp/kernel.ts\n- mcp/package-lock.json\n- mcp/package.json\n- mcp/viewer/index.html\n- mcp/viewer/styles.css\n\nDiff summary:\n```text\n.../workflow-change-memory-master-23634276.json    |  115 +-\n CHANGELOG.md                                       |   10 +\n docs/index.html                                    | 1258 +++++++-------------\n docs/viewer/index.html                             |   10 +-\n docs/viewer/styles.css                             |   48 +-\n mcp/kernel.test.ts                                 |   19 +\n mcp/kernel.ts                                      |    8 +\n mcp/package-lock.json                              |    4 +-\n mcp/package.json                                   |    2 +-\n mcp/viewer/index.html                              |   10 +-\n mcp/viewer/styles.css                              |   48 +-\n 11 files changed, 633 insertions(+), 899 deletions(-)\n.agent_memory/packets/decision-generated-change-memory-packets-should-not-duplicate-warn-across-branches-48805d0b.json | untracked\n.agent_memory/packets/decision-website-docs-need-dark-docs-style-reference-and-viewer-backlinks-d51ff0ca.json | untracked\n.agent_memory/packets/decision-website-revamp-positions-kage-as-serious-oss-cli-and-mcp-tool-ffb1232f.json | untracked\n.agent_memory/packets/gotcha-vercel-ai-pr-test-failure-was-unrelated-codemod-timeout-1a15e315.json | untracked\ndocs/guide.html | untracked\ndocs/releases.html | untracked\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -17,37 +17,55 @@
     "branch:master"
   ],
   "paths": [
-    ".agent_memory/packets/bug_fix-fix-kage-pr-check-ci-max-turns-failure-f836cbf0.json",
-    ".agent_memory/packets/bug_fix-fix-vercel-ai-large-repo-edge-cases-28fed3d4.json",
-    ".agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json",
-    ".agent_memory/packets/repo_map-kage-repo-structure-b5f385f7.json",
+    ".agent_memory/packets/decision-generated-change-memory-packets-should-not-duplicate-warn-across-branches-48805d0b.json",
+    ".agent_memory/packets/decision-website-docs-need-dark-docs-style-reference-and-viewer-backlinks-d51ff0ca.json",
+    ".agent_memory/packets/decision-website-revamp-positions-kage-as-serious-oss-cli-and-mcp-tool-ffb1232f.json",
+    ".agent_memory/packets/gotcha-vercel-ai-pr-test-failure-was-unrelated-codemod-timeout-1a15e315.json",
     ".agent_memory/packets/workflow-change-memory-master-23634276.json",
-    ".github/workflows/kage-pr.yml",
+    "CHANGELOG.md",
+    "docs/guide.html",
+    "docs/index.html",
+    "docs/releases.html",
+    "docs/viewer/index.html",
+    "docs/viewer/styles.css",
     "mcp/kernel.test.ts",
-    "mcp/kernel.ts"
+    "mcp/kernel.ts",
+    "mcp/package-lock.json",
+    "mcp/package.json",
+    "mcp/viewer/index.html",
+    "mcp/viewer/styles.css"
   ],
   "stack": [],
   "source_refs": [
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "41e4ecdaca9931de2e101e8692ddfa99e60088ff",
-      "merge_base": "41e4ecdaca9931de2e101e8692ddfa99e60088ff",
+      "head": "ba09ff490d4e7c61ec8baa87a232967a467850fe",
+      "merge_base": "ba09ff490d4e7c61ec8baa87a232967a467850fe",
       "changed_files": [
-        ".agent_memory/packets/bug_fix-fix-kage-pr-check-ci-max-turns-failure-f836cbf0.json",
-        ".agent_memory/packets/bug_fix-fix-vercel-ai-large-repo-edge-cases-28fed3d4.json",
-        ".agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json",
-        ".agent_memory/packets/repo_map-kage-repo-structure-b5f385f7.json",
+        ".agent_memory/packets/decision-generated-change-memory-packets-should-not-duplicate-warn-across-branches-48805d0b.json",
+        ".agent_memory/packets/decision-website-docs-need-dark-docs-style-reference-and-viewer-backlinks-d51ff0ca.json",
+        ".agent_memory/packets/decision-website-revamp-positions-kage-as-serious-oss-cli-and-mcp-tool-ffb1232f.json",
+        ".agent_memory/packets/gotcha-vercel-ai-pr-test-failure-was-unrelated-codemod-timeout-1a15e315.json",
         ".agent_memory/packets/workflow-change-memory-master-23634276.json",
-        ".github/workflows/kage-pr.yml",
+        "CHANGELOG.md",
+        "docs/guide.html",
+        "docs/index.html",
+        "docs/releases.html",
+        "docs/viewer/index.html",
+        "docs/viewer/styles.css",
         "mcp/kernel.test.ts",
-        "mcp/kernel.ts"
+        "mcp/kernel.ts",
+        "mcp/package-lock.json",
+        "mcp/package.json",
+        "mcp/viewer/index.html",
+        "mcp/viewer/styles.css"
       ],
       "summary_path": ".agent_memory/review/branch-summary-master.json"
     }
   ],
   "context": {
-    "fact": "Current branch master changes 8 repo paths.",
+    "fact": "Current branch master changes 17 repo paths.",
     "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
     "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
     "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
@@ -56,29 +74,29 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-05-12T04:01:03.073Z",
+    "last_verified_at": "2026-05-12T17:14:32.831Z",
     "ttl_days": 180,
     "verification": "git_diff"
   },
   "edges": [
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-fix-kage-pr-check-ci-max-turns-failure-f836cbf0.json",
+      "to": "path:.agent_memory/packets/decision-generated-change-memory-packets-should-not-duplicate-warn-across-branches-48805d0b.json",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-fix-vercel-ai-large-repo-edge-cases-28fed3d4.json",
+      "to": "path:.agent_memory/packets/decision-website-docs-need-dark-docs-style-reference-and-viewer-backlinks-d51ff0ca.json",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json",
+      "to": "path:.agent_memory/packets/decision-website-revamp-positions-kage-as-serious-oss-cli-and-mcp-tool-ffb1232f.json",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/repo_map-kage-repo-structure-b5f385f7.json",
+      "to": "path:.agent_memory/packets/gotcha-vercel-ai-pr-test-failure-was-unrelated-codemod-timeout-1a15e315.json",
       "evidence": "git_diff"
     },
     {
@@ -88,7 +106,32 @@
     },
     {
       "relation": "changes_path",
-      "to": "path:.github/workflows/kage-pr.yml",
+      "to": "path:CHANGELOG.md",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:docs/guide.html",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:docs/index.html",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:docs/releases.html",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:docs/viewer/index.html",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:docs/viewer/styles.css",
       "evidence": "git_diff"
     },
     {
@@ -100,10 +143,30 @@
       "relation": "changes_path",
       "to": "path:mcp/kernel.ts",
       "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:mcp/package-lock.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:mcp/package.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:mcp/viewer/index.html",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:mcp/viewer/styles.css",
+      "evidence": "git_diff"
     }
   ],
   "quality": {
-    "score": 86,
+    "score": 100,
     "reasons": [
       "high-value memory type",
       "has source evidence",
@@ -112,22 +175,13 @@
       "concise but substantive",
       "actionable rationale or verification"
     ],
-    "risks": [
-      "possible duplicate memory"
-    ],
-    "duplicate_candidates": [
-      {
-        "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-kage-gbrain-case-study",
-        "title": "Change memory: kage-gbrain-case-study",
-        "score": 0.64,
-        "status": "approved"
-      }
-    ],
-    "estimated_tokens_saved": 458,
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 697,
     "admission": {
       "admit": true,
       "class": "candidate",
-      "score": 46,
+      "score": 70,
       "reasons": [
         "durable memory type",
         "has provenance",
@@ -135,14 +189,12 @@
         "has durable trigger, rationale, issue context, or explanation",
         "substantive enough to reuse"
       ],
-      "risks": [
-        "duplicates existing memory"
-      ]
+      "risks": []
     },
     "candidate_kind": "change_memory",
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-05-12T04:01:03.073Z",
-  "updated_at": "2026-05-12T04:01:03.500Z"
+  "created_at": "2026-05-12T17:14:32.831Z",
+  "updated_at": "2026-05-12T17:14:41.375Z"
 }

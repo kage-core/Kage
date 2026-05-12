@@ -1,0 +1,69 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:website-docs-need-dark-docs-style-reference-and-viewer-backlinks-1778604867922",
+  "title": "Website docs need dark docs-style reference and viewer backlinks",
+  "summary": "The Kage website should keep a dark terminal/memory graph identity rather than a generic white OSS landing page. Docs must be a real documentation shell with sidebar navigation and full CLI/MCP reference, not just setup",
+  "body": "The Kage website should keep a dark terminal/memory-graph identity rather than a generic white OSS landing page. Docs must be a real documentation shell with sidebar navigation and full CLI/MCP reference, not just setup and quickstart. The hosted viewer must include visible links back to Home, Docs, Releases, and GitHub so it is not a dead-end tool page.\nEvidence: Updated homepage/releases to dark theme, rebuilt docs/guide.html as sidebar reference covering CLI and MCP methods, and added viewer site links in both mcp/viewer and docs/viewer.\nVerified by: Chrome local preview; git diff --check; curl local pages; npm test --prefix mcp",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "website",
+    "docs",
+    "viewer",
+    "ux"
+  ],
+  "paths": [
+    "docs/index.html",
+    "docs/guide.html",
+    "docs/releases.html",
+    "mcp/viewer/index.html",
+    "mcp/viewer/styles.css",
+    "docs/viewer/index.html",
+    "docs/viewer/styles.css"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-12T16:54:27.922Z"
+    }
+  ],
+  "context": {
+    "fact": "The Kage website should keep a dark terminal/memory-graph identity rather than a generic white OSS landing page. Docs must be a real documentation shell with sidebar navigation and full CLI/MCP reference, not just setup and quickstart. The hosted viewer must include visible links back to Home, Docs, Releases, and GitHub so it is not a dead-end tool page.\nEvidence: Updated homepage/releases to dark theme, rebuilt docs/guide.html as sidebar reference covering CLI and MCP methods, and added viewer site links in both mcp/viewer and docs/viewer.\nVerified by: Chrome local preview; git diff --check; curl local pages; npm test --prefix mcp",
+    "verification": "Updated homepage/releases to dark theme, rebuilt docs/guide.html as sidebar reference covering CLI and MCP methods, and added viewer site links in both mcp/viewer and docs/viewer."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-12T16:54:27.922Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 160
+  },
+  "created_at": "2026-05-12T16:54:27.922Z",
+  "updated_at": "2026-05-12T16:54:28.483Z"
+}

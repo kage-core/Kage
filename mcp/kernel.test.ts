@@ -1518,6 +1518,25 @@ test("project validation ignores retired packet quality warnings", () => {
   assert.equal(validation.warnings.some((warning) => warning.includes("none of the referenced paths exist")), false);
 });
 
+test("project validation ignores duplicate warnings between generated branch change memories", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  writeFileSync(join(project, "README.md"), "first branch notes\n", "utf8");
+
+  const first = proposeFromDiff(project);
+  assert.equal(first.ok, true);
+  assert.ok(first.packet?.tags.includes("change-memory"));
+
+  execFileSync("git", ["checkout", "-b", "feature/docs"], { cwd: project, stdio: "ignore" });
+  const second = proposeFromDiff(project);
+  assert.equal(second.ok, true);
+  assert.ok(second.packet?.tags.includes("change-memory"));
+
+  const validation = validateProject(project);
+  assert.equal(validation.ok, true);
+  assert.equal(validation.warnings.some((warning) => warning.includes("possible duplicate of Change memory")), false);
+});
+
 test("public catalog compatibility accepts nodes and node_count", () => {
   assert.equal(catalogDomainNodeCount({ nodes: 3 }), 3);
   assert.equal(catalogDomainNodeCount({ node_count: 4 }), 4);
