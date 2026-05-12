@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import type { Stats } from "node:fs";
 import { availableParallelism } from "node:os";
 import { basename, delimiter, dirname, join, relative, resolve } from "node:path";
 import { Worker } from "node:worker_threads";
@@ -1864,6 +1865,30 @@ function readGit(projectDir: string, args: string[]): string | null {
   }
 }
 
+function safeStat(path: string): Stats | null {
+  try {
+    return statSync(path);
+  } catch {
+    return null;
+  }
+}
+
+function safeLstat(path: string): Stats | null {
+  try {
+    return lstatSync(path);
+  } catch {
+    return null;
+  }
+}
+
+function safeReadText(path: string): string | null {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return null;
+  }
+}
+
 function gitBranch(projectDir: string): string | null {
   return readGit(projectDir, ["branch", "--show-current"]) || readGit(projectDir, ["rev-parse", "--short", "HEAD"]);
 }
@@ -1879,6 +1904,12 @@ function gitTree(projectDir: string): string | null {
 function gitMergeBase(projectDir: string): string | null {
   return readGit(projectDir, ["merge-base", "HEAD", "origin/main"])
     || readGit(projectDir, ["merge-base", "HEAD", "origin/master"]);
+}
+
+function gitProjectPrefix(projectDir: string): string | null {
+  const prefix = readGit(projectDir, ["rev-parse", "--show-prefix"]);
+  if (prefix === null) return null;
+  return prefix.replace(/\\/g, "/").replace(/\/+$/, "");
 }
 
 // Directories that are never meaningful in change-memory packets.
@@ -1916,13 +1947,26 @@ function isNoisePath(filePath: string): boolean {
   return NOISE_PATH_PREFIXES.some((prefix) => filePath.startsWith(prefix));
 }
 
-function parsePorcelainStatus(status: string): string[] {
+function gitPathToProjectRelative(projectDir: string, path: string): string | null {
+  const normalized = path.replace(/\\/g, "/").replace(/^\/+/, "");
+  const projectPrefix = gitProjectPrefix(projectDir);
+  if (projectPrefix === null || projectPrefix === "") return normalized;
+  if (normalized === projectPrefix) return "";
+  const prefix = `${projectPrefix}/`;
+  if (!normalized.startsWith(prefix)) {
+    return existsSync(join(projectDir, normalized)) ? normalized : null;
+  }
+  return normalized.slice(prefix.length);
+}
+
+function parsePorcelainStatus(projectDir: string, status: string): string[] {
   return unique(
     status
       .split(/\r?\n/)
       .map(parsePorcelainPath)
       .map((path) => path.replace(/^.* -> /, ""))
-      .filter(Boolean)
+      .map((path) => gitPathToProjectRelative(projectDir, path))
+      .filter((path): path is string => Boolean(path))
       .filter((path) => !shouldSkipRepoMemoryPath(path))
   ).sort();
 }
@@ -1934,14 +1978,15 @@ function parsePorcelainPath(line: string): string {
 
 function branchDiffStat(projectDir: string, changedFiles: string[]): string {
   const diffStats = [
-    readGit(projectDir, ["diff", "--stat"]),
-    readGit(projectDir, ["diff", "--cached", "--stat"]),
+    readGit(projectDir, ["diff", "--stat", "--relative"]),
+    readGit(projectDir, ["diff", "--cached", "--stat", "--relative"]),
   ].filter(Boolean).join("\n").trim();
   const untracked = new Set(
     (readGit(projectDir, ["ls-files", "--others", "--exclude-standard"]) ?? "")
       .split(/\r?\n/)
       .map((path) => path.trim())
-      .filter(Boolean)
+      .map((path) => gitPathToProjectRelative(projectDir, path))
+      .filter((path): path is string => Boolean(path))
       .filter((path) => changedFiles.includes(path))
   );
   const untrackedStats = [...untracked]
@@ -2002,8 +2047,9 @@ function createRepoOverviewPacket(projectDir: string): MemoryPacket | null {
     if (deps.stripe) tags.push("stripe");
   }
 
-  if (existsSync(readmePath)) {
-    const readme = readFileSync(readmePath, "utf8").slice(0, 1000);
+  const readmeText = existsSync(readmePath) ? safeReadText(readmePath) : null;
+  if (readmeText) {
+    const readme = readmeText.slice(0, 1000);
     bodyParts.push(`README excerpt:\n${readme}`);
   }
 
@@ -2025,7 +2071,7 @@ function createRepoOverviewPacket(projectDir: string): MemoryPacket | null {
     stack,
     source_refs: [
       ...(existsSync(packagePath) ? [{ kind: "file", path: "package.json" }] : []),
-      ...(existsSync(readmePath) ? [{ kind: "file", path: "README.md" }] : []),
+      ...(readmeText ? [{ kind: "file", path: "README.md" }] : []),
     ],
     context: {
       fact: "Generated repo overview summarizes package metadata and the README as a navigation aid for agent startup.",
@@ -2808,7 +2854,20 @@ function scanStructuralFiles(projectDir: string): { files: string[]; ignoredSumm
         ignore("kageignore");
         continue;
       }
-      const stats = statSync(absolutePath);
+      const linkStats = safeLstat(absolutePath);
+      if (!linkStats) {
+        ignore("unreadable_path");
+        continue;
+      }
+      if (linkStats.isSymbolicLink()) {
+        ignore("symlink");
+        continue;
+      }
+      const stats = safeStat(absolutePath);
+      if (!stats) {
+        ignore("unreadable_path");
+        continue;
+      }
       if (stats.isDirectory()) {
         visit(absolutePath);
         continue;
@@ -6425,9 +6484,11 @@ function baselineDiscoveryFiles(projectDir: string, task: string): Array<{ path:
     .map((path) => {
       const absolute = join(projectDir, path);
       if (!existsSync(absolute)) return null;
-      const stats = statSync(absolute);
+      const stats = safeStat(absolute);
+      if (!stats) return null;
       if (!stats.isFile() || stats.size > 240_000) return null;
-      const text = readFileSync(absolute, "utf8");
+      const text = safeReadText(absolute);
+      if (text === null) return null;
       const score = scoreText(terms, `${path}\n${text.slice(0, 8000)}`, [path]);
       const alwaysUseful = ["README.md", "AGENTS.md", "CLAUDE.md", "package.json"].includes(path);
       if (score <= 0 && !alwaysUseful) return null;
@@ -7591,7 +7652,7 @@ export function proposeFromDiff(projectDir: string): DiffProposalResult {
   // Keep exact untracked file paths, then filter generated/vendor noise below.
   const status = readGit(projectDir, ["status", "--porcelain", "-uall"]);
   if (status === null) return { ok: false, changedFiles: [], errors: ["Not a git repository or git is unavailable."] };
-  const changedFiles = parsePorcelainStatus(status);
+  const changedFiles = parsePorcelainStatus(projectDir, status);
   if (changedFiles.length === 0) return { ok: false, changedFiles: [], errors: ["No changed files found."] };
 
   const stat = branchDiffStat(projectDir, changedFiles);
@@ -7643,7 +7704,7 @@ export function buildBranchOverlay(projectDir: string): BranchOverlay {
     branch: gitBranch(projectDir),
     head: gitHead(projectDir),
     merge_base: gitMergeBase(projectDir),
-    changed_files: parsePorcelainStatus(status),
+    changed_files: parsePorcelainStatus(projectDir, status),
     pending_packet_ids: loadPendingPackets(projectDir).map((packet) => packet.id).sort(),
     generated_at: nowIso(),
   };

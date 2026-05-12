@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { delimiter, join } from "node:path";
 import { availableParallelism, tmpdir } from "node:os";
 import vm from "node:vm";
@@ -467,6 +467,19 @@ test("structural index honors .kageignore", () => {
   assert.equal(structural.files.some((file) => file.path === "src/kept.ts"), true);
   assert.equal(structural.files.some((file) => file.path === "src/ignored/skipped.ts"), false);
   assert.equal(structural.manifest.ignored_summary.kageignore, 1);
+});
+
+test("structural index skips broken symlinks instead of crashing", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "kept.ts"), "export function kept() { return true; }\n", "utf8");
+  symlinkSync("missing-target.md", join(project, "README.md"));
+
+  const structural = buildStructuralIndex(project);
+
+  assert.equal(structural.files.some((file) => file.path === "src/kept.ts"), true);
+  assert.equal(structural.files.some((file) => file.path === "README.md"), false);
+  assert.equal(structural.manifest.ignored_summary.symlink, 1);
 });
 
 test("structural-backed code graph reuses per-file structural facts until source content changes", () => {
@@ -1727,6 +1740,24 @@ test("diff proposal creates a branch review summary and repo-local change memory
   assert.match(readFileSync(result.path!, "utf8"), /git_diff/);
   assert.equal(validateProject(project).warnings.some((warning) => warning.includes("no repo-grounded source reference")), false);
   assert.equal(recall(project, "what changed runner npm test").results.some((item) => item.packet.id === result.packet!.id), true);
+});
+
+test("diff proposal from a package directory stores project-relative paths", () => {
+  const root = tempProject();
+  execFileSync("git", ["init"], { cwd: root, stdio: "ignore" });
+  mkdirSync(join(root, "packages", "ai", "src"), { recursive: true });
+  writeFileSync(join(root, "README.md"), "root readme\n", "utf8");
+  commitAll(root, "initial");
+  const project = join(root, "packages", "ai");
+  writeFileSync(join(project, "src", "client.ts"), "export const client = true;\n", "utf8");
+
+  const result = proposeFromDiff(project);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.changedFiles.includes("src/client.ts"), true);
+  assert.equal(result.changedFiles.some((path) => path.startsWith("packages/ai/")), false);
+  assert.equal(result.packet?.paths.includes("src/client.ts"), true);
+  assert.equal(validateProject(project).warnings.some((warning) => warning.includes("none of the referenced paths exist")), false);
 });
 
 test("diff proposal includes repo memory packet-only changes", () => {

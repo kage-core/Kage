@@ -40,35 +40,64 @@ jobs:
       - name: Build graph registry manifest
         run: node mcp/dist/cli.js graph-registry --project . --json
 
-      - name: Write MCP config for Claude
+      - name: Run Kage PR check
+        id: kage-pr-check
         run: |
-          cat > /tmp/kage-mcp.json << 'EOF'
-          {
-            "mcpServers": {
-              "kage": {
-                "type": "stdio",
-                "command": "node",
-                "args": ["${{ github.workspace }}/mcp/dist/index.js"]
-              }
-            }
-          }
+          set +e
+          node mcp/dist/cli.js quality --project . --json > /tmp/kage-quality.json
+          quality_exit=$?
+          node mcp/dist/cli.js pr check --project . --json > /tmp/kage-pr-check.json
+          pr_exit=$?
+          node - <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('node:fs');
+          const check = JSON.parse(fs.readFileSync('/tmp/kage-pr-check.json', 'utf8'));
+          const quality = JSON.parse(fs.readFileSync('/tmp/kage-quality.json', 'utf8'));
+          const escape = (value) => String(value ?? '').replace(/%/g, '%25').replace(/\n/g, '%0A').replace(/\r/g, '%0D');
+          console.log(`pr_ok=${check.ok ? 'true' : 'false'}`);
+          console.log(`quality_ok=${quality ? 'true' : 'false'}`);
+          console.log(`approved=${quality.totals?.approved ?? 0}`);
+          console.log(`pending=${quality.totals?.pending ?? 0}`);
+          console.log(`stale=${quality.totals?.stale ?? 0}`);
+          console.log(`duplicates=${quality.totals?.duplicate ?? 0}`);
+          console.log(`useful=${quality.useful_memory_ratio_percent ?? 0}`);
+          console.log(`evidence=${quality.evidence_coverage_percent ?? 0}`);
+          console.log(`path_grounding=${quality.path_grounding_coverage_percent ?? 0}`);
+          console.log(`warnings=${escape((check.warnings ?? []).join('\n'))}`);
+          console.log(`errors=${escape((check.errors ?? []).join('\n'))}`);
+          console.log(`required_actions=${escape((check.required_actions ?? []).join('\n'))}`);
+          NODE
+          exit $(( quality_exit != 0 || pr_exit != 0 ))
+
+      - name: Comment Kage PR check summary
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          status="${{ steps.kage-pr-check.outputs.pr_ok == 'true' && 'Passed' || 'Failed' }}"
+          cat > /tmp/kage-pr-comment.md << EOF
+          ## Kage PR Check: ${status}
+
+          | Metric | Value |
+          | --- | ---: |
+          | Approved memory | ${{ steps.kage-pr-check.outputs.approved || '0' }} |
+          | Pending memory | ${{ steps.kage-pr-check.outputs.pending || '0' }} |
+          | Stale memory | ${{ steps.kage-pr-check.outputs.stale || '0' }} |
+          | Duplicate candidates | ${{ steps.kage-pr-check.outputs.duplicates || '0' }} |
+          | Useful memory | ${{ steps.kage-pr-check.outputs.useful || '0' }}% |
+          | Evidence coverage | ${{ steps.kage-pr-check.outputs.evidence || '0' }}% |
+          | Path grounding | ${{ steps.kage-pr-check.outputs.path_grounding || '0' }}% |
+
+          **Required actions**
+
+          ${{ steps.kage-pr-check.outputs.required_actions || 'No required actions reported.' }}
+
+          **Errors**
+
+          ${{ steps.kage-pr-check.outputs.errors || 'None.' }}
+
+          **Warnings**
+
+          ${{ steps.kage-pr-check.outputs.warnings || 'None.' }}
           EOF
-
-      - uses: anthropics/claude-code-action@v1
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: --mcp-config /tmp/kage-mcp.json --max-turns 5
-          prompt: |
-            You are reviewing a pull request on the Kage repo.
-
-            Run the following kage tools against the project at ${{ github.workspace }}:
-            1. mcp__kage__kage_validate with project_dir="${{ github.workspace }}"
-            2. mcp__kage__kage_quality with project_dir="${{ github.workspace }}"
-            3. mcp__kage__kage_pr_check with project_dir="${{ github.workspace }}"
-
-            Then post a single PR comment summarising:
-            - Memory health (approved count, useful %, stale, duplicates)
-            - PR check results (pass/fail per check)
-            - Any recommended actions (e.g. stale packets to remove, missing memory for changed files)
-
-            Keep it concise. Use a table for the health metrics. Flag blockers clearly.
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/kage-pr-comment.md
