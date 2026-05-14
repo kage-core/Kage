@@ -39,6 +39,7 @@ jobs:
           npm run build --prefix mcp
           node mcp/dist/cli.js refresh --project .
           node mcp/dist/cli.js metrics --project . --json > .agent_memory/metrics.json
+          node mcp/dist/cli.js inbox --project . --json > .agent_memory/inbox.json
       - uses: actions/configure-pages@v5
         with:
           enablement: true
@@ -58,6 +59,7 @@ jobs:
           cp .agent_memory/structural/symbols.json docs/viewer/data/kage/structural/symbols.json
           cp .agent_memory/structural/imports.json docs/viewer/data/kage/structural/imports.json
           cp .agent_memory/metrics.json docs/viewer/data/kage/metrics.json
+          cp .agent_memory/inbox.json docs/viewer/data/kage/inbox.json
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs

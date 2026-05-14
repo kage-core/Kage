@@ -20,8 +20,6 @@ symbols, tests, and teammate knowledge.
   ·
   <a href="https://kage-core.github.io/Kage/viewer/">Live viewer</a>
   ·
-  <a href="docs/OSS_GBRAIN_CASE_STUDY.md">OSS case study</a>
-  ·
   <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a>
   ·
   <a href="#quick-start">Quick start</a>
@@ -202,10 +200,6 @@ Why it stays fast:
 On this repo, a normal recall returns about 1,800 context tokens from roughly
 197,778 indexed source tokens. The point is not just speed; it is giving the
 agent the right context without dragging the whole repo into the prompt.
-
-For a real open-source sprint, see the [gbrain case study](docs/OSS_GBRAIN_CASE_STUDY.md):
-10 focused PRs opened with Kage recall, code graph, repo memory, and captured
-fix knowledge.
 
 ## Trust Model
 
