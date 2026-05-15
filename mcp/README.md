@@ -165,8 +165,10 @@ kage viewer --project .
 
 The local viewer loads graph artifacts plus `.agent_memory/reports/*.json` and
 shows a repo-intelligence cockpit for memory-code links, decision memory, risk,
-contributors, module health, graph insights, workspace coverage, quality, and
-benchmark proof.
+contributors, module health, graph insights, workspace coverage, workspace
+link maps, quality, and benchmark proof. Workspace Map rows expose package
+dependencies, route contracts, topic/event links, and cross-repo co-change
+pairs from local workspace reports.
 
 Hosted demo:
 

@@ -238,7 +238,9 @@ The local viewer auto-loads your repo memory, code graph, metrics, inbox, review
 context, and repo-intelligence reports. The graph remains interactive, while the
 Repo Intelligence cockpit summarizes memory-code links, decision memory, change
 risk, module health, contributor profiles, graph insights, workspace coverage,
-quality, and local benchmark proof.
+workspace link maps, quality, and local benchmark proof.
+Workspace Map rows expose package dependencies, route contracts, topic/event
+links, and cross-repo co-change pairs from local workspace reports.
 Combined mode balances memory and code nodes so the graph stays useful instead
 of turning into an unreadable file map.
 

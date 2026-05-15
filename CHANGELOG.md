@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.1.34 - 2026-05-15
+
+- Added a viewer Workspace Map section for multi-repo intelligence.
+- The Repo Intelligence cockpit now lists package dependencies, route
+  contracts, topic/event links, and cross-repo co-change links as inspectable
+  rows instead of only showing workspace counts.
+- Mirrored the update into the hosted GitHub Pages viewer assets.
+
 ## v1.1.33 - 2026-05-15
 
 - Added local workspace cross-repo co-change links from recent git history.

@@ -2321,6 +2321,7 @@
     var decisions = reports.decisions;
     var health = reports.moduleHealth;
     var insights = reports.graphInsights;
+    var workspace = reports.workspace;
 
     if (contributors || risk) {
       var profiles = contributors && Array.isArray(contributors.contributors) ? contributors.contributors : [];
@@ -2447,6 +2448,57 @@
           };
         }),
       });
+    }
+
+    if (workspace) {
+      var deps = Array.isArray(workspace.package_dependencies) ? workspace.package_dependencies : [];
+      var routeContracts = Array.isArray(workspace.route_contracts) ? workspace.route_contracts : [];
+      var topicContracts = Array.isArray(workspace.topic_contracts) ? workspace.topic_contracts : [];
+      var coChanges = Array.isArray(workspace.co_changes) ? workspace.co_changes : [];
+      var workspaceRows = deps.slice(0, 6).map(function (dep) {
+        return {
+          label: dep.from + " -> " + dep.to,
+          value: dep.package_name || "package",
+          meta: "workspace package dependency",
+          score: 72,
+          status: "ok",
+        };
+      }).concat(routeContracts.slice(0, 6).map(function (contract) {
+        return {
+          label: contract.provider_repo + " -> " + contract.consumer_repo,
+          value: [contract.method, contract.path].filter(Boolean).join(" "),
+          meta: [contract.provider_file, contract.consumer_file].filter(Boolean).join(" -> "),
+          score: contract.confidence === "high" ? 92 : 76,
+          status: "ok",
+        };
+      })).concat(topicContracts.slice(0, 6).map(function (contract) {
+        return {
+          label: contract.producer_repo + " -> " + contract.consumer_repo,
+          value: contract.topic,
+          meta: [contract.producer_file, contract.consumer_file].filter(Boolean).join(" -> "),
+          score: contract.confidence === "high" ? 88 : 72,
+          status: "ok",
+        };
+      })).concat(coChanges.slice(0, 8).map(function (link) {
+        var score = Math.min(100, Number(link.strength || 0) * 22 + Number(link.frequency || 0) * 12);
+        return {
+          label: link.source_repo + " <-> " + link.target_repo,
+          value: (link.frequency || 0) + "x co-change",
+          meta: [link.source_file, link.target_file].filter(Boolean).join(" <-> "),
+          score: Math.max(20, score),
+          status: "warn",
+        };
+      }));
+      if (workspaceRows.length) {
+        sections.push({
+          title: "Workspace Map",
+          kicker: "deps / contracts / co-changes",
+          stat: workspaceRows.length + " links",
+          summary: "Workspace links show how sibling repos relate through package dependencies, source-evidence contracts, topic/event links, and local git co-change history.",
+          rows: workspaceRows,
+          limit: 14,
+        });
+      }
     }
 
     if (risk) {
