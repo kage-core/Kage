@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.28 - 2026-05-15
+
+- Added Python framework route extraction to the source-derived code graph for
+  FastAPI/APIRouter decorators, Flask `@app.route(..., methods=[...])`, and
+  Django `path` / `re_path` declarations.
+- Normalized Python route parameters such as `{task_id}` and
+  `<int:order_id>` into Kage's `:param` graph format so viewer, recall, and
+  route queries can compare routes consistently across frameworks.
+- Added regression coverage for FastAPI, Flask, and Django route detection.
+
 ## v1.1.27 - 2026-05-15
 
 - Added `kage hook install/status/uninstall` for repo-local git

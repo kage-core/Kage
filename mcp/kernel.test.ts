@@ -852,10 +852,17 @@ test("builds a multi-language code graph with generic static extractors", () => 
   mkdirSync(join(project, "tests"), { recursive: true });
   writeFileSync(
     join(project, "app", "service.py"),
-    `from pkg.store import TaskStore
+    `from fastapi import APIRouter
+from pkg.store import TaskStore
+
+router = APIRouter()
 
 def normalize_task(value):
     return value
+
+@router.get("/tasks/{task_id}")
+def read_task(task_id):
+    return normalize_task(task_id)
 
 class TaskService:
     def list_tasks(self):
@@ -896,7 +903,41 @@ def test_normalize_task():
   assert.equal(graph.symbols.some((symbol) => symbol.path === "pkg/store.go" && symbol.name === "TaskStore" && symbol.kind === "class"), true);
   assert.equal(graph.imports.some((edge) => edge.from_path === "app/service.py" && edge.specifier === "pkg.store"), true);
   assert.equal(graph.calls.some((edge) => edge.path === "app/service.py" && edge.to_symbol.includes(":normalize-task:")), true);
+  assert.equal(graph.routes.some((route) => route.file_path === "app/service.py" && route.framework === "fastapi" && route.method === "GET" && route.path === "/tasks/:task_id" && route.handler_symbol?.includes(":read-task:")), true);
   assert.equal(graph.tests.some((edge) => edge.test_path === "tests/test_service.py" && edge.covers_path === "app/service.py"), true);
+});
+
+test("code graph extracts Python framework routes", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "app"), { recursive: true });
+  writeFileSync(
+    join(project, "app", "web.py"),
+    `from flask import Flask
+
+app = Flask(__name__)
+
+@app.route("/checkout/<session_id>", methods=["POST"])
+def create_checkout(session_id):
+    return session_id
+`,
+    "utf8"
+  );
+  writeFileSync(
+    join(project, "app", "urls.py"),
+    `from django.urls import path
+from . import views
+
+urlpatterns = [
+    path("orders/<int:order_id>/", views.order_detail),
+]
+`,
+    "utf8"
+  );
+  writeFileSync(join(project, "app", "views.py"), "def order_detail(request, order_id):\n    return order_id\n", "utf8");
+
+  const graph = buildCodeGraph(project);
+  assert.equal(graph.routes.some((route) => route.file_path === "app/web.py" && route.framework === "flask" && route.method === "POST" && route.path === "/checkout/:session_id" && route.handler_symbol?.includes(":create-checkout:")), true);
+  assert.equal(graph.routes.some((route) => route.file_path === "app/urls.py" && route.framework === "django" && route.method === "ANY" && route.path === "/orders/:order_id"), true);
 });
 
 test("code graph consumes Tree-sitter, SCIP, and LSP index artifacts when present", () => {

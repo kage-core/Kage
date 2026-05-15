@@ -633,7 +633,7 @@ export interface CodeRouteNode {
   handler_symbol: string | null;
   file_path: string;
   line: number;
-  framework: "node-http" | "express" | "next";
+  framework: "node-http" | "express" | "next" | "fastapi" | "flask" | "django";
 }
 
 export interface CodeTestEdge {
@@ -4138,11 +4138,43 @@ function extractGenericCalls(path: string, text: string, symbols: CodeSymbolNode
   return calls.sort((a, b) => a.line - b.line || a.to_symbol.localeCompare(b.to_symbol));
 }
 
+function offsetForLine(text: string, oneBasedLine: number): number {
+  if (oneBasedLine <= 1) return 0;
+  const lines = text.split(/\r?\n/).slice(0, oneBasedLine - 1);
+  return lines.join("\n").length + (lines.length ? 1 : 0);
+}
+
+function normalizeWebRoutePath(routePath: string): string {
+  let cleaned = routePath
+    .trim()
+    .replace(/^r(["'`])|(["'`])$/g, "")
+    .replace(/^['"`]|['"`]$/g, "")
+    .replace(/\\/g, "")
+    .replace(/^\^/, "")
+    .replace(/\$$/, "")
+    .replace(/\{([A-Za-z_][\w]*)\}/g, ":$1")
+    .replace(/<(?:(?:int|str|slug|uuid|path):)?([A-Za-z_][\w]*)>/g, ":$1")
+    .replace(/\/+/g, "/");
+  if (!cleaned.startsWith("/")) cleaned = `/${cleaned}`;
+  if (cleaned.length > 1) cleaned = cleaned.replace(/\/$/, "");
+  return cleaned || "/";
+}
+
+function pythonRouteFramework(text: string): "fastapi" | "flask" {
+  return /\bfrom\s+flask\s+import\b|\bimport\s+flask\b|\bFlask\s*\(/.test(text) ? "flask" : "fastapi";
+}
+
+function parsePythonMethodList(value: string | undefined): string[] {
+  if (!value) return ["GET"];
+  const methods = [...value.matchAll(/["']([A-Za-z]+)["']/g)].map((match) => match[1].toUpperCase());
+  return methods.length ? unique(methods) : ["GET"];
+}
+
 function extractRoutes(path: string, text: string, symbols: CodeSymbolNode[]): CodeRouteNode[] {
   const routes: CodeRouteNode[] = [];
   const addRoute = (method: string, routePath: string, offset: number, framework: CodeRouteNode["framework"], handler: string | null = null) => {
     const line = lineForOffset(text, offset);
-    const cleanRoutePath = routePath.replace(/\\/g, "");
+    const cleanRoutePath = normalizeWebRoutePath(routePath);
     const containing = handler ? symbols.find((symbol) => symbol.path === path && symbol.name === handler) : symbolAtLine(symbols, path, line);
     routes.push({
       id: routeId(path, method, cleanRoutePath, line),
@@ -4164,6 +4196,33 @@ function extractRoutes(path: string, text: string, symbols: CodeSymbolNode[]): C
   for (const match of text.matchAll(/req\.method\s*===\s*["']([A-Z]+)["'][\s\S]{0,120}?([A-Za-z_$][\w$]*)Match/g)) {
     const routeMatch = text.match(new RegExp(`const\\s+${match[2]}Match\\s*=\\s*url\\.pathname\\.match\\(\\s*/\\^\\\\/([^/]+)[^/]*`));
     addRoute(match[1], routeMatch ? `/${routeMatch[1]}/:id` : "/:dynamic", match.index ?? 0, "node-http");
+  }
+  if (extensionOf(path) === ".py") {
+    const lines = text.split(/\r?\n/);
+    const framework = pythonRouteFramework(text);
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index];
+      const decorator = line.match(/^\s*@(?:\w+\.)?(get|post|put|patch|delete|options|head)\s*\(\s*["']([^"']+)["']/i);
+      if (decorator) {
+        const handlerLine = lines.slice(index + 1, Math.min(lines.length, index + 7)).find((candidate) => /^\s*(?:async\s+)?def\s+[A-Za-z_][\w]*\s*\(/.test(candidate));
+        const handler = handlerLine?.match(/^\s*(?:async\s+)?def\s+([A-Za-z_][\w]*)\s*\(/)?.[1] ?? null;
+        addRoute(decorator[1].toUpperCase(), decorator[2], offsetForLine(text, index + 1), framework, handler);
+        continue;
+      }
+      const flaskRoute = line.match(/^\s*@(?:\w+\.)?route\s*\(\s*["']([^"']+)["']/i);
+      if (flaskRoute) {
+        const handlerLine = lines.slice(index + 1, Math.min(lines.length, index + 7)).find((candidate) => /^\s*(?:async\s+)?def\s+[A-Za-z_][\w]*\s*\(/.test(candidate));
+        const handler = handlerLine?.match(/^\s*(?:async\s+)?def\s+([A-Za-z_][\w]*)\s*\(/)?.[1] ?? null;
+        const methods = line.match(/methods\s*=\s*\[([^\]]+)\]/i)?.[1];
+        for (const method of parsePythonMethodList(methods)) addRoute(method, flaskRoute[1], offsetForLine(text, index + 1), "flask", handler);
+        continue;
+      }
+      const djangoPath = line.match(/\b(?:path|re_path)\s*\(\s*r?["']([^"']+)["']\s*,\s*([A-Za-z_][\w.]+)/);
+      if (djangoPath) {
+        const handler = djangoPath[2].split(".").pop() ?? null;
+        addRoute("ANY", djangoPath[1], offsetForLine(text, index + 1), "django", handler);
+      }
+    }
   }
   if (/app\/api\//.test(path)) {
     for (const symbol of symbols.filter((symbol) => symbol.path === path && symbol.export && ["GET", "POST", "PUT", "PATCH", "DELETE"].includes(symbol.name))) {

@@ -37,7 +37,8 @@ Restart your agent once after setup so MCP tools reload.
 - repo-local memory for decisions, runbooks, bug fixes, gotchas, conventions,
   and code explanations
 - a code graph for files, symbols, imports, calls, routes, tests, and packages,
-  including generic call/test signals for non-TypeScript repos
+  including generic call/test signals and Python framework routes for
+  non-TypeScript repos
 - memory-code links so project knowledge points at the code it affects
 - decision intelligence for why-memory coverage, stale/weak packets, and
   important files that still lack linked repo knowledge

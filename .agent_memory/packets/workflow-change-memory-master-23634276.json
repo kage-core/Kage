@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
-  "summary": "Repo-local context for 19 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/decision-repo-git-hook-keeps-kage-memory-current-after-commits-04fbc7e1.json\n- .agent_memory/packets/decision-viewer-surfaces-repowise-style-repo-intelligence-maps-16fd13d8.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n- CHANGELOG.md\n- README.md\n- docs/guide.html\n- docs/releases.html\n- docs/viewer/app.js\n- docs/viewer/index.html\n- docs/viewer/styles.css\n- mcp/README.md\n- mcp/cli.ts\n- mcp/kernel.test.ts\n- mcp/kernel.ts\n- mcp/package-lock.json\n- mcp/package.json\n- mcp/viewer/app.js\n- mcp/viewer/index.html\n- mcp/viewer/styles.css\n\nDiff summary:\n```text\n.../workflow-change-memory-master-23634276.json    | 104 +++++++--\n CHANGELOG.md                                       |  12 +\n README.md                                          |   6 +\n docs/guide.html                                    |  10 +\n docs/releases.html                                 |  16 +-\n docs/viewer/app.js                                 | 251 +++++++++++++++++++++\n docs/viewer/index.html                             |   4 +-\n docs/viewer/styles.css                             | 117 ++++++++++\n mcp/README.md                                      |   2 +\n mcp/cli.ts                                         |  32 +++\n mcp/kernel.test.ts                                 |  40 ++++\n mcp/kernel.ts                                      | 174 +++++++++++++-\n mcp/package-lock.json                              |   4 +-\n mcp/package.json                                   |   2 +-\n mcp/viewer/app.js                                  | 251 +++++++++++++++++++++\n mcp/viewer/index.html                              |   4 +-\n mcp/viewer/styles.css                              | 117 ++++++++++\n 17 files changed, 1106 insertions(+), 40 deletions(-)\n.agent_memory/packets/decision-repo-git-hook-keeps-kage-memory-current-after-commits-04fbc7e1.json | untracked\n.agent_memory/packets/decision-viewer-surfaces-repowise-style-repo-intelligence-maps-16fd13d8.json | untracked\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "summary": "Repo-local context for 10 changed repo paths on master.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/decision-python-framework-routes-in-code-graph-d95e4d76.json\n- CHANGELOG.md\n- README.md\n- docs/guide.html\n- docs/releases.html\n- mcp/README.md\n- mcp/kernel.test.ts\n- mcp/kernel.ts\n- mcp/package-lock.json\n- mcp/package.json\n\nDiff summary:\n```text\nCHANGELOG.md          | 10 ++++++++\n README.md             |  2 +-\n docs/guide.html       |  2 +-\n docs/releases.html    |  8 ++++---\n mcp/README.md         |  3 ++-\n mcp/kernel.test.ts    | 43 ++++++++++++++++++++++++++++++++++-\n mcp/kernel.ts         | 63 +++++++++++++++++++++++++++++++++++++++++++++++++--\n mcp/package-lock.json |  4 ++--\n mcp/package.json      |  2 +-\n 9 files changed, 125 insertions(+), 12 deletions(-)\n.agent_memory/packets/decision-python-framework-routes-in-code-graph-d95e4d76.json | untracked\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -17,59 +17,41 @@
     "branch:master"
   ],
   "paths": [
-    ".agent_memory/packets/decision-repo-git-hook-keeps-kage-memory-current-after-commits-04fbc7e1.json",
-    ".agent_memory/packets/decision-viewer-surfaces-repowise-style-repo-intelligence-maps-16fd13d8.json",
-    ".agent_memory/packets/workflow-change-memory-master-23634276.json",
+    ".agent_memory/packets/decision-python-framework-routes-in-code-graph-d95e4d76.json",
     "CHANGELOG.md",
     "README.md",
     "docs/guide.html",
     "docs/releases.html",
-    "docs/viewer/app.js",
-    "docs/viewer/index.html",
-    "docs/viewer/styles.css",
     "mcp/README.md",
-    "mcp/cli.ts",
     "mcp/kernel.test.ts",
     "mcp/kernel.ts",
     "mcp/package-lock.json",
-    "mcp/package.json",
-    "mcp/viewer/app.js",
-    "mcp/viewer/index.html",
-    "mcp/viewer/styles.css"
+    "mcp/package.json"
   ],
   "stack": [],
   "source_refs": [
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "5222b707fdd80cadcd9dd4c94df8219752c7b734",
-      "merge_base": "5222b707fdd80cadcd9dd4c94df8219752c7b734",
+      "head": "96269db576054e4ddf74fc3ee721c2f03cad9f57",
+      "merge_base": "96269db576054e4ddf74fc3ee721c2f03cad9f57",
       "changed_files": [
-        ".agent_memory/packets/decision-repo-git-hook-keeps-kage-memory-current-after-commits-04fbc7e1.json",
-        ".agent_memory/packets/decision-viewer-surfaces-repowise-style-repo-intelligence-maps-16fd13d8.json",
-        ".agent_memory/packets/workflow-change-memory-master-23634276.json",
+        ".agent_memory/packets/decision-python-framework-routes-in-code-graph-d95e4d76.json",
         "CHANGELOG.md",
         "README.md",
         "docs/guide.html",
         "docs/releases.html",
-        "docs/viewer/app.js",
-        "docs/viewer/index.html",
-        "docs/viewer/styles.css",
         "mcp/README.md",
-        "mcp/cli.ts",
         "mcp/kernel.test.ts",
         "mcp/kernel.ts",
         "mcp/package-lock.json",
-        "mcp/package.json",
-        "mcp/viewer/app.js",
-        "mcp/viewer/index.html",
-        "mcp/viewer/styles.css"
+        "mcp/package.json"
       ],
       "summary_path": ".agent_memory/review/branch-summary-master.json"
     }
   ],
   "context": {
-    "fact": "Current branch master changes 19 repo paths.",
+    "fact": "Current branch master changes 10 repo paths.",
     "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
     "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
     "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
@@ -78,24 +60,14 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-05-15T04:33:50.119Z",
+    "last_verified_at": "2026-05-15T04:48:54.347Z",
     "ttl_days": 180,
     "verification": "git_diff"
   },
   "edges": [
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-repo-git-hook-keeps-kage-memory-current-after-commits-04fbc7e1.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-viewer-surfaces-repowise-style-repo-intelligence-maps-16fd13d8.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/workflow-change-memory-master-23634276.json",
+      "to": "path:.agent_memory/packets/decision-python-framework-routes-in-code-graph-d95e4d76.json",
       "evidence": "git_diff"
     },
     {
@@ -120,27 +92,7 @@
     },
     {
       "relation": "changes_path",
-      "to": "path:docs/viewer/app.js",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:docs/viewer/index.html",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:docs/viewer/styles.css",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
       "to": "path:mcp/README.md",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:mcp/cli.ts",
       "evidence": "git_diff"
     },
     {
@@ -162,21 +114,6 @@
       "relation": "changes_path",
       "to": "path:mcp/package.json",
       "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:mcp/viewer/app.js",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:mcp/viewer/index.html",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:mcp/viewer/styles.css",
-      "evidence": "git_diff"
     }
   ],
   "quality": {
@@ -191,7 +128,7 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 676,
+    "estimated_tokens_saved": 376,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -209,6 +146,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-05-15T04:33:50.119Z",
-  "updated_at": "2026-05-15T04:33:50.962Z"
+  "created_at": "2026-05-15T04:48:54.347Z",
+  "updated_at": "2026-05-15T04:49:03.107Z"
 }

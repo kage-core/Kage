@@ -54,7 +54,7 @@ instead of rereading the whole repo or asking you to explain it again.
 | Feature | What it does |
 |---|---|
 | Repo memory | Stores bugs, decisions, runbooks, gotchas, conventions, and code explanations as JSON packets |
-| Code graph | Indexes files, symbols, imports, calls, routes, tests, and packages, with generic call/test signals for non-TypeScript repos |
+| Code graph | Indexes files, symbols, imports, calls, routes, tests, and packages, with generic call/test signals and Python framework routes for non-TypeScript repos |
 | Memory-code links | Connects repo knowledge to the files and symbols it affects |
 | Decision intelligence | Shows which decisions, gotchas, runbooks, and explanations are grounded to code, plus important files still missing why-memory |
 | Git intelligence | Reports risk, reviewers, contributor profiles, co-change warnings, ownership silos, and module health from local git |
