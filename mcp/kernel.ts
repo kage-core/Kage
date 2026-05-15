@@ -829,6 +829,260 @@ export interface CodeGraphQueryResult {
   structural_edges?: StructuralEdgeFact[];
 }
 
+export interface GitFileSignal {
+  file_path: string;
+  commit_count_total: number;
+  commit_count_30d: number;
+  commit_count_90d: number;
+  last_commit_at: string | null;
+  primary_owner: string | null;
+  primary_owner_pct: number | null;
+  contributor_count: number;
+  co_change_partners: Array<{ file_path: string; count: number }>;
+}
+
+export interface KageRiskTarget {
+  target: string;
+  exists_in_code_graph: boolean;
+  hotspot_score: number;
+  risk_type: "churn-heavy" | "high-coupling" | "single-owner" | "test-gap" | "stable" | "unknown";
+  dependents_count: number;
+  dependents: string[];
+  impact_surface: string[];
+  test_gap: boolean;
+  co_change_warnings: Array<{ file_path: string; count: number; included_in_change: boolean }>;
+  git: GitFileSignal;
+  risk_summary: string;
+}
+
+export interface KageRiskReport {
+  schema_version: 1;
+  project_dir: string;
+  generated_at: string;
+  targets: Record<string, KageRiskTarget>;
+  global_hotspots: Array<{ file_path: string; hotspot_score: number; commit_count_90d: number; primary_owner: string | null }>;
+  ownership_silos: Array<{ file_path: string; primary_owner: string; primary_owner_pct: number; commit_count_total: number }>;
+  changed_files?: string[];
+  warnings: string[];
+}
+
+export interface KageDependencyPathResult {
+  schema_version: 1;
+  project_dir: string;
+  generated_at: string;
+  from: string;
+  to: string;
+  resolved_from: string | null;
+  resolved_to: string | null;
+  relation: "source_depends_on_target" | "target_depends_on_source" | "connected_undirected" | "none";
+  path: string[];
+  edges: Array<{ from_path: string; to_path: string; kind: CodeImportEdge["kind"]; specifier: string; line: number; direction: "forward" | "reverse" }>;
+  distance: number | null;
+  summary: string;
+  warnings: string[];
+}
+
+export interface KageCleanupCandidate {
+  path: string;
+  kind: "unreferenced_file";
+  confidence: "high" | "medium" | "low";
+  score: number;
+  reasons: string[];
+  inbound_imports: number;
+  source_inbound_imports: number;
+  outbound_imports: number;
+  covered_by_tests: boolean;
+  last_commit_at: string | null;
+}
+
+export interface KageCleanupCandidatesReport {
+  schema_version: 1;
+  project_dir: string;
+  generated_at: string;
+  candidates: KageCleanupCandidate[];
+  skipped_entrypoints: string[];
+  skipped_runtime_references: string[];
+  warnings: string[];
+  summary: string;
+}
+
+export interface KageReviewerSuggestion {
+  reviewer: string;
+  score: number;
+  reasons: string[];
+  authored_targets: string[];
+  cochange_targets: string[];
+  commit_count_total: number;
+  commit_count_90d: number;
+}
+
+export interface KageReviewerSuggestionsReport {
+  schema_version: 1;
+  project_dir: string;
+  generated_at: string;
+  targets: string[];
+  suggestions: KageReviewerSuggestion[];
+  warnings: string[];
+  summary: string;
+}
+
+export interface KageContributorProfile {
+  contributor: string;
+  commits_total: number;
+  commits_90d: number;
+  files_touched: Array<{ path: string; commits: number }>;
+  modules_touched: Array<{ module: string; files: number }>;
+  primary_owned_files: number;
+  silo_files: Array<{ path: string; ownership_pct: number; commits: number }>;
+  hotspot_files: Array<{ path: string; hotspot_score: number; commits_90d: number }>;
+  commit_categories: Record<string, number>;
+  summary: string;
+}
+
+export interface KageContributorsReport {
+  schema_version: 1;
+  project_dir: string;
+  generated_at: string;
+  contributors: KageContributorProfile[];
+  warnings: string[];
+  summary: string;
+}
+
+export interface KageDecisionMemoryItem {
+  packet_id: string;
+  title: string;
+  type: MemoryType;
+  paths: string[];
+  summary: string;
+  why: string | null;
+  risk_if_forgotten: string | null;
+  verification: string | null;
+  quality_score: number | null;
+}
+
+export interface KageDecisionCoverageGap {
+  path: string;
+  reason: string;
+  dependents: number;
+  churn_90d: number;
+  primary_owner: string | null;
+}
+
+export interface KageDecisionIntelligenceReport {
+  schema_version: 1;
+  project_dir: string;
+  generated_at: string;
+  decision_memory_count: number;
+  code_paths_with_memory: number;
+  code_paths_total: number;
+  coverage_percent: number;
+  by_type: Record<string, number>;
+  top_decisions: KageDecisionMemoryItem[];
+  coverage_gaps: KageDecisionCoverageGap[];
+  weak_or_stale_memory: Array<{ packet_id: string; title: string; type: MemoryType; reasons: string[]; paths: string[] }>;
+  warnings: string[];
+  summary: string;
+}
+
+export interface KageModuleHealthItem {
+  module: string;
+  score: number;
+  grade: "A" | "B" | "C" | "D";
+  files: number;
+  source_files: number;
+  test_files: number;
+  symbols: number;
+  imports: number;
+  routes: number;
+  tests: number;
+  cleanup_candidates: number;
+  test_gap_files: number;
+  churn_90d: number;
+  primary_owners: Array<{ owner: string; files: number }>;
+  reasons: string[];
+}
+
+export interface KageModuleHealthReport {
+  schema_version: 1;
+  project_dir: string;
+  generated_at: string;
+  modules: KageModuleHealthItem[];
+  warnings: string[];
+  summary: string;
+}
+
+export interface KageGraphInsightsReport {
+  schema_version: 1;
+  project_dir: string;
+  generated_at: string;
+  language_coverage: Array<{ language: string; files: number; precise_files: number; ast_files: number; generic_files: number; metadata_files: number; coverage_percent: number }>;
+  edge_mix: { imports: number; calls: number; routes: number; tests: number; packages: number };
+  central_files: Array<{ path: string; pagerank: number; dependents: number; imports: number; kind: CodeFileNode["kind"] }>;
+  dependency_cycles: Array<{ files: string[]; size: number }>;
+  communities: Array<{ id: number; label: string; files: string[]; entrypoints: string[]; routes: string[] }>;
+  entry_flows: Array<{ entry: string; path: string[] }>;
+  warnings: string[];
+  summary: string;
+}
+
+export interface KageWorkspaceRepo {
+  alias: string;
+  path: string;
+  package_name: string | null;
+  indexed: boolean;
+  approved_packets: number;
+  pending_packets: number;
+  code_files: number;
+  code_symbols: number;
+  dependencies_on_workspace_repos: Array<{ alias: string; package_name: string }>;
+  branch: string | null;
+  head: string | null;
+}
+
+export interface KageWorkspaceRouteContract {
+  provider_repo: string;
+  provider_file: string;
+  method: string;
+  path: string;
+  consumer_repo: string;
+  consumer_file: string;
+  confidence: "high" | "medium";
+  evidence: string;
+}
+
+export interface KageWorkspaceReport {
+  schema_version: 1;
+  workspace_dir: string;
+  generated_at: string;
+  repos: KageWorkspaceRepo[];
+  package_dependencies: Array<{ from: string; to: string; package_name: string }>;
+  route_contracts: KageWorkspaceRouteContract[];
+  warnings: string[];
+  summary: string;
+}
+
+export interface KageWorkspaceRecallHit {
+  repo: string;
+  repo_path: string;
+  title: string;
+  type: MemoryType;
+  score: number;
+  summary: string;
+  paths: string[];
+  why_matched: string[];
+}
+
+export interface KageWorkspaceRecallResult {
+  schema_version: 1;
+  workspace_dir: string;
+  query: string;
+  generated_at: string;
+  repos_searched: number;
+  hits: KageWorkspaceRecallHit[];
+  warnings: string[];
+  context_block: string;
+}
+
 export interface KageMetrics {
   schema_version: 1;
   project_dir: string;
@@ -2742,8 +2996,10 @@ function structuralPackedFileCachePath(projectDir: string): string {
   return join(structuralIndexDir(projectDir), "file-cache.json");
 }
 
+const STRUCTURAL_EXTRACTOR_VERSION = 2;
+
 function structuralFileCachePath(projectDir: string, rel: string, hash: string): string {
-  return join(structuralFileCacheDir(projectDir), `${slugify(rel)}-${hash}.json`);
+  return join(structuralFileCacheDir(projectDir), `v${STRUCTURAL_EXTRACTOR_VERSION}-${slugify(rel)}-${hash}.json`);
 }
 
 function emptyStructuralIndexManifest(projectDir: string): StructuralIndexManifest {
@@ -3046,7 +3302,7 @@ function expandCompactStructuralCachedFile(compact: CompactStructuralCachedFile)
 const packedStructuralCache = new Map<string, { mtimeMs: number; size: number; entries: Record<string, CompactStructuralCachedFile> }>();
 
 function structuralPackedCacheKey(rel: string, hash: string): string {
-  return `${rel}\0${hash}`;
+  return `v${STRUCTURAL_EXTRACTOR_VERSION}\0${rel}\0${hash}`;
 }
 
 function readPackedStructuralCache(projectDir: string): Record<string, CompactStructuralCachedFile> {
@@ -3476,8 +3732,12 @@ function findBlockEndLine(text: string, startOffset: number): number | null {
 function resolveImportPath(projectDir: string, fromRelativePath: string, specifier: string, knownFiles: Set<string>): string | null {
   if (!specifier.startsWith(".")) return null;
   const base = join(dirname(join(projectDir, fromRelativePath)), specifier);
+  const sourceExtensionCandidates = /\.(?:mjs|cjs|js|jsx)$/.test(base)
+    ? [".ts", ".tsx", ".mts", ".cts"].map((extension) => base.replace(/\.(?:mjs|cjs|js|jsx)$/, extension))
+    : [];
   const candidates = [
     base,
+    ...sourceExtensionCandidates,
     ...[...CODE_EXTENSIONS].map((extension) => `${base}${extension}`),
     ...[...CODE_EXTENSIONS].map((extension) => join(base, `index${extension}`)),
   ];
@@ -3584,6 +3844,11 @@ function extractSymbols(path: string, text: string): CodeSymbolNode[] {
 function extractGenericSymbols(path: string, text: string): CodeSymbolNode[] {
   const symbols: CodeSymbolNode[] = [];
   const language = codeLanguage(path);
+  const fileKind = codeFileKind(path);
+  const genericKind = (name: string, fallback: CodeSymbolNode["kind"]): CodeSymbolNode["kind"] => {
+    if (fileKind === "test" && /^(test_|Test|it_|should_)/.test(name)) return "test";
+    return fallback;
+  };
   const addSymbol = (name: string, kind: CodeSymbolNode["kind"], line: number, signature: string, exported = true) => {
     symbols.push({
       id: symbolId(path, name, kind, line),
@@ -3608,37 +3873,37 @@ function extractGenericSymbols(path: string, text: string): CodeSymbolNode[] {
     let match: RegExpMatchArray | null = null;
     if (language === "python") {
       match = trimmed.match(/^(?:async\s+)?def\s+([A-Za-z_][\w]*)\s*\(/);
-      if (match) return addSymbol(match[1], "function", line, trimmed);
+      if (match) return addSymbol(match[1], genericKind(match[1], "function"), line, trimmed);
       match = trimmed.match(/^class\s+([A-Za-z_][\w]*)\b/);
       if (match) return addSymbol(match[1], "class", line, trimmed);
     }
     if (language === "go") {
       match = trimmed.match(/^func\s+(?:\([^)]+\)\s*)?([A-Za-z_][\w]*)\s*\(/);
-      if (match) return addSymbol(match[1], "function", line, trimmed);
+      if (match) return addSymbol(match[1], genericKind(match[1], "function"), line, trimmed);
       match = trimmed.match(/^type\s+([A-Za-z_][\w]*)\s+(?:struct|interface)\b/);
       if (match) return addSymbol(match[1], "class", line, trimmed);
     }
     if (language === "rust") {
       match = trimmed.match(/^(?:pub\s+)?(?:async\s+)?fn\s+([A-Za-z_][\w]*)\s*[<(]/);
-      if (match) return addSymbol(match[1], "function", line, trimmed, /^pub\b/.test(trimmed));
+      if (match) return addSymbol(match[1], genericKind(match[1], "function"), line, trimmed, /^pub\b/.test(trimmed));
       match = trimmed.match(/^(?:pub\s+)?(?:struct|enum|trait)\s+([A-Za-z_][\w]*)\b/);
       if (match) return addSymbol(match[1], "class", line, trimmed, /^pub\b/.test(trimmed));
     }
     if (language === "ruby") {
       match = trimmed.match(/^def\s+(?:self\.)?([A-Za-z_][\w!?=]*)/);
-      if (match) return addSymbol(match[1], "function", line, trimmed);
+      if (match) return addSymbol(match[1], genericKind(match[1], "function"), line, trimmed);
       match = trimmed.match(/^class\s+([A-Za-z_:][\w:]*)\b/);
       if (match) return addSymbol(match[1], "class", line, trimmed);
     }
     if (language === "php") {
       match = trimmed.match(/^(?:public|private|protected|static|\s)*function\s+([A-Za-z_][\w]*)\s*\(/);
-      if (match) return addSymbol(match[1], "function", line, trimmed);
+      if (match) return addSymbol(match[1], genericKind(match[1], "function"), line, trimmed);
       match = trimmed.match(/^(?:final\s+|abstract\s+)?class\s+([A-Za-z_][\w]*)\b/);
       if (match) return addSymbol(match[1], "class", line, trimmed);
     }
     if (["java", "kotlin", "csharp", "cpp", "swift"].includes(language)) {
       match = trimmed.match(/^(?:public|private|protected|internal|static|final|open|override|async|virtual|inline|constexpr|\s)+[\w:<>,\[\]?&*\s]+\s+([A-Za-z_][\w]*)\s*\([^;]*\)\s*(?:\{|=>|throws\b)?/);
-      if (match && !["if", "for", "while", "switch", "catch"].includes(match[1])) return addSymbol(match[1], "function", line, trimmed);
+      if (match && !["if", "for", "while", "switch", "catch"].includes(match[1])) return addSymbol(match[1], genericKind(match[1], "function"), line, trimmed);
       match = trimmed.match(/^(?:public|private|protected|internal|static|final|open|abstract|sealed|\s)*(?:class|interface|struct|enum)\s+([A-Za-z_][\w]*)\b/);
       if (match) return addSymbol(match[1], "class", line, trimmed);
     }
@@ -3818,6 +4083,44 @@ function extractCalls(path: string, text: string, symbols: CodeSymbolNode[], sym
     ts.forEachChild(node, visit);
   };
   visit(sourceFile);
+  return calls.sort((a, b) => a.line - b.line || a.to_symbol.localeCompare(b.to_symbol));
+}
+
+const GENERIC_CALL_STOP_WORDS = new Set([
+  "catch",
+  "class",
+  "def",
+  "elif",
+  "for",
+  "func",
+  "function",
+  "if",
+  "interface",
+  "return",
+  "switch",
+  "while",
+]);
+
+function extractGenericCalls(path: string, text: string, symbols: CodeSymbolNode[], symbolByName: Map<string, CodeSymbolNode[]>): CodeCallEdge[] {
+  const calls: CodeCallEdge[] = [];
+  const lines = text.split(/\r?\n/);
+  for (let index = 0; index < lines.length && calls.length < MAX_CODE_GRAPH_CALLS_PER_FILE; index += 1) {
+    const line = index + 1;
+    const trimmed = lines[index].trim();
+    if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("//")) continue;
+    if (/^(?:async\s+)?def\s+|^func\s+|^(?:pub\s+)?(?:async\s+)?fn\s+|^function\s+|^(?:public|private|protected|internal|static|final|open|override|async|virtual|inline|constexpr|\s)+[\w:<>,\[\]?&*\s]+\s+[A-Za-z_][\w]*\s*\(/.test(trimmed)) continue;
+    for (const match of trimmed.matchAll(/\b([A-Za-z_][\w]*)\s*\(/g)) {
+      const name = match[1];
+      if (GENERIC_CALL_STOP_WORDS.has(name)) continue;
+      const targets = symbolByName.get(name)?.filter((target) => target.path !== path || target.line !== line);
+      if (!targets?.length) continue;
+      const caller = symbolAtLine(symbols, path, line);
+      for (const target of targets.slice(0, 3)) {
+        if (calls.length >= MAX_CODE_GRAPH_CALLS_PER_FILE) break;
+        calls.push({ from_symbol: caller?.id ?? null, to_symbol: target.id, path, line });
+      }
+    }
+  }
   return calls.sort((a, b) => a.line - b.line || a.to_symbol.localeCompare(b.to_symbol));
 }
 
@@ -4393,7 +4696,7 @@ export function buildCodeGraph(projectDir: string, options: { force?: boolean } 
   const imports: CodeImportEdge[] = structural.imports.slice();
   const contents = new Map<string, string>();
   for (const file of structural.files) {
-    if (!TS_AST_EXTENSIONS.has(extensionOf(file.path))) continue;
+    if (!CODE_EXTENSIONS.has(extensionOf(file.path))) continue;
     if (file.size_bytes > MAX_CODE_FILE_BYTES) continue;
     const absolutePath = join(projectDir, file.path);
     if (existsSync(absolutePath)) contents.set(file.path, readFileSync(absolutePath, "utf8"));
@@ -4433,11 +4736,13 @@ export function buildCodeGraph(projectDir: string, options: { force?: boolean } 
   const routes: CodeRouteNode[] = [];
   const tests: CodeTestEdge[] = [];
   for (const [rel, content] of contents) {
-    if (!TS_AST_EXTENSIONS.has(extensionOf(rel))) continue;
     if (calls.length >= MAX_CODE_GRAPH_CALLS) break;
     const fileSymbols = symbols.filter((symbol) => symbol.path === rel);
     const fileImports = imports.filter((item) => item.from_path === rel);
-    calls.push(...extractCalls(rel, content, fileSymbols, symbolByName).slice(0, Math.max(0, MAX_CODE_GRAPH_CALLS - calls.length)));
+    const fileCalls = TS_AST_EXTENSIONS.has(extensionOf(rel))
+      ? extractCalls(rel, content, fileSymbols, symbolByName)
+      : extractGenericCalls(rel, content, fileSymbols, symbolByName);
+    calls.push(...fileCalls.slice(0, Math.max(0, MAX_CODE_GRAPH_CALLS - calls.length)));
     routes.push(...extractRoutes(rel, content, fileSymbols));
     tests.push(...extractTests(rel, content, fileSymbols, fileImports));
   }
@@ -5907,6 +6212,1412 @@ export function queryCodeGraph(projectDir: string, query: string, limit = 10, gr
     structural_files: structuralFiles,
     structural_symbols: structuralSymbols,
     structural_edges: structuralEdges,
+  };
+}
+
+function gitLines(projectDir: string, args: string[]): string[] {
+  return (readGit(projectDir, args) ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+}
+
+interface GitCommitRecord {
+  author: string;
+  subject: string;
+  files: string[];
+}
+
+function gitCommitRecords(projectDir: string, limit = 1000): GitCommitRecord[] {
+  const raw = readGit(projectDir, ["log", `-${limit}`, "--format=__KAGE_COMMIT__%x1f%an <%ae>%x1f%s", "--name-only"]) ?? "";
+  const records: GitCommitRecord[] = [];
+  let current: GitCommitRecord | null = null;
+  for (const rawLine of raw.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (line.startsWith("__KAGE_COMMIT__")) {
+      if (current) records.push(current);
+      const [, author = "", subject = ""] = line.split("\x1f");
+      current = { author: author.trim(), subject: subject.trim(), files: [] };
+      continue;
+    }
+    if (current) current.files.push(line);
+  }
+  if (current) records.push(current);
+  return records;
+}
+
+function commitCategory(subject: string): string {
+  const text = subject.toLowerCase();
+  if (/^(fix|bug|hotfix|revert)(\b|\(|:)|\bfix(e[sd])?\b|\bbug\b/.test(text)) return "fix";
+  if (/^(feat|feature)(\b|\(|:)|\badd(ed|s)?\b|\bintroduce/.test(text)) return "feat";
+  if (/^(perf|performance)(\b|\(|:)|\boptimi[sz]e/.test(text)) return "perf";
+  if (/^(refactor|cleanup)(\b|\(|:)|\brename\b|\bmove\b/.test(text)) return "refactor";
+  if (/^(test|tests)(\b|\(|:)|\bspec\b/.test(text)) return "test";
+  if (/^(doc|docs)(\b|\(|:)|\breadme\b/.test(text)) return "docs";
+  if (/^(chore|build|ci|deps?)(\b|\(|:)|\bversion\b|\brelease\b|\bupgrade\b/.test(text)) return "chore";
+  return "other";
+}
+
+function gitCommitCountForPath(projectDir: string, path: string, since?: string): number {
+  const args = ["log", "--format=%H"];
+  if (since) args.push(`--since=${since}`);
+  args.push("--", path);
+  return gitLines(projectDir, args).length;
+}
+
+function gitPrimaryOwnerForPath(projectDir: string, path: string): Pick<GitFileSignal, "primary_owner" | "primary_owner_pct" | "contributor_count"> {
+  const authors = gitLines(projectDir, ["log", "--format=%an <%ae>", "--", path]);
+  if (!authors.length) return { primary_owner: null, primary_owner_pct: null, contributor_count: 0 };
+  const counts = new Map<string, number>();
+  for (const author of authors) counts.set(author, (counts.get(author) ?? 0) + 1);
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  return {
+    primary_owner: ranked[0]?.[0] ?? null,
+    primary_owner_pct: ranked[0] ? Number((ranked[0][1] / authors.length).toFixed(2)) : null,
+    contributor_count: ranked.length,
+  };
+}
+
+function gitAuthorCountsForPath(projectDir: string, path: string, since?: string): Map<string, number> {
+  const args = ["log", "--format=%an <%ae>"];
+  if (since) args.push(`--since=${since}`);
+  args.push("--", path);
+  const counts = new Map<string, number>();
+  for (const author of gitLines(projectDir, args)) counts.set(author, (counts.get(author) ?? 0) + 1);
+  return counts;
+}
+
+function gitCoChangePartnersForPath(projectDir: string, path: string, graphPaths: Set<string>): Array<{ file_path: string; count: number }> {
+  const commits = gitLines(projectDir, ["log", "--format=%H", "-n", "80", "--", path]);
+  const counts = new Map<string, number>();
+  for (const commit of commits) {
+    const changed = gitLines(projectDir, ["show", "--name-only", "--format=", "--no-renames", commit])
+      .filter((candidate) => candidate !== path && graphPaths.has(candidate));
+    if (changed.length > 200) continue;
+    for (const file of new Set(changed)) counts.set(file, (counts.get(file) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 5)
+    .map(([file_path, count]) => ({ file_path, count }));
+}
+
+function gitFileSignal(projectDir: string, path: string, graphPaths: Set<string>): GitFileSignal {
+  const total = gitCommitCountForPath(projectDir, path);
+  const owner = gitPrimaryOwnerForPath(projectDir, path);
+  return {
+    file_path: path,
+    commit_count_total: total,
+    commit_count_30d: gitCommitCountForPath(projectDir, path, "30 days ago"),
+    commit_count_90d: gitCommitCountForPath(projectDir, path, "90 days ago"),
+    last_commit_at: gitLines(projectDir, ["log", "-1", "--format=%cI", "--", path])[0] ?? null,
+    primary_owner: owner.primary_owner,
+    primary_owner_pct: owner.primary_owner_pct,
+    contributor_count: owner.contributor_count,
+    co_change_partners: gitCoChangePartnersForPath(projectDir, path, graphPaths),
+  };
+}
+
+function gitChangedFiles(projectDir: string): string[] {
+  return gitLines(projectDir, ["status", "--porcelain", "-uall"])
+    .map((line) => line.slice(3).trim().split(" -> ").at(-1) ?? "")
+    .filter(Boolean)
+    .map((path) => gitPathToProjectRelative(projectDir, path) ?? path)
+    .filter((path) => !isNoisePath(path));
+}
+
+function globalGitHotspots(projectDir: string, graph: CodeGraph): KageRiskReport["global_hotspots"] {
+  const graphPaths = new Set(graph.files.map((file) => file.path));
+  const counts = new Map<string, number>();
+  for (const line of gitLines(projectDir, ["log", "--since=90 days ago", "--name-only", "--format=__KAGE_COMMIT__", "-n", "1000"])) {
+    if (line === "__KAGE_COMMIT__" || !graphPaths.has(line)) continue;
+    counts.set(line, (counts.get(line) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 5)
+    .map(([file_path, commit_count_90d]) => {
+      const owner = gitPrimaryOwnerForPath(projectDir, file_path);
+      return {
+        file_path,
+        commit_count_90d,
+        hotspot_score: Number(Math.min(1, commit_count_90d / 20).toFixed(2)),
+        primary_owner: owner.primary_owner,
+      };
+	    });
+}
+
+function globalOwnershipSilos(projectDir: string, graph: CodeGraph): KageRiskReport["ownership_silos"] {
+  const candidates: KageRiskReport["ownership_silos"] = [];
+  for (const file of graph.files) {
+    if (file.kind !== "source") continue;
+    const owner = gitPrimaryOwnerForPath(projectDir, file.path);
+    const commitCount = gitCommitCountForPath(projectDir, file.path);
+    if (!owner.primary_owner || owner.primary_owner_pct == null) continue;
+    if (owner.primary_owner_pct < 0.8 || commitCount < 5) continue;
+    candidates.push({
+      file_path: file.path,
+      primary_owner: owner.primary_owner,
+      primary_owner_pct: owner.primary_owner_pct,
+      commit_count_total: commitCount,
+    });
+  }
+  return candidates
+    .sort((a, b) => b.primary_owner_pct - a.primary_owner_pct || b.commit_count_total - a.commit_count_total || a.file_path.localeCompare(b.file_path))
+    .slice(0, 10);
+}
+
+function codeDependents(graph: CodeGraph): Map<string, Set<string>> {
+  const dependents = new Map<string, Set<string>>();
+  for (const edge of graph.imports) {
+    if (!edge.to_path) continue;
+    const list = dependents.get(edge.to_path) ?? new Set<string>();
+    list.add(edge.from_path);
+    dependents.set(edge.to_path, list);
+  }
+  return dependents;
+}
+
+function impactSurface(target: string, dependents: Map<string, Set<string>>, graph: CodeGraph): string[] {
+  const visited = new Set<string>();
+  let frontier = new Set([target]);
+  for (let depth = 0; depth < 2; depth++) {
+    const next = new Set<string>();
+    for (const node of frontier) {
+      for (const dependent of dependents.get(node) ?? []) {
+        if (dependent === target || visited.has(dependent)) continue;
+        visited.add(dependent);
+        next.add(dependent);
+      }
+    }
+    frontier = next;
+  }
+  const dependentScore = new Map<string, number>();
+  for (const [path, incoming] of dependents.entries()) dependentScore.set(path, incoming.size);
+  return [...visited]
+    .sort((a, b) => (dependentScore.get(b) ?? 0) - (dependentScore.get(a) ?? 0) || a.localeCompare(b))
+    .slice(0, 5);
+}
+
+function hasTestCoverage(target: string, graph: CodeGraph): boolean {
+  const file = graph.files.find((candidate) => candidate.path === target);
+  if (file?.kind === "test") return true;
+  if (graph.tests.some((test) => test.covers_path === target)) return true;
+  const base = basename(target).replace(/\.[^.]+$/, "").toLowerCase();
+  return graph.files.some((candidate) => {
+    if (candidate.kind !== "test") return false;
+    const lower = candidate.path.toLowerCase();
+    return lower.includes(`test_${base}`) || lower.includes(`${base}_test`) || lower.includes(`${base}.spec`) || lower.includes(`${base}.test`);
+  });
+}
+
+function classifyRisk(git: GitFileSignal, dependentsCount: number, testGap: boolean): KageRiskTarget["risk_type"] {
+  if (!git.commit_count_total && !dependentsCount) return "unknown";
+  if (git.commit_count_30d >= 5 || git.commit_count_90d >= 15) return "churn-heavy";
+  if (dependentsCount >= 5) return "high-coupling";
+  if ((git.primary_owner_pct ?? 0) >= 0.8 && git.commit_count_total >= 10) return "single-owner";
+  if (testGap && (dependentsCount > 0 || git.commit_count_90d > 0)) return "test-gap";
+  return "stable";
+}
+
+export function kageRisk(projectDir: string, targets: string[] = [], changedFiles: string[] = []): KageRiskReport {
+  const graph = readCurrentCodeGraph(projectDir) ?? buildCodeGraph(projectDir);
+  const graphPaths = new Set(graph.files.map((file) => file.path));
+  const dependents = codeDependents(graph);
+  const resolvedTargets = unique((targets.length ? targets : changedFiles.length ? changedFiles : gitChangedFiles(projectDir))
+    .map((path) => gitPathToProjectRelative(projectDir, path) ?? path)
+    .filter((path) => path && !isNoisePath(path)));
+  const warnings: string[] = [];
+  if (!gitHead(projectDir)) warnings.push("Git history is unavailable, so churn, ownership, and co-change signals may be empty.");
+  if (!resolvedTargets.length) warnings.push("No targets supplied and no changed files detected.");
+  const changeSet = new Set(resolvedTargets);
+
+  const targetMap: Record<string, KageRiskTarget> = {};
+  for (const target of resolvedTargets) {
+    const directDependents = [...(dependents.get(target) ?? [])].sort();
+    const git = gitFileSignal(projectDir, target, graphPaths);
+    const testGap = !hasTestCoverage(target, graph);
+    const coChangeWarnings = git.co_change_partners.map((partner) => ({
+      file_path: partner.file_path,
+      count: partner.count,
+      included_in_change: changeSet.has(partner.file_path),
+    }));
+    const missingCoChanges = coChangeWarnings.filter((partner) => !partner.included_in_change);
+    const hotspotScore = Number(Math.min(1, (git.commit_count_30d / 6) * 0.5 + (git.commit_count_90d / 20) * 0.5).toFixed(2));
+    const riskType = classifyRisk(git, directDependents.length, testGap);
+    const owner = git.primary_owner ?? "unknown";
+    targetMap[target] = {
+      target,
+      exists_in_code_graph: graphPaths.has(target),
+      hotspot_score: hotspotScore,
+      risk_type: riskType,
+      dependents_count: directDependents.length,
+      dependents: directDependents.slice(0, 10),
+      impact_surface: impactSurface(target, dependents, graph),
+      test_gap: testGap,
+      co_change_warnings: coChangeWarnings,
+      git,
+      risk_summary: `${target} - ${riskType}, hotspot ${Math.round(hotspotScore * 100)}%, ${directDependents.length} direct dependents, ${git.commit_count_90d} commits in 90d, owner ${owner}${testGap ? ", test gap" : ""}${missingCoChanges.length ? `, ${missingCoChanges.length} co-change partner(s) not in this change` : ""}.`,
+    };
+  }
+
+  return {
+    schema_version: 1,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    targets: targetMap,
+    global_hotspots: globalGitHotspots(projectDir, graph),
+    ownership_silos: globalOwnershipSilos(projectDir, graph),
+    changed_files: changedFiles.length ? changedFiles : undefined,
+    warnings,
+  };
+}
+
+function resolveCodeGraphPath(projectDir: string, graph: CodeGraph, input: string, warnings: string[], label: string): string | null {
+  const normalized = (gitPathToProjectRelative(projectDir, input) ?? input).replace(/\\/g, "/").replace(/^\.\//, "");
+  const paths = graph.files.map((file) => file.path);
+  if (paths.includes(normalized)) return normalized;
+  const suffixMatches = paths.filter((path) => path.endsWith(`/${normalized}`) || path === normalized);
+  if (suffixMatches.length === 1) return suffixMatches[0];
+  if (suffixMatches.length > 1) {
+    warnings.push(`${label} "${input}" is ambiguous: ${suffixMatches.slice(0, 5).join(", ")}`);
+    return null;
+  }
+  const nameMatches = paths.filter((path) => basename(path) === normalized || basename(path) === basename(normalized));
+  if (nameMatches.length === 1) return nameMatches[0];
+  if (nameMatches.length > 1) warnings.push(`${label} "${input}" matched multiple files by name: ${nameMatches.slice(0, 5).join(", ")}`);
+  else warnings.push(`${label} "${input}" was not found in the code graph.`);
+  return null;
+}
+
+function importEdgeKey(from: string, to: string): string {
+  return `${from}\u0000${to}`;
+}
+
+function dependencyAdjacency(graph: CodeGraph, mode: "forward" | "reverse" | "undirected"): { adjacency: Map<string, Set<string>>; edges: Map<string, CodeImportEdge> } {
+  const adjacency = new Map<string, Set<string>>();
+  const edges = new Map<string, CodeImportEdge>();
+  const add = (from: string, to: string, edge: CodeImportEdge) => {
+    const next = adjacency.get(from) ?? new Set<string>();
+    next.add(to);
+    adjacency.set(from, next);
+    if (!edges.has(importEdgeKey(from, to))) edges.set(importEdgeKey(from, to), edge);
+  };
+  for (const edge of graph.imports) {
+    if (!edge.to_path) continue;
+    if (mode === "forward" || mode === "undirected") add(edge.from_path, edge.to_path, edge);
+    if (mode === "reverse" || mode === "undirected") add(edge.to_path, edge.from_path, edge);
+  }
+  return { adjacency, edges };
+}
+
+function shortestDependencyPath(graph: CodeGraph, from: string, to: string, mode: "forward" | "reverse" | "undirected"): { path: string[]; edges: KageDependencyPathResult["edges"] } | null {
+  if (from === to) return { path: [from], edges: [] };
+  const { adjacency, edges } = dependencyAdjacency(graph, mode);
+  const queue = [from];
+  const previous = new Map<string, string | null>([[from, null]]);
+  for (let index = 0; index < queue.length; index += 1) {
+    const current = queue[index];
+    for (const next of [...(adjacency.get(current) ?? [])].sort()) {
+      if (previous.has(next)) continue;
+      previous.set(next, current);
+      if (next === to) {
+        const path = [to];
+        let cursor: string | null = current;
+        while (cursor) {
+          path.push(cursor);
+          cursor = previous.get(cursor) ?? null;
+        }
+        path.reverse();
+        const pathEdges: KageDependencyPathResult["edges"] = [];
+        for (let i = 0; i < path.length - 1; i += 1) {
+          const a = path[i];
+          const b = path[i + 1];
+          const edge = edges.get(importEdgeKey(a, b));
+          const reverseEdge = edges.get(importEdgeKey(b, a));
+          const source = edge ?? reverseEdge;
+          if (!source) continue;
+          pathEdges.push({
+            from_path: source.from_path,
+            to_path: source.to_path ?? b,
+            kind: source.kind,
+            specifier: source.specifier,
+            line: source.line,
+            direction: source.from_path === a ? "forward" : "reverse",
+          });
+        }
+        return { path, edges: pathEdges };
+      }
+      queue.push(next);
+    }
+  }
+  return null;
+}
+
+export function kageDependencyPath(projectDir: string, from: string, to: string): KageDependencyPathResult {
+  const graph = readCurrentCodeGraph(projectDir) ?? buildCodeGraph(projectDir);
+  const warnings: string[] = [];
+  const resolvedFrom = resolveCodeGraphPath(projectDir, graph, from, warnings, "Source");
+  const resolvedTo = resolveCodeGraphPath(projectDir, graph, to, warnings, "Target");
+  if (!resolvedFrom || !resolvedTo) {
+    return {
+      schema_version: 1,
+      project_dir: projectDir,
+      generated_at: nowIso(),
+      from,
+      to,
+      resolved_from: resolvedFrom,
+      resolved_to: resolvedTo,
+      relation: "none",
+      path: [],
+      edges: [],
+      distance: null,
+      summary: "No dependency path could be computed because one or both targets were not resolved.",
+      warnings,
+    };
+  }
+
+  const forward = shortestDependencyPath(graph, resolvedFrom, resolvedTo, "forward");
+  if (forward) {
+    return {
+      schema_version: 1,
+      project_dir: projectDir,
+      generated_at: nowIso(),
+      from,
+      to,
+      resolved_from: resolvedFrom,
+      resolved_to: resolvedTo,
+      relation: "source_depends_on_target",
+      path: forward.path,
+      edges: forward.edges,
+      distance: Math.max(0, forward.path.length - 1),
+      summary: `${resolvedFrom} depends on ${resolvedTo} through ${Math.max(0, forward.path.length - 1)} import edge(s).`,
+      warnings,
+    };
+  }
+
+  const reverse = shortestDependencyPath(graph, resolvedTo, resolvedFrom, "forward");
+  if (reverse) {
+    return {
+      schema_version: 1,
+      project_dir: projectDir,
+      generated_at: nowIso(),
+      from,
+      to,
+      resolved_from: resolvedFrom,
+      resolved_to: resolvedTo,
+      relation: "target_depends_on_source",
+      path: reverse.path.slice().reverse(),
+      edges: reverse.edges.slice().reverse(),
+      distance: Math.max(0, reverse.path.length - 1),
+      summary: `${resolvedTo} depends on ${resolvedFrom}; changing ${resolvedFrom} may affect ${resolvedTo}.`,
+      warnings,
+    };
+  }
+
+  const undirected = shortestDependencyPath(graph, resolvedFrom, resolvedTo, "undirected");
+  if (undirected) {
+    return {
+      schema_version: 1,
+      project_dir: projectDir,
+      generated_at: nowIso(),
+      from,
+      to,
+      resolved_from: resolvedFrom,
+      resolved_to: resolvedTo,
+      relation: "connected_undirected",
+      path: undirected.path,
+      edges: undirected.edges,
+      distance: Math.max(0, undirected.path.length - 1),
+      summary: `${resolvedFrom} and ${resolvedTo} are connected in the import graph, but not by a direct dependency direction from source to target.`,
+      warnings,
+    };
+  }
+
+  return {
+    schema_version: 1,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    from,
+    to,
+    resolved_from: resolvedFrom,
+    resolved_to: resolvedTo,
+    relation: "none",
+    path: [],
+    edges: [],
+    distance: null,
+    summary: `${resolvedFrom} and ${resolvedTo} are not connected in the current code graph.`,
+    warnings,
+  };
+}
+
+function isEntrypointLike(path: string): boolean {
+  const name = basename(path).replace(/\.[^.]+$/, "").toLowerCase();
+  if (["index", "main", "server", "app", "cli", "bin", "daemon", "worker", "setup", "config"].includes(name)) return true;
+  return /(^|\/)(bin|scripts|commands|pages|app|routes)\//.test(path);
+}
+
+function cleanupConfidence(score: number): KageCleanupCandidate["confidence"] {
+  if (score >= 0.8) return "high";
+  if (score >= 0.55) return "medium";
+  return "low";
+}
+
+function runtimeReferenceNeedles(path: string): string[] {
+  const withoutExtension = path.replace(/\.[^.]+$/, "");
+  const compiledJs = /\.(?:ts|tsx|mts|cts)$/.test(path) ? path.replace(/\.(?:ts|tsx|mts|cts)$/, ".js") : path;
+  return unique([
+    path,
+    compiledJs,
+    basename(path),
+    basename(compiledJs),
+    basename(withoutExtension),
+  ]).filter((item) => item.length >= 4);
+}
+
+function hasRuntimePathReference(projectDir: string, graph: CodeGraph, target: string): boolean {
+  const needles = runtimeReferenceNeedles(target);
+  for (const file of graph.files) {
+    if (file.path === target) continue;
+    if (!["source", "config", "manifest"].includes(file.kind)) continue;
+    if (file.size_bytes > MAX_CODE_FILE_BYTES) continue;
+    const absolutePath = join(projectDir, file.path);
+    if (!existsSync(absolutePath)) continue;
+    const text = readFileSync(absolutePath, "utf8");
+    if (needles.some((needle) => text.includes(needle))) return true;
+  }
+  return false;
+}
+
+export function kageCleanupCandidates(projectDir: string): KageCleanupCandidatesReport {
+  const graph = readCurrentCodeGraph(projectDir) ?? buildCodeGraph(projectDir);
+  const fileByPath = new Map(graph.files.map((file) => [file.path, file]));
+  const graphPaths = new Set(graph.files.map((file) => file.path));
+  const inbound = new Map<string, CodeImportEdge[]>();
+  const outbound = new Map<string, CodeImportEdge[]>();
+  for (const edge of graph.imports) {
+    if (!edge.to_path) continue;
+    const inList = inbound.get(edge.to_path) ?? [];
+    inList.push(edge);
+    inbound.set(edge.to_path, inList);
+    const outList = outbound.get(edge.from_path) ?? [];
+    outList.push(edge);
+    outbound.set(edge.from_path, outList);
+  }
+  const routeFiles = new Set(graph.routes.map((route) => route.file_path));
+  const skippedEntryPoints: string[] = [];
+  const warnings: string[] = [];
+  const hasGit = Boolean(gitHead(projectDir));
+  if (!hasGit) warnings.push("Git history is unavailable, so cleanup confidence does not use recency.");
+  const candidates: KageCleanupCandidate[] = [];
+  const skippedRuntimeReferences: string[] = [];
+
+  for (const file of graph.files) {
+    if (file.kind !== "source") continue;
+    if (isEntrypointLike(file.path) || routeFiles.has(file.path)) {
+      skippedEntryPoints.push(file.path);
+      continue;
+    }
+    const inboundEdges = inbound.get(file.path) ?? [];
+    const sourceInbound = inboundEdges.filter((edge) => fileByPath.get(edge.from_path)?.kind === "source");
+    if (inboundEdges.length > 0 || sourceInbound.length > 0) continue;
+    if (hasRuntimePathReference(projectDir, graph, file.path)) {
+      skippedRuntimeReferences.push(file.path);
+      continue;
+    }
+    const coveredByTests = hasTestCoverage(file.path, graph);
+    const git = hasGit ? gitFileSignal(projectDir, file.path, graphPaths) : null;
+    const reasons = [
+      "no inbound imports in the current code graph",
+      "not recognized as an entrypoint or route file",
+    ];
+    let score = 0.55;
+    if (!coveredByTests) {
+      score += 0.15;
+      reasons.push("no direct test coverage signal");
+    } else {
+      reasons.push("has a test coverage signal, verify before cleanup");
+    }
+    if (git && git.commit_count_90d === 0) {
+      score += 0.15;
+      reasons.push("no commits in the last 90 days");
+    } else if (git && git.commit_count_90d > 0) {
+      score -= 0.1;
+      reasons.push(`${git.commit_count_90d} commit(s) in the last 90 days`);
+    }
+    if (file.line_count <= 20) score += 0.05;
+    score = Number(Math.max(0, Math.min(1, score)).toFixed(2));
+    candidates.push({
+      path: file.path,
+      kind: "unreferenced_file",
+      confidence: cleanupConfidence(score),
+      score,
+      reasons,
+      inbound_imports: inboundEdges.length,
+      source_inbound_imports: sourceInbound.length,
+      outbound_imports: (outbound.get(file.path) ?? []).length,
+      covered_by_tests: coveredByTests,
+      last_commit_at: git?.last_commit_at ?? null,
+    });
+  }
+
+  candidates.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
+  return {
+    schema_version: 1,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    candidates,
+    skipped_entrypoints: skippedEntryPoints.sort(),
+    skipped_runtime_references: skippedRuntimeReferences.sort(),
+    warnings,
+    summary: `${candidates.length} conservative cleanup candidate(s), ${skippedEntryPoints.length} entrypoint-like source file(s) skipped, ${skippedRuntimeReferences.length} runtime reference(s) skipped.`,
+  };
+}
+
+export function kageReviewerSuggestions(projectDir: string, targets: string[] = [], changedFiles: string[] = []): KageReviewerSuggestionsReport {
+  const graph = readCurrentCodeGraph(projectDir) ?? buildCodeGraph(projectDir);
+  const graphPaths = new Set(graph.files.map((file) => file.path));
+  const resolvedTargets = unique((targets.length ? targets : changedFiles.length ? changedFiles : gitChangedFiles(projectDir))
+    .map((path) => gitPathToProjectRelative(projectDir, path) ?? path)
+    .filter((path) => path && !isNoisePath(path)));
+  const warnings: string[] = [];
+  if (!gitHead(projectDir)) warnings.push("Git history is unavailable, so reviewer suggestions cannot be computed.");
+  if (!resolvedTargets.length) warnings.push("No targets supplied and no changed files detected.");
+
+  const scores = new Map<string, KageReviewerSuggestion>();
+  const ensure = (reviewer: string): KageReviewerSuggestion => {
+    const existing = scores.get(reviewer);
+    if (existing) return existing;
+    const created: KageReviewerSuggestion = {
+      reviewer,
+      score: 0,
+      reasons: [],
+      authored_targets: [],
+      cochange_targets: [],
+      commit_count_total: 0,
+      commit_count_90d: 0,
+    };
+    scores.set(reviewer, created);
+    return created;
+  };
+
+  for (const target of resolvedTargets) {
+    const allAuthors = gitAuthorCountsForPath(projectDir, target);
+    const recentAuthors = gitAuthorCountsForPath(projectDir, target, "90 days ago");
+    for (const [author, count] of allAuthors.entries()) {
+      const item = ensure(author);
+      item.score += Math.min(30, count * 4);
+      item.commit_count_total += count;
+      if (!item.authored_targets.includes(target)) item.authored_targets.push(target);
+      item.reasons.push(`${count} historical commit(s) on ${target}`);
+    }
+    for (const [author, count] of recentAuthors.entries()) {
+      const item = ensure(author);
+      item.score += Math.min(20, count * 5);
+      item.commit_count_90d += count;
+      item.reasons.push(`${count} recent commit(s) on ${target}`);
+    }
+    for (const partner of gitCoChangePartnersForPath(projectDir, target, graphPaths)) {
+      const owner = gitPrimaryOwnerForPath(projectDir, partner.file_path).primary_owner;
+      if (!owner) continue;
+      const item = ensure(owner);
+      item.score += Math.min(12, partner.count * 3);
+      if (!item.cochange_targets.includes(partner.file_path)) item.cochange_targets.push(partner.file_path);
+      item.reasons.push(`${partner.file_path} changed with ${target} ${partner.count} time(s)`);
+    }
+  }
+
+  const suggestions = [...scores.values()]
+    .map((item) => ({
+      ...item,
+      score: Number(Math.min(100, item.score).toFixed(2)),
+      reasons: unique(item.reasons).slice(0, 8),
+      authored_targets: item.authored_targets.sort(),
+      cochange_targets: item.cochange_targets.sort(),
+    }))
+    .sort((a, b) => b.score - a.score || a.reviewer.localeCompare(b.reviewer))
+    .slice(0, 5);
+
+  return {
+    schema_version: 1,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    targets: resolvedTargets,
+    suggestions,
+    warnings,
+    summary: suggestions.length
+      ? `Suggested ${suggestions.length} reviewer(s) for ${resolvedTargets.length} target file(s).`
+      : `No reviewer suggestions for ${resolvedTargets.length} target file(s).`,
+  };
+}
+
+export function kageContributors(projectDir: string): KageContributorsReport {
+  const graph = readCurrentCodeGraph(projectDir) ?? buildCodeGraph(projectDir);
+  const graphPaths = new Set(graph.files.map((file) => file.path));
+  const warnings: string[] = [];
+  if (!gitHead(projectDir)) warnings.push("Git history is unavailable, so contributor profiles cannot be computed.");
+
+  const byContributor = new Map<string, {
+    commits_total: number;
+    files: Map<string, number>;
+    categories: Map<string, number>;
+  }>();
+  const ensure = (contributor: string) => {
+    const existing = byContributor.get(contributor);
+    if (existing) return existing;
+    const created = { commits_total: 0, files: new Map<string, number>(), categories: new Map<string, number>() };
+    byContributor.set(contributor, created);
+    return created;
+  };
+
+  for (const record of gitCommitRecords(projectDir)) {
+    if (!record.author) continue;
+    const item = ensure(record.author);
+    item.commits_total += 1;
+    const category = commitCategory(record.subject);
+    item.categories.set(category, (item.categories.get(category) ?? 0) + 1);
+    for (const file of unique(record.files.map((path) => gitPathToProjectRelative(projectDir, path) ?? path)).filter((path) => graphPaths.has(path))) {
+      item.files.set(file, (item.files.get(file) ?? 0) + 1);
+    }
+  }
+
+  const recentCommits = new Map<string, number>();
+  for (const author of gitLines(projectDir, ["log", "--since=90 days ago", "--format=%an <%ae>"])) {
+    recentCommits.set(author, (recentCommits.get(author) ?? 0) + 1);
+  }
+
+  const ownedFiles = new Map<string, Array<{ path: string; ownership_pct: number; commits: number }>>();
+  for (const file of graph.files.filter((item) => item.kind === "source")) {
+    const owner = gitPrimaryOwnerForPath(projectDir, file.path);
+    if (!owner.primary_owner || owner.primary_owner_pct == null) continue;
+    const commits = gitCommitCountForPath(projectDir, file.path);
+    const list = ownedFiles.get(owner.primary_owner) ?? [];
+    list.push({ path: file.path, ownership_pct: owner.primary_owner_pct, commits });
+    ownedFiles.set(owner.primary_owner, list);
+  }
+
+  const hotspots = globalGitHotspots(projectDir, graph);
+  const profiles: KageContributorProfile[] = [...byContributor.entries()].map(([contributor, item]) => {
+    const filesTouched = [...item.files.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 8)
+      .map(([path, commits]) => ({ path, commits }));
+    const modules = countBy([...item.files.keys()], moduleNameForPath);
+    const modulesTouched = Object.entries(modules)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 6)
+      .map(([module, files]) => ({ module, files }));
+    const owned = (ownedFiles.get(contributor) ?? []).sort((a, b) => b.ownership_pct - a.ownership_pct || b.commits - a.commits || a.path.localeCompare(b.path));
+    const siloFiles = owned.filter((file) => file.ownership_pct >= 0.8 && file.commits >= 5).slice(0, 8);
+    const hotspotFiles = hotspots
+      .filter((hotspot) => hotspot.primary_owner === contributor)
+      .map((hotspot) => ({ path: hotspot.file_path, hotspot_score: hotspot.hotspot_score, commits_90d: hotspot.commit_count_90d }))
+      .slice(0, 6);
+    const categories = Object.fromEntries([...item.categories.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])));
+    return {
+      contributor,
+      commits_total: item.commits_total,
+      commits_90d: recentCommits.get(contributor) ?? 0,
+      files_touched: filesTouched,
+      modules_touched: modulesTouched,
+      primary_owned_files: owned.length,
+      silo_files: siloFiles,
+      hotspot_files: hotspotFiles,
+      commit_categories: categories,
+      summary: `${contributor}: ${item.commits_total} commit(s), ${recentCommits.get(contributor) ?? 0} in 90d, ${owned.length} primary-owned source file(s), ${siloFiles.length} silo file(s).`,
+    };
+  })
+    .sort((a, b) => b.commits_90d - a.commits_90d || b.commits_total - a.commits_total || a.contributor.localeCompare(b.contributor))
+    .slice(0, 20);
+
+  return {
+    schema_version: 1,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    contributors: profiles,
+    warnings,
+    summary: profiles.length
+      ? `${profiles.length} contributor profile(s). Most active: ${profiles[0].contributor} with ${profiles[0].commits_90d} commit(s) in 90d.`
+      : "No contributor profiles could be computed.",
+  };
+}
+
+const DECISION_INTELLIGENCE_TYPES = new Set<MemoryType>([
+  "bug_fix",
+  "code_explanation",
+  "constraint",
+  "convention",
+  "decision",
+  "gotcha",
+  "negative_result",
+  "policy",
+  "rationale",
+  "runbook",
+  "workflow",
+]);
+
+function decisionContextValue(packet: MemoryPacket, key: keyof EngineeringMemoryContext): string | null {
+  const value = packet.context?.[key];
+  if (Array.isArray(value)) return value.join("; ");
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function qualityScore(packet: MemoryPacket): number | null {
+  const score = Number((packet.quality as Record<string, unknown>).score);
+  return Number.isFinite(score) ? score : null;
+}
+
+export function kageDecisionIntelligence(projectDir: string): KageDecisionIntelligenceReport {
+  const graph = readCurrentCodeGraph(projectDir) ?? buildCodeGraph(projectDir);
+  const graphPaths = new Set(graph.files.map((file) => file.path));
+  const sourcePaths = new Set(graph.files.filter((file) => file.kind === "source" || file.kind === "test").map((file) => file.path));
+  const approved = loadApprovedPackets(projectDir);
+  const decisionPackets = approved.filter((packet) => DECISION_INTELLIGENCE_TYPES.has(packet.type));
+  const warnings: string[] = [];
+  const packetsByPath = new Map<string, MemoryPacket[]>();
+  const byType = countBy(decisionPackets, (packet) => packet.type);
+
+  for (const packet of decisionPackets) {
+    for (const path of packet.paths.filter((item) => sourcePaths.has(item))) {
+      const list = packetsByPath.get(path) ?? [];
+      list.push(packet);
+      packetsByPath.set(path, list);
+    }
+  }
+
+  const { forward, reverse } = codeGraphAdjacency(graph);
+  const rank = filePageRank(graph, forward);
+  const hotspots = new Map(globalGitHotspots(projectDir, graph).map((hotspot) => [hotspot.file_path, hotspot]));
+  const coverageGaps: KageDecisionCoverageGap[] = graph.files
+    .filter((file) => sourcePaths.has(file.path) && !packetsByPath.has(file.path))
+    .map((file) => {
+      const hotspot = hotspots.get(file.path);
+      const dependents = reverse.get(file.path)?.size ?? 0;
+      const churn90d = hotspot?.commit_count_90d ?? (gitHead(projectDir) ? gitCommitCountForPath(projectDir, file.path, "90 days ago") : 0);
+      const signals: string[] = [];
+      if (dependents) signals.push(`${dependents} dependent(s)`);
+      if (churn90d) signals.push(`${churn90d} commit(s) in 90d`);
+      if (file.kind === "source" && !hasTestCoverage(file.path, graph)) signals.push("no direct test signal");
+      return {
+        path: file.path,
+        reason: signals.length ? `No decision memory despite ${signals.join(", ")}.` : "No decision memory is linked to this code path.",
+        dependents,
+        churn_90d: churn90d,
+        primary_owner: hotspot?.primary_owner ?? gitPrimaryOwnerForPath(projectDir, file.path).primary_owner,
+      };
+    })
+    .sort((a, b) => {
+      const aScore = (rank.get(a.path) ?? 0) * 1000 + a.dependents * 10 + a.churn_90d;
+      const bScore = (rank.get(b.path) ?? 0) * 1000 + b.dependents * 10 + b.churn_90d;
+      return bScore - aScore || a.path.localeCompare(b.path);
+    })
+    .slice(0, 20);
+
+  const topDecisions = decisionPackets
+    .map((packet): KageDecisionMemoryItem => ({
+      packet_id: packet.id,
+      title: packet.title,
+      type: packet.type,
+      paths: packet.paths.filter((path) => graphPaths.has(path)).slice(0, 8),
+      summary: packet.summary,
+      why: decisionContextValue(packet, "why"),
+      risk_if_forgotten: decisionContextValue(packet, "risk_if_forgotten"),
+      verification: decisionContextValue(packet, "verification"),
+      quality_score: qualityScore(packet),
+    }))
+    .sort((a, b) => (b.quality_score ?? 0) - (a.quality_score ?? 0) || b.paths.length - a.paths.length || a.title.localeCompare(b.title))
+    .slice(0, 20);
+
+  const weakOrStale = decisionPackets
+    .map((packet) => {
+      const quality = evaluateMemoryQuality(projectDir, packet);
+      const reasons = unique([
+        ...staleMemoryReasons(projectDir, packet),
+        ...((quality.risks as string[]) ?? []),
+      ]);
+      if (qualityScore(packet) !== null && Number(quality.score) < 72 && !reasons.includes(`quality score ${quality.score}`)) {
+        reasons.push(`quality score ${quality.score}`);
+      }
+      return { packet, reasons };
+    })
+    .filter((item) => item.reasons.length > 0)
+    .sort((a, b) => b.reasons.length - a.reasons.length || a.packet.title.localeCompare(b.packet.title))
+    .slice(0, 20)
+    .map((item) => ({
+      packet_id: item.packet.id,
+      title: item.packet.title,
+      type: item.packet.type,
+      reasons: item.reasons,
+      paths: item.packet.paths.slice(0, 8),
+    }));
+
+  if (!gitHead(projectDir)) warnings.push("Git history is unavailable, so coverage gaps do not include churn or ownership signals.");
+  const coveragePercent = percent(packetsByPath.size, sourcePaths.size);
+  return {
+    schema_version: 1,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    decision_memory_count: decisionPackets.length,
+    code_paths_with_memory: packetsByPath.size,
+    code_paths_total: sourcePaths.size,
+    coverage_percent: coveragePercent,
+    by_type: byType,
+    top_decisions: topDecisions,
+    coverage_gaps: coverageGaps,
+    weak_or_stale_memory: weakOrStale,
+    warnings,
+    summary: `${decisionPackets.length} why-memory packet(s) cover ${packetsByPath.size}/${sourcePaths.size} code path(s) (${coveragePercent}%). ${coverageGaps.length} high-signal uncovered path(s) surfaced.`,
+  };
+}
+
+function moduleNameForPath(path: string): string {
+  const parts = path.split("/");
+  if (parts.length <= 1) return "(root)";
+  if (parts[0] === "mcp" && parts.length > 2) return `${parts[0]}/${parts[1]}`;
+  return parts[0];
+}
+
+function moduleGrade(score: number): KageModuleHealthItem["grade"] {
+  if (score >= 85) return "A";
+  if (score >= 70) return "B";
+  if (score >= 50) return "C";
+  return "D";
+}
+
+export function kageModuleHealth(projectDir: string): KageModuleHealthReport {
+  const graph = readCurrentCodeGraph(projectDir) ?? buildCodeGraph(projectDir);
+  const cleanup = kageCleanupCandidates(projectDir);
+  const cleanupByModule = countBy(cleanup.candidates, (candidate) => moduleNameForPath(candidate.path));
+  const warnings = [...cleanup.warnings];
+  const hasGit = Boolean(gitHead(projectDir));
+  if (!hasGit) warnings.push("Git history is unavailable, so module health excludes churn and ownership signals.");
+
+  const modules = new Map<string, CodeFileNode[]>();
+  for (const file of graph.files) {
+    const name = moduleNameForPath(file.path);
+    const list = modules.get(name) ?? [];
+    list.push(file);
+    modules.set(name, list);
+  }
+
+  const items: KageModuleHealthItem[] = [];
+  for (const [module, files] of modules.entries()) {
+    const paths = new Set(files.map((file) => file.path));
+    const sourceFiles = files.filter((file) => file.kind === "source");
+    const testFiles = files.filter((file) => file.kind === "test");
+    const symbols = graph.symbols.filter((symbol) => paths.has(symbol.path)).length;
+    const imports = graph.imports.filter((edge) => paths.has(edge.from_path)).length;
+    const routes = graph.routes.filter((route) => paths.has(route.file_path)).length;
+    const tests = graph.tests.filter((test) => paths.has(test.test_path)).length;
+    const cleanupCandidates = cleanupByModule[module] ?? 0;
+    const testGapFiles = sourceFiles.filter((file) => !hasTestCoverage(file.path, graph)).length;
+    let churn90d = 0;
+    const ownerCounts = new Map<string, number>();
+    if (hasGit) {
+      for (const file of sourceFiles) {
+        churn90d += gitCommitCountForPath(projectDir, file.path, "90 days ago");
+        const owner = gitPrimaryOwnerForPath(projectDir, file.path).primary_owner;
+        if (owner) ownerCounts.set(owner, (ownerCounts.get(owner) ?? 0) + 1);
+      }
+    }
+    const primaryOwners = [...ownerCounts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 3)
+      .map(([owner, count]) => ({ owner, files: count }));
+    const singleOwnerPenalty = primaryOwners[0] && sourceFiles.length >= 3 && primaryOwners[0].files / sourceFiles.length >= 0.8 ? 10 : 0;
+    let score = 100;
+    score -= Math.min(30, churn90d * 2);
+    score -= Math.min(25, testGapFiles * 5);
+    score -= Math.min(20, cleanupCandidates * 10);
+    score -= singleOwnerPenalty;
+    score = Number(Math.max(0, Math.min(100, score)).toFixed(2));
+    const reasons: string[] = [];
+    if (churn90d) reasons.push(`${churn90d} commit(s) in 90 days`);
+    if (testGapFiles) reasons.push(`${testGapFiles} source file(s) lack direct test signal`);
+    if (cleanupCandidates) reasons.push(`${cleanupCandidates} cleanup candidate(s)`);
+    if (singleOwnerPenalty) reasons.push("ownership concentrated in one primary owner");
+    if (!reasons.length) reasons.push("low churn, no cleanup candidates, and no source test gaps detected");
+    items.push({
+      module,
+      score,
+      grade: moduleGrade(score),
+      files: files.length,
+      source_files: sourceFiles.length,
+      test_files: testFiles.length,
+      symbols,
+      imports,
+      routes,
+      tests,
+      cleanup_candidates: cleanupCandidates,
+      test_gap_files: testGapFiles,
+      churn_90d: churn90d,
+      primary_owners: primaryOwners,
+      reasons,
+    });
+  }
+
+  items.sort((a, b) => a.score - b.score || b.files - a.files || a.module.localeCompare(b.module));
+  return {
+    schema_version: 1,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    modules: items,
+    warnings: unique(warnings),
+    summary: `${items.length} module health scorecard(s). Lowest score: ${items[0] ? `${items[0].module} ${items[0].score}` : "none"}.`,
+  };
+}
+
+function codeGraphAdjacency(graph: CodeGraph): { forward: Map<string, Set<string>>; reverse: Map<string, Set<string>> } {
+  const paths = new Set(graph.files.map((file) => file.path));
+  const forward = new Map<string, Set<string>>();
+  const reverse = new Map<string, Set<string>>();
+  for (const file of graph.files) {
+    forward.set(file.path, new Set());
+    reverse.set(file.path, new Set());
+  }
+  for (const edge of graph.imports) {
+    if (!edge.to_path || !paths.has(edge.from_path) || !paths.has(edge.to_path)) continue;
+    forward.get(edge.from_path)!.add(edge.to_path);
+    reverse.get(edge.to_path)!.add(edge.from_path);
+  }
+  return { forward, reverse };
+}
+
+function filePageRank(graph: CodeGraph, forward: Map<string, Set<string>>): Map<string, number> {
+  const paths = graph.files.map((file) => file.path);
+  const n = paths.length || 1;
+  const rank = new Map(paths.map((path) => [path, 1 / n]));
+  const damping = 0.85;
+  for (let iteration = 0; iteration < 20; iteration += 1) {
+    const next = new Map(paths.map((path) => [path, (1 - damping) / n]));
+    for (const path of paths) {
+      const outs = [...(forward.get(path) ?? [])];
+      const share = (rank.get(path) ?? 0) / Math.max(1, outs.length);
+      if (!outs.length) {
+        for (const target of paths) next.set(target, (next.get(target) ?? 0) + damping * share / n);
+      } else {
+        for (const target of outs) next.set(target, (next.get(target) ?? 0) + damping * share);
+      }
+    }
+    rank.clear();
+    for (const [path, score] of next) rank.set(path, score);
+  }
+  return rank;
+}
+
+function dependencyCycles(graph: CodeGraph, forward: Map<string, Set<string>>): KageGraphInsightsReport["dependency_cycles"] {
+  const paths = graph.files.map((file) => file.path);
+  const indexByPath = new Map<string, number>();
+  const lowByPath = new Map<string, number>();
+  const stack: string[] = [];
+  const onStack = new Set<string>();
+  const components: string[][] = [];
+  let index = 0;
+  const strongConnect = (path: string) => {
+    indexByPath.set(path, index);
+    lowByPath.set(path, index);
+    index += 1;
+    stack.push(path);
+    onStack.add(path);
+    for (const next of forward.get(path) ?? []) {
+      if (!indexByPath.has(next)) {
+        strongConnect(next);
+        lowByPath.set(path, Math.min(lowByPath.get(path) ?? 0, lowByPath.get(next) ?? 0));
+      } else if (onStack.has(next)) {
+        lowByPath.set(path, Math.min(lowByPath.get(path) ?? 0, indexByPath.get(next) ?? 0));
+      }
+    }
+    if (lowByPath.get(path) === indexByPath.get(path)) {
+      const component: string[] = [];
+      while (stack.length) {
+        const next = stack.pop()!;
+        onStack.delete(next);
+        component.push(next);
+        if (next === path) break;
+      }
+      if (component.length > 1 || (forward.get(path) ?? new Set()).has(path)) components.push(component.sort());
+    }
+  };
+  for (const path of paths) if (!indexByPath.has(path)) strongConnect(path);
+  return components
+    .sort((a, b) => b.length - a.length || a[0].localeCompare(b[0]))
+    .slice(0, 10)
+    .map((files) => ({ files, size: files.length }));
+}
+
+function graphCommunities(graph: CodeGraph, forward: Map<string, Set<string>>, reverse: Map<string, Set<string>>): KageGraphInsightsReport["communities"] {
+  const visited = new Set<string>();
+  const fileByPath = new Map(graph.files.map((file) => [file.path, file]));
+  const routeByFile = new Map<string, string[]>();
+  for (const route of graph.routes) {
+    const list = routeByFile.get(route.file_path) ?? [];
+    list.push(`${route.method} ${route.path}`);
+    routeByFile.set(route.file_path, list);
+  }
+  const components: string[][] = [];
+  for (const file of graph.files) {
+    if (visited.has(file.path)) continue;
+    const queue = [file.path];
+    visited.add(file.path);
+    const component: string[] = [];
+    for (let index = 0; index < queue.length; index += 1) {
+      const current = queue[index];
+      component.push(current);
+      const neighbors = new Set([...(forward.get(current) ?? []), ...(reverse.get(current) ?? [])]);
+      for (const next of neighbors) {
+        if (visited.has(next)) continue;
+        visited.add(next);
+        queue.push(next);
+      }
+    }
+    components.push(component.sort());
+  }
+  return components
+    .sort((a, b) => b.length - a.length || a[0].localeCompare(b[0]))
+    .slice(0, 12)
+    .map((files, index) => {
+      const moduleCounts = countBy(files, moduleNameForPath);
+      const label = Object.entries(moduleCounts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? `community-${index + 1}`;
+      return {
+        id: index + 1,
+        label,
+        files,
+        entrypoints: files.filter((path) => isEntrypointLike(path) || fileByPath.get(path)?.kind === "manifest").slice(0, 10),
+        routes: files.flatMap((path) => routeByFile.get(path) ?? []).slice(0, 10),
+      };
+    });
+}
+
+function entryFlows(graph: CodeGraph, forward: Map<string, Set<string>>): KageGraphInsightsReport["entry_flows"] {
+  const routeEntries = graph.routes.map((route) => route.file_path);
+  const entryFiles = graph.files
+    .filter((file) => file.kind === "source" && isEntrypointLike(file.path))
+    .map((file) => file.path);
+  const entries = unique([...routeEntries, ...entryFiles]).slice(0, 8);
+  const flows: KageGraphInsightsReport["entry_flows"] = [];
+  for (const entry of entries) {
+    const path = [entry];
+    const seen = new Set(path);
+    let current = entry;
+    for (let depth = 0; depth < 5; depth += 1) {
+      const next = [...(forward.get(current) ?? [])]
+        .filter((candidate) => !seen.has(candidate))
+        .sort((a, b) => (forward.get(b)?.size ?? 0) - (forward.get(a)?.size ?? 0) || a.localeCompare(b))[0];
+      if (!next) break;
+      path.push(next);
+      seen.add(next);
+      current = next;
+    }
+    if (path.length > 1) flows.push({ entry, path });
+  }
+  return flows;
+}
+
+function graphLanguageCoverage(graph: CodeGraph): KageGraphInsightsReport["language_coverage"] {
+  const byLanguage = new Map<string, CodeFileNode[]>();
+  for (const file of graph.files) {
+    if (file.kind !== "source" && file.kind !== "test") continue;
+    const list = byLanguage.get(file.language) ?? [];
+    list.push(file);
+    byLanguage.set(file.language, list);
+  }
+  const preciseParsers: CodeParser[] = ["scip", "lsif", "lsp"];
+  const astParsers: CodeParser[] = ["typescript-ast", "tree-sitter"];
+  return [...byLanguage.entries()]
+    .map(([language, files]) => {
+      const precise = files.filter((file) => preciseParsers.includes(file.parser)).length;
+      const ast = files.filter((file) => astParsers.includes(file.parser)).length;
+      const generic = files.filter((file) => file.parser === "generic-static").length;
+      const metadata = files.filter((file) => file.parser === "metadata").length;
+      return {
+        language,
+        files: files.length,
+        precise_files: precise,
+        ast_files: ast,
+        generic_files: generic,
+        metadata_files: metadata,
+        coverage_percent: percent(files.length - metadata, files.length),
+      };
+    })
+    .sort((a, b) => b.files - a.files || a.language.localeCompare(b.language));
+}
+
+export function kageGraphInsights(projectDir: string): KageGraphInsightsReport {
+  const graph = readCurrentCodeGraph(projectDir) ?? buildCodeGraph(projectDir);
+  const { forward, reverse } = codeGraphAdjacency(graph);
+  const rank = filePageRank(graph, forward);
+  const centralFiles = graph.files
+    .map((file) => ({
+      path: file.path,
+      pagerank: Number((rank.get(file.path) ?? 0).toFixed(6)),
+      dependents: reverse.get(file.path)?.size ?? 0,
+      imports: forward.get(file.path)?.size ?? 0,
+      kind: file.kind,
+    }))
+    .sort((a, b) => b.pagerank - a.pagerank || b.dependents - a.dependents || a.path.localeCompare(b.path))
+    .slice(0, 15);
+  const cycles = dependencyCycles(graph, forward);
+  const communities = graphCommunities(graph, forward, reverse);
+  const flows = entryFlows(graph, forward);
+  return {
+    schema_version: 1,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    language_coverage: graphLanguageCoverage(graph),
+    edge_mix: {
+      imports: graph.imports.length,
+      calls: graph.calls.length,
+      routes: graph.routes.length,
+      tests: graph.tests.length,
+      packages: graph.packages.length,
+    },
+    central_files: centralFiles,
+    dependency_cycles: cycles,
+    communities,
+    entry_flows: flows,
+    warnings: [],
+    summary: `${centralFiles.length} central file(s), ${cycles.length} dependency cycle(s), ${communities.length} communit${communities.length === 1 ? "y" : "ies"}, ${flows.length} entry flow(s).`,
+  };
+}
+
+const WORKSPACE_SKIP_DIRS = new Set([
+  ".agent_memory",
+  ".git",
+  ".hg",
+  ".next",
+  ".repowise",
+  ".repowise-workspace",
+  "coverage",
+  "dist",
+  "node_modules",
+  "target",
+  "vendor",
+]);
+
+function discoverWorkspaceRepos(rootDir: string, maxDepth = 3): string[] {
+  const root = resolve(rootDir);
+  const repos: string[] = [];
+  const visit = (dir: string, depth: number) => {
+    if (existsSync(join(dir, ".git"))) {
+      repos.push(dir);
+      if (depth > 0) {
+        // Keep scanning nested repos for frontend/backend layouts inside a mono root.
+      }
+    }
+    if (depth >= maxDepth) return;
+    let entries: string[] = [];
+    try {
+      entries = readdirSync(dir).sort();
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (WORKSPACE_SKIP_DIRS.has(entry) || entry.startsWith(".")) continue;
+      const path = join(dir, entry);
+      let stats: Stats;
+      try {
+        stats = lstatSync(path);
+      } catch {
+        continue;
+      }
+      if (!stats.isDirectory() || stats.isSymbolicLink()) continue;
+      visit(path, depth + 1);
+    }
+  };
+  visit(root, 0);
+  return unique(repos).sort((a, b) => relative(root, a).localeCompare(relative(root, b)));
+}
+
+function workspaceAlias(rootDir: string, repoPath: string, used: Set<string>): string {
+  const root = resolve(rootDir);
+  const rel = relative(root, repoPath).replace(/\\/g, "/");
+  const base = rel && rel !== "" ? basename(rel) : basename(repoPath);
+  let alias = slugify(base || "repo");
+  if (!alias) alias = "repo";
+  let next = alias;
+  let suffix = 2;
+  while (used.has(next)) {
+    next = `${alias}-${suffix}`;
+    suffix += 1;
+  }
+  used.add(next);
+  return next;
+}
+
+function packageInfo(projectDir: string): { name: string | null; dependencies: string[] } {
+  const pkgPath = join(projectDir, "package.json");
+  if (!existsSync(pkgPath)) return { name: null, dependencies: [] };
+  try {
+    const pkg = readJson<Record<string, unknown>>(pkgPath);
+    const dependencyBlocks = [
+      pkg.dependencies,
+      pkg.devDependencies,
+      pkg.peerDependencies,
+      pkg.optionalDependencies,
+    ].filter((block): block is Record<string, unknown> => Boolean(block && typeof block === "object" && !Array.isArray(block)));
+    return {
+      name: typeof pkg.name === "string" ? pkg.name : null,
+      dependencies: unique(dependencyBlocks.flatMap((block) => Object.keys(block))).sort(),
+    };
+  } catch {
+    return { name: null, dependencies: [] };
+  }
+}
+
+function workspaceRepoSummary(rootDir: string, repoPath: string, alias: string): Omit<KageWorkspaceRepo, "dependencies_on_workspace_repos"> & { dependencies: string[] } {
+  const pkg = packageInfo(repoPath);
+  const graph = readCurrentCodeGraph(repoPath);
+  return {
+    alias,
+    path: relative(resolve(rootDir), repoPath).replace(/\\/g, "/") || ".",
+    package_name: pkg.name,
+    indexed: existsSync(memoryRoot(repoPath)),
+    approved_packets: loadApprovedPackets(repoPath).length,
+    pending_packets: loadPendingPackets(repoPath).length,
+    code_files: graph?.files.length ?? 0,
+    code_symbols: graph?.symbols.length ?? 0,
+    branch: gitBranch(repoPath),
+    head: gitHead(repoPath),
+    dependencies: pkg.dependencies,
+  };
+}
+
+function routeNeedles(routePath: string): string[] {
+  if (routePath.length < 3 || routePath === "/:dynamic") return [];
+  const normalized = routePath.replace(/:[A-Za-z0-9_]+/g, "");
+  return unique([
+    routePath,
+    normalized,
+    normalized.replace(/\/+$/, ""),
+  ].filter((needle) => needle.length >= 3 && needle !== "/"));
+}
+
+function workspaceRouteContracts(workspaceDir: string, repos: KageWorkspaceRepo[]): KageWorkspaceRouteContract[] {
+  const graphs = new Map<string, CodeGraph>();
+  for (const repo of repos) {
+    const repoPath = repo.path === "." ? workspaceDir : join(workspaceDir, repo.path);
+    const graph = readCurrentCodeGraph(repoPath);
+    if (graph) graphs.set(repo.alias, graph);
+  }
+  const contracts: KageWorkspaceRouteContract[] = [];
+  for (const provider of repos) {
+    const providerGraph = graphs.get(provider.alias);
+    if (!providerGraph?.routes.length) continue;
+    for (const route of providerGraph.routes) {
+      const needles = routeNeedles(route.path);
+      if (!needles.length) continue;
+      for (const consumer of repos) {
+        if (consumer.alias === provider.alias) continue;
+        const consumerGraph = graphs.get(consumer.alias);
+        if (!consumerGraph) continue;
+        const consumerRoot = consumer.path === "." ? workspaceDir : join(workspaceDir, consumer.path);
+        for (const file of consumerGraph.files) {
+          if (!["source", "config", "manifest"].includes(file.kind)) continue;
+          if (file.size_bytes > MAX_CODE_FILE_BYTES) continue;
+          const absolutePath = join(consumerRoot, file.path);
+          if (!existsSync(absolutePath)) continue;
+          let text = "";
+          try {
+            text = readFileSync(absolutePath, "utf8");
+          } catch {
+            continue;
+          }
+          const matched = needles.find((needle) => text.includes(needle));
+          if (!matched) continue;
+          contracts.push({
+            provider_repo: provider.alias,
+            provider_file: route.file_path,
+            method: route.method,
+            path: route.path,
+            consumer_repo: consumer.alias,
+            consumer_file: file.path,
+            confidence: matched === route.path ? "high" : "medium",
+            evidence: `consumer source mentions ${matched}`,
+          });
+          break;
+        }
+      }
+    }
+  }
+  return contracts
+    .sort((a, b) => a.provider_repo.localeCompare(b.provider_repo) || a.path.localeCompare(b.path) || a.consumer_repo.localeCompare(b.consumer_repo))
+    .slice(0, 50);
+}
+
+export function kageWorkspace(projectDir: string): KageWorkspaceReport {
+  const root = resolve(projectDir);
+  const warnings: string[] = [];
+  const repoPaths = discoverWorkspaceRepos(root);
+  if (!repoPaths.length) warnings.push("No git repositories found under the workspace directory.");
+  const usedAliases = new Set<string>();
+  const rawRepos = repoPaths.map((repoPath) => workspaceRepoSummary(root, repoPath, workspaceAlias(root, repoPath, usedAliases)));
+  const packageOwners = new Map<string, { alias: string; package_name: string }>();
+  for (const repo of rawRepos) {
+    if (repo.package_name) packageOwners.set(repo.package_name, { alias: repo.alias, package_name: repo.package_name });
+  }
+  const packageDependencies: KageWorkspaceReport["package_dependencies"] = [];
+  const repos: KageWorkspaceRepo[] = rawRepos.map((repo) => {
+    const deps = repo.dependencies
+      .map((dep) => packageOwners.get(dep))
+      .filter((dep): dep is { alias: string; package_name: string } => Boolean(dep && dep.alias !== repo.alias))
+      .sort((a, b) => a.alias.localeCompare(b.alias));
+    for (const dep of deps) packageDependencies.push({ from: repo.alias, to: dep.alias, package_name: dep.package_name });
+    const { dependencies: _dependencies, ...rest } = repo;
+    return { ...rest, dependencies_on_workspace_repos: deps };
+  });
+  const routeContracts = workspaceRouteContracts(root, repos);
+  if (repos.length && repos.every((repo) => !repo.indexed)) warnings.push("Workspace repos were found, but none has .agent_memory yet. Run kage init or kage refresh in each repo you want searchable.");
+  return {
+    schema_version: 1,
+    workspace_dir: root,
+    generated_at: nowIso(),
+    repos,
+    package_dependencies: packageDependencies.sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to)),
+    route_contracts: routeContracts,
+    warnings,
+    summary: `${repos.length} repo(s), ${repos.filter((repo) => repo.indexed).length} with Kage memory, ${packageDependencies.length} workspace package dependenc${packageDependencies.length === 1 ? "y" : "ies"}, ${routeContracts.length} route contract link(s).`,
+  };
+}
+
+export function kageWorkspaceRecall(projectDir: string, query: string, limit = 8): KageWorkspaceRecallResult {
+  const workspace = kageWorkspace(projectDir);
+  const warnings = [...workspace.warnings];
+  const hits: KageWorkspaceRecallHit[] = [];
+  for (const repo of workspace.repos) {
+    if (!repo.indexed) continue;
+    const repoPath = repo.path === "." ? workspace.workspace_dir : join(workspace.workspace_dir, repo.path);
+    let result: RecallResult;
+    try {
+      result = recall(repoPath, query, Math.max(1, Math.min(limit, 5)), false);
+    } catch (error) {
+      warnings.push(`Recall failed for ${repo.alias}: ${error instanceof Error ? error.message : String(error)}`);
+      continue;
+    }
+    for (const hit of result.results) {
+      hits.push({
+        repo: repo.alias,
+        repo_path: repo.path,
+        title: hit.packet.title,
+        type: hit.packet.type,
+        score: hit.score,
+        summary: hit.packet.summary,
+        paths: hit.packet.paths,
+        why_matched: hit.why_matched,
+      });
+    }
+  }
+  hits.sort((a, b) => b.score - a.score || a.repo.localeCompare(b.repo) || a.title.localeCompare(b.title));
+  const topHits = hits.slice(0, Math.max(1, limit));
+  const contextLines = topHits.length
+    ? topHits.map((hit, index) => `${index + 1}. [${hit.repo}] ${hit.title} (${hit.type}, score ${hit.score.toFixed(2)})\n   ${hit.summary}`).join("\n")
+    : "No workspace memory matched.";
+  return {
+    schema_version: 1,
+    workspace_dir: workspace.workspace_dir,
+    query,
+    generated_at: nowIso(),
+    repos_searched: workspace.repos.filter((repo) => repo.indexed).length,
+    hits: topHits,
+    warnings,
+    context_block: `# Kage Workspace Context\n\nQuery: ${query}\n\n${contextLines}`,
   };
 }
 

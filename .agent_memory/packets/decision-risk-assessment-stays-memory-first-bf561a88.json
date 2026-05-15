@@ -1,0 +1,67 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:risk-assessment-stays-memory-first-1778786009585",
+  "title": "Risk assessment stays memory-first",
+  "summary": "Kage risk borrows repo-intelligence signals without changing Kage's core: combine the existing code graph with local git history before edits.",
+  "body": "Kage risk should borrow repo-intelligence signals from tools like Repowise by combining the existing code graph with local git history: dependents, impact surface, churn, ownership, co-change partners, and test gaps. Keep it local-first and memory-adjacent rather than replacing Kage with a generic static map.\nVerified by: npm test --prefix mcp",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "risk",
+    "code-graph",
+    "git-history"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/cli.ts",
+    "mcp/index.ts",
+    "mcp/kernel.test.ts",
+    "README.md",
+    "docs/guide.html"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-14T19:13:29.585Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage risk should borrow repo-intelligence signals from tools like Repowise by combining the existing code graph with local git history: dependents, impact surface, churn, ownership, co-change partners, and test gaps. Keep it local-first and memory-adjacent rather than replacing Kage with a generic static map.\nVerified by: npm test --prefix mcp",
+    "verification": "npm test --prefix mcp"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-14T19:13:29.585Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 87
+  },
+  "created_at": "2026-05-14T19:13:29.585Z",
+  "updated_at": "2026-05-14T19:13:58.216Z"
+}

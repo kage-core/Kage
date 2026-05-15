@@ -23,9 +23,19 @@ import {
   exportPublicBundle,
   graphMermaid,
   installAgentPolicy,
+  kageCleanupCandidates,
+  kageContributors,
+  kageDecisionIntelligence,
+  kageDependencyPath,
+  kageGraphInsights,
   kageMetrics,
+  kageModuleHealth,
+  kageReviewerSuggestions,
+  kageRisk,
   learn,
   memoryInbox,
+  kageWorkspace,
+  kageWorkspaceRecall,
   layeredRecall,
   observe,
   orgRecall,
@@ -125,6 +135,27 @@ function arrayArg(value: unknown): string[] {
   return [];
 }
 
+function filePathHints(query: string): string[] {
+  const matches = query.match(/[A-Za-z0-9_./@-]+\.(?:ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|kt|kts|rb|php|cs|c|h|cc|cpp|hpp|swift|json|md)\b/g) ?? [];
+  return [...new Set(matches.map((match) => match.replace(/^\.\//, "")).filter((match) => !/^https?:\/\//.test(match)))];
+}
+
+function wantsDependencyPath(query: string): boolean {
+  return /\b(connect|connected|dependency|depend|depends|path|impact|flow|trace)\b/i.test(query);
+}
+
+function riskContextBlock(result: ReturnType<typeof kageRisk>): string {
+  const targets = Object.values(result.targets);
+  if (!targets.length) return "";
+  const lines = targets.slice(0, 5).map((item) => {
+    const coChange = item.git.co_change_partners.length
+      ? ` Co-change: ${item.git.co_change_partners.slice(0, 3).map((partner) => `${partner.file_path} (${partner.count})`).join(", ")}.`
+      : "";
+    return `- ${item.risk_summary}${coChange}`;
+  });
+  return `\n## Risk Signals\n${lines.join("\n")}`;
+}
+
 const server = new Server(
   { name: "kage-graph", version: "1.1.7" },
   { capabilities: { tools: {} } }
@@ -145,6 +176,8 @@ export function listTools() {
           project_dir: { type: "string", description: "Absolute path to the project root" },
           query: { type: "string", description: "The task or question — used for both memory recall and code graph search" },
           limit: { type: "number", description: "Max memory packets to return (default 5)" },
+          targets: { type: "array", items: { type: "string" }, description: "Optional files the agent may edit or explain; used for risk context" },
+          changed_files: { type: "array", items: { type: "string" }, description: "Optional changed files for pre-edit or PR risk context" },
         },
         required: ["project_dir", "query"],
       },
@@ -256,6 +289,84 @@ export function listTools() {
       },
     },
     {
+      name: "kage_risk",
+      description:
+        "Assess modification risk for files using Kage's code graph plus local git history: dependents, impact surface, churn, ownership, co-change partners, and test gaps. Use before editing hotspot or shared files.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+          targets: { type: "array", items: { type: "string" }, description: "File paths to assess" },
+          changed_files: { type: "array", items: { type: "string" }, description: "Optional PR/branch changed files. If targets is omitted, these are assessed." },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_dependency_path",
+      description:
+        "Find how two files are connected in Kage's source-derived code graph. Reports direct dependency direction, reverse impact direction, or undirected graph connection.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+          from: { type: "string", description: "Source file path or unique suffix" },
+          to: { type: "string", description: "Target file path or unique suffix" },
+        },
+        required: ["project_dir", "from", "to"],
+      },
+    },
+    {
+      name: "kage_cleanup_candidates",
+      description:
+        "Find conservative cleanup candidates from Kage's code graph. Reports unreferenced source files with confidence and reasons; never auto-deletes.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_reviewers",
+      description:
+        "Suggest reviewers for target or changed files from local git authorship, recent edits, and code-graph co-change ownership. Does not contact GitHub or external services.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+          targets: { type: "array", items: { type: "string" }, description: "File paths to review" },
+          changed_files: { type: "array", items: { type: "string" }, description: "Optional PR/branch changed files. If targets is omitted, these are used." },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_contributors",
+      description:
+        "Build local contributor profiles from git history: commits, recent activity, touched files, modules, ownership silos, hotspot ownership, and commit category mix.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_decisions",
+      description:
+        "Summarize Kage why-memory for a repo: decisions, gotchas, runbooks, conventions, code explanations, path coverage, weak/stale memory, and important code paths that still lack decision memory.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
       name: "kage_code_index",
       description:
         "Write external code index artifacts consumed by the code graph. Prefers SCIP when scip-typescript and scip are installed, then falls back to the built-in LSP-compatible symbol index.",
@@ -289,6 +400,56 @@ export function listTools() {
           project_dir: { type: "string" },
         },
         required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_module_health",
+      description:
+        "Return local module health scorecards from Kage's code graph, test signals, cleanup candidates, git churn, and ownership concentration.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_graph_insights",
+      description:
+        "Return deterministic code graph intelligence: central files, dependency cycles, import communities, and short entry flows. Use to orient agents before broad architectural edits.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string", description: "Absolute path to the project root" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_workspace",
+      description:
+        "Summarize a local multi-repo workspace: discovered git repos, Kage memory coverage, code graph counts, and package dependencies between repos. Use when a task spans multiple sibling repos.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string", description: "Workspace root directory to scan for git repos" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_workspace_recall",
+      description:
+        "Recall Kage memory across every indexed repo in a local workspace and rank the combined hits. Use for cross-repo teammate knowledge and shared context.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string", description: "Workspace root directory to scan for git repos" },
+          query: { type: "string", description: "Question or task to recall across repos" },
+          limit: { type: "number", description: "Max combined hits to return (default 8)" },
+        },
+        required: ["project_dir", "query"],
       },
     },
     {
@@ -832,9 +993,18 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     const recallResult = recall(projectDir, query, limit, false);
     // graph facts on top of recall
     const graphResult = queryGraph(projectDir, query, 5);
+    const explicitTargets = [...arrayArg(args?.targets), ...filePathHints(query)];
+    const changedFiles = arrayArg(args?.changed_files);
+    const riskResult = explicitTargets.length || changedFiles.length ? kageRisk(projectDir, explicitTargets, changedFiles) : null;
+    const pathHints = filePathHints(query);
+    const dependencyResult = wantsDependencyPath(query) && pathHints.length >= 2
+      ? kageDependencyPath(projectDir, pathHints[0], pathHints[1])
+      : null;
     const sections = [
       recallResult.context_block,
       graphResult.context_block ? `\n## Graph Facts\n${graphResult.context_block}` : "",
+      riskResult ? riskContextBlock(riskResult) : "",
+      dependencyResult ? `\n## Dependency Path\n${dependencyResult.summary}${dependencyResult.path.length ? `\nPath: ${dependencyResult.path.join(" -> ")}` : ""}` : "",
       `\n_${validationText}_`,
     ].filter(Boolean).join("");
     return {
@@ -879,6 +1049,60 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     };
   }
 
+  if (name === "kage_risk") {
+    const result = kageRisk(
+      String(args?.project_dir ?? ""),
+      arrayArg(args?.targets),
+      arrayArg(args?.changed_files)
+    );
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_dependency_path") {
+    const result = kageDependencyPath(
+      String(args?.project_dir ?? ""),
+      String(args?.from ?? ""),
+      String(args?.to ?? "")
+    );
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_cleanup_candidates") {
+    const result = kageCleanupCandidates(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_reviewers") {
+    const result = kageReviewerSuggestions(
+      String(args?.project_dir ?? ""),
+      arrayArg(args?.targets),
+      arrayArg(args?.changed_files)
+    );
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_contributors") {
+    const result = kageContributors(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_decisions") {
+    const result = kageDecisionIntelligence(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
   if (name === "kage_code_index") {
     const result = writeCodeIndex(String(args?.project_dir ?? ""));
     return {
@@ -898,6 +1122,38 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     const result = kageMetrics(String(args?.project_dir ?? ""));
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_module_health") {
+    const result = kageModuleHealth(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_graph_insights") {
+    const result = kageGraphInsights(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_workspace") {
+    const result = kageWorkspace(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_workspace_recall") {
+    const result = kageWorkspaceRecall(
+      String(args?.project_dir ?? ""),
+      String(args?.query ?? ""),
+      Number(args?.limit ?? 8)
+    );
+    return {
+      content: [{ type: "text", text: args?.json ? JSON.stringify(result, null, 2) : result.context_block }],
     };
   }
 

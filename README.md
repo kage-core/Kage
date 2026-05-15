@@ -54,10 +54,12 @@ instead of rereading the whole repo or asking you to explain it again.
 | Feature | What it does |
 |---|---|
 | Repo memory | Stores bugs, decisions, runbooks, gotchas, conventions, and code explanations as JSON packets |
-| Code graph | Indexes files, symbols, imports, calls, routes, tests, and packages |
+| Code graph | Indexes files, symbols, imports, calls, routes, tests, and packages, with generic call/test signals for non-TypeScript repos |
 | Memory-code links | Connects repo knowledge to the files and symbols it affects |
+| Decision intelligence | Shows which decisions, gotchas, runbooks, and explanations are grounded to code, plus important files still missing why-memory |
+| Git intelligence | Reports risk, reviewers, contributor profiles, co-change warnings, ownership silos, and module health from local git |
 | Agent bootstrap | Installs `AGENTS.md` so agents know to recall context automatically |
-| Local viewer | Shows memory, code graph, metrics, review state, and evidence |
+| Local viewer | Shows memory, code graph, decision memory, risk, module health, workspace reports, metrics, review state, and evidence |
 | Review workflow | Keeps useful memory shareable while making stale or risky memory visible |
 
 Kage is local-first. No hosted service, external database, or API key is
@@ -119,6 +121,16 @@ Useful CLI commands:
 ```bash
 kage recall "how do I run tests" --project .
 kage code-graph "auth routes tests" --project .
+kage cleanup-candidates --project . --json
+kage dependency-path --project . --from src/app.ts --to src/auth.ts --json
+kage module-health --project . --json
+kage graph-insights --project . --json
+kage workspace --project .. --json
+kage workspace recall "auth header contract" --project .. --json
+kage contributors --project . --json
+kage decisions --project . --json
+kage reviewers --project . --changed-files src/auth.ts,src/session.ts --json
+kage risk --project . --targets src/auth.ts --json
 kage learn --project . --learning "Use npm test after changing parser code."
 kage refresh --project .
 kage pr check --project .
@@ -149,9 +161,56 @@ Generated artifacts live beside the packets:
 | Structural map | `.agent_memory/structural/` | files, symbols, imports, changed-file reuse |
 | Code graph | `.agent_memory/code_graph/` | source-derived files, symbols, calls, routes, tests |
 | Metrics | `.agent_memory/metrics.json` | readiness, quality, coverage, token estimates |
+| Reports | `.agent_memory/reports/` | risk, contributors, decisions, module health, graph insights, workspace, quality, and benchmark JSON for the viewer |
+
+`kage risk` uses the code graph plus local git history to show what a change
+may affect: dependents, impact surface, churn, ownership, co-change partners,
+ownership silos, and missing test signals. It also flags co-change partners that
+are historically coupled but missing from the current change set. It is meant for
+agents before touching shared or high-churn files.
+
+`kage dependency-path` answers how two files are connected in the source graph:
+whether one depends on the other, the dependency flows the other way, or they
+only meet through an undirected import relationship.
+
+`kage cleanup-candidates` reports conservative unreferenced-file candidates
+with confidence and reasons. It never deletes code; cleanup still needs human
+or PR review.
+
+`kage reviewers` suggests reviewers from local git authorship, recency, and
+co-change ownership for target or changed files. It does not contact GitHub or
+any external service.
+
+`kage contributors` builds local contributor profiles from git history: commits,
+recent activity, touched files, touched modules, primary-owned files, ownership
+silos, hotspot ownership, and commit category mix.
+
+`kage decisions` audits why-memory coverage: decisions, gotchas, runbooks,
+conventions, constraints, code explanations, weak/stale memories, and important
+code paths that still have no linked decision memory.
+
+`kage module-health` rolls code graph, test, cleanup, churn, and ownership
+signals into local module scorecards for review planning.
+
+`kage graph-insights` turns the source graph into compact architecture signals:
+language parser coverage, edge mix, central files, dependency cycles, import
+communities, and short entry flows. It is deterministic graph analysis, not
+generated documentation.
+
+For non-TypeScript code, the built-in generic indexer extracts symbols, imports,
+bounded call edges, and test function coverage signals for common languages. SCIP,
+LSP, LSIF, and tree-sitter artifacts still override generic facts when present.
+
+`kage workspace` scans a local parent directory for sibling git repos, reports
+which repos already have Kage memory, detects package dependencies and route
+contract links between workspace repos, and lets agents run recall across every
+indexed repo with `kage workspace recall`. It is intentionally lightweight: no
+hosted database, no generated wiki, and no copied memory between repos.
 
 The important behavior: agents retrieve a bounded, relevant context result
 instead of loading everything.
+When `kage_context` receives target paths, it also includes relevant risk and
+dependency-path signals in the same ambient context block.
 
 ## Viewer
 
@@ -167,9 +226,13 @@ Open the viewer for your local repo:
 kage viewer --project .
 ```
 
-The local viewer auto-loads your repo memory, code graph, metrics, inbox, and
-review context. Combined mode balances memory and code nodes so the graph stays
-useful instead of turning into an unreadable file map.
+The local viewer auto-loads your repo memory, code graph, metrics, inbox, review
+context, and repo-intelligence reports. The graph remains interactive, while the
+Repo Intelligence cockpit summarizes memory-code links, decision memory, change
+risk, module health, contributor profiles, graph insights, workspace coverage,
+quality, and local benchmark proof.
+Combined mode balances memory and code nodes so the graph stays useful instead
+of turning into an unreadable file map.
 
 ## Performance
 

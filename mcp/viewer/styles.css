@@ -186,11 +186,12 @@ h2 { color: var(--terminal); font-size: 13px; letter-spacing: 0.04em; text-trans
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 380px;
-  grid-template-rows: minmax(680px, calc(100vh - 108px)) auto minmax(220px, 30vh) minmax(270px, 34vh);
+  grid-template-rows: minmax(680px, calc(100vh - 108px)) auto minmax(220px, 30vh) minmax(260px, 32vh) minmax(270px, 34vh);
   grid-template-areas:
     "graph details"
     "controls details"
     "review proof"
+    "intelligence intelligence"
     "entities edges";
   gap: 12px;
   padding: 12px;
@@ -199,7 +200,7 @@ h2 { color: var(--terminal); font-size: 13px; letter-spacing: 0.04em; text-trans
 
 .layout > * { min-width: 0; }
 
-.control-panel, .graph-panel, .details-panel, .table-panel, .review-panel, .proof-panel {
+.control-panel, .graph-panel, .details-panel, .table-panel, .review-panel, .proof-panel, .intelligence-panel {
   border: 1px solid var(--line);
   border-radius: 6px;
   background: rgba(8, 17, 13, 0.94);
@@ -589,14 +590,64 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
 .edges-panel { grid-area: edges; }
 .review-panel { grid-area: review; }
 .proof-panel { grid-area: proof; }
+.intelligence-panel { grid-area: intelligence; }
 .table-panel { min-height: 0; overflow: hidden; }
-.review-panel, .proof-panel { min-height: 0; overflow: hidden; }
+.review-panel, .proof-panel, .intelligence-panel { min-height: 0; overflow: hidden; }
 .list { height: calc(100% - 48px); overflow: auto; padding: 0 8px 10px; }
 .review-list, .proof-list {
   height: calc(100% - 48px);
   overflow: auto;
   padding: 0 10px 12px;
 }
+.intelligence-list {
+  height: calc(100% - 48px);
+  overflow: auto;
+  padding: 0 10px 12px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  align-content: start;
+}
+.intel-card {
+  min-height: 160px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #06100b;
+  overflow: hidden;
+}
+.intel-card h3 {
+  margin: 0;
+  color: var(--terminal);
+  font-size: 12px;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+.intel-card .intel-kicker {
+  margin-top: 4px;
+  color: var(--terminal-dim);
+  font-size: 10px;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+.intel-card .intel-summary {
+  margin-top: 8px;
+  color: var(--text);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.intel-card ul {
+  margin: 9px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.intel-card li {
+  padding-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.intel-card strong { color: var(--terminal-strong); }
 .review-item {
   padding: 10px 0;
   border-top: 1px solid var(--line);
@@ -753,13 +804,14 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
   .status-pill { min-height: 24px; padding: 3px 8px; }
   .layout {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(620px, 78vh) auto auto minmax(220px, 36vh) minmax(220px, 36vh) minmax(220px, 36vh) minmax(220px, 36vh);
+    grid-template-rows: minmax(620px, 78vh) auto auto minmax(220px, 36vh) minmax(220px, 36vh) minmax(220px, 36vh) minmax(220px, 36vh) minmax(220px, 36vh);
     grid-template-areas:
       "graph"
       "controls"
       "details"
       "review"
       "proof"
+      "intelligence"
       "entities"
       "edges";
   }
@@ -782,6 +834,7 @@ input:focus, select:focus, button:focus, .file-picker:focus-within {
   .control-panel { grid-template-columns: 1fr; }
   .metrics-grid { grid-template-columns: 1fr 1fr; }
   .proof-list { grid-template-columns: 1fr 1fr; }
+  .intelligence-list { grid-template-columns: 1fr; }
   .graph-toolbar { align-items: flex-start; flex-direction: column; }
   .graph-actions { width: 100%; }
   .interaction-hint { flex: 1; white-space: normal; }

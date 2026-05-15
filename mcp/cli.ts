@@ -26,7 +26,17 @@ import {
   initProject,
   indexProject,
   installAgentPolicy,
+  kageCleanupCandidates,
+  kageContributors,
+  kageDecisionIntelligence,
+  kageDependencyPath,
+  kageGraphInsights,
+  kageRisk,
   kageMetrics,
+  kageModuleHealth,
+  kageWorkspace,
+  kageWorkspaceRecall,
+  kageReviewerSuggestions,
   learn,
   memoryInbox,
   loadPendingPackets,
@@ -86,6 +96,12 @@ Usage:
   kage upgrade [--dry-run]
   kage branch --project <dir> [--json]
   kage metrics --project <dir> [--json]
+  kage contributors --project <dir> [--json]
+  kage decisions --project <dir> [--json]
+  kage module-health --project <dir> [--json]
+  kage graph-insights --project <dir> [--json]
+  kage workspace --project <workspace-dir> [--json]
+  kage workspace recall "<query>" --project <workspace-dir> [--json]
   kage audit --project <dir> [--json]
   kage inbox --project <dir> [--json]
   kage quality --project <dir> [--json]
@@ -93,6 +109,10 @@ Usage:
   kage benchmark --project <dir> --compare --task <task> [--json]
   kage code-graph --project <dir> [--json]
   kage code-graph "<query>" --project <dir> [--json]
+  kage cleanup-candidates --project <dir> [--json]
+  kage dependency-path --project <dir> --from <path> --to <path> [--json]
+  kage reviewers --project <dir> [--targets a,b] [--changed-files a,b] [--json]
+  kage risk --project <dir> [--targets a,b] [--changed-files a,b] [--json]
   kage code-index --project <dir> [--json]
   kage structural-index --project <dir> [--json]
   kage graph --project <dir> [--json]
@@ -530,6 +550,113 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "risk") {
+    const result = kageRisk(projectArg(args), listArg(takeArg(args, "--targets")), listArg(takeArg(args, "--changed-files")));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log("Kage risk assessment");
+    for (const item of Object.values(result.targets)) {
+      console.log(`- ${item.risk_summary}`);
+      if (item.dependents.length) console.log(`  Dependents: ${item.dependents.slice(0, 5).join(", ")}`);
+      if (item.git.co_change_partners.length) console.log(`  Co-change: ${item.git.co_change_partners.map((p) => `${p.file_path} (${p.count})`).join(", ")}`);
+    }
+    if (result.global_hotspots.length) {
+      console.log("Global hotspots:");
+      for (const hotspot of result.global_hotspots) console.log(`- ${hotspot.file_path}: ${hotspot.commit_count_90d} commits in 90d`);
+    }
+    if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
+    return;
+  }
+
+  if (command === "dependency-path") {
+    const from = takeArg(args, "--from");
+    const to = takeArg(args, "--to");
+    if (!from || !to) usage();
+    const result = kageDependencyPath(projectArg(args), from, to);
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(result.summary);
+    if (result.path.length) console.log(`Path: ${result.path.join(" -> ")}`);
+    for (const edge of result.edges) {
+      console.log(`- ${edge.from_path}:${edge.line} ${edge.kind} ${edge.specifier} -> ${edge.to_path}`);
+    }
+    if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
+    return;
+  }
+
+  if (command === "cleanup-candidates") {
+    const result = kageCleanupCandidates(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage cleanup candidates: ${result.summary}`);
+    for (const candidate of result.candidates.slice(0, 20)) {
+      console.log(`- ${candidate.path}: ${candidate.confidence} (${Math.round(candidate.score * 100)}%)`);
+      console.log(`  ${candidate.reasons.join("; ")}`);
+    }
+    if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
+    return;
+  }
+
+  if (command === "reviewers") {
+    const result = kageReviewerSuggestions(projectArg(args), listArg(takeArg(args, "--targets")), listArg(takeArg(args, "--changed-files")));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage reviewer suggestions: ${result.summary}`);
+    for (const suggestion of result.suggestions) {
+      console.log(`- ${suggestion.reviewer}: ${Math.round(suggestion.score)}%`);
+      console.log(`  ${suggestion.reasons.slice(0, 3).join("; ")}`);
+    }
+    if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
+    return;
+  }
+
+  if (command === "contributors") {
+    const result = kageContributors(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage contributors: ${result.summary}`);
+    for (const profile of result.contributors.slice(0, 10)) {
+      console.log(`- ${profile.contributor}: ${profile.commits_total} commits, ${profile.commits_90d} in 90d, ${profile.primary_owned_files} owned files`);
+      if (profile.files_touched.length) console.log(`  Top files: ${profile.files_touched.slice(0, 3).map((file) => `${file.path} (${file.commits})`).join(", ")}`);
+      if (profile.silo_files.length) console.log(`  Silo files: ${profile.silo_files.slice(0, 3).map((file) => `${file.path} (${Math.round(file.ownership_pct * 100)}%)`).join(", ")}`);
+    }
+    if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
+    return;
+  }
+
+  if (command === "decisions") {
+    const result = kageDecisionIntelligence(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage decision intelligence: ${result.summary}`);
+    if (result.top_decisions.length) {
+      console.log("Top why-memory:");
+      for (const item of result.top_decisions.slice(0, 10)) {
+        console.log(`- ${item.title} (${item.type})`);
+        if (item.paths.length) console.log(`  Paths: ${item.paths.slice(0, 3).join(", ")}`);
+        if (item.why) console.log(`  Why: ${item.why}`);
+      }
+    }
+    if (result.coverage_gaps.length) {
+      console.log("Uncovered important paths:");
+      for (const gap of result.coverage_gaps.slice(0, 10)) console.log(`- ${gap.path}: ${gap.reason}`);
+    }
+    if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
+    return;
+  }
+
   if (command === "code-index") {
     const result = writeCodeIndex(projectArg(args));
     if (args.includes("--json")) {
@@ -638,6 +765,78 @@ async function main(): Promise<void> {
       console.log(`  Estimated tokens saved: ${result.pain.estimated_tokens_saved}`);
       console.log(`  Time to first use: ${result.pain.time_to_first_use_seconds}s`);
     }
+    return;
+  }
+
+  if (command === "module-health") {
+    const result = kageModuleHealth(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage module health: ${result.summary}`);
+    for (const item of result.modules.slice(0, 20)) {
+      console.log(`- ${item.module}: ${item.grade} (${item.score}) - ${item.reasons.join("; ")}`);
+    }
+    if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
+    return;
+  }
+
+  if (command === "graph-insights") {
+    const result = kageGraphInsights(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage graph insights: ${result.summary}`);
+    if (result.central_files.length) {
+      console.log("Central files:");
+      for (const file of result.central_files.slice(0, 10)) console.log(`- ${file.path}: pagerank ${file.pagerank}, ${file.dependents} dependent(s)`);
+    }
+    if (result.dependency_cycles.length) {
+      console.log("Dependency cycles:");
+      for (const cycle of result.dependency_cycles.slice(0, 5)) console.log(`- ${cycle.files.join(" -> ")}`);
+    }
+    if (result.entry_flows.length) {
+      console.log("Entry flows:");
+      for (const flow of result.entry_flows.slice(0, 5)) console.log(`- ${flow.path.join(" -> ")}`);
+    }
+    return;
+  }
+
+  if (command === "workspace") {
+    const subcommand = args[1];
+    if (subcommand === "recall") {
+      const query = args.find((arg, index) => index > 1 && !arg.startsWith("--") && !args[index - 1]?.startsWith("--"));
+      if (!query) usage();
+      const result = kageWorkspaceRecall(projectArg(args), query, numberArg(args, "--limit", 8));
+      if (args.includes("--json")) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+      console.log(result.context_block);
+      if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
+      return;
+    }
+    const result = kageWorkspace(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage workspace: ${result.summary}`);
+    for (const repo of result.repos) {
+      const deps = repo.dependencies_on_workspace_repos.length
+        ? ` depends on ${repo.dependencies_on_workspace_repos.map((dep) => dep.alias).join(", ")}`
+        : "";
+      console.log(`- ${repo.alias}: ${repo.path} (${repo.approved_packets} packets, ${repo.code_files} files)${deps}`);
+    }
+    if (result.route_contracts.length) {
+      console.log("Route contracts:");
+      for (const contract of result.route_contracts.slice(0, 10)) {
+        console.log(`- ${contract.provider_repo} ${contract.method} ${contract.path} -> ${contract.consumer_repo}/${contract.consumer_file}`);
+      }
+    }
+    if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
     return;
   }
 

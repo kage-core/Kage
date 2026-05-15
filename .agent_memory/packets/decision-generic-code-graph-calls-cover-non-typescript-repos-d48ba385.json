@@ -1,0 +1,63 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:generic-code-graph-calls-cover-non-typescript-repos-1778817841802",
+  "title": "Generic code graph calls cover non-TypeScript repos",
+  "summary": "Kage's built in generic static indexer should not stop at symbols and imports for non TypeScript code. It now extracts bounded call edges for supported generic languages and marks generic test functions as test symbols,",
+  "body": "Kage's built-in generic-static indexer should not stop at symbols and imports for non-TypeScript code. It now extracts bounded call edges for supported generic languages and marks generic test functions as test symbols, so Python/Go/Rust/Ruby/PHP/Java/Kotlin/C#/C++/Swift repos get more useful call/test graph signals even without SCIP, LSP, or tree-sitter artifacts.",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "code-graph",
+    "multilanguage",
+    "generic-static",
+    "repowise-comparison",
+    "large-repos"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-15T04:04:01.802Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage's built-in generic-static indexer should not stop at symbols and imports for non-TypeScript code. It now extracts bounded call edges for supported generic languages and marks generic test functions as test symbols, so Python/Go/Rust/Ruby/PHP/Java/Kotlin/C#/C++/Swift repos get more useful call/test graph signals even without SCIP, LSP, or tree-sitter artifacts."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-15T04:04:01.802Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 96,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 92
+  },
+  "created_at": "2026-05-15T04:04:01.802Z",
+  "updated_at": "2026-05-15T04:04:14.162Z"
+}

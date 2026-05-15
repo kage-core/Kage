@@ -384,12 +384,23 @@ kage setup verify-agent --agent codex --project . --json</pre></div>
 kage refresh --project . --full --json</pre></div>
           <div class="method"><h3><code>kage pr</code> Prepare a branch</h3><p>Summarizes branch memory and verifies validation, stale packets, graph freshness, and memory changes.</p><pre>kage pr summarize --project .
 kage pr check --project . --json</pre></div>
-          <div class="method"><h3><code>kage viewer</code> Inspect memory and graphs</h3><p>Starts the local viewer with repo graph, code graph, metrics, review queue, and pending memory context preloaded.</p><pre>kage viewer --project . --port 3113</pre></div>
+          <div class="method"><h3><code>kage viewer</code> Inspect memory, graphs, and reports</h3><p>Starts the local viewer with repo graph, code graph, metrics, review queue, pending memory, and repo-intelligence reports preloaded.</p><pre>kage viewer --project . --port 3113</pre></div>
           <div class="method"><h3><code>kage graph</code> Query memory graph</h3><p>Queries evidence-backed entities and relationships generated from approved memory packets.</p><pre>kage graph --project . --json
 kage graph "checkout retry" --project . --json
 kage graph --project . --mermaid</pre></div>
-          <div class="method"><h3><code>kage code-graph</code> Query source graph</h3><p>Queries files, symbols, imports, calls, routes, tests, and package scripts generated from source.</p><pre>kage code-graph --project . --json
+          <div class="method"><h3><code>kage code-graph</code> Query source graph</h3><p>Queries files, symbols, imports, calls, routes, tests, and package scripts generated from source. For non-TypeScript code, the generic indexer also extracts bounded call edges and test function coverage signals; SCIP, LSP, LSIF, and tree-sitter artifacts override generic facts when present.</p><pre>kage code-graph --project . --json
 kage code-graph "recall ranking" --project . --json</pre></div>
+          <div class="method"><h3><code>kage dependency-path</code> Explain file connections</h3><p>Finds the shortest code graph path between two files and reports whether the source depends on the target, the target depends on the source, or the connection is only undirected.</p><pre>kage dependency-path --project . --from src/app.ts --to src/auth.ts --json</pre></div>
+          <div class="method"><h3><code>kage cleanup-candidates</code> Find conservative cleanup candidates</h3><p>Reports unreferenced source-file candidates with confidence and reasons. It does not delete code; use it as review input before cleanup PRs.</p><pre>kage cleanup-candidates --project . --json</pre></div>
+          <div class="method"><h3><code>kage reviewers</code> Suggest local reviewers</h3><p>Ranks reviewers for target or changed files using local git authorship, recent edits, and co-change ownership. It does not call GitHub or external services.</p><pre>kage reviewers --project . --changed-files src/auth.ts,src/session.ts --json</pre></div>
+          <div class="method"><h3><code>kage contributors</code> Profile local ownership</h3><p>Builds contributor profiles from local git history: commits, recent activity, touched files and modules, primary-owned files, ownership silos, hotspot ownership, and commit category mix.</p><pre>kage contributors --project . --json</pre></div>
+          <div class="method"><h3><code>kage decisions</code> Audit why-memory coverage</h3><p>Reports decisions, gotchas, runbooks, conventions, constraints, code explanations, weak or stale memories, and important code paths that still lack linked decision memory.</p><pre>kage decisions --project . --json</pre></div>
+          <div class="method"><h3><code>kage module-health</code> Score local modules</h3><p>Rolls up code graph, test, cleanup, churn, and ownership signals into local module scorecards for review planning.</p><pre>kage module-health --project . --json</pre></div>
+          <div class="method"><h3><code>kage graph-insights</code> Summarize architecture signals</h3><p>Reports language parser coverage, edge mix, central files, dependency cycles, import communities, and short entry flows from the source graph.</p><pre>kage graph-insights --project . --json</pre></div>
+          <div class="method"><h3><code>kage workspace</code> Recall across sibling repos</h3><p>Scans a local workspace for git repos, reports Kage memory coverage, detects package dependencies and route contract links between repos, and can fan out recall across every indexed repo.</p><pre>kage workspace --project .. --json
+kage workspace recall "auth header contract" --project .. --json</pre></div>
+          <div class="method"><h3><code>kage risk</code> Check change risk before editing</h3><p>Combines the code graph with local git history to report dependents, impact surface, churn, ownership, ownership silos, co-change partners missing from the change set, hotspots, and missing test signals for target files.</p><pre>kage risk --project . --targets src/auth.ts --json
+kage risk --project . --changed-files src/auth.ts,src/session.ts</pre></div>
           <div class="method"><h3><code>kage code-index</code> Build source indexes</h3><p>Writes external code index artifacts. It prefers SCIP where available and falls back to built-in indexing.</p><pre>kage code-index --project . --json
 kage structural-index --project . --json</pre></div>
           <div class="method"><h3><code>kage metrics</code> Show adoption and graph metrics</h3><p>Reports code graph coverage, memory graph evidence coverage, useful memory ratio, validation state, and readiness.</p><pre>kage metrics --project . --json</pre></div>
@@ -411,9 +422,18 @@ kage global build --project . --json</pre></div>
 
         <section id="mcp-tools">
           <h2>MCP tools</h2>
-          <p>Agents should prefer MCP tools when available. The most important tool is <code>kage_context</code>, which combines validation, recall, code graph search, and knowledge graph search.</p>
-          <div class="method"><h3><code>kage_context</code> Main task entry point</h3><p>Call before repo-specific implementation, debugging, architecture, or code questions.</p></div>
+          <p>Agents should prefer MCP tools when available. The most important tool is <code>kage_context</code>, which combines validation, recall, code graph search, knowledge graph search, and target-aware risk signals.</p>
+          <div class="method"><h3><code>kage_context</code> Main task entry point</h3><p>Call before repo-specific implementation, debugging, architecture, or code questions. When a query or target list includes file paths, Kage also adds risk and dependency-path context.</p></div>
           <div class="method"><h3><code>kage_recall</code>, <code>kage_graph</code>, <code>kage_code_graph</code></h3><p>Lower-level recall and graph tools when the combined context tool is not enough.</p></div>
+          <div class="method"><h3><code>kage_risk</code> Pre-edit risk assessment</h3><p>Use before changing shared or high-churn files. Returns graph dependents, git churn, ownership, ownership silos, co-change warnings, impact surface, and test-gap signals.</p></div>
+          <div class="method"><h3><code>kage_dependency_path</code> Code graph path finder</h3><p>Use when an agent needs to understand how two files connect before changing a flow or explaining impact.</p></div>
+          <div class="method"><h3><code>kage_cleanup_candidates</code> Cleanup review input</h3><p>Returns conservative unreferenced-file candidates from the code graph with confidence and reasons. It never mutates files.</p></div>
+          <div class="method"><h3><code>kage_reviewers</code> Local reviewer suggestions</h3><p>Suggests reviewers from git history and co-change ownership for target or changed files.</p></div>
+          <div class="method"><h3><code>kage_contributors</code> Contributor profiles</h3><p>Returns local git profiles with commits, recent activity, touched files/modules, primary ownership, ownership silos, hotspot ownership, and commit category mix.</p></div>
+          <div class="method"><h3><code>kage_decisions</code> Why-memory coverage</h3><p>Returns decision, gotcha, runbook, convention, constraint, and code explanation coverage by path, plus important uncovered code paths and weak or stale memories.</p></div>
+          <div class="method"><h3><code>kage_module_health</code> Module health scorecards</h3><p>Returns local module scorecards from code graph, tests, cleanup candidates, churn, and ownership concentration.</p></div>
+          <div class="method"><h3><code>kage_graph_insights</code> Graph architecture signals</h3><p>Returns language parser coverage, edge mix, central files, dependency cycles, import communities, and entry flows for broad architecture orientation.</p></div>
+          <div class="method"><h3><code>kage_workspace</code>, <code>kage_workspace_recall</code></h3><p>Summarizes sibling repos, package dependencies, route contract links, and recalls Kage memory across a local multi-repo workspace without copying packets or requiring a hosted database.</p></div>
           <div class="method"><h3><code>kage_learn</code>, <code>kage_capture</code>, <code>kage_feedback</code></h3><p>Capture new repo knowledge, write structured packets, or mark recalled memory helpful, wrong, or stale.</p></div>
           <div class="method"><h3><code>kage_refresh</code>, <code>kage_pr_summarize</code>, <code>kage_pr_check</code></h3><p>Keep generated artifacts current and create merge-ready branch memory.</p></div>
           <div class="method"><h3><code>kage_metrics</code>, <code>kage_audit</code>, <code>kage_inbox</code>, <code>kage_quality</code>, <code>kage_benchmark</code></h3><p>Inspect readiness, quality, benchmark estimates, duplicates, stale packets, and review actions.</p></div>
@@ -448,7 +468,7 @@ kage global build --project . --json</pre></div>
 
         <section id="graphs">
           <h2>Graphs and viewer</h2>
-          <p>Kage maintains two related graph surfaces: a memory graph generated from packets and a source-derived code graph generated from code. The viewer overlays them so humans can inspect what was recalled and why.</p>
+          <p>Kage maintains two related graph surfaces: a memory graph generated from packets and a source-derived code graph generated from code. The viewer overlays them and adds a Repo Intelligence cockpit so humans can inspect what was recalled, why it matters, and what risk or graph signals are attached to the repo.</p>
           <div class="grid">
             <div class="card">
               <h3>Memory graph</h3>
@@ -462,7 +482,7 @@ kage global build --project . --json</pre></div>
           <pre>kage viewer --project .
 kage graph "retry logic" --project . --json
 kage code-graph "checkout tests" --project . --json</pre>
-          <p>The hosted viewer at <a href="viewer/">viewer/</a> is useful for static demos. The local viewer is preferred for real repos because it loads the active repo artifacts automatically.</p>
+          <p>The local viewer writes and loads <code>.agent_memory/reports/*.json</code> for risk, contributors, decisions, module health, graph insights, workspace coverage, quality, and benchmark proof. The hosted viewer at <a href="viewer/">viewer/</a> is useful for static demos. The local viewer is preferred for real repos because it loads the active repo artifacts automatically.</p>
         </section>
 
         <section id="review">

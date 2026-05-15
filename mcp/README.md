@@ -36,10 +36,18 @@ Restart your agent once after setup so MCP tools reload.
 
 - repo-local memory for decisions, runbooks, bug fixes, gotchas, conventions,
   and code explanations
-- a code graph for files, symbols, imports, calls, routes, tests, and packages
+- a code graph for files, symbols, imports, calls, routes, tests, and packages,
+  including generic call/test signals for non-TypeScript repos
 - memory-code links so project knowledge points at the code it affects
+- decision intelligence for why-memory coverage, stale/weak packets, and
+  important files that still lack linked repo knowledge
+- lightweight workspace recall across sibling repos, including package and
+  route-contract links when existing code graphs expose them
+- local git intelligence for risk, reviewers, contributor profiles, co-change
+  warnings, ownership silos, and module health
 - `AGENTS.md` bootstrap instructions so agents recall context automatically
-- a local viewer for memory, code graph, metrics, evidence, and review state
+- a local viewer for memory, code graph, decision memory, risk, module health,
+  workspace reports, metrics, evidence, and review state
 - review and validation commands for stale or risky memory
 
 No hosted service, external database, or API key is required.
@@ -52,6 +60,16 @@ kage init --project .
 kage recall "how do I run tests" --project .
 kage recall "how do I run tests" --project . --json --explain
 kage code-graph "auth routes tests" --project .
+kage cleanup-candidates --project . --json
+kage dependency-path --project . --from src/app.ts --to src/auth.ts --json
+kage module-health --project . --json
+kage graph-insights --project . --json
+kage workspace --project .. --json
+kage workspace recall "auth header contract" --project .. --json
+kage contributors --project . --json
+kage decisions --project . --json
+kage reviewers --project . --changed-files src/auth.ts,src/session.ts --json
+kage risk --project . --targets src/auth.ts --json
 kage learn --project . --learning "Use npm test after parser changes."
 kage refresh --project .
 kage pr check --project .
@@ -60,6 +78,10 @@ kage audit --project . --json
 kage inbox --project . --json
 kage viewer --project .
 ```
+
+MCP agents should start with `kage_context`. When the query or target list
+mentions file paths, it includes risk and dependency-path context alongside
+memory recall.
 
 For stale or wrong memory:
 
@@ -99,6 +121,7 @@ Kage keeps learned memory separate from generated code facts.
 | Structural map | `.agent_memory/structural/` | files, symbols, imports |
 | Code graph | `.agent_memory/code_graph/` | source-derived code facts |
 | Metrics | `.agent_memory/metrics.json` | readiness, quality, coverage |
+| Reports | `.agent_memory/reports/` | risk, contributors, decisions, module health, graph insights, workspace, quality, benchmark |
 
 Repo-local packets are git-visible and reviewable. Generated indexes and graphs
 are rebuildable.
@@ -114,6 +137,17 @@ Kage is optimized so repeat work scales with changed files, not the whole repo:
 - huge files are represented safely instead of deeply expanded
 - recall builds lookup maps once per query instead of repeatedly scanning graph
   edges for every memory packet
+- local risk reports include hidden co-change warnings and ownership-silo
+  signals from git history
+- contributor reports show commits, recent activity, touched files/modules,
+  primary ownership, ownership silos, hotspot ownership, and commit category mix
+- decision reports show why-memory coverage, weak/stale decision packets, and
+  high-signal source paths with no linked decision memory
+- graph insights include language parser coverage and edge mix so large-repo
+  index gaps are visible instead of hidden
+- the generic non-TypeScript indexer extracts bounded call edges and test
+  function coverage, while SCIP/LSP/LSIF/tree-sitter artifacts override it when
+  available
 
 ## Viewer
 
@@ -122,6 +156,11 @@ Open a local viewer for the current repo:
 ```bash
 kage viewer --project .
 ```
+
+The local viewer loads graph artifacts plus `.agent_memory/reports/*.json` and
+shows a repo-intelligence cockpit for memory-code links, decision memory, risk,
+contributors, module health, graph insights, workspace coverage, quality, and
+benchmark proof.
 
 Hosted demo:
 

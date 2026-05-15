@@ -15,6 +15,16 @@
     selected: null,
     metrics: null,
     inbox: null,
+    reports: {
+      quality: null,
+      benchmark: null,
+      contributors: null,
+      decisions: null,
+      risk: null,
+      moduleHealth: null,
+      graphInsights: null,
+      workspace: null
+    },
     pendingPackets: [],
     reviewText: "",
     viewBox: { x: 0, y: 0, width: 1000, height: 660 },
@@ -138,7 +148,9 @@
     reviewCount: document.getElementById("reviewCount"),
     reviewList: document.getElementById("reviewList"),
     proofStatus: document.getElementById("proofStatus"),
-    proofList: document.getElementById("proofList")
+    proofList: document.getElementById("proofList"),
+    intelligenceStatus: document.getElementById("intelligenceStatus"),
+    intelligenceList: document.getElementById("intelligenceList")
   };
 
   var MEMORY_CODE_RELATIONS = new Set(["explains_symbol", "informs_symbol", "fixes_symbol", "applies_to_route", "verified_by_test", "affects_code_path"]);
@@ -277,15 +289,41 @@
     var inboxPath = params.get("inbox");
     var reviewPath = params.get("review");
     var pendingPath = params.get("pending");
+    var qualityPath = params.get("quality");
+    var benchmarkPath = params.get("benchmark");
+    var contributorsPath = params.get("contributors");
+    var decisionsPath = params.get("decisions");
+    var riskPath = params.get("risk");
+    var moduleHealthPath = params.get("moduleHealth") || params.get("module-health");
+    var graphInsightsPath = params.get("graphInsights") || params.get("graph-insights");
+    var workspacePath = params.get("workspace");
     var inferredRoot = inferMemoryRoot(graphPaths[0] || "");
     if (!inboxPath && inferredRoot) inboxPath = inferredRoot + "/inbox.json";
     if (!reviewPath && inferredRoot) reviewPath = inferredRoot + "/review/memory-review.md";
     if (!pendingPath && inferredRoot) pendingPath = inferredRoot + "/pending";
+    if (inferredRoot) {
+      if (!qualityPath) qualityPath = inferredRoot + "/reports/quality.json";
+      if (!benchmarkPath) benchmarkPath = inferredRoot + "/reports/benchmark.json";
+      if (!contributorsPath) contributorsPath = inferredRoot + "/reports/contributors.json";
+      if (!decisionsPath) decisionsPath = inferredRoot + "/reports/decisions.json";
+      if (!riskPath) riskPath = inferredRoot + "/reports/risk.json";
+      if (!moduleHealthPath) moduleHealthPath = inferredRoot + "/reports/module-health.json";
+      if (!graphInsightsPath) graphInsightsPath = inferredRoot + "/reports/graph-insights.json";
+      if (!workspacePath) workspacePath = inferredRoot + "/reports/workspace.json";
+    }
     var jobs = [];
     if (metricsPath) jobs.push(fetchJson(metricsPath).then(function (metrics) { state.metrics = metrics; }));
     if (inboxPath) jobs.push(fetchJson(inboxPath).then(function (inbox) { state.inbox = inbox; }).catch(function () { state.inbox = null; }));
     if (reviewPath) jobs.push(fetchText(reviewPath).then(function (text) { state.reviewText = text; }).catch(function () { state.reviewText = ""; }));
     if (pendingPath) jobs.push(loadPending(pendingPath).then(function (packets) { state.pendingPackets = packets; }));
+    if (qualityPath) jobs.push(fetchJson(qualityPath).then(function (report) { state.reports.quality = report; }).catch(function () { state.reports.quality = null; }));
+    if (benchmarkPath) jobs.push(fetchJson(benchmarkPath).then(function (report) { state.reports.benchmark = report; }).catch(function () { state.reports.benchmark = null; }));
+    if (contributorsPath) jobs.push(fetchJson(contributorsPath).then(function (report) { state.reports.contributors = report; }).catch(function () { state.reports.contributors = null; }));
+    if (decisionsPath) jobs.push(fetchJson(decisionsPath).then(function (report) { state.reports.decisions = report; }).catch(function () { state.reports.decisions = null; }));
+    if (riskPath) jobs.push(fetchJson(riskPath).then(function (report) { state.reports.risk = report; }).catch(function () { state.reports.risk = null; }));
+    if (moduleHealthPath) jobs.push(fetchJson(moduleHealthPath).then(function (report) { state.reports.moduleHealth = report; }).catch(function () { state.reports.moduleHealth = null; }));
+    if (graphInsightsPath) jobs.push(fetchJson(graphInsightsPath).then(function (report) { state.reports.graphInsights = report; }).catch(function () { state.reports.graphInsights = null; }));
+    if (workspacePath) jobs.push(fetchJson(workspacePath).then(function (report) { state.reports.workspace = report; }).catch(function () { state.reports.workspace = null; }));
     if (!graphPaths.length && !jobs.length) {
       loadHostedDefault();
       return;
@@ -315,11 +353,23 @@
       loadGraphPath("./data/kage/graph.json"),
       loadGraphPath("./data/kage/code_graph/graph.json"),
       fetchJson("./data/kage/metrics.json").catch(function () { return null; }),
-      fetchJson("./data/kage/inbox.json").catch(function () { return null; })
+      fetchJson("./data/kage/inbox.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/risk.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/contributors.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/decisions.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/module-health.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/graph-insights.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/workspace.json").catch(function () { return null; })
     ]).then(function (items) {
       var merged = mergeNormalizedGraphs([normalizeGraph(items[0]), normalizeGraph(items[1])]);
       state.metrics = items[2];
       state.inbox = items[3];
+      state.reports.risk = items[4];
+      state.reports.contributors = items[5];
+      state.reports.decisions = items[6];
+      state.reports.moduleHealth = items[7];
+      state.reports.graphInsights = items[8];
+      state.reports.workspace = items[9];
       loadNormalizedGraph(merged, "Kage repo graph");
       setAutoLoad("Kage repo graph loaded", true);
     }).catch(function () {
@@ -875,6 +925,7 @@
     renderMetrics();
     renderReviewQueue();
     renderProof();
+    renderIntelligence();
   }
 
   function scheduleRender() {
@@ -2165,6 +2216,191 @@
       item.querySelector("span").textContent = row[0];
       els.proofList.appendChild(item);
     });
+  }
+
+  function renderIntelligence() {
+    if (!els.intelligenceList) return;
+    var reports = state.reports || {};
+    var cards = buildIntelligenceCards(reports);
+    els.intelligenceList.textContent = "";
+    els.intelligenceStatus.textContent = cards.length ? cards.length + " loaded" : "not loaded";
+    if (!cards.length) {
+      els.intelligenceList.className = "intelligence-list details-empty";
+      els.intelligenceList.textContent = "No repo intelligence reports loaded. Launch with `kage viewer --project <repo>` to load risk, module health, graph insights, and workspace reports.";
+      return;
+    }
+    els.intelligenceList.className = "intelligence-list";
+    cards.forEach(function (card) {
+      var item = document.createElement("article");
+      item.className = "intel-card";
+      item.innerHTML = [
+        "<h3></h3>",
+        "<div class=\"intel-kicker\"></div>",
+        "<div class=\"intel-summary\"></div>",
+        "<ul></ul>"
+      ].join("");
+      item.querySelector("h3").textContent = card.title;
+      item.querySelector(".intel-kicker").textContent = card.kicker;
+      item.querySelector(".intel-summary").textContent = card.summary;
+      var list = item.querySelector("ul");
+      card.rows.slice(0, 5).forEach(function (row) {
+        var li = document.createElement("li");
+        li.innerHTML = "<strong></strong> <span></span>";
+        li.querySelector("strong").textContent = row[0];
+        li.querySelector("span").textContent = row[1];
+        list.appendChild(li);
+      });
+      els.intelligenceList.appendChild(item);
+    });
+  }
+
+  function buildIntelligenceCards(reports) {
+    var cards = [];
+    var memoryCodeEdges = state.edges.filter(isMemoryCodeEdge);
+    if (state.edges.length) {
+      var byRelation = new Map();
+      memoryCodeEdges.forEach(function (edge) {
+        byRelation.set(edge.relation, (byRelation.get(edge.relation) || 0) + 1);
+      });
+      cards.push({
+        title: "Memory-Code Bridge",
+        kicker: "shareable repo lore",
+        summary: memoryCodeEdges.length
+          ? "Approved memory is linked back to concrete code artifacts so future agents can recall why the code exists."
+          : "No memory-code links are visible in the loaded graph.",
+        rows: [
+          ["Links", String(memoryCodeEdges.length)],
+          ["Visible", String(memoryCodeEdges.filter(function (edge) { return state.visibleEdgeIds.has(edge.id); }).length)],
+          ["Precise", String(memoryCodeEdges.filter(function (edge) { return edge.relation !== "affects_code_path"; }).length)]
+        ].concat(Array.from(byRelation.entries()).sort(function (a, b) { return b[1] - a[1] || a[0].localeCompare(b[0]); }).slice(0, 2).map(function (entry) {
+          return [entry[0], String(entry[1])];
+        }))
+      });
+    }
+    var risk = reports.risk;
+    if (risk) {
+      var targets = Array.isArray(risk.targets) ? risk.targets : Object.keys(risk.targets || {}).map(function (key) { return risk.targets[key]; });
+      var silos = Array.isArray(risk.ownership_silos) ? risk.ownership_silos : [];
+      cards.push({
+        title: "Change Risk",
+        kicker: "blast radius",
+        summary: risk.summary || "Local risk report from code graph and git history.",
+        rows: targets.slice(0, 5).map(function (item) {
+          return [item.target || "target", item.risk_summary || [item.risk_type, item.dependents_count != null ? item.dependents_count + " dependents" : ""].filter(Boolean).join(", ")];
+        }).concat(targets.length ? [] : [["Hotspots", Array.isArray(risk.global_hotspots) ? risk.global_hotspots.length + " global" : "none"]])
+          .concat(silos.length ? [["Silos", silos.length + " ownership concentration(s)"]] : [])
+      });
+    }
+    var contributors = reports.contributors;
+    if (contributors) {
+      var profiles = Array.isArray(contributors.contributors) ? contributors.contributors : [];
+      cards.push({
+        title: "Contributors",
+        kicker: "local git profiles",
+        summary: contributors.summary || "Contributor profiles from git history, ownership, modules, and hotspots.",
+        rows: profiles.slice(0, 5).map(function (profile) {
+          return [
+            profile.contributor || "contributor",
+            profile.commits_total + " commits, " + profile.commits_90d + " in 90d, " + profile.primary_owned_files + " owned file(s)"
+          ];
+        }).concat(profiles.length ? [] : [["Profiles", "No contributor profiles loaded"]])
+      });
+    }
+    var decisions = reports.decisions;
+    if (decisions) {
+      var topDecisions = Array.isArray(decisions.top_decisions) ? decisions.top_decisions : [];
+      var gaps = Array.isArray(decisions.coverage_gaps) ? decisions.coverage_gaps : [];
+      cards.push({
+        title: "Decision Memory",
+        kicker: "why / gotchas / runbooks",
+        summary: decisions.summary || "Decision memory connected to code paths, plus important uncovered files.",
+        rows: [
+          ["Coverage", (decisions.coverage_percent != null ? decisions.coverage_percent + "%" : "n/a") + " of code paths"],
+          ["Why-memory", String(decisions.decision_memory_count || 0)],
+          ["Coverage gaps", String(gaps.length)]
+        ].concat(topDecisions.slice(0, 2).map(function (item) {
+          return [item.type || "memory", item.title || item.summary || "decision memory"];
+        })).concat(gaps.slice(0, 1).map(function (gap) {
+          return ["Uncovered", gap.path + " - " + gap.reason];
+        }))
+      });
+    }
+    var health = reports.moduleHealth;
+    if (health) {
+      var modules = Array.isArray(health.modules) ? health.modules : [];
+      cards.push({
+        title: "Module Health",
+        kicker: "churn / tests / ownership",
+        summary: health.summary || "Module scorecards from local graph and git signals.",
+        rows: modules.slice(0, 5).map(function (item) {
+          return [item.module + " " + item.grade, "score " + item.score + " - " + (Array.isArray(item.reasons) ? item.reasons.slice(0, 2).join("; ") : "")];
+        }).concat(modules.length ? [] : [["Modules", "No module scorecards loaded"]])
+      });
+    }
+    var insights = reports.graphInsights;
+    if (insights) {
+      var central = Array.isArray(insights.central_files) ? insights.central_files : [];
+      var cycles = Array.isArray(insights.dependency_cycles) ? insights.dependency_cycles : [];
+      var communities = Array.isArray(insights.communities) ? insights.communities : [];
+      var coverage = Array.isArray(insights.language_coverage) ? insights.language_coverage : [];
+      var edgeMix = insights.edge_mix || {};
+      cards.push({
+        title: "Graph Insights",
+        kicker: "centrality / cycles / communities",
+        summary: insights.summary || "Deterministic source graph intelligence.",
+        rows: [
+          ["Central", central[0] ? central[0].path + " (" + central[0].dependents + " dependents)" : "none"],
+          ["Cycles", String(cycles.length)],
+          ["Communities", String(communities.length)],
+          ["Edges", [edgeMix.imports || 0, "imports", edgeMix.calls || 0, "calls"].join(" ")]
+        ].concat(central.slice(1, 3).map(function (item) { return ["Central", item.path]; }))
+          .concat(coverage.slice(0, 1).map(function (item) { return [item.language, item.coverage_percent + "% indexed across " + item.files + " files"]; }))
+      });
+    }
+    var workspace = reports.workspace;
+    if (workspace) {
+      var repos = Array.isArray(workspace.repos) ? workspace.repos : [];
+      var deps = Array.isArray(workspace.package_dependencies) ? workspace.package_dependencies : [];
+      var contracts = Array.isArray(workspace.route_contracts) ? workspace.route_contracts : [];
+      cards.push({
+        title: "Workspace",
+        kicker: "multi-repo memory",
+        summary: workspace.summary || "Workspace scan across local git repos.",
+        rows: [
+          ["Repos", String(repos.length)],
+          ["Indexed", String(repos.filter(function (repo) { return repo.indexed; }).length)],
+          ["Package deps", String(deps.length)],
+          ["Route links", String(contracts.length)]
+        ].concat(repos.slice(0, 2).map(function (repo) { return [repo.alias, repo.approved_packets + " packets, " + repo.code_files + " files"]; }))
+      });
+    }
+    var quality = reports.quality;
+    if (quality) {
+      cards.push({
+        title: "Memory Quality",
+        kicker: "review gate",
+        summary: quality.summary || "Packet quality, duplicates, staleness, and grounding.",
+        rows: [
+          ["Useful", quality.useful_memory_ratio_percent != null ? quality.useful_memory_ratio_percent + "%" : "n/a"],
+          ["Evidence", quality.evidence_coverage_percent != null ? quality.evidence_coverage_percent + "%" : "n/a"],
+          ["Path grounded", quality.path_grounding_coverage_percent != null ? quality.path_grounding_coverage_percent + "%" : "n/a"],
+          ["Pending", quality.totals ? String(quality.totals.pending) : "n/a"]
+        ]
+      });
+    }
+    var benchmark = reports.benchmark;
+    if (benchmark) {
+      var checks = Array.isArray(benchmark.checks) ? benchmark.checks : [];
+      cards.push({
+        title: "Benchmark",
+        kicker: "local proof",
+        summary: benchmark.summary || "Local memory and graph benchmark signals.",
+        rows: checks.slice(0, 5).map(function (item) {
+          return [item.name || "check", (item.pass ? "pass" : "check") + " - " + item.actual + "/" + item.target];
+        })
+      });
+    }
+    return cards;
   }
 
   function renderStatusStrip(visibleEntities, visibleEdges, official) {

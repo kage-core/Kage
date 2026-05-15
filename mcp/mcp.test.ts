@@ -25,8 +25,18 @@ test("MCP lists repo-local memory tools", () => {
   assert.equal(names.includes("kage_graph"), true);
   assert.equal(names.includes("kage_graph_registry"), true);
   assert.equal(names.includes("kage_code_graph"), true);
+  assert.equal(names.includes("kage_risk"), true);
+  assert.equal(names.includes("kage_dependency_path"), true);
+  assert.equal(names.includes("kage_cleanup_candidates"), true);
+  assert.equal(names.includes("kage_reviewers"), true);
+  assert.equal(names.includes("kage_contributors"), true);
+  assert.equal(names.includes("kage_decisions"), true);
   assert.equal(names.includes("kage_code_index"), true);
   assert.equal(names.includes("kage_metrics"), true);
+  assert.equal(names.includes("kage_module_health"), true);
+  assert.equal(names.includes("kage_graph_insights"), true);
+  assert.equal(names.includes("kage_workspace"), true);
+  assert.equal(names.includes("kage_workspace_recall"), true);
   assert.equal(names.includes("kage_inbox"), true);
   assert.equal(names.includes("kage_refresh"), true);
   assert.equal(names.includes("kage_pr_summarize"), true);
@@ -61,6 +71,22 @@ test("MCP kage_context returns combined repo context", async () => {
   assert.match(text, /Kage Context/);
   assert.match(text, /Graph Facts/);
   assert.match(text, /Memory healthy|Warnings/);
+});
+
+test("MCP kage_context includes risk and dependency path when file targets are present", async () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "core.js"), "export function core() { return 1; }\n", "utf8");
+  writeFileSync(join(project, "src", "app.js"), "import { core } from './core.js';\nexport function app() { return core(); }\n", "utf8");
+
+  const result = await callTool("kage_context", {
+    project_dir: project,
+    query: "how does src/app.js connect to src/core.js before I edit it",
+  });
+  const text = textContent(result);
+  assert.match(text, /Risk Signals/);
+  assert.match(text, /Dependency Path/);
+  assert.match(text, /src\/app\.js -> src\/core\.js/);
 });
 
 test("MCP kage_recall returns agent-ready context", async () => {
@@ -157,6 +183,105 @@ test("MCP kage_code_graph returns source-derived code facts", async () => {
   assert.match(text, /createApp|\/tasks/);
 });
 
+test("MCP kage_dependency_path returns graph path JSON", async () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "core.js"), "export function core() { return 1; }\n", "utf8");
+  writeFileSync(join(project, "src", "app.js"), "import { core } from './core.js';\nexport function app() { return core(); }\n", "utf8");
+
+  const result = await callTool("kage_dependency_path", {
+    project_dir: project,
+    from: "src/app.js",
+    to: "src/core.js",
+  });
+  const body = JSON.parse(textContent(result));
+  assert.equal(body.relation, "source_depends_on_target");
+  assert.deepEqual(body.path, ["src/app.js", "src/core.js"]);
+});
+
+test("MCP kage_cleanup_candidates returns conservative candidates", async () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "index.js"), "import { used } from './used.js';\nused();\n", "utf8");
+  writeFileSync(join(project, "src", "used.js"), "export function used() { return true; }\n", "utf8");
+  writeFileSync(join(project, "src", "unused.js"), "export function unused() { return false; }\n", "utf8");
+
+  const result = await callTool("kage_cleanup_candidates", { project_dir: project });
+  const body = JSON.parse(textContent(result));
+  assert.equal(body.candidates.some((candidate: { path: string }) => candidate.path === "src/unused.js"), true);
+  assert.equal(body.skipped_entrypoints.includes("src/index.js"), true);
+});
+
+test("MCP kage_reviewers returns local git reviewer suggestions", async () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "core.js"), "export function core() { return 1; }\n", "utf8");
+  execFileSync("git", ["add", "."], { cwd: project, stdio: "ignore" });
+  execFileSync("git", ["commit", "-m", "alice owns core"], {
+    cwd: project,
+    stdio: "ignore",
+    env: { ...process.env, GIT_AUTHOR_NAME: "Alice", GIT_AUTHOR_EMAIL: "alice@example.com", GIT_COMMITTER_NAME: "Alice", GIT_COMMITTER_EMAIL: "alice@example.com" },
+  });
+
+  const result = await callTool("kage_reviewers", { project_dir: project, targets: ["src/core.js"] });
+  const body = JSON.parse(textContent(result));
+  assert.equal(body.suggestions.some((suggestion: { reviewer: string }) => suggestion.reviewer === "Alice <alice@example.com>"), true);
+});
+
+test("MCP kage_contributors returns local git contributor profiles", async () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "core.js"), "export function core() { return 1; }\n", "utf8");
+  execFileSync("git", ["add", "."], { cwd: project, stdio: "ignore" });
+  execFileSync("git", ["commit", "-m", "feat: alice owns core"], {
+    cwd: project,
+    stdio: "ignore",
+    env: { ...process.env, GIT_AUTHOR_NAME: "Alice", GIT_AUTHOR_EMAIL: "alice@example.com", GIT_COMMITTER_NAME: "Alice", GIT_COMMITTER_EMAIL: "alice@example.com" },
+  });
+
+  const result = await callTool("kage_contributors", { project_dir: project });
+  const body = JSON.parse(textContent(result));
+  assert.equal(body.contributors.some((profile: { contributor: string }) => profile.contributor === "Alice <alice@example.com>"), true);
+});
+
+test("MCP kage_decisions returns why-memory coverage", async () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "core.js"), "export function core() { return 1; }\n", "utf8");
+  mkdirSync(join(project, ".agent_memory", "packets"), { recursive: true });
+  writeFileSync(join(project, ".agent_memory", "packets", "decision-core.json"), JSON.stringify({
+    schema_version: 2,
+    id: "repo:test:decision:core",
+    title: "Core path stays small",
+    summary: "Core stays small for testability.",
+    body: "Keep the core path small because downstream tests import it directly.",
+    type: "decision",
+    scope: "repo",
+    visibility: "team",
+    sensitivity: "internal",
+    status: "approved",
+    confidence: 0.8,
+    tags: ["core"],
+    paths: ["src/core.js"],
+    stack: [],
+    source_refs: [{ kind: "test" }],
+    context: { why: "Downstream tests import the core path directly." },
+    freshness: {},
+    edges: [],
+    quality: { score: 90 },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }, null, 2));
+
+  const result = await callTool("kage_decisions", { project_dir: project });
+  const body = JSON.parse(textContent(result));
+  assert.equal(body.decision_memory_count, 1);
+  assert.equal(body.top_decisions[0].title, "Core path stays small");
+  assert.equal(body.coverage_percent, 100);
+});
+
 test("MCP kage_code_index writes an LSP symbol index artifact", async () => {
   const project = tempProject();
   mkdirSync(join(project, "src"), { recursive: true });
@@ -181,6 +306,70 @@ test("MCP kage_metrics returns coverage and readiness metrics", async () => {
   assert.equal(metrics.code_graph.indexer_coverage_percent, 100);
   assert.equal(typeof metrics.harness.readiness_score, "number");
   assert.equal(typeof metrics.pain.estimated_tokens_saved, "number");
+});
+
+test("MCP kage_module_health returns module scorecards", async () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "index.js"), "export function main() { return true; }\n", "utf8");
+
+  const result = await callTool("kage_module_health", { project_dir: project });
+  const body = JSON.parse(textContent(result));
+  assert.equal(Array.isArray(body.modules), true);
+  assert.equal(body.modules.some((item: { module: string }) => item.module === "src"), true);
+});
+
+test("MCP kage_graph_insights returns central files and communities", async () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "index.js"), "import { core } from './core.js';\ncore();\n", "utf8");
+  writeFileSync(join(project, "src", "core.js"), "export function core() { return true; }\n", "utf8");
+
+  const result = await callTool("kage_graph_insights", { project_dir: project });
+  const body = JSON.parse(textContent(result));
+  assert.equal(body.central_files.some((file: { path: string }) => file.path === "src/core.js"), true);
+  assert.equal(body.communities.some((community: { files: string[] }) => community.files.includes("src/index.js")), true);
+});
+
+test("MCP kage_workspace and kage_workspace_recall fan out across local repos", async () => {
+  const workspace = mkdtempSync(join(tmpdir(), "kage-mcp-workspace-"));
+  const api = join(workspace, "api");
+  const web = join(workspace, "web");
+  mkdirSync(api, { recursive: true });
+  mkdirSync(web, { recursive: true });
+  execFileSync("git", ["init"], { cwd: api, stdio: "ignore" });
+  execFileSync("git", ["init"], { cwd: web, stdio: "ignore" });
+  writeFileSync(join(api, "package.json"), JSON.stringify({ name: "@demo/api" }), "utf8");
+  writeFileSync(join(web, "package.json"), JSON.stringify({ name: "@demo/web", dependencies: { "@demo/api": "workspace:*" } }), "utf8");
+  mkdirSync(join(api, "src"), { recursive: true });
+  mkdirSync(join(web, "src"), { recursive: true });
+  writeFileSync(join(api, "src", "server.js"), "const app = { get() {} };\nfunction handler() {}\napp.get('/auth/user', handler);\n", "utf8");
+  writeFileSync(join(web, "src", "client.js"), "export function client() { return fetch('/auth/user'); }\n", "utf8");
+  await callTool("kage_capture", {
+    project_dir: api,
+    title: "API auth contract",
+    body: "The auth API keeps the x-user-id header stable for workspace clients.",
+    type: "decision",
+    paths: ["package.json"],
+  });
+  await callTool("kage_capture", {
+    project_dir: web,
+    title: "Web auth client",
+    body: "The web client depends on the auth API x-user-id header contract.",
+    type: "decision",
+    paths: ["package.json"],
+  });
+  await callTool("kage_code_graph", { project_dir: api });
+  await callTool("kage_code_graph", { project_dir: web });
+
+  const workspaceResult = await callTool("kage_workspace", { project_dir: workspace });
+  const workspaceBody = JSON.parse(textContent(workspaceResult));
+  assert.equal(workspaceBody.package_dependencies.some((dep: { from: string; to: string }) => dep.from === "web" && dep.to === "api"), true);
+  assert.equal(workspaceBody.route_contracts.some((contract: { provider_repo: string; consumer_repo: string; path: string }) => contract.provider_repo === "api" && contract.consumer_repo === "web" && contract.path === "/auth/user"), true);
+
+  const recallResult = await callTool("kage_workspace_recall", { project_dir: workspace, query: "auth header contract", limit: 5, json: true });
+  const recallBody = JSON.parse(textContent(recallResult));
+  assert.equal(recallBody.hits.some((hit: { repo: string; title: string }) => hit.repo === "api" && /auth contract/i.test(hit.title)), true);
 });
 
 test("MCP kage_audit returns trust and recommendation details", async () => {

@@ -5,7 +5,13 @@ import {
   benchmarkProject,
   distillSession,
   indexProject,
+  kageContributors,
+  kageDecisionIntelligence,
+  kageGraphInsights,
   kageMetrics,
+  kageModuleHealth,
+  kageRisk,
+  kageWorkspace,
   memoryInbox,
   observe,
   qualityReport,
@@ -271,18 +277,36 @@ export async function startViewer(projectDir: string, options: { host?: string; 
   const inboxPath = join(projectRoot, ".agent_memory", "inbox.json");
   const reviewPath = join(projectRoot, ".agent_memory", "review", "memory-review.md");
   const pendingDir = join(projectRoot, ".agent_memory", "pending");
+  const reportsDir = join(projectRoot, ".agent_memory", "reports");
+  const qualityPath = join(reportsDir, "quality.json");
+  const benchmarkPath = join(reportsDir, "benchmark.json");
+  const contributorsPath = join(reportsDir, "contributors.json");
+  const decisionsPath = join(reportsDir, "decisions.json");
+  const riskPath = join(reportsDir, "risk.json");
+  const moduleHealthPath = join(reportsDir, "module-health.json");
+  const graphInsightsPath = join(reportsDir, "graph-insights.json");
+  const workspacePath = join(reportsDir, "workspace.json");
 
   // Pre-generate lightweight JSON reports so the viewer can load them directly.
   try {
+    mkdirSync(reportsDir, { recursive: true });
     const metrics = kageMetrics(projectDir);
     writeFileSync(metricsPath, JSON.stringify(metrics, null, 2));
     const inbox = memoryInbox(projectDir);
     writeFileSync(inboxPath, JSON.stringify(inbox, null, 2));
+    writeFileSync(qualityPath, JSON.stringify(qualityReport(projectDir), null, 2));
+    writeFileSync(benchmarkPath, JSON.stringify(benchmarkProject(projectDir), null, 2));
+    writeFileSync(contributorsPath, JSON.stringify(kageContributors(projectDir), null, 2));
+    writeFileSync(decisionsPath, JSON.stringify(kageDecisionIntelligence(projectDir), null, 2));
+    writeFileSync(riskPath, JSON.stringify(kageRisk(projectDir), null, 2));
+    writeFileSync(moduleHealthPath, JSON.stringify(kageModuleHealth(projectDir), null, 2));
+    writeFileSync(graphInsightsPath, JSON.stringify(kageGraphInsights(projectDir), null, 2));
+    writeFileSync(workspacePath, JSON.stringify(kageWorkspace(projectDir), null, 2));
   } catch {
     // non-fatal: viewer will show 404 for reports if generation fails
   }
 
-  const url = `http://${host}:${port}/viewer/index.html?graph=${encodeURIComponent(graphPath)}&code=${encodeURIComponent(codePath)}&metrics=${encodeURIComponent(metricsPath)}&inbox=${encodeURIComponent(inboxPath)}&review=${encodeURIComponent(reviewPath)}&pending=${encodeURIComponent(pendingDir)}&view=code`;
+  const url = `http://${host}:${port}/viewer/index.html?graph=${encodeURIComponent(graphPath)}&code=${encodeURIComponent(codePath)}&metrics=${encodeURIComponent(metricsPath)}&inbox=${encodeURIComponent(inboxPath)}&review=${encodeURIComponent(reviewPath)}&pending=${encodeURIComponent(pendingDir)}&quality=${encodeURIComponent(qualityPath)}&benchmark=${encodeURIComponent(benchmarkPath)}&contributors=${encodeURIComponent(contributorsPath)}&decisions=${encodeURIComponent(decisionsPath)}&risk=${encodeURIComponent(riskPath)}&moduleHealth=${encodeURIComponent(moduleHealthPath)}&graphInsights=${encodeURIComponent(graphInsightsPath)}&workspace=${encodeURIComponent(workspacePath)}&view=code`;
 
   const server = createServer((req, res) => {
     const requestUrl = new URL(req.url ?? "/", `http://${host}:${port}`);

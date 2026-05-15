@@ -32,7 +32,17 @@ import {
   initProject,
   indexProject,
   installAgentPolicy,
+  kageCleanupCandidates,
+  kageContributors,
+  kageDecisionIntelligence,
+  kageDependencyPath,
+  kageGraphInsights,
+  kageRisk,
   kageMetrics,
+  kageModuleHealth,
+  kageReviewerSuggestions,
+  kageWorkspace,
+  kageWorkspaceRecall,
   learn,
   loadApprovedPackets,
   memoryInbox,
@@ -361,6 +371,254 @@ test('createApp routes tasks', () => createApp());
   assert.equal(graph.tests.some((edge) => edge.covers_symbol === "createApp"), true);
 });
 
+test("risk report combines code dependents with git ownership and co-change signals", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  mkdirSync(join(project, "test"), { recursive: true });
+  writeFileSync(join(project, "src", "core.js"), "export function core() { return 1; }\n", "utf8");
+  writeFileSync(join(project, "src", "app.js"), "import { core } from './core.js';\nexport function app() { return core(); }\n", "utf8");
+  writeFileSync(join(project, "test", "core.test.js"), "import { core } from '../src/core.js';\ntest('core', () => core());\n", "utf8");
+  commitAll(project, "initial core");
+  writeFileSync(join(project, "src", "core.js"), "export function core() { return 2; }\n", "utf8");
+  writeFileSync(join(project, "src", "app.js"), "import { core } from './core.js';\nexport function app() { return core() + 1; }\n", "utf8");
+  commitAll(project, "adjust core and app together");
+
+  buildCodeGraph(project, { force: true });
+  const report = kageRisk(project, ["src/core.js"]);
+  const target = report.targets["src/core.js"];
+
+  assert.ok(target);
+  assert.equal(target.exists_in_code_graph, true);
+  assert.equal(target.dependents.includes("src/app.js"), true);
+  assert.equal(target.test_gap, false);
+  assert.equal(target.git.commit_count_total >= 2, true);
+  assert.equal(target.git.primary_owner, "Test <test@example.com>");
+  assert.equal(target.git.co_change_partners.some((partner) => partner.file_path === "src/app.js"), true);
+  assert.equal(target.co_change_warnings.some((partner) => partner.file_path === "src/app.js" && partner.included_in_change === false), true);
+  assert.equal(report.ownership_silos.some((silo) => silo.file_path === "src/core.js" && silo.primary_owner === "Test <test@example.com>"), false);
+});
+
+test("dependency path reports forward reverse and undirected code graph connections", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "core.ts"), "export function core() { return 1; }\n", "utf8");
+  writeFileSync(join(project, "src", "service.ts"), "import { core } from './core.js';\nexport function service() { return core(); }\n", "utf8");
+  writeFileSync(join(project, "src", "app.ts"), "import { service } from './service.js';\nexport function app() { return service(); }\n", "utf8");
+  writeFileSync(join(project, "src", "sibling.ts"), "import { service } from './service.js';\nexport function sibling() { return service(); }\n", "utf8");
+  buildCodeGraph(project, { force: true });
+
+  const forward = kageDependencyPath(project, "src/app.ts", "src/core.ts");
+  assert.equal(forward.relation, "source_depends_on_target");
+  assert.deepEqual(forward.path, ["src/app.ts", "src/service.ts", "src/core.ts"]);
+  assert.equal(forward.distance, 2);
+
+  const reverse = kageDependencyPath(project, "src/core.ts", "src/app.ts");
+  assert.equal(reverse.relation, "target_depends_on_source");
+  assert.deepEqual(reverse.path, ["src/core.ts", "src/service.ts", "src/app.ts"]);
+
+  const undirected = kageDependencyPath(project, "src/app.ts", "src/sibling.ts");
+  assert.equal(undirected.relation, "connected_undirected");
+  assert.deepEqual(undirected.path, ["src/app.ts", "src/service.ts", "src/sibling.ts"]);
+});
+
+test("cleanup candidates conservatively reports unreferenced source files", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "index.js"), "import { used } from './used.js';\nused();\n", "utf8");
+  writeFileSync(join(project, "src", "used.js"), "export function used() { return true; }\n", "utf8");
+  writeFileSync(join(project, "src", "unused.js"), "export function unused() { return false; }\n", "utf8");
+  writeFileSync(join(project, "src", "job.ts"), "export function runJob() { return true; }\n", "utf8");
+  writeFileSync(join(project, "src", "runner.js"), "export const jobPath = 'job.js';\n", "utf8");
+  buildCodeGraph(project, { force: true });
+
+  const report = kageCleanupCandidates(project);
+  assert.equal(report.candidates.some((candidate) => candidate.path === "src/unused.js"), true);
+  assert.equal(report.candidates.some((candidate) => candidate.path === "src/used.js"), false);
+  assert.equal(report.candidates.some((candidate) => candidate.path === "src/job.ts"), false);
+  assert.equal(report.skipped_runtime_references.includes("src/job.ts"), true);
+  assert.equal(report.skipped_entrypoints.includes("src/index.js"), true);
+  const unused = report.candidates.find((candidate) => candidate.path === "src/unused.js");
+  assert.equal(unused?.kind, "unreferenced_file");
+  assert.equal(unused?.inbound_imports, 0);
+});
+
+test("reviewer suggestions rank local git authors and co-change owners", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "core.js"), "export function core() { return 1; }\n", "utf8");
+  writeFileSync(join(project, "src", "app.js"), "import { core } from './core.js';\nexport function app() { return core(); }\n", "utf8");
+  execFileSync("git", ["add", "."], { cwd: project, stdio: "ignore" });
+  execFileSync("git", ["commit", "-m", "alice owns core"], {
+    cwd: project,
+    stdio: "ignore",
+    env: { ...process.env, GIT_AUTHOR_NAME: "Alice", GIT_AUTHOR_EMAIL: "alice@example.com", GIT_COMMITTER_NAME: "Alice", GIT_COMMITTER_EMAIL: "alice@example.com" },
+  });
+  writeFileSync(join(project, "src", "core.js"), "export function core() { return 2; }\n", "utf8");
+  writeFileSync(join(project, "src", "app.js"), "import { core } from './core.js';\nexport function app() { return core() + 1; }\n", "utf8");
+  execFileSync("git", ["add", "."], { cwd: project, stdio: "ignore" });
+  execFileSync("git", ["commit", "-m", "bob updates app with core"], {
+    cwd: project,
+    stdio: "ignore",
+    env: { ...process.env, GIT_AUTHOR_NAME: "Bob", GIT_AUTHOR_EMAIL: "bob@example.com", GIT_COMMITTER_NAME: "Bob", GIT_COMMITTER_EMAIL: "bob@example.com" },
+  });
+  buildCodeGraph(project, { force: true });
+
+  const report = kageReviewerSuggestions(project, ["src/core.js"]);
+  assert.equal(report.suggestions.some((suggestion) => suggestion.reviewer === "Alice <alice@example.com>"), true);
+  assert.equal(report.suggestions.some((suggestion) => suggestion.reviewer === "Bob <bob@example.com>"), true);
+  assert.equal(report.suggestions[0].authored_targets.includes("src/core.js"), true);
+});
+
+test("contributor profiles summarize local git activity ownership and modules", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src", "api"), { recursive: true });
+  writeFileSync(join(project, "src", "api", "core.js"), "export function core() { return 1; }\n", "utf8");
+  writeFileSync(join(project, "src", "api", "app.js"), "import { core } from './core.js';\nexport function app() { return core(); }\n", "utf8");
+  execFileSync("git", ["add", "."], { cwd: project, stdio: "ignore" });
+  execFileSync("git", ["commit", "-m", "feat: alice owns api"], {
+    cwd: project,
+    stdio: "ignore",
+    env: { ...process.env, GIT_AUTHOR_NAME: "Alice", GIT_AUTHOR_EMAIL: "alice@example.com", GIT_COMMITTER_NAME: "Alice", GIT_COMMITTER_EMAIL: "alice@example.com" },
+  });
+  for (let i = 0; i < 5; i += 1) {
+    writeFileSync(join(project, "src", "api", "core.js"), `export function core() { return ${i + 2}; }\n`, "utf8");
+    execFileSync("git", ["add", "."], { cwd: project, stdio: "ignore" });
+    execFileSync("git", ["commit", "-m", `fix: alice updates core ${i}`], {
+      cwd: project,
+      stdio: "ignore",
+      env: { ...process.env, GIT_AUTHOR_NAME: "Alice", GIT_AUTHOR_EMAIL: "alice@example.com", GIT_COMMITTER_NAME: "Alice", GIT_COMMITTER_EMAIL: "alice@example.com" },
+    });
+  }
+  buildCodeGraph(project, { force: true });
+
+  const report = kageContributors(project);
+  const alice = report.contributors.find((profile) => profile.contributor === "Alice <alice@example.com>");
+  assert.ok(alice);
+  assert.equal(alice.commits_total >= 6, true);
+  assert.equal(alice.files_touched.some((file) => file.path === "src/api/core.js"), true);
+  assert.equal(alice.modules_touched.some((module) => module.module === "src" || module.module === "src/api"), true);
+  assert.equal(alice.primary_owned_files >= 1, true);
+  assert.equal(alice.silo_files.some((file) => file.path === "src/api/core.js"), true);
+  assert.equal(alice.commit_categories.fix >= 5, true);
+});
+
+test("decision intelligence surfaces why-memory coverage and gaps", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "checkout.js"), "export function checkout() { return true; }\n", "utf8");
+  writeFileSync(join(project, "src", "callbacks.js"), "export function callback() { return true; }\n", "utf8");
+  commitAll(project, "checkout flow");
+  buildCodeGraph(project, { force: true });
+  const captured = capture({
+    projectDir: project,
+    title: "Checkout retry paths stay separate",
+    body: "The checkout retry paths look duplicated, but one path uses callback idempotency and the other uses user session state. Keep them separate and run checkout retry tests when touching this file.",
+    type: "decision",
+    paths: ["src/checkout.js"],
+    context: {
+      why: "Callback and user checkout retries carry different state.",
+      risk_if_forgotten: "A cleanup can merge incompatible retry semantics.",
+      verification: "checkout retry tests",
+    },
+  });
+  assert.equal(captured.ok, true);
+
+  const report = kageDecisionIntelligence(project);
+  assert.equal(report.decision_memory_count, 1);
+  assert.equal(report.code_paths_with_memory, 1);
+  assert.equal(report.top_decisions[0].title, "Checkout retry paths stay separate");
+  assert.equal(report.top_decisions[0].why, "Callback and user checkout retries carry different state.");
+  assert.equal(report.coverage_gaps.some((gap) => gap.path === "src/callbacks.js"), true);
+});
+
+test("module health rolls up graph test cleanup and git signals", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src", "payments"), { recursive: true });
+  mkdirSync(join(project, "test"), { recursive: true });
+  writeFileSync(join(project, "src", "payments", "checkout.js"), "export function checkout() { return true; }\n", "utf8");
+  writeFileSync(join(project, "src", "payments", "unused.js"), "export function unused() { return false; }\n", "utf8");
+  writeFileSync(join(project, "test", "checkout.test.js"), "import { checkout } from '../src/payments/checkout.js';\ntest('checkout', () => checkout());\n", "utf8");
+  commitAll(project, "payments module");
+  writeFileSync(join(project, "src", "payments", "checkout.js"), "export function checkout() { return 'ok'; }\n", "utf8");
+  commitAll(project, "touch checkout");
+  buildCodeGraph(project, { force: true });
+
+  const report = kageModuleHealth(project);
+  const module = report.modules.find((item) => item.module === "src");
+  assert.ok(module);
+  assert.equal(module.cleanup_candidates >= 1, true);
+  assert.equal(module.churn_90d >= 2, true);
+  assert.equal(module.primary_owners.some((owner) => owner.owner === "Test <test@example.com>"), true);
+  assert.equal(module.score < 100, true);
+});
+
+test("graph insights report central files cycles communities and entry flows", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "index.js"), "import { a } from './a.js';\na();\n", "utf8");
+  writeFileSync(join(project, "src", "a.js"), "import { b } from './b.js';\nexport function a() { return b(); }\n", "utf8");
+  writeFileSync(join(project, "src", "b.js"), "import { a } from './a.js';\nexport function b() { return a; }\n", "utf8");
+  writeFileSync(join(project, "src", "server.js"), "import { a } from './a.js';\nconst app = { get() {} };\nfunction handler() { return a(); }\napp.get('/health', handler);\n", "utf8");
+
+  const report = kageGraphInsights(project);
+  assert.equal(report.edge_mix.imports >= 3, true);
+  assert.equal(report.language_coverage.some((item) => item.language === "javascript" && item.files === 4), true);
+  assert.equal(report.central_files.some((file) => file.path === "src/a.js"), true);
+  assert.equal(report.dependency_cycles.some((cycle) => cycle.files.includes("src/a.js") && cycle.files.includes("src/b.js")), true);
+  assert.equal(report.communities.some((community) => community.files.includes("src/index.js") && community.files.includes("src/server.js")), true);
+  assert.equal(report.entry_flows.some((flow) => flow.entry === "src/server.js" && flow.path.includes("src/a.js")), true);
+});
+
+test("workspace summarizes sibling repos and recalls across repo memory", () => {
+  const workspaceRoot = mkdtempSync(join(tmpdir(), "kage-workspace-test-"));
+  const api = join(workspaceRoot, "api");
+  const web = join(workspaceRoot, "web");
+  mkdirSync(join(api, "src"), { recursive: true });
+  mkdirSync(join(web, "src"), { recursive: true });
+  execFileSync("git", ["init"], { cwd: api, stdio: "ignore" });
+  execFileSync("git", ["init"], { cwd: web, stdio: "ignore" });
+  writeFileSync(join(api, "package.json"), JSON.stringify({ name: "@demo/api" }), "utf8");
+  writeFileSync(join(web, "package.json"), JSON.stringify({ name: "@demo/web", dependencies: { "@demo/api": "workspace:*" } }), "utf8");
+  writeFileSync(join(api, "src", "auth.js"), "export function auth() { return true; }\n", "utf8");
+  writeFileSync(join(api, "src", "server.js"), "const app = { get() {} };\nfunction handler() {}\napp.get('/auth/user', handler);\n", "utf8");
+  writeFileSync(join(web, "src", "client.js"), "export function client() { return fetch('/auth/user'); }\n", "utf8");
+  buildCodeGraph(api, { force: true });
+  buildCodeGraph(web, { force: true });
+  learn({
+    projectDir: api,
+    title: "API auth middleware contract",
+    learning: "The auth middleware must keep the x-user-id header contract because web clients depend on it.",
+    type: "decision",
+    paths: ["src/auth.js"],
+    verifiedBy: "workspace test",
+  });
+  learn({
+    projectDir: web,
+    title: "Web client auth dependency",
+    learning: "The web client expects API auth responses to preserve the user id header.",
+    type: "decision",
+    paths: ["src/client.js"],
+    verifiedBy: "workspace test",
+  });
+
+  const workspace = kageWorkspace(workspaceRoot);
+  assert.equal(workspace.repos.length, 2);
+  const webRepo = workspace.repos.find((repo) => repo.alias === "web");
+  assert.equal(webRepo?.dependencies_on_workspace_repos.some((dep) => dep.alias === "api"), true);
+  assert.equal(workspace.package_dependencies.some((dep) => dep.from === "web" && dep.to === "api"), true);
+  assert.equal(workspace.route_contracts.some((contract) => contract.provider_repo === "api" && contract.consumer_repo === "web" && contract.path === "/auth/user"), true);
+
+  const recalled = kageWorkspaceRecall(workspaceRoot, "auth header contract", 5);
+  assert.equal(recalled.repos_searched, 2);
+  assert.equal(recalled.hits.some((hit) => hit.repo === "api" && /auth middleware/i.test(hit.title)), true);
+  assert.match(recalled.context_block, /\[api\]/);
+});
+
 test("code graph represents huge source blobs without structurally extracting them", () => {
   const project = tempProject();
   mkdirSync(join(project, "src"), { recursive: true });
@@ -588,13 +846,17 @@ test("builds a multi-language code graph with generic static extractors", () => 
   const project = tempProject();
   mkdirSync(join(project, "app"), { recursive: true });
   mkdirSync(join(project, "pkg"), { recursive: true });
+  mkdirSync(join(project, "tests"), { recursive: true });
   writeFileSync(
     join(project, "app", "service.py"),
     `from pkg.store import TaskStore
 
+def normalize_task(value):
+    return value
+
 class TaskService:
     def list_tasks(self):
-        return TaskStore().list()
+        return normalize_task(TaskStore().list())
 `,
     "utf8"
   );
@@ -612,14 +874,26 @@ func ListTasks(ctx context.Context) []string {
 `,
     "utf8"
   );
+  writeFileSync(
+    join(project, "tests", "test_service.py"),
+    `from app.service import normalize_task
+
+def test_normalize_task():
+    return normalize_task([])
+`,
+    "utf8"
+  );
 
   const graph = buildCodeGraph(project);
   assert.equal(graph.files.find((file) => file.path === "app/service.py")?.language, "python");
   assert.equal(graph.files.find((file) => file.path === "app/service.py")?.parser, "generic-static");
   assert.equal(graph.symbols.some((symbol) => symbol.path === "app/service.py" && symbol.name === "TaskService" && symbol.kind === "class"), true);
   assert.equal(graph.symbols.some((symbol) => symbol.path === "app/service.py" && symbol.name === "list_tasks" && symbol.kind === "function"), true);
+  assert.equal(graph.symbols.some((symbol) => symbol.path === "tests/test_service.py" && symbol.name === "test_normalize_task" && symbol.kind === "test"), true);
   assert.equal(graph.symbols.some((symbol) => symbol.path === "pkg/store.go" && symbol.name === "TaskStore" && symbol.kind === "class"), true);
   assert.equal(graph.imports.some((edge) => edge.from_path === "app/service.py" && edge.specifier === "pkg.store"), true);
+  assert.equal(graph.calls.some((edge) => edge.path === "app/service.py" && edge.to_symbol.includes(":normalize-task:")), true);
+  assert.equal(graph.tests.some((edge) => edge.test_path === "tests/test_service.py" && edge.covers_path === "app/service.py"), true);
 });
 
 test("code graph consumes Tree-sitter, SCIP, and LSP index artifacts when present", () => {
