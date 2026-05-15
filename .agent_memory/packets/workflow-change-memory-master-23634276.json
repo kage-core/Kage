@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
-  "summary": "Repo-local context for 28 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/decision-cleanup-candidates-are-conservative-review-input-bb3314f5.json\n- .agent_memory/packets/decision-contributor-profiles-stay-local-git-intelligence-d97134d6.json\n- .agent_memory/packets/decision-decision-intelligence-is-kage-why-memory-coverage-3e1b0c37.json\n- .agent_memory/packets/decision-dependency-path-must-handle-typescript-js-specifiers-b6335c45.json\n- .agent_memory/packets/decision-generic-code-graph-calls-cover-non-typescript-repos-d48ba385.json\n- .agent_memory/packets/decision-graph-insights-stay-deterministic-and-memory-adjacent-240b3edb.json\n- .agent_memory/packets/decision-kage-context-should-surface-target-aware-repo-intelligence-e6d25a8a.json\n- .agent_memory/packets/decision-module-health-stays-local-scorecard-intelligence-039644b7.json\n- .agent_memory/packets/decision-reviewer-suggestions-stay-local-git-intelligence-ffb3de0c.json\n- .agent_memory/packets/decision-risk-assessment-stays-memory-first-bf561a88.json\n- .agent_memory/packets/decision-viewer-cockpit-surfaces-repo-intelligence-reports-1c11099b.json\n- .agent_memory/packets/decision-workspace-contracts-stay-source-evidence-based-ea6a0e82.json\n- .agent_memory/packets/decision-workspace-recall-stays-kage-native-08ffbd42.json\n- .agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json\n- .agent_memory/packets/repo_map-kage-repo-structure-b5f385f7.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n- README.md\n- docs/guide.html\n- mcp/README.md\n- mcp/cli.ts\n- mcp/daemon.ts\n- mcp/index.ts\n- mcp/kernel.test.ts\n- mcp/kernel.ts\n- mcp/mcp.test.ts\n- mcp/viewer/app.js\n- mcp/viewer/index.html\n- mcp/viewer/styles.css\n\nDiff summary:\n```text\n.../repo_map-kage-repo-overview-a522f3a0.json      |    4 +-\n .../repo_map-kage-repo-structure-b5f385f7.json     |    4 +-\n .../workflow-change-memory-master-23634276.json    |  160 +-\n README.md                                          |   73 +-\n docs/guide.html                                    |   32 +-\n mcp/README.md                                      |   43 +-\n mcp/cli.ts                                         |  199 +++\n mcp/daemon.ts                                      |   26 +-\n mcp/index.ts                                       |  256 +++\n mcp/kernel.test.ts                                 |  276 +++-\n mcp/kernel.ts                                      | 1733 +++++++++++++++++++-\n mcp/mcp.test.ts                                    |  189 +++\n mcp/viewer/app.js                                  |  240 ++-\n mcp/viewer/index.html                              |   12 +-\n mcp/viewer/styles.css                              |   61 +-\n 15 files changed, 3237 insertions(+), 71 deletions(-)\n.agent_memory/packets/decision-cleanup-candidates-are-conservative-review-input-bb3314f5.json | untracked\n.agent_memory/packets/decision-contributor-profiles-stay-local-git-intelligence-d97134d6.json | untracked\n.agent_memory/packets/decision-decision-intelligence-is-kage-why-memory-coverage-3e1b0c37.json | untracked\n.agent_memory/packets/decision-dependency-path-must-handle-typescript-js-specifiers-b6335c45.json | untracked\n.agent_memory/packets/decision-generic-code-graph-calls-cover-non-typescript-repos-d48ba385.json | untracked\n.agent_memory/packets/decision-graph-insights-stay-deterministic-and-memory-adjacent-240b3edb.json | untracked\n.agent_memory/packets/decision-kage-context-should-surface-target-aware-repo-intelligence-e6d25a8a.json | untracked\n.agent_memory/packets/decision-module-health-stays-local-scorecard-intelligence-039644b7.json | untracked\n.agent_memory/packets/decision-reviewer-suggestions-stay-local-git-intelligence-ffb3de0c.json | untracked\n.agent_memory/packets/decision-risk-assessment-stays-memory-first-bf561a88.json | untracked\n.agent_memory/packets/decision-viewer-cockpit-surfaces-repo-intelligence-reports-1c11099b.json | untracked\n.agent_memory/packets/decision-workspace-contracts-stay-source-evidence-based-ea6a0e82.json | untracked\n.agent_memory/packets/decision-workspace-recall-stays-kage-native-08ffbd42.json | untracked\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "summary": "Repo-local context for 2 changed repo paths on master.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- mcp/package-lock.json\n- mcp/package.json\n\nDiff summary:\n```text\nmcp/package-lock.json | 4 ++--\n mcp/package.json      | 2 +-\n 2 files changed, 3 insertions(+), 3 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -17,77 +17,25 @@
     "branch:master"
   ],
   "paths": [
-    ".agent_memory/packets/decision-cleanup-candidates-are-conservative-review-input-bb3314f5.json",
-    ".agent_memory/packets/decision-contributor-profiles-stay-local-git-intelligence-d97134d6.json",
-    ".agent_memory/packets/decision-decision-intelligence-is-kage-why-memory-coverage-3e1b0c37.json",
-    ".agent_memory/packets/decision-dependency-path-must-handle-typescript-js-specifiers-b6335c45.json",
-    ".agent_memory/packets/decision-generic-code-graph-calls-cover-non-typescript-repos-d48ba385.json",
-    ".agent_memory/packets/decision-graph-insights-stay-deterministic-and-memory-adjacent-240b3edb.json",
-    ".agent_memory/packets/decision-kage-context-should-surface-target-aware-repo-intelligence-e6d25a8a.json",
-    ".agent_memory/packets/decision-module-health-stays-local-scorecard-intelligence-039644b7.json",
-    ".agent_memory/packets/decision-reviewer-suggestions-stay-local-git-intelligence-ffb3de0c.json",
-    ".agent_memory/packets/decision-risk-assessment-stays-memory-first-bf561a88.json",
-    ".agent_memory/packets/decision-viewer-cockpit-surfaces-repo-intelligence-reports-1c11099b.json",
-    ".agent_memory/packets/decision-workspace-contracts-stay-source-evidence-based-ea6a0e82.json",
-    ".agent_memory/packets/decision-workspace-recall-stays-kage-native-08ffbd42.json",
-    ".agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json",
-    ".agent_memory/packets/repo_map-kage-repo-structure-b5f385f7.json",
-    ".agent_memory/packets/workflow-change-memory-master-23634276.json",
-    "README.md",
-    "docs/guide.html",
-    "mcp/README.md",
-    "mcp/cli.ts",
-    "mcp/daemon.ts",
-    "mcp/index.ts",
-    "mcp/kernel.test.ts",
-    "mcp/kernel.ts",
-    "mcp/mcp.test.ts",
-    "mcp/viewer/app.js",
-    "mcp/viewer/index.html",
-    "mcp/viewer/styles.css"
+    "mcp/package-lock.json",
+    "mcp/package.json"
   ],
   "stack": [],
   "source_refs": [
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "5430f71f29b667a7ad52752952085833a48a11c2",
-      "merge_base": "5430f71f29b667a7ad52752952085833a48a11c2",
+      "head": "dda543888b7060e41e1cc35a15c82373ad28aac5",
+      "merge_base": "dda543888b7060e41e1cc35a15c82373ad28aac5",
       "changed_files": [
-        ".agent_memory/packets/decision-cleanup-candidates-are-conservative-review-input-bb3314f5.json",
-        ".agent_memory/packets/decision-contributor-profiles-stay-local-git-intelligence-d97134d6.json",
-        ".agent_memory/packets/decision-decision-intelligence-is-kage-why-memory-coverage-3e1b0c37.json",
-        ".agent_memory/packets/decision-dependency-path-must-handle-typescript-js-specifiers-b6335c45.json",
-        ".agent_memory/packets/decision-generic-code-graph-calls-cover-non-typescript-repos-d48ba385.json",
-        ".agent_memory/packets/decision-graph-insights-stay-deterministic-and-memory-adjacent-240b3edb.json",
-        ".agent_memory/packets/decision-kage-context-should-surface-target-aware-repo-intelligence-e6d25a8a.json",
-        ".agent_memory/packets/decision-module-health-stays-local-scorecard-intelligence-039644b7.json",
-        ".agent_memory/packets/decision-reviewer-suggestions-stay-local-git-intelligence-ffb3de0c.json",
-        ".agent_memory/packets/decision-risk-assessment-stays-memory-first-bf561a88.json",
-        ".agent_memory/packets/decision-viewer-cockpit-surfaces-repo-intelligence-reports-1c11099b.json",
-        ".agent_memory/packets/decision-workspace-contracts-stay-source-evidence-based-ea6a0e82.json",
-        ".agent_memory/packets/decision-workspace-recall-stays-kage-native-08ffbd42.json",
-        ".agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json",
-        ".agent_memory/packets/repo_map-kage-repo-structure-b5f385f7.json",
-        ".agent_memory/packets/workflow-change-memory-master-23634276.json",
-        "README.md",
-        "docs/guide.html",
-        "mcp/README.md",
-        "mcp/cli.ts",
-        "mcp/daemon.ts",
-        "mcp/index.ts",
-        "mcp/kernel.test.ts",
-        "mcp/kernel.ts",
-        "mcp/mcp.test.ts",
-        "mcp/viewer/app.js",
-        "mcp/viewer/index.html",
-        "mcp/viewer/styles.css"
+        "mcp/package-lock.json",
+        "mcp/package.json"
       ],
       "summary_path": ".agent_memory/review/branch-summary-master.json"
     }
   ],
   "context": {
-    "fact": "Current branch master changes 28 repo paths.",
+    "fact": "Current branch master changes 2 repo paths.",
     "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
     "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
     "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
@@ -96,109 +44,19 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-05-15T04:05:41.064Z",
+    "last_verified_at": "2026-05-15T04:08:04.349Z",
     "ttl_days": 180,
     "verification": "git_diff"
   },
   "edges": [
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-cleanup-candidates-are-conservative-review-input-bb3314f5.json",
+      "to": "path:mcp/package-lock.json",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-contributor-profiles-stay-local-git-intelligence-d97134d6.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-decision-intelligence-is-kage-why-memory-coverage-3e1b0c37.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-dependency-path-must-handle-typescript-js-specifiers-b6335c45.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-generic-code-graph-calls-cover-non-typescript-repos-d48ba385.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-graph-insights-stay-deterministic-and-memory-adjacent-240b3edb.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-kage-context-should-surface-target-aware-repo-intelligence-e6d25a8a.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-module-health-stays-local-scorecard-intelligence-039644b7.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-reviewer-suggestions-stay-local-git-intelligence-ffb3de0c.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-risk-assessment-stays-memory-first-bf561a88.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-viewer-cockpit-surfaces-repo-intelligence-reports-1c11099b.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-workspace-contracts-stay-source-evidence-based-ea6a0e82.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-workspace-recall-stays-kage-native-08ffbd42.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/repo_map-kage-repo-structure-b5f385f7.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/workflow-change-memory-master-23634276.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:README.md",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:docs/guide.html",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:mcp/README.md",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:mcp/cli.ts",
+      "to": "path:mcp/package.json",
       "evidence": "git_diff"
     }
   ],
@@ -214,7 +72,7 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 1193,
+    "estimated_tokens_saved": 222,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -232,6 +90,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-05-15T04:05:41.064Z",
-  "updated_at": "2026-05-15T04:05:41.796Z"
+  "created_at": "2026-05-15T04:08:04.349Z",
+  "updated_at": "2026-05-15T04:08:05.085Z"
 }
