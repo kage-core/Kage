@@ -1,0 +1,72 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:code-graph-calls-carry-confidence-1778822286924",
+  "title": "Code graph calls carry confidence",
+  "summary": "Kage code graph call edges now carry confidence and resolution metadata. TypeScript AST name matches are higher confidence than generic static name matches; external index calls are marked as external index. Keep older g",
+  "body": "Kage code graph call edges now carry confidence and resolution metadata. TypeScript AST name matches are higher confidence than generic static name matches; external index calls are marked as external_index. Keep older graph artifacts compatible by hydrating missing confidence with conservative defaults, and show call confidence in code-graph context and the viewer so weak generic call edges do not look as certain as parser-backed edges.\nVerified by: npm test --prefix mcp; npm pack --dry-run; node --check mcp/viewer/app.js; node --check docs/viewer/app.js",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "code-graph",
+    "calls",
+    "confidence",
+    "viewer",
+    "repowise-comparison"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts",
+    "mcp/viewer/app.js",
+    "docs/viewer/app.js",
+    "README.md",
+    "mcp/README.md",
+    "docs/guide.html",
+    "docs/releases.html",
+    "CHANGELOG.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-15T05:18:06.923Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage code graph call edges now carry confidence and resolution metadata. TypeScript AST name matches are higher confidence than generic static name matches; external index calls are marked as external_index. Keep older graph artifacts compatible by hydrating missing confidence with conservative defaults, and show call confidence in code-graph context and the viewer so weak generic call edges do not look as certain as parser-backed edges.\nVerified by: npm test --prefix mcp; npm pack --dry-run; node --check mcp/viewer/app.js; node --check docs/viewer/app.js",
+    "verification": "npm test --prefix mcp; npm pack --dry-run; node --check mcp/viewer/app.js; node --check docs/viewer/app.js"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-15T05:18:06.923Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 141
+  },
+  "created_at": "2026-05-15T05:18:06.923Z",
+  "updated_at": "2026-05-15T05:18:18.163Z"
+}

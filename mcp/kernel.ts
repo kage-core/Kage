@@ -624,6 +624,8 @@ export interface CodeCallEdge {
   to_symbol: string;
   path: string;
   line: number;
+  confidence: number;
+  resolution: "typescript_ast_name" | "generic_static_name" | "external_index";
 }
 
 export interface CodeRouteNode {
@@ -2914,7 +2916,9 @@ function hydrateCodeGraphArtifact(projectDir: string, artifact: CodeGraph | Comp
       ...index.imports,
       ...(artifact.extra_imports ?? []),
     ].sort((a, b) => a.from_path.localeCompare(b.from_path) || a.line - b.line || a.specifier.localeCompare(b.specifier)),
-    calls: artifact.calls ?? [],
+    calls: (artifact.calls ?? [])
+      .map((call) => normalizeCallEdge(call as unknown as Record<string, unknown>, { confidence: 0.7, resolution: "generic_static_name" }))
+      .filter((call): call is CodeCallEdge => Boolean(call)),
     routes: artifact.routes ?? [],
     tests: artifact.tests ?? [],
     packages: artifact.packages ?? [],
@@ -4083,6 +4087,28 @@ function symbolAtLine(symbols: CodeSymbolNode[], path: string, line: number): Co
     .sort((a, b) => (b.line - a.line) || ((a.end_line ?? a.line) - (b.end_line ?? b.line)))[0] ?? null;
 }
 
+function normalizeCallConfidence(value: unknown, fallback: number): number {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Number(Math.max(0, Math.min(1, numeric)).toFixed(2));
+}
+
+function normalizeCallResolution(value: unknown, fallback: CodeCallEdge["resolution"]): CodeCallEdge["resolution"] {
+  return value === "typescript_ast_name" || value === "generic_static_name" || value === "external_index" ? value : fallback;
+}
+
+function normalizeCallEdge(call: CodeCallEdge | Record<string, unknown>, fallback: { confidence: number; resolution: CodeCallEdge["resolution"] }): CodeCallEdge | null {
+  if (!isRecord(call) || typeof call.to_symbol !== "string") return null;
+  return {
+    from_symbol: typeof call.from_symbol === "string" ? call.from_symbol : null,
+    to_symbol: call.to_symbol,
+    path: String(call.path ?? ""),
+    line: Math.max(1, Number(call.line ?? 1)),
+    confidence: normalizeCallConfidence(call.confidence, fallback.confidence),
+    resolution: normalizeCallResolution(call.resolution, fallback.resolution),
+  };
+}
+
 function extractCalls(path: string, text: string, symbols: CodeSymbolNode[], symbolByName: Map<string, CodeSymbolNode[]>): CodeCallEdge[] {
   const sourceFile = sourceFileFor(path, text);
   const calls: CodeCallEdge[] = [];
@@ -4107,7 +4133,14 @@ function extractCalls(path: string, text: string, symbols: CodeSymbolNode[], sym
     for (const target of targets.slice(0, 3)) {
       if (calls.length >= MAX_CODE_GRAPH_CALLS_PER_FILE) break;
       if (target.path === path && target.line === line) continue;
-      calls.push({ from_symbol: caller?.id ?? null, to_symbol: target.id, path, line });
+      calls.push({
+        from_symbol: caller?.id ?? null,
+        to_symbol: target.id,
+        path,
+        line,
+        confidence: target.path === path ? 0.9 : 0.75,
+        resolution: "typescript_ast_name",
+      });
     }
     ts.forEachChild(node, visit);
   };
@@ -4146,7 +4179,14 @@ function extractGenericCalls(path: string, text: string, symbols: CodeSymbolNode
       const caller = symbolAtLine(symbols, path, line);
       for (const target of targets.slice(0, 3)) {
         if (calls.length >= MAX_CODE_GRAPH_CALLS_PER_FILE) break;
-        calls.push({ from_symbol: caller?.id ?? null, to_symbol: target.id, path, line });
+        calls.push({
+          from_symbol: caller?.id ?? null,
+          to_symbol: target.id,
+          path,
+          line,
+          confidence: target.path === path ? 0.7 : 0.55,
+          resolution: "generic_static_name",
+        });
       }
     }
   }
@@ -4515,8 +4555,8 @@ function parseKageExternalIndex(projectDir: string, parser: CodeParser, path: st
     : [];
   const calls = Array.isArray(raw.calls)
     ? raw.calls.flatMap((item) => {
-        if (!isRecord(item) || typeof item.to_symbol !== "string") return [];
-        return [{ from_symbol: typeof item.from_symbol === "string" ? item.from_symbol : null, to_symbol: item.to_symbol, path: String(item.path ?? ""), line: Math.max(1, Number(item.line ?? 1)) }];
+        const call = normalizeCallEdge(item as Record<string, unknown>, { confidence: 0.85, resolution: "external_index" });
+        return call ? [call] : [];
       })
     : [];
   return { symbols, imports, calls };
@@ -4566,7 +4606,7 @@ function parseScipJsonObject(projectDir: string, raw: Record<string, unknown>): 
         });
         if (symbol && !symbols.some((candidate) => candidate.id === symbol.id)) symbols.push(symbol);
       } else {
-        calls.push({ from_symbol: null, to_symbol: name, path: rel, line });
+        calls.push({ from_symbol: null, to_symbol: name, path: rel, line, confidence: 0.85, resolution: "external_index" });
       }
     }
   }
@@ -6361,7 +6401,7 @@ export function queryCodeGraph(projectDir: string, query: string, limit = 10, gr
     ...imports.map(({ item }, index) => `${index + 1}. ${item.from_path}:${item.line} ${item.kind} ${item.specifier}${item.to_path ? ` -> ${item.to_path}` : ""}`),
     calls.length ? "" : "",
     calls.length ? "## Calls" : "",
-    ...calls.map((call, index) => `${index + 1}. ${call.from_symbol ? symbolNameById.get(call.from_symbol) ?? call.from_symbol : call.path} calls ${symbolNameById.get(call.to_symbol) ?? call.to_symbol} at ${call.path}:${call.line}`),
+    ...calls.map((call, index) => `${index + 1}. ${call.from_symbol ? symbolNameById.get(call.from_symbol) ?? call.from_symbol : call.path} calls ${symbolNameById.get(call.to_symbol) ?? call.to_symbol} at ${call.path}:${call.line} (${call.resolution}, confidence ${call.confidence.toFixed(2)})`),
   ];
 
   return {

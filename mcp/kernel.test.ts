@@ -370,7 +370,10 @@ test('createApp routes tasks', () => createApp());
   assert.equal(graph.symbols.some((symbol) => symbol.name === "createTaskStore" && symbol.export), true);
   assert.equal(graph.imports.some((edge) => edge.from_path === "src/server.js" && edge.to_path === "src/taskStore.js"), true);
   assert.equal(graph.routes.some((route) => route.method === "GET" && route.path === "/tasks"), true);
-  assert.equal(graph.calls.some((call) => call.to_symbol.includes("createtaskstore")), true);
+  const createTaskCall = graph.calls.find((call) => call.to_symbol.includes("createtaskstore"));
+  assert.equal(Boolean(createTaskCall), true);
+  assert.equal(createTaskCall?.confidence, 0.75);
+  assert.equal(createTaskCall?.resolution, "typescript_ast_name");
   assert.equal(graph.tests.some((edge) => edge.covers_symbol === "createApp"), true);
 });
 
@@ -905,7 +908,10 @@ def test_normalize_task():
   assert.equal(graph.symbols.some((symbol) => symbol.path === "tests/test_service.py" && symbol.name === "test_normalize_task" && symbol.kind === "test"), true);
   assert.equal(graph.symbols.some((symbol) => symbol.path === "pkg/store.go" && symbol.name === "TaskStore" && symbol.kind === "class"), true);
   assert.equal(graph.imports.some((edge) => edge.from_path === "app/service.py" && edge.specifier === "pkg.store"), true);
-  assert.equal(graph.calls.some((edge) => edge.path === "app/service.py" && edge.to_symbol.includes(":normalize-task:")), true);
+  const normalizeCall = graph.calls.find((edge) => edge.path === "app/service.py" && edge.to_symbol.includes(":normalize-task:"));
+  assert.equal(Boolean(normalizeCall), true);
+  assert.equal(normalizeCall?.confidence, 0.7);
+  assert.equal(normalizeCall?.resolution, "generic_static_name");
   assert.equal(graph.routes.some((route) => route.file_path === "app/service.py" && route.framework === "fastapi" && route.method === "GET" && route.path === "/tasks/:task_id" && route.handler_symbol?.includes(":read-task:")), true);
   assert.equal(graph.tests.some((edge) => edge.test_path === "tests/test_service.py" && edge.covers_path === "app/service.py"), true);
 });
@@ -1622,6 +1628,8 @@ test("viewer coalesces memory graph code entities with code graph nodes", () => 
       to_symbol: `symbol:unit-${index + 1}`,
       path: `src/unit-${index}.ts`,
       line: 2,
+      confidence: 0.75,
+      resolution: "typescript_ast_name" as const,
     })),
   };
   const signal = hooks.testSignalVisibilityForGraph(largeCodeGraph, 90);

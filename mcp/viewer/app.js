@@ -698,19 +698,21 @@
       seen.add(entity.id);
       entities.push(entity);
     };
-    var addEdge = function (from, to, relation, fact, source) {
+    var addEdge = function (from, to, relation, fact, source, options) {
       if (!from || !to) return;
+      options = options || {};
       edges.push({
         id: relation + ":" + from + ":" + to + ":" + edges.length,
         from: from,
         to: to,
         relation: relation,
         fact: fact,
-        confidence: 1,
+        confidence: options.confidence == null ? 1 : Number(options.confidence),
         evidence: [],
         commit: graph.repo_state && graph.repo_state.head,
         source: source || "code_graph",
-        graph_kind: "code"
+        graph_kind: "code",
+        resolution: options.resolution
       });
     };
 
@@ -764,7 +766,11 @@
     });
 
     (graph.calls || []).forEach(function (call) {
-      addEdge(call.from_symbol || "file:" + call.path, call.to_symbol, "calls", call.path + ":" + call.line + " calls target symbol.", "calls");
+      var confidence = call.confidence == null ? 0.7 : Number(call.confidence);
+      addEdge(call.from_symbol || "file:" + call.path, call.to_symbol, "calls", call.path + ":" + call.line + " calls target symbol.", "calls", {
+        confidence: confidence,
+        resolution: call.resolution
+      });
     });
 
     (graph.routes || []).forEach(function (route) {

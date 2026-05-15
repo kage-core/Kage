@@ -397,7 +397,7 @@ kage hook uninstall --project .</pre></div>
           <div class="method"><h3><code>kage graph</code> Query memory graph</h3><p>Queries evidence-backed entities and relationships generated from approved memory packets.</p><pre>kage graph --project . --json
 kage graph "checkout retry" --project . --json
 kage graph --project . --mermaid</pre></div>
-          <div class="method"><h3><code>kage code-graph</code> Query source graph</h3><p>Queries files, symbols, imports, calls, routes, tests, and package scripts generated from source. For non-TypeScript code, the generic indexer also extracts bounded call edges, test function coverage signals, and framework routes for FastAPI, Flask, Django, Rails, Laravel, Spring, Go routers, Rust routers, and ASP.NET; SCIP, LSP, LSIF, and tree-sitter artifacts override generic facts when present.</p><pre>kage code-graph --project . --json
+          <div class="method"><h3><code>kage code-graph</code> Query source graph</h3><p>Queries files, symbols, imports, confidence-scored calls, routes, tests, and package scripts generated from source. For non-TypeScript code, the generic indexer also extracts bounded call edges, test function coverage signals, and framework routes for FastAPI, Flask, Django, Rails, Laravel, Spring, Go routers, Rust routers, and ASP.NET; SCIP, LSP, LSIF, and tree-sitter artifacts override generic facts when present.</p><pre>kage code-graph --project . --json
 kage code-graph "recall ranking" --project . --json</pre></div>
           <div class="method"><h3><code>kage dependency-path</code> Explain file connections</h3><p>Finds the shortest code graph path between two files and reports whether the source depends on the target, the target depends on the source, or the connection is only undirected.</p><pre>kage dependency-path --project . --from src/app.ts --to src/auth.ts --json</pre></div>
           <div class="method"><h3><code>kage cleanup-candidates</code> Find conservative cleanup candidates</h3><p>Reports unreferenced source files, unused exports, and internal-looking unused symbols with confidence and reasons. It does not delete code; use it as review input before cleanup PRs.</p><pre>kage cleanup-candidates --project . --json</pre></div>
@@ -485,7 +485,7 @@ kage global build --project . --json</pre></div>
             </div>
             <div class="card">
               <h3>Code graph</h3>
-              <p>Files, symbols, imports, calls, tests, routes, and source relationships.</p>
+              <p>Files, symbols, imports, confidence-scored calls, tests, routes, and source relationships.</p>
             </div>
           </div>
           <pre>kage viewer --project .

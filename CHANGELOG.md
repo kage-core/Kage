@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.31 - 2026-05-15
+
+- Added confidence and resolution metadata to code graph call edges so
+  TypeScript AST, generic static, and external-index calls no longer all look
+  equally certain.
+- Updated `kage code-graph` call context and the viewer to surface
+  low-confidence call edges instead of treating every call link as certainty.
+- Kept older graph artifacts compatible by hydrating missing call confidence
+  with conservative defaults.
+
 ## v1.1.30 - 2026-05-15
 
 - Expanded `kage cleanup-candidates` beyond unreferenced source files to also
