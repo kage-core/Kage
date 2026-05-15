@@ -1,0 +1,74 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:workspace-co-change-links-stay-local-git-intelligence-1778823600473",
+  "title": "Workspace co-change links stay local git intelligence",
+  "summary": "Kage workspace cross repo co change detection should borrow Repowise's useful hidden coupling signal while staying Kage native: parse recent local git logs for sibling repos, match same author commits within a 24 hour wi",
+  "body": "Kage workspace cross-repo co-change detection should borrow Repowise's useful hidden-coupling signal while staying Kage-native: parse recent local git logs for sibling repos, match same-author commits within a 24-hour window, cap large commits, restrict pairs to existing code graph files, and expose frequency/strength/evidence in JSON, CLI text, and viewer summaries without adding a hosted database or network calls.\nVerified by: npm test --prefix mcp; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check; npm pack --dry-run",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "workspace",
+    "co-change",
+    "git-history",
+    "repowise-comparison",
+    "viewer"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts",
+    "mcp/cli.ts",
+    "mcp/index.ts",
+    "mcp/viewer/app.js",
+    "docs/viewer/app.js",
+    "README.md",
+    "mcp/README.md",
+    "docs/guide.html",
+    "docs/releases.html",
+    "CHANGELOG.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-15T05:40:00.473Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage workspace cross-repo co-change detection should borrow Repowise's useful hidden-coupling signal while staying Kage-native: parse recent local git logs for sibling repos, match same-author commits within a 24-hour window, cap large commits, restrict pairs to existing code graph files, and expose frequency/strength/evidence in JSON, CLI text, and viewer summaries without adding a hosted database or network calls.\nVerified by: npm test --prefix mcp; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check; npm pack --dry-run",
+    "verification": "npm test --prefix mcp; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check; npm pack --dry-run"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-15T05:40:00.473Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 140
+  },
+  "created_at": "2026-05-15T05:40:00.473Z",
+  "updated_at": "2026-05-15T05:40:09.466Z"
+}

@@ -874,6 +874,12 @@ async function main(): Promise<void> {
         console.log(`- ${contract.producer_repo} ${contract.topic} -> ${contract.consumer_repo}/${contract.consumer_file}`);
       }
     }
+    if (result.co_changes.length) {
+      console.log("Cross-repo co-changes:");
+      for (const link of result.co_changes.slice(0, 10)) {
+        console.log(`- ${link.source_repo}/${link.source_file} <-> ${link.target_repo}/${link.target_file} (${link.frequency}x, strength ${link.strength})`);
+      }
+    }
     if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
     return;
   }

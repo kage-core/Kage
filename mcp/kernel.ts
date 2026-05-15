@@ -1077,6 +1077,18 @@ export interface KageWorkspaceTopicContract {
   evidence: string;
 }
 
+export interface KageWorkspaceCoChange {
+  source_repo: string;
+  source_file: string;
+  target_repo: string;
+  target_file: string;
+  frequency: number;
+  strength: number;
+  last_seen_at: string | null;
+  authors: string[];
+  evidence: string;
+}
+
 export interface KageWorkspaceReport {
   schema_version: 1;
   workspace_dir: string;
@@ -1085,6 +1097,7 @@ export interface KageWorkspaceReport {
   package_dependencies: Array<{ from: string; to: string; package_name: string }>;
   route_contracts: KageWorkspaceRouteContract[];
   topic_contracts: KageWorkspaceTopicContract[];
+  co_changes: KageWorkspaceCoChange[];
   warnings: string[];
   summary: string;
 }
@@ -7926,6 +7939,132 @@ function workspaceTopicContracts(workspaceDir: string, repos: KageWorkspaceRepo[
     .slice(0, 50);
 }
 
+interface WorkspaceCommitRecord {
+  repo: string;
+  author: string;
+  timestamp: number;
+  iso: string | null;
+  files: string[];
+}
+
+function workspaceGitCommits(repo: KageWorkspaceRepo, repoRoot: string, limit = 250): WorkspaceCommitRecord[] {
+  const graph = readCurrentCodeGraph(repoRoot);
+  const graphPaths = new Set(graph?.files.map((file) => file.path) ?? []);
+  if (!graphPaths.size) return [];
+  const raw = readGit(repoRoot, ["log", `-${limit}`, "--format=__KAGE_COMMIT__%x1f%an <%ae>%x1f%ct%x1f%cI", "--name-only", "--no-renames"]) ?? "";
+  const records: WorkspaceCommitRecord[] = [];
+  let current: WorkspaceCommitRecord | null = null;
+  for (const rawLine of raw.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (line.startsWith("__KAGE_COMMIT__")) {
+      if (current?.files.length) records.push(current);
+      const [, author = "", timestamp = "0", iso = ""] = line.split("\x1f");
+      current = {
+        repo: repo.alias,
+        author: author.trim(),
+        timestamp: Number(timestamp) || 0,
+        iso: iso.trim() || null,
+        files: [],
+      };
+      continue;
+    }
+    if (current && graphPaths.has(line) && !isNoisePath(line)) current.files.push(line);
+  }
+  if (current?.files.length) records.push(current);
+  return records;
+}
+
+function workspaceCoChanges(workspaceDir: string, repos: KageWorkspaceRepo[]): KageWorkspaceCoChange[] {
+  const recordsByAuthor = new Map<string, WorkspaceCommitRecord[]>();
+  for (const repo of repos) {
+    const repoRoot = repo.path === "." ? workspaceDir : join(workspaceDir, repo.path);
+    for (const record of workspaceGitCommits(repo, repoRoot)) {
+      if (!record.author || !record.timestamp || !record.files.length) continue;
+      const list = recordsByAuthor.get(record.author) ?? [];
+      list.push(record);
+      recordsByAuthor.set(record.author, list);
+    }
+  }
+
+  const windowSeconds = 24 * 60 * 60;
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const pairs = new Map<string, {
+    source_repo: string;
+    source_file: string;
+    target_repo: string;
+    target_file: string;
+    frequency: number;
+    strength: number;
+    last_seen_at: string | null;
+    last_timestamp: number;
+    authors: Set<string>;
+  }>();
+
+  const pairKey = (left: WorkspaceCommitRecord, leftFile: string, right: WorkspaceCommitRecord, rightFile: string) => {
+    const a = { repo: left.repo, file: leftFile };
+    const b = { repo: right.repo, file: rightFile };
+    if (`${a.repo}/${a.file}` <= `${b.repo}/${b.file}`) return { key: `${a.repo}\0${a.file}\0${b.repo}\0${b.file}`, source: a, target: b };
+    return { key: `${b.repo}\0${b.file}\0${a.repo}\0${a.file}`, source: b, target: a };
+  };
+
+  for (const [author, records] of recordsByAuthor.entries()) {
+    const ordered = records.slice().sort((a, b) => a.timestamp - b.timestamp);
+    for (let i = 0; i < ordered.length; i += 1) {
+      const left = ordered[i];
+      for (let j = i + 1; j < ordered.length; j += 1) {
+        const right = ordered[j];
+        const delta = right.timestamp - left.timestamp;
+        if (delta > windowSeconds) break;
+        if (left.repo === right.repo) continue;
+        const ageDays = Math.max(0, (nowSeconds - Math.max(left.timestamp, right.timestamp)) / 86400);
+        const weight = Number((1 / (1 + ageDays / 180)).toFixed(3));
+        for (const leftFile of unique(left.files).slice(0, 20)) {
+          for (const rightFile of unique(right.files).slice(0, 20)) {
+            const { key, source, target } = pairKey(left, leftFile, right, rightFile);
+            const existing = pairs.get(key) ?? {
+              source_repo: source.repo,
+              source_file: source.file,
+              target_repo: target.repo,
+              target_file: target.file,
+              frequency: 0,
+              strength: 0,
+              last_seen_at: null,
+              last_timestamp: 0,
+              authors: new Set<string>(),
+            };
+            existing.frequency += 1;
+            existing.strength = Number((existing.strength + weight).toFixed(3));
+            existing.authors.add(author);
+            const seenAt = Math.max(left.timestamp, right.timestamp);
+            if (seenAt > existing.last_timestamp) {
+              existing.last_timestamp = seenAt;
+              existing.last_seen_at = right.timestamp >= left.timestamp ? right.iso : left.iso;
+            }
+            pairs.set(key, existing);
+          }
+        }
+      }
+    }
+  }
+
+  return [...pairs.values()]
+    .map((pair) => ({
+      source_repo: pair.source_repo,
+      source_file: pair.source_file,
+      target_repo: pair.target_repo,
+      target_file: pair.target_file,
+      frequency: pair.frequency,
+      strength: Number(pair.strength.toFixed(3)),
+      last_seen_at: pair.last_seen_at,
+      authors: [...pair.authors].sort(),
+      evidence: `${pair.source_repo}/${pair.source_file} and ${pair.target_repo}/${pair.target_file} changed near each other ${pair.frequency} time(s) by ${pair.authors.size} author(s).`,
+    }))
+    .filter((pair) => pair.frequency > 0)
+    .sort((a, b) => b.strength - a.strength || b.frequency - a.frequency || a.source_repo.localeCompare(b.source_repo) || a.source_file.localeCompare(b.source_file))
+    .slice(0, 50);
+}
+
 export function kageWorkspace(projectDir: string): KageWorkspaceReport {
   const root = resolve(projectDir);
   const warnings: string[] = [];
@@ -7949,6 +8088,7 @@ export function kageWorkspace(projectDir: string): KageWorkspaceReport {
   });
   const routeContracts = workspaceRouteContracts(root, repos);
   const topicContracts = workspaceTopicContracts(root, repos);
+  const coChanges = workspaceCoChanges(root, repos);
   if (repos.length && repos.every((repo) => !repo.indexed)) warnings.push("Workspace repos were found, but none has .agent_memory yet. Run kage init or kage refresh in each repo you want searchable.");
   return {
     schema_version: 1,
@@ -7958,8 +8098,9 @@ export function kageWorkspace(projectDir: string): KageWorkspaceReport {
     package_dependencies: packageDependencies.sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to)),
     route_contracts: routeContracts,
     topic_contracts: topicContracts,
+    co_changes: coChanges,
     warnings,
-    summary: `${repos.length} repo(s), ${repos.filter((repo) => repo.indexed).length} with Kage memory, ${packageDependencies.length} workspace package dependenc${packageDependencies.length === 1 ? "y" : "ies"}, ${routeContracts.length} route contract link(s), ${topicContracts.length} topic contract link(s).`,
+    summary: `${repos.length} repo(s), ${repos.filter((repo) => repo.indexed).length} with Kage memory, ${packageDependencies.length} workspace package dependenc${packageDependencies.length === 1 ? "y" : "ies"}, ${routeContracts.length} route contract link(s), ${topicContracts.length} topic contract link(s), ${coChanges.length} cross-repo co-change link(s).`,
   };
 }
 

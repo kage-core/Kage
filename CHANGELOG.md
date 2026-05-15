@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.33 - 2026-05-15
+
+- Added local workspace cross-repo co-change links from recent git history.
+- `kage workspace` now reports sibling-repo file pairs that changed near each
+  other by the same author, with frequency, strength, author, and evidence
+  fields.
+- Surfaced co-change counts in CLI text output and the viewer workspace card.
+- Kept the signal lightweight and repo-local: recent `git log`, existing code
+  graph files, bounded commit/file counts, no database, and no network calls.
+
 ## v1.1.32 - 2026-05-15
 
 - Added deterministic workspace topic/event contract links alongside package

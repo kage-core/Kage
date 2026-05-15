@@ -205,10 +205,10 @@ LSP, LSIF, and tree-sitter artifacts still override generic facts when present.
 
 `kage workspace` scans a local parent directory for sibling git repos, reports
 which repos already have Kage memory, detects package dependencies, route
-contracts, and topic/event contracts between workspace repos, and lets agents
-run recall across every indexed repo with `kage workspace recall`. It is
-intentionally lightweight: no hosted database, no generated wiki, and no copied
-memory between repos.
+contracts, topic/event contracts, and git co-change links between workspace
+repos, and lets agents run recall across every indexed repo with
+`kage workspace recall`. It is intentionally lightweight: no hosted database, no
+generated wiki, and no copied memory between repos.
 
 `kage hook install` adds a marker-delimited git `post-commit` hook that runs
 `kage refresh` and `kage pr summarize` after commits. It preserves existing hook

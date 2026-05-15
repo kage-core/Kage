@@ -45,8 +45,8 @@ Restart your agent once after setup so MCP tools reload.
 - decision intelligence for why-memory coverage, stale/weak packets, and
   important files that still lack linked repo knowledge
 - lightweight workspace recall across sibling repos, including package,
-  route-contract, and topic/event contract links when existing code graphs
-  expose them
+  route-contract, topic/event contract, and git co-change links when existing
+  local evidence exposes them
 - local git intelligence for risk, reviewers, contributor profiles, co-change
   warnings, ownership silos, and module health
 - `AGENTS.md` bootstrap instructions so agents recall context automatically

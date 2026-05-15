@@ -429,7 +429,7 @@ export function listTools() {
     {
       name: "kage_workspace",
       description:
-        "Summarize a local multi-repo workspace: discovered git repos, Kage memory coverage, code graph counts, package dependencies, route contracts, and topic/event contracts between repos. Use when a task spans multiple sibling repos.",
+        "Summarize a local multi-repo workspace: discovered git repos, Kage memory coverage, code graph counts, package dependencies, route contracts, topic/event contracts, and cross-repo co-change links between repos. Use when a task spans multiple sibling repos.",
       inputSchema: {
         type: "object",
         properties: {
