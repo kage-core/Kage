@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.1.29 - 2026-05-15
+
+- Expanded mixed-language framework route extraction in the code graph for
+  Rails, Laravel, Spring, Go routers, Rust routers, and ASP.NET.
+- Added route handler linking where lightweight static patterns can identify
+  the nearby handler symbol.
+- Added regression coverage for mixed-language web entrypoint detection.
+
 ## v1.1.28 - 2026-05-15
 
 - Added Python framework route extraction to the source-derived code graph for

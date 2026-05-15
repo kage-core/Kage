@@ -940,6 +940,89 @@ urlpatterns = [
   assert.equal(graph.routes.some((route) => route.file_path === "app/urls.py" && route.framework === "django" && route.method === "ANY" && route.path === "/orders/:order_id"), true);
 });
 
+test("code graph extracts mixed-language framework routes", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "config"), { recursive: true });
+  mkdirSync(join(project, "routes"), { recursive: true });
+  mkdirSync(join(project, "src", "main", "java", "app"), { recursive: true });
+  mkdirSync(join(project, "cmd"), { recursive: true });
+  mkdirSync(join(project, "src"), { recursive: true });
+  mkdirSync(join(project, "Controllers"), { recursive: true });
+
+  writeFileSync(
+    join(project, "config", "routes.rb"),
+    `Rails.application.routes.draw do
+  get "/checkout/:id", to: "checkout#show"
+end
+`,
+    "utf8"
+  );
+  writeFileSync(
+    join(project, "routes", "web.php"),
+    `<?php
+use Illuminate\\Support\\Facades\\Route;
+
+Route::post('/orders/{order}', [OrderController::class, 'store']);
+`,
+    "utf8"
+  );
+  writeFileSync(
+    join(project, "src", "main", "java", "app", "OrderController.java"),
+    `class OrderController {
+  @GetMapping("/orders/{id}")
+  public String showOrder() { return ""; }
+}
+`,
+    "utf8"
+  );
+  writeFileSync(
+    join(project, "cmd", "server.go"),
+    `package main
+
+func main() {
+  r.GET("/health/:id", health)
+}
+
+func health() {}
+`,
+    "utf8"
+  );
+  writeFileSync(
+    join(project, "src", "main.rs"),
+    `fn app() {
+  Router::new().route("/users/:id", get(show_user));
+}
+
+#[post("/jobs/{id}")]
+async fn create_job() {}
+`,
+    "utf8"
+  );
+  writeFileSync(
+    join(project, "Controllers", "CheckoutController.cs"),
+    `class CheckoutController {
+  void Configure() {
+    app.MapPost("/checkout/{id}", HandleCheckout);
+  }
+
+  [HttpGet("/users/{id}")]
+  public string GetUser() { return ""; }
+}
+`,
+    "utf8"
+  );
+
+  const graph = buildCodeGraph(project);
+  assert.equal(graph.routes.some((route) => route.file_path === "config/routes.rb" && route.framework === "rails" && route.method === "GET" && route.path === "/checkout/:id"), true);
+  assert.equal(graph.routes.some((route) => route.file_path === "routes/web.php" && route.framework === "laravel" && route.method === "POST" && route.path === "/orders/:order"), true);
+  assert.equal(graph.routes.some((route) => route.file_path.endsWith("OrderController.java") && route.framework === "spring" && route.method === "GET" && route.path === "/orders/:id" && route.handler_symbol?.includes(":showorder:")), true);
+  assert.equal(graph.routes.some((route) => route.file_path === "cmd/server.go" && route.framework === "go-router" && route.method === "GET" && route.path === "/health/:id"), true);
+  assert.equal(graph.routes.some((route) => route.file_path === "src/main.rs" && route.framework === "rust-router" && route.method === "GET" && route.path === "/users/:id"), true);
+  assert.equal(graph.routes.some((route) => route.file_path === "src/main.rs" && route.framework === "rust-router" && route.method === "POST" && route.path === "/jobs/:id"), true);
+  assert.equal(graph.routes.some((route) => route.file_path === "Controllers/CheckoutController.cs" && route.framework === "aspnet" && route.method === "POST" && route.path === "/checkout/:id"), true);
+  assert.equal(graph.routes.some((route) => route.file_path === "Controllers/CheckoutController.cs" && route.framework === "aspnet" && route.method === "GET" && route.path === "/users/:id" && route.handler_symbol?.includes(":getuser:")), true);
+});
+
 test("code graph consumes Tree-sitter, SCIP, and LSP index artifacts when present", () => {
   const project = tempProject();
   mkdirSync(join(project, "src"), { recursive: true });

@@ -633,7 +633,19 @@ export interface CodeRouteNode {
   handler_symbol: string | null;
   file_path: string;
   line: number;
-  framework: "node-http" | "express" | "next" | "fastapi" | "flask" | "django";
+  framework:
+    | "node-http"
+    | "express"
+    | "next"
+    | "fastapi"
+    | "flask"
+    | "django"
+    | "rails"
+    | "laravel"
+    | "spring"
+    | "go-router"
+    | "rust-router"
+    | "aspnet";
 }
 
 export interface CodeTestEdge {
@@ -4170,6 +4182,28 @@ function parsePythonMethodList(value: string | undefined): string[] {
   return methods.length ? unique(methods) : ["GET"];
 }
 
+const SPRING_ROUTE_METHODS: Record<string, string> = {
+  GetMapping: "GET",
+  PostMapping: "POST",
+  PutMapping: "PUT",
+  PatchMapping: "PATCH",
+  DeleteMapping: "DELETE",
+  RequestMapping: "ANY",
+};
+
+const ASPNET_ROUTE_METHODS: Record<string, string> = {
+  Get: "GET",
+  Post: "POST",
+  Put: "PUT",
+  Patch: "PATCH",
+  Delete: "DELETE",
+};
+
+function routeHandlerNearLine(lines: string[], startIndex: number, pattern: RegExp): string | null {
+  const handlerLine = lines.slice(startIndex + 1, Math.min(lines.length, startIndex + 8)).find((candidate) => pattern.test(candidate));
+  return handlerLine?.match(pattern)?.[1] ?? null;
+}
+
 function extractRoutes(path: string, text: string, symbols: CodeSymbolNode[]): CodeRouteNode[] {
   const routes: CodeRouteNode[] = [];
   const addRoute = (method: string, routePath: string, offset: number, framework: CodeRouteNode["framework"], handler: string | null = null) => {
@@ -4222,6 +4256,60 @@ function extractRoutes(path: string, text: string, symbols: CodeSymbolNode[]): C
         const handler = djangoPath[2].split(".").pop() ?? null;
         addRoute("ANY", djangoPath[1], offsetForLine(text, index + 1), "django", handler);
       }
+    }
+  }
+  if (extensionOf(path) === ".rb") {
+    for (const match of text.matchAll(/\b(get|post|put|patch|delete)\s+["']([^"']+)["']/gi)) {
+      addRoute(match[1].toUpperCase(), match[2], match.index ?? 0, "rails");
+    }
+  }
+  if (extensionOf(path) === ".php") {
+    for (const match of text.matchAll(/\bRoute::(get|post|put|patch|delete|options|any)\s*\(\s*["']([^"']+)["']/gi)) {
+      addRoute(match[1].toUpperCase(), match[2], match.index ?? 0, "laravel");
+    }
+  }
+  if ([".java", ".kt"].includes(extensionOf(path))) {
+    const lines = text.split(/\r?\n/);
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index];
+      const mapping = line.match(/@(GetMapping|PostMapping|PutMapping|PatchMapping|DeleteMapping|RequestMapping)\s*(?:\(\s*(?:value\s*=\s*)?["']([^"']+)["'])?/);
+      if (!mapping || !mapping[2]) continue;
+      let method = SPRING_ROUTE_METHODS[mapping[1]] ?? "ANY";
+      if (mapping[1] === "RequestMapping") {
+        const explicit = line.match(/RequestMethod\.(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)/);
+        if (explicit) method = explicit[1];
+      }
+      const handler = routeHandlerNearLine(lines, index, /^\s*(?:public|private|protected)?\s*[\w<>\[\], ?]+\s+([A-Za-z_][\w]*)\s*\(/);
+      addRoute(method, mapping[2], offsetForLine(text, index + 1), "spring", handler);
+    }
+  }
+  if (extensionOf(path) === ".go") {
+    for (const match of text.matchAll(/\b[A-Za-z_][\w]*\.(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s*\(\s*["`]([^"`]+)["`]\s*,\s*([A-Za-z_][\w.]*)?/g)) {
+      addRoute(match[1], match[2], match.index ?? 0, "go-router", match[3]?.split(".").pop() ?? null);
+    }
+  }
+  if (extensionOf(path) === ".rs") {
+    for (const match of text.matchAll(/\.route\s*\(\s*["']([^"']+)["']\s*,\s*(get|post|put|patch|delete|options|head)\s*\(\s*([A-Za-z_][\w:]*)?/gi)) {
+      addRoute(match[2].toUpperCase(), match[1], match.index ?? 0, "rust-router", match[3]?.split("::").pop() ?? null);
+    }
+    const lines = text.split(/\r?\n/);
+    for (let index = 0; index < lines.length; index += 1) {
+      const attr = lines[index].match(/#\[(get|post|put|patch|delete|options|head)\(\s*["']([^"']+)["']\s*\)\]/i);
+      if (!attr) continue;
+      const handler = routeHandlerNearLine(lines, index, /^\s*(?:pub\s+)?(?:async\s+)?fn\s+([A-Za-z_][\w]*)\s*\(/);
+      addRoute(attr[1].toUpperCase(), attr[2], offsetForLine(text, index + 1), "rust-router", handler);
+    }
+  }
+  if (extensionOf(path) === ".cs") {
+    for (const match of text.matchAll(/\bMap(Get|Post|Put|Patch|Delete)\s*\(\s*["']([^"']+)["']\s*,\s*([A-Za-z_][\w.]*)?/g)) {
+      addRoute(ASPNET_ROUTE_METHODS[match[1]] ?? match[1].toUpperCase(), match[2], match.index ?? 0, "aspnet", match[3]?.split(".").pop() ?? null);
+    }
+    const lines = text.split(/\r?\n/);
+    for (let index = 0; index < lines.length; index += 1) {
+      const attr = lines[index].match(/\[\s*Http(Get|Post|Put|Patch|Delete)?\s*\(\s*["']([^"']+)["']\s*\)\s*\]/);
+      if (!attr) continue;
+      const handler = routeHandlerNearLine(lines, index, /^\s*(?:public|private|protected|internal)?\s*(?:async\s+)?[\w<>\[\], ?]+\s+([A-Za-z_][\w]*)\s*\(/);
+      addRoute(attr[1] ? ASPNET_ROUTE_METHODS[attr[1]] ?? attr[1].toUpperCase() : "ANY", attr[2], offsetForLine(text, index + 1), "aspnet", handler);
     }
   }
   if (/app\/api\//.test(path)) {

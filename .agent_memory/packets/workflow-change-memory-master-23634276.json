@@ -3,7 +3,7 @@
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
   "summary": "Repo-local context for 10 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/decision-python-framework-routes-in-code-graph-d95e4d76.json\n- CHANGELOG.md\n- README.md\n- docs/guide.html\n- docs/releases.html\n- mcp/README.md\n- mcp/kernel.test.ts\n- mcp/kernel.ts\n- mcp/package-lock.json\n- mcp/package.json\n\nDiff summary:\n```text\nCHANGELOG.md          | 10 ++++++++\n README.md             |  2 +-\n docs/guide.html       |  2 +-\n docs/releases.html    |  8 ++++---\n mcp/README.md         |  3 ++-\n mcp/kernel.test.ts    | 43 ++++++++++++++++++++++++++++++++++-\n mcp/kernel.ts         | 63 +++++++++++++++++++++++++++++++++++++++++++++++++--\n mcp/package-lock.json |  4 ++--\n mcp/package.json      |  2 +-\n 9 files changed, 125 insertions(+), 12 deletions(-)\n.agent_memory/packets/decision-python-framework-routes-in-code-graph-d95e4d76.json | untracked\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/decision-mixed-language-framework-routes-in-code-graph-f80a59d6.json\n- CHANGELOG.md\n- README.md\n- docs/guide.html\n- docs/releases.html\n- mcp/README.md\n- mcp/kernel.test.ts\n- mcp/kernel.ts\n- mcp/package-lock.json\n- mcp/package.json\n\nDiff summary:\n```text\nCHANGELOG.md          |  8 +++++\n README.md             |  2 +-\n docs/guide.html       |  2 +-\n docs/releases.html    |  9 +++---\n mcp/README.md         |  3 +-\n mcp/kernel.test.ts    | 83 +++++++++++++++++++++++++++++++++++++++++++++++\n mcp/kernel.ts         | 90 ++++++++++++++++++++++++++++++++++++++++++++++++++-\n mcp/package-lock.json |  4 +--\n mcp/package.json      |  2 +-\n 9 files changed, 191 insertions(+), 12 deletions(-)\n.agent_memory/packets/decision-mixed-language-framework-routes-in-code-graph-f80a59d6.json | untracked\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -17,7 +17,7 @@
     "branch:master"
   ],
   "paths": [
-    ".agent_memory/packets/decision-python-framework-routes-in-code-graph-d95e4d76.json",
+    ".agent_memory/packets/decision-mixed-language-framework-routes-in-code-graph-f80a59d6.json",
     "CHANGELOG.md",
     "README.md",
     "docs/guide.html",
@@ -33,10 +33,10 @@
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "96269db576054e4ddf74fc3ee721c2f03cad9f57",
-      "merge_base": "96269db576054e4ddf74fc3ee721c2f03cad9f57",
+      "head": "f7adc22cc25da6e2b985db3832609479f4234abf",
+      "merge_base": "f7adc22cc25da6e2b985db3832609479f4234abf",
       "changed_files": [
-        ".agent_memory/packets/decision-python-framework-routes-in-code-graph-d95e4d76.json",
+        ".agent_memory/packets/decision-mixed-language-framework-routes-in-code-graph-f80a59d6.json",
         "CHANGELOG.md",
         "README.md",
         "docs/guide.html",
@@ -60,14 +60,14 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-05-15T04:48:54.347Z",
+    "last_verified_at": "2026-05-15T04:55:58.650Z",
     "ttl_days": 180,
     "verification": "git_diff"
   },
   "edges": [
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-python-framework-routes-in-code-graph-d95e4d76.json",
+      "to": "path:.agent_memory/packets/decision-mixed-language-framework-routes-in-code-graph-f80a59d6.json",
       "evidence": "git_diff"
     },
     {
@@ -128,7 +128,7 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 376,
+    "estimated_tokens_saved": 382,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -146,6 +146,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-05-15T04:48:54.347Z",
-  "updated_at": "2026-05-15T04:49:03.107Z"
+  "created_at": "2026-05-15T04:55:58.650Z",
+  "updated_at": "2026-05-15T04:56:05.530Z"
 }
