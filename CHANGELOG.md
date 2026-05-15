@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.1.35 - 2026-05-15
+
+- Added a viewer overview dashboard with sections for readiness, memory
+  coverage, graph health, repo intelligence, review, and workspace links.
+- Added top-level viewer navigation so users can scan the dashboard first and
+  then move into the dedicated graph, memory, intelligence, review, or data
+  workspace.
+- Added a viewer Path Finder for source graph navigation.
+- Reworked the viewer into a graph-first drawer workspace so controls,
+  inspector, repo intelligence, review/proof, and tables open only when needed
+  instead of cluttering the graph by default.
+- Added a floating graph toolbar for scope, 2D/3D mode, search, Path Finder,
+  and Inspector access without leaving the canvas.
+- The local and hosted viewers can now resolve two code nodes, files, symbols,
+  routes, or tests and highlight the shortest forward, reverse, or undirected
+  dependency path between them.
+- Path highlights are preserved through node/edge capping and render in both 2D
+  Canvas and 3D Space modes.
+
 ## v1.1.34 - 2026-05-15
 
 - Added a viewer Workspace Map section for multi-repo intelligence.

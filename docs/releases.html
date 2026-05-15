@@ -264,7 +264,7 @@
         <div class="wrap">
           <h2>Current package</h2>
           <div class="stats">
-            <div class="stat"><strong>1.1.34</strong><span>latest npm version checked May 15, 2026</span></div>
+            <div class="stat"><strong>1.1.35</strong><span>latest npm version checked May 15, 2026</span></div>
             <div class="stat"><strong>1,628</strong><span>npm downloads last week</span></div>
             <div class="stat"><strong>3,575</strong><span>npm downloads last month</span></div>
           </div>
@@ -277,12 +277,18 @@ kage init --project .</pre>
         <div class="wrap">
           <h2>Latest package notes</h2>
           <div class="panel">
-            <h3>v1.1.34</h3>
+            <h3>v1.1.35</h3>
             <p>
               Current npm package for local-first repo memory, code graph, recall, viewer, PR checks,
-              repo-intelligence maps, optional post-commit automation, mixed-language route indexing, confidence-scored call edges, workspace topic contracts, cross-repo co-change links, viewer Workspace Map drill-down, and conservative cleanup review input.
+              repo-intelligence maps, optional post-commit automation, mixed-language route indexing, confidence-scored call edges, workspace topic contracts, cross-repo co-change links, dashboard-first viewer sections, graph-first drawer workspace, floating graph toolbar, viewer Workspace Map drill-down, source graph Path Finder, and conservative cleanup review input.
             </p>
             <ul>
+              <li>The viewer now opens with a repo dashboard for readiness, memory coverage, graph health, risk, review, and workspace links.</li>
+              <li>Top-level viewer sections let users move between Overview, Graph, Memory, Intel, Review, and Data without cramming everything into one page.</li>
+              <li>The viewer now uses a graph-first drawer workspace so controls, Inspector, Repo Intelligence, review/proof, and tables open only when needed instead of shrinking the graph by default.</li>
+              <li>Scope, 2D/3D mode, search, Path Finder, and Inspector access are now available from a compact floating toolbar on the graph canvas.</li>
+              <li>The viewer now includes Path Finder for highlighting the shortest dependency path between two code nodes in 2D Canvas or 3D Space.</li>
+              <li>Path highlights are preserved through graph capping so selected code routes stay visible in dense repos.</li>
               <li>The viewer Repo Intelligence cockpit now includes a Workspace Map section for package dependencies, route links, topic links, and cross-repo co-change pairs.</li>
               <li>Workspace intelligence is now browsable as rows instead of only appearing as summary counts.</li>
               <li><code>kage workspace</code> now reports same-author, near-time cross-repo co-change links from local git history.</li>

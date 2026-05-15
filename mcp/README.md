@@ -163,12 +163,16 @@ Open a local viewer for the current repo:
 kage viewer --project .
 ```
 
-The local viewer loads graph artifacts plus `.agent_memory/reports/*.json` and
-shows a repo-intelligence cockpit for memory-code links, decision memory, risk,
-contributors, module health, graph insights, workspace coverage, workspace
-link maps, quality, and benchmark proof. Workspace Map rows expose package
-dependencies, route contracts, topic/event links, and cross-repo co-change
-pairs from local workspace reports.
+The local viewer loads graph artifacts plus `.agent_memory/reports/*.json`.
+It opens with a dashboard for repo readiness, memory coverage, graph health,
+risk, review, and workspace links, then lets you jump into a dedicated graph
+workspace. The graph stays primary: common graph actions sit in a floating
+canvas toolbar, and the side workspace opens as a drawer for controls,
+Inspector, Repo Intelligence, review/proof, and tables without shrinking the
+graph by default. Workspace Map rows expose package dependencies, route
+contracts, topic/event links, and cross-repo co-change pairs from local
+workspace reports. Path Finder highlights the shortest dependency path between
+two code nodes, files, symbols, routes, or tests in 2D or 3D.
 
 Hosted demo:
 

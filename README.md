@@ -235,12 +235,19 @@ kage viewer --project .
 ```
 
 The local viewer auto-loads your repo memory, code graph, metrics, inbox, review
-context, and repo-intelligence reports. The graph remains interactive, while the
-Repo Intelligence cockpit summarizes memory-code links, decision memory, change
-risk, module health, contributor profiles, graph insights, workspace coverage,
+context, and repo-intelligence reports. It opens with a dashboard for repo
+readiness, memory coverage, graph health, risk, review, and workspace links,
+then lets you jump into a dedicated graph workspace. The graph stays primary:
+common graph actions sit in a floating canvas toolbar, and the side workspace
+opens as a drawer for controls, Inspector, Repo Intelligence, review/proof, and
+tables without shrinking the graph by default.
+Repo Intelligence summarizes memory-code links, decision memory, change risk,
+module health, contributor profiles, graph insights, workspace coverage,
 workspace link maps, quality, and local benchmark proof.
 Workspace Map rows expose package dependencies, route contracts, topic/event
 links, and cross-repo co-change pairs from local workspace reports.
+Path Finder lets you enter two code nodes, files, symbols, routes, or tests and
+highlight the shortest dependency path between them in 2D or 3D.
 Combined mode balances memory and code nodes so the graph stays useful instead
 of turning into an unreadable file map.
 

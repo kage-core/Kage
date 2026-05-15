@@ -13,6 +13,16 @@
     visibleEntityIds: new Set(),
     visibleEdgeIds: new Set(),
     selected: null,
+    viewerSection: "overview",
+    viewerAction: null,
+    workspaceTab: "controls",
+    workspaceOpen: false,
+    pathHighlight: {
+      nodes: new Set(),
+      edges: new Set(),
+      direction: "",
+      steps: []
+    },
     metrics: null,
     inbox: null,
     reports: {
@@ -119,6 +129,13 @@
     graphSubhead: document.getElementById("graphSubhead"),
     selectionStatus: document.getElementById("selectionStatus"),
     searchInput: document.getElementById("searchInput"),
+    pathFromInput: document.getElementById("pathFromInput"),
+    pathToInput: document.getElementById("pathToInput"),
+    pathNodeOptions: document.getElementById("pathNodeOptions"),
+    findPath: document.getElementById("findPath"),
+    clearPath: document.getElementById("clearPath"),
+    pathStatus: document.getElementById("pathStatus"),
+    pathResult: document.getElementById("pathResult"),
     viewMode: document.getElementById("viewMode"),
     renderMode: document.getElementById("renderMode"),
     typeFilter: document.getElementById("typeFilter"),
@@ -146,11 +163,21 @@
     entityCount: document.getElementById("entityCount"),
     edgeCount: document.getElementById("edgeCount"),
     reviewCount: document.getElementById("reviewCount"),
+    dashboardStats: document.getElementById("dashboardStats"),
     reviewList: document.getElementById("reviewList"),
     proofStatus: document.getElementById("proofStatus"),
     proofList: document.getElementById("proofList"),
     intelligenceStatus: document.getElementById("intelligenceStatus"),
-    intelligenceList: document.getElementById("intelligenceList")
+    intelligenceList: document.getElementById("intelligenceList"),
+    viewerSectionButtons: typeof document.querySelectorAll === "function" ? Array.from(document.querySelectorAll("[data-viewer-section]")) : [],
+    dashboardActionButtons: typeof document.querySelectorAll === "function" ? Array.from(document.querySelectorAll("[data-dashboard-action]")) : [],
+    workspaceTabs: typeof document.querySelectorAll === "function" ? Array.from(document.querySelectorAll("[data-workspace-tab]")) : [],
+    quickViewButtons: typeof document.querySelectorAll === "function" ? Array.from(document.querySelectorAll("[data-quick-view]")) : [],
+    quickRenderButtons: typeof document.querySelectorAll === "function" ? Array.from(document.querySelectorAll("[data-quick-render]")) : [],
+    quickSearch: document.getElementById("quickSearch"),
+    quickPath: document.getElementById("quickPath"),
+    quickInspector: document.getElementById("quickInspector"),
+    closeWorkspace: document.getElementById("closeWorkspace")
   };
 
   var MEMORY_CODE_RELATIONS = new Set(["explains_symbol", "informs_symbol", "fixes_symbol", "applies_to_route", "verified_by_test", "affects_code_path"]);
@@ -161,8 +188,69 @@
   var VISIBLE_EDGE_MIN = 160;
   var VISIBLE_EDGE_MAX = 560;
 
+  setViewerSection(state.viewerSection);
+  setWorkspaceTab(state.workspaceTab, false);
+  els.viewerSectionButtons.forEach(function (button) {
+    button.addEventListener("click", function () {
+      setViewerSection(button.getAttribute("data-viewer-section"));
+    });
+  });
+  els.dashboardActionButtons.forEach(function (button) {
+    button.addEventListener("click", function () {
+      openDashboardAction(button.getAttribute("data-dashboard-action"));
+    });
+  });
+  els.workspaceTabs.forEach(function (button) {
+    button.addEventListener("click", function () {
+      setWorkspaceTab(button.getAttribute("data-workspace-tab"), true);
+    });
+  });
+  els.quickViewButtons.forEach(function (button) {
+    button.addEventListener("click", function () {
+      setViewerSection("graph");
+      els.viewMode.value = button.getAttribute("data-quick-view") || "combined";
+      state.lastVisibleSignature = "";
+      syncQuickControls();
+      render();
+    });
+  });
+  els.quickRenderButtons.forEach(function (button) {
+    button.addEventListener("click", function () {
+      setViewerSection("graph");
+      els.renderMode.value = button.getAttribute("data-quick-render") || "2d";
+      state.lastVisibleSignature = "";
+      syncQuickControls();
+      render();
+    });
+  });
+  if (els.quickSearch) {
+    els.quickSearch.addEventListener("click", function () {
+      setViewerSection("graph");
+      setWorkspaceTab("controls", true);
+      els.searchInput.focus();
+    });
+  }
+  if (els.quickPath) {
+    els.quickPath.addEventListener("click", function () {
+      setViewerSection("graph");
+      setWorkspaceTab("controls", true);
+      els.pathFromInput.focus();
+    });
+  }
+  if (els.quickInspector) {
+    els.quickInspector.addEventListener("click", function () {
+      setViewerSection("graph");
+      setWorkspaceTab("inspector", true);
+    });
+  }
+  if (els.closeWorkspace) els.closeWorkspace.addEventListener("click", closeWorkspace);
+  syncQuickControls();
   els.graphFile.addEventListener("change", handleFile);
   els.searchInput.addEventListener("input", scheduleRender);
+  els.findPath.addEventListener("click", findDependencyPath);
+  els.clearPath.addEventListener("click", clearDependencyPath);
+  els.pathFromInput.addEventListener("keydown", function (event) { if (event.key === "Enter") findDependencyPath(); });
+  els.pathToInput.addEventListener("keydown", function (event) { if (event.key === "Enter") findDependencyPath(); });
   els.viewMode.addEventListener("change", render);
   els.renderMode.addEventListener("change", function () {
     state.lastVisibleSignature = "";
@@ -206,10 +294,109 @@
     els.maxNodes.value = "90";
     els.showDependencies.checked = false;
     state.selected = null;
+    setWorkspaceTab("controls", true);
+    clearDependencyPath(false);
     state.lastVisibleSignature = "";
     render();
   });
   loadFromUrlParams();
+
+  function setWorkspaceTab(tab, open) {
+    var allowed = new Set(["controls", "inspector", "intelligence", "review", "tables"]);
+    state.workspaceTab = allowed.has(tab) ? tab : "controls";
+    if (open !== false) state.workspaceOpen = true;
+    if (document.body && document.body.classList) {
+      document.body.classList.remove(
+        "viewer-tab-controls",
+        "viewer-tab-inspector",
+        "viewer-tab-intelligence",
+        "viewer-tab-review",
+        "viewer-tab-tables"
+      );
+      document.body.classList.add("viewer-tab-" + state.workspaceTab);
+      document.body.classList.toggle("viewer-workspace-open", state.workspaceOpen);
+    }
+    els.workspaceTabs.forEach(function (button) {
+      var active = button.getAttribute("data-workspace-tab") === state.workspaceTab;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-selected", active ? "true" : "false");
+    });
+  }
+
+  function setViewerSection(section, action) {
+    state.viewerSection = section === "graph" ? "graph" : "overview";
+    state.viewerAction = action || null;
+    if (state.viewerSection === "overview") closeWorkspace();
+    if (document.body && document.body.classList) {
+      document.body.classList.remove("viewer-section-overview", "viewer-section-graph");
+      document.body.classList.add("viewer-section-" + state.viewerSection);
+    }
+    syncSectionControls();
+    if (state.viewerSection === "graph") resizeActiveGraph();
+  }
+
+  function openDashboardAction(action) {
+    var normalized = String(action || "").toLowerCase();
+    var tabByAction = {
+      memory: "review",
+      intelligence: "intelligence",
+      review: "review",
+      data: "tables"
+    };
+    setViewerSection("graph", normalized);
+    setWorkspaceTab(tabByAction[normalized] || "controls", true);
+  }
+
+  function syncSectionControls() {
+    els.viewerSectionButtons.forEach(function (button) {
+      var section = button.getAttribute("data-viewer-section");
+      var active = state.viewerSection === section && !state.viewerAction;
+      if (button.classList && button.classList.contains("viewer-section")) {
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-selected", active ? "true" : "false");
+      }
+    });
+    els.dashboardActionButtons.forEach(function (button) {
+      var action = button.getAttribute("data-dashboard-action");
+      var active = state.viewerSection === "graph" && state.viewerAction === action;
+      if (button.classList && button.classList.contains("viewer-section")) {
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-selected", active ? "true" : "false");
+      }
+    });
+  }
+
+  function closeWorkspace() {
+    state.workspaceOpen = false;
+    if (document.body && document.body.classList) {
+      document.body.classList.remove("viewer-workspace-open");
+    }
+  }
+
+  function selectEntity(id, openInspector) {
+    state.selected = { kind: "entity", id: id };
+    setViewerSection("graph");
+    if (openInspector) setWorkspaceTab("inspector", true);
+  }
+
+  function selectEdge(id, openInspector) {
+    state.selected = { kind: "edge", id: id };
+    setViewerSection("graph");
+    if (openInspector) setWorkspaceTab("inspector", true);
+  }
+
+  function syncQuickControls() {
+    els.quickViewButtons.forEach(function (button) {
+      var active = button.getAttribute("data-quick-view") === els.viewMode.value;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    els.quickRenderButtons.forEach(function (button) {
+      var active = button.getAttribute("data-quick-render") === els.renderMode.value;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+  }
 
   function handleFile(event) {
     var files = Array.from(event.target.files || []);
@@ -258,9 +445,12 @@
       return [episode.id, episode];
     }));
     state.selected = null;
+    closeWorkspace();
+    clearDependencyPath(false);
     state.lastVisibleSignature = "";
 
     populateFilters();
+    populatePathOptions();
     els.emptyState.classList.add("hidden");
     els.graphSummary.textContent = fileName + " loaded: " + entities.length + " nodes, " + edges.length + " relations.";
     render();
@@ -277,6 +467,8 @@
 
   function loadFromUrlParams() {
     var params = new URLSearchParams(window.location.search);
+    var requestedSection = String(params.get("section") || "").toLowerCase();
+    if (requestedSection === "graph" || requestedSection === "overview") setViewerSection(requestedSection);
     applyRequestedView(params.get("view") || params.get("mode"));
     applyRequestedRenderMode(params.get("render") || params.get("graphMode"));
     var memoryGraphPaths = splitParamValues(params.getAll("graph"));
@@ -836,6 +1028,188 @@
     });
   }
 
+  function populatePathOptions() {
+    if (!els.pathNodeOptions) return;
+    var seen = new Set();
+    els.pathNodeOptions.textContent = "";
+    pathCandidateEntities().slice(0, 500).forEach(function (entity) {
+      [entity.path, displayName(entity), entity.id].filter(Boolean).forEach(function (value) {
+        var text = String(value);
+        if (seen.has(text)) return;
+        seen.add(text);
+        var option = document.createElement("option");
+        option.value = text;
+        els.pathNodeOptions.appendChild(option);
+      });
+    });
+  }
+
+  function pathCandidateEntities() {
+    return state.entities
+      .filter(function (entity) {
+        return entity.graph_kind === "code" && ["file", "symbol", "route", "test", "script"].indexOf(entity.type) !== -1;
+      })
+      .sort(function (a, b) {
+        return entityImportance(b) - entityImportance(a) || displayName(a).localeCompare(displayName(b));
+      });
+  }
+
+  function resolvePathEntity(value) {
+    var query = String(value || "").trim();
+    if (!query) return null;
+    var lower = query.toLowerCase();
+    var candidates = pathCandidateEntities();
+    var exact = candidates.filter(function (entity) {
+      return String(entity.id || "").toLowerCase() === lower ||
+        String(entity.path || "").toLowerCase() === lower ||
+        displayName(entity).toLowerCase() === lower;
+    });
+    if (exact.length) return exact[0];
+    var partial = candidates.filter(function (entity) {
+      return String(entity.path || "").toLowerCase().indexOf(lower) !== -1 ||
+        displayName(entity).toLowerCase().indexOf(lower) !== -1 ||
+        String(entity.id || "").toLowerCase().indexOf(lower) !== -1;
+    });
+    return partial[0] || null;
+  }
+
+  function codePathEdges() {
+    var relations = new Set(["imports", "imports_external", "defines_symbol", "calls", "covers", "defines_route", "handled_by"]);
+    return state.edges.filter(function (edge) {
+      if (!relations.has(edge.relation)) return false;
+      var from = state.entityById.get(edge.from);
+      var to = state.entityById.get(edge.to);
+      return from && to && from.graph_kind === "code" && to.graph_kind === "code";
+    });
+  }
+
+  function shortestCodePath(fromId, toId, undirected) {
+    var adjacency = new Map();
+    codePathEdges().forEach(function (edge) {
+      if (!adjacency.has(edge.from)) adjacency.set(edge.from, []);
+      adjacency.get(edge.from).push({ to: edge.to, edge: edge });
+      if (undirected) {
+        if (!adjacency.has(edge.to)) adjacency.set(edge.to, []);
+        adjacency.get(edge.to).push({ to: edge.from, edge: edge });
+      }
+    });
+    var queue = [fromId];
+    var seen = new Set([fromId]);
+    var previous = new Map();
+    while (queue.length) {
+      var current = queue.shift();
+      if (current === toId) break;
+      (adjacency.get(current) || []).forEach(function (step) {
+        if (seen.has(step.to)) return;
+        seen.add(step.to);
+        previous.set(step.to, { from: current, edge: step.edge });
+        queue.push(step.to);
+      });
+    }
+    if (!seen.has(toId)) return null;
+    var nodes = [toId];
+    var edges = [];
+    var cursor = toId;
+    while (cursor !== fromId) {
+      var prev = previous.get(cursor);
+      if (!prev) return null;
+      edges.unshift(prev.edge.id);
+      cursor = prev.from;
+      nodes.unshift(cursor);
+    }
+    return { nodes: nodes, edges: edges };
+  }
+
+  function findDependencyPath() {
+    var from = resolvePathEntity(els.pathFromInput.value);
+    var to = resolvePathEntity(els.pathToInput.value);
+    if (!from || !to) {
+      setPathStatus("Could not resolve both endpoints. Try a file path or exact symbol name.", "warn");
+      return;
+    }
+    if (from.id === to.id) {
+      setPathStatus("Pick two different code nodes.", "warn");
+      return;
+    }
+    var direction = "forward";
+    var path = shortestCodePath(from.id, to.id, false);
+    if (!path) {
+      var reverse = shortestCodePath(to.id, from.id, false);
+      if (reverse) {
+        direction = "reverse";
+        path = {
+          nodes: reverse.nodes.slice().reverse(),
+          edges: reverse.edges.slice().reverse()
+        };
+      }
+    }
+    if (!path) {
+      direction = "undirected";
+      path = shortestCodePath(from.id, to.id, true);
+    }
+    if (!path) {
+      state.pathHighlight = { nodes: new Set(), edges: new Set(), direction: "", steps: [] };
+      els.pathResult.textContent = "";
+      els.pathResult.className = "path-result";
+      setPathStatus("No code dependency path found between those nodes.", "warn");
+      render();
+      return;
+    }
+    state.pathHighlight = {
+      nodes: new Set(path.nodes),
+      edges: new Set(path.edges),
+      direction: direction,
+      steps: path.nodes
+    };
+    setPathStatus(path.nodes.length + " nodes, " + path.edges.length + " edge(s), " + direction + " path.", "ok");
+    renderPathResult(path.nodes, path.edges);
+    state.lastVisibleSignature = "";
+    render();
+  }
+
+  function setPathStatus(text, status) {
+    els.pathStatus.textContent = text;
+    els.pathStatus.className = "path-status" + (status ? " " + status : "");
+  }
+
+  function clearDependencyPath(renderNow) {
+    state.pathHighlight = { nodes: new Set(), edges: new Set(), direction: "", steps: [] };
+    if (els.pathFromInput) els.pathFromInput.value = "";
+    if (els.pathToInput) els.pathToInput.value = "";
+    if (els.pathResult) {
+      els.pathResult.textContent = "";
+      els.pathResult.className = "path-result";
+    }
+    if (els.pathStatus) setPathStatus("Pick two code nodes to trace a dependency path.", "");
+    if (renderNow !== false) {
+      state.lastVisibleSignature = "";
+      render();
+    }
+  }
+
+  function renderPathResult(nodes, edges) {
+    els.pathResult.textContent = "";
+    nodes.forEach(function (id, index) {
+      var entity = state.entityById.get(id);
+      var edge = index > 0 ? state.edgeById.get(edges[index - 1]) : null;
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "path-step";
+      button.innerHTML = "<strong></strong><span></span>";
+      button.querySelector("strong").textContent = entity ? displayName(entity) : id;
+      button.querySelector("span").textContent = [
+        index === 0 ? "start" : edge ? edge.relation : "path",
+        entity && entity.path ? entity.path : id
+      ].filter(Boolean).join(" | ");
+      button.addEventListener("click", function () {
+        selectEntity(id, true);
+        render();
+      });
+      els.pathResult.appendChild(button);
+    });
+    els.pathResult.className = "path-result visible";
+  }
+
   function layoutGraph(visibleIds) {
     state.positions = new Map();
     var candidates = state.entities.filter(function (entity) {
@@ -872,6 +1246,7 @@
 
   function render() {
     if (!state.graph) return;
+    syncQuickControls();
 
     var query = parseSearchQuery(els.searchInput.value);
     state.renderQuery = query;
@@ -981,7 +1356,16 @@
       }
     }
 
-    return { entities: entities, edges: capVisibleEdges(edgesWithVisibleEndpoints(edges, entities), entities, options) };
+    if (state.pathHighlight && state.pathHighlight.nodes.size) {
+      state.pathHighlight.nodes.forEach(function (id) { entities.add(id); });
+      state.pathHighlight.edges.forEach(function (id) { edges.add(id); });
+    }
+
+    var cappedEdges = capVisibleEdges(edgesWithVisibleEndpoints(edges, entities), entities, options);
+    if (state.pathHighlight && state.pathHighlight.edges.size) {
+      state.pathHighlight.edges.forEach(function (id) { if (edges.has(id)) cappedEdges.add(id); });
+    }
+    return { entities: entities, edges: cappedEdges };
   }
 
   function capVisibleEdges(edgeIds, entityIds, options) {
@@ -1484,9 +1868,10 @@
       var to = nodeMap.get(edge.to);
       if (!from || !to) return;
       var connected = focusId && (edge.from === focusId || edge.to === focusId);
+      var pathEdge = state.pathHighlight && state.pathHighlight.edges.has(edge.id);
       var matches = matchesSearchQuery(edge, query) || matchesSearchQuery(from.entity, query) || matchesSearchQuery(to.entity, query);
-      var alpha = !matches ? 0.035 : focusId ? (connected ? 0.62 : 0.055) : (dense ? 0.13 : 0.22);
-      var color = hexToRgb(edgeThemeColor(edge, from.entity, to.entity));
+      var alpha = pathEdge ? 0.92 : !matches ? 0.035 : focusId ? (connected ? 0.62 : 0.055) : (dense ? 0.13 : 0.22);
+      var color = hexToRgb(pathEdge ? graphPalette.bridge : edgeThemeColor(edge, from.entity, to.entity));
       var dx = to.x - from.x;
       var dy = to.y - from.y;
       var dist = Math.max(1, Math.sqrt(dx * dx + dy * dy));
@@ -1497,10 +1882,10 @@
       ctx.moveTo(from.x, from.y);
       ctx.quadraticCurveTo(cx, cy, to.x, to.y);
       ctx.strokeStyle = "rgba(" + color.r + "," + color.g + "," + color.b + "," + alpha + ")";
-      ctx.lineWidth = connected ? 2.2 : 1;
+      ctx.lineWidth = pathEdge ? 3 : connected ? 2.2 : 1;
       ctx.stroke();
-      if (connected || (!dense && state.sim.zoom > 1.25)) drawArrow(ctx, from, to, cx, cy, color, alpha);
-      if (connected && state.sim.zoom > 0.62) drawEdgeLabel(ctx, edge, cx, cy);
+      if (pathEdge || connected || (!dense && state.sim.zoom > 1.25)) drawArrow(ctx, from, to, cx, cy, color, alpha);
+      if ((pathEdge || connected) && state.sim.zoom > 0.62) drawEdgeLabel(ctx, edge, cx, cy);
     });
   }
 
@@ -1514,14 +1899,15 @@
       var selected = state.selected && state.selected.kind === "entity" && state.selected.id === node.id;
       var hovered = state.sim.hoverNode && state.sim.hoverNode.id === node.id;
       var connected = focusId && (node.id === focusId || (focusNeighbors && focusNeighbors.has(node.id)));
+      var pathNode = state.pathHighlight && state.pathHighlight.nodes.has(node.id);
       var matches = matchesSearchQuery(entity, query);
-      var alpha = !matches ? 0.12 : focusId && !connected ? 0.20 : 1;
+      var alpha = pathNode ? 1 : !matches ? 0.12 : focusId && !connected ? 0.20 : 1;
       var color = nodeThemeColor(entity);
       ctx.save();
       ctx.globalAlpha = alpha;
-      if (selected || hovered) {
-        ctx.shadowColor = color;
-        ctx.shadowBlur = selected ? 14 : 10;
+      if (selected || hovered || pathNode) {
+        ctx.shadowColor = pathNode ? graphPalette.bridge : color;
+        ctx.shadowBlur = selected ? 14 : pathNode ? 12 : 10;
       }
       drawNodeShape(ctx, node.x, node.y, node.r, entity);
       ctx.fillStyle = nodeFillColor(entity);
@@ -1538,18 +1924,18 @@
       }
       ctx.restore();
 
-      if (selected || hovered) {
+      if (selected || hovered || pathNode) {
         ctx.save();
         drawNodeShape(ctx, node.x, node.y, node.r + 4, entity);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = selected ? 2.6 : 1.8;
-        ctx.shadowColor = color;
+        ctx.strokeStyle = pathNode ? graphPalette.bridge : color;
+        ctx.lineWidth = selected ? 2.6 : pathNode ? 2.2 : 1.8;
+        ctx.shadowColor = pathNode ? graphPalette.bridge : color;
         ctx.shadowBlur = 8;
         ctx.stroke();
         ctx.restore();
       }
 
-      var shouldLabel = matches && (selected || hovered || (query.active && matches) || (!dense && state.sim.zoom > 0.75) || (dense && state.sim.zoom > 1.55 && node.r > 13));
+      var shouldLabel = pathNode || (matches && (selected || hovered || (query.active && matches) || (!dense && state.sim.zoom > 0.75) || (dense && state.sim.zoom > 1.55 && node.r > 13)));
       if (shouldLabel) drawNodeLabel(ctx, node, selected || hovered);
     });
   }
@@ -1681,7 +2067,7 @@
         class: "edge-hit"
       });
       hit.addEventListener("click", function () {
-        state.selected = { kind: "edge", id: edge.id };
+        selectEdge(edge.id, true);
         render();
       });
       hit.addEventListener("mousedown", function (event) {
@@ -1733,7 +2119,7 @@
       var title = svgEl("title");
       title.textContent = displayName(entity) + "\n" + (entity.summary || "");
       group.addEventListener("click", function () {
-        state.selected = { kind: "entity", id: entity.id };
+        selectEntity(entity.id, true);
         render();
       });
       group.addEventListener("mousedown", function (event) {
@@ -1786,7 +2172,7 @@
       button.querySelector(".item-title").textContent = displayName(entity);
       button.querySelector(".item-meta").textContent = (entity.type || "unknown") + " | " + entity.id;
       button.addEventListener("click", function () {
-        state.selected = { kind: "entity", id: entity.id };
+        selectEntity(entity.id, true);
         render();
       });
       els.entityList.appendChild(button);
@@ -1800,7 +2186,7 @@
       button.querySelector(".item-title").textContent = edge.relation || "related";
       button.querySelector(".item-meta").textContent = displayName(state.entityById.get(edge.from)) + " -> " + displayName(state.entityById.get(edge.to)) + " | " + reviewStatus(edge);
       button.addEventListener("click", function () {
-        state.selected = { kind: "edge", id: edge.id };
+        selectEdge(edge.id, true);
         render();
       });
       els.edgeList.appendChild(button);
@@ -2029,7 +2415,8 @@
       button.querySelector(".detail-link-meta").textContent = item.meta;
       button.querySelector(".detail-link-body").textContent = item.body;
       button.addEventListener("click", function () {
-        state.selected = item.entity ? { kind: "entity", id: item.entity.id } : { kind: "edge", id: item.edge.id };
+        if (item.entity) selectEntity(item.entity.id, true);
+        else selectEdge(item.edge.id, true);
         render();
       });
       list.appendChild(button);
@@ -2116,6 +2503,112 @@
     els.workspaceMode.textContent = (els.viewMode.value || "combined").replace(/^./, function (letter) { return letter.toUpperCase(); });
     els.graphSubhead.textContent = visibleEntities.length + " visible nodes and " + visibleEdges.length + " visible relations" +
       (hiddenDependencies && !els.showDependencies.checked ? " (" + hiddenDependencies + " dependency/noise nodes hidden)." : ".");
+    renderDashboard();
+  }
+
+  function renderDashboard() {
+    if (!els.dashboardStats) return;
+    var metrics = state.metrics || {};
+    var memoryGraph = metrics.memory_graph || {};
+    var codeGraph = metrics.code_graph || {};
+    var structural = metrics.structural_index || {};
+    var savings = metrics.savings || {};
+    var pain = metrics.pain || {};
+    var memoryNodes = state.entities.filter(function (entity) { return entity.graph_kind === "memory"; }).length;
+    var codeNodes = state.entities.filter(function (entity) { return entity.graph_kind === "code"; }).length;
+    var memoryCodeEdges = state.edges.filter(isMemoryCodeEdge);
+    var reports = state.reports || {};
+    var reportCount = Object.keys(reports).filter(function (key) { return reports[key]; }).length;
+    var statRows = [
+      ["Memory packets", firstNumber(memoryGraph.approved_packets, memoryNodes)],
+      ["Code nodes", firstNumber(codeGraph.symbols, structural.symbols, codeNodes)],
+      ["Files", firstNumber(codeGraph.files, structural.files, countEntitiesByType("file"))],
+      ["Memory-code links", memoryCodeEdges.length],
+      ["Parser coverage", codeGraph.indexer_coverage_percent != null ? codeGraph.indexer_coverage_percent + "%" : "n/a"],
+      ["Tokens saved", firstNumber(savings.estimated_tokens_saved_per_recall, pain.estimated_tokens_saved, "n/a")]
+    ];
+    els.dashboardStats.textContent = "";
+    statRows.forEach(function (row) {
+      var item = document.createElement("div");
+      item.className = "dashboard-stat";
+      item.innerHTML = "<strong></strong><span></span>";
+      item.querySelector("strong").textContent = formatDashboardValue(row[1]);
+      item.querySelector("span").textContent = row[0];
+      els.dashboardStats.appendChild(item);
+    });
+
+    setDashboardRows("dashboardMemory", [
+      ["Approved packets", firstNumber(memoryGraph.approved_packets, memoryNodes)],
+      ["Pending review", firstNumber(memoryGraph.pending_packets, (state.pendingPackets || []).length)],
+      ["Evidence coverage", memoryGraph.evidence_coverage_percent != null ? memoryGraph.evidence_coverage_percent + "%" : "n/a"],
+      ["Code-linked memory", memoryCodeEdges.length]
+    ]);
+    setDashboardRows("dashboardGraph", [
+      ["Files", firstNumber(codeGraph.files, structural.files, countEntitiesByType("file"))],
+      ["Symbols", firstNumber(codeGraph.symbols, structural.symbols, countEntitiesByType("symbol"))],
+      ["Relations", state.edges.length],
+      ["Dependency/noise hidden", state.entities.filter(function (entity) { return isDependencyEntity(entity); }).length]
+    ]);
+    setDashboardRows("dashboardIntel", [
+      ["Reports loaded", reportCount],
+      ["Decision coverage", reports.decisions && reports.decisions.coverage_percent != null ? reports.decisions.coverage_percent + "%" : "n/a"],
+      ["Modules scored", reports.moduleHealth && Array.isArray(reports.moduleHealth.modules) ? reports.moduleHealth.modules.length : "n/a"],
+      ["Communities", reports.graphInsights && Array.isArray(reports.graphInsights.communities) ? reports.graphInsights.communities.length : "n/a"]
+    ]);
+    var risk = reports.risk || {};
+    var riskTargets = Array.isArray(risk.targets) ? risk.targets : Object.keys(risk.targets || {});
+    setDashboardRows("dashboardRisk", [
+      ["Risk targets", riskTargets.length || "n/a"],
+      ["Hotspots", Array.isArray(risk.global_hotspots) ? risk.global_hotspots.length : "n/a"],
+      ["Ownership silos", Array.isArray(risk.ownership_silos) ? risk.ownership_silos.length : "n/a"],
+      ["Cycles", reports.graphInsights && Array.isArray(reports.graphInsights.dependency_cycles) ? reports.graphInsights.dependency_cycles.length : "n/a"]
+    ]);
+    var inboxCounts = state.inbox && state.inbox.counts ? state.inbox.counts : {};
+    setDashboardRows("dashboardReview", [
+      ["Readiness", metrics.harness && metrics.harness.readiness_score != null ? metrics.harness.readiness_score + "/100" : "n/a"],
+      ["Inbox pending", firstNumber(inboxCounts.pending, (state.pendingPackets || []).length)],
+      ["Stale flags", firstNumber(inboxCounts.stale, 0)],
+      ["Duplicate flags", firstNumber(inboxCounts.duplicates, 0)]
+    ]);
+    var workspace = reports.workspace || {};
+    setDashboardRows("dashboardWorkspace", [
+      ["Repos", Array.isArray(workspace.repos) ? workspace.repos.length : "n/a"],
+      ["Package deps", Array.isArray(workspace.package_dependencies) ? workspace.package_dependencies.length : "n/a"],
+      ["Route contracts", Array.isArray(workspace.route_contracts) ? workspace.route_contracts.length : "n/a"],
+      ["Co-changes", Array.isArray(workspace.co_changes) ? workspace.co_changes.length : "n/a"]
+    ]);
+  }
+
+  function setDashboardRows(cardId, rows) {
+    var card = document.getElementById(cardId);
+    if (!card) return;
+    var list = card.querySelector("ul");
+    if (!list) return;
+    list.textContent = "";
+    rows.forEach(function (row) {
+      var item = document.createElement("li");
+      item.innerHTML = "<strong></strong><span></span>";
+      item.querySelector("strong").textContent = row[0];
+      item.querySelector("span").textContent = formatDashboardValue(row[1]);
+      list.appendChild(item);
+    });
+  }
+
+  function firstNumber() {
+    for (var index = 0; index < arguments.length; index += 1) {
+      var value = arguments[index];
+      if (value !== null && value !== undefined && value !== "") return value;
+    }
+    return "n/a";
+  }
+
+  function countEntitiesByType(type) {
+    return state.entities.filter(function (entity) { return entity.type === type; }).length;
+  }
+
+  function formatDashboardValue(value) {
+    if (typeof value === "number" && Number.isFinite(value)) return value.toLocaleString();
+    return String(value == null ? "n/a" : value);
   }
 
   function renderReviewQueue() {
@@ -2553,7 +3046,7 @@
       scheduleRender();
       return;
     }
-    state.selected = { kind: "entity", id: found.id };
+    selectEntity(found.id, true);
     els.searchInput.value = normalized;
     scheduleRender();
   }
@@ -2847,11 +3340,12 @@
 
   function endCanvasPointer() {
     if (state.sim.dragNode) {
-      state.selected = { kind: "entity", id: state.sim.dragNode.id };
+      selectEntity(state.sim.dragNode.id, true);
       state.sim.dragNode = null;
       render();
     } else if (state.sim.panning && !state.sim.panning.moved) {
       state.selected = null;
+      closeWorkspace();
       render();
     }
     state.sim.panning = null;
@@ -2888,7 +3382,7 @@
     var world = canvasToWorld(event);
     var node = findCanvasNode(world.x, world.y);
     if (!node) return;
-    state.selected = { kind: "entity", id: node.id };
+    selectEntity(node.id, true);
     render();
   }
 
@@ -3062,8 +3556,9 @@
     state.sim.nodes.forEach(function (node, index) {
       var entity = node.entity;
       var selected = state.selected && state.selected.kind === "entity" && state.selected.id === node.id;
+      var pathNode = state.pathHighlight && state.pathHighlight.nodes.has(node.id);
       var material = new THREE.SpriteMaterial({
-        map: threeNodeTexture(entity, selected),
+        map: threeNodeTexture(entity, selected || pathNode),
         transparent: true,
         opacity: isDependencyEntity(entity) ? 0.70 : 1,
         depthWrite: false
@@ -3071,7 +3566,7 @@
       var mesh = new THREE.Sprite(material);
       var position = threePosition(node, index);
       mesh.position.set(position.x, position.y, position.z);
-      var size = threeNodeSize(node, selected);
+      var size = threeNodeSize(node, selected || pathNode);
       mesh.scale.set(size, size, 1);
       mesh.userData.node = node;
       state.three.nodeGroup.add(mesh);
@@ -3085,11 +3580,12 @@
       var fromEntity = from.node.entity;
       var toEntity = to.node.entity;
       var connected = state.selected && state.selected.kind === "entity" && (state.selected.id === edge.from || state.selected.id === edge.to);
+      var pathEdge = state.pathHighlight && state.pathHighlight.edges.has(edge.id);
       var geometry = new THREE.BufferGeometry().setFromPoints([from.mesh.position, to.mesh.position]);
       var material = new THREE.LineBasicMaterial({
-        color: new THREE.Color(edgeThemeColor(edge, fromEntity, toEntity)),
+        color: new THREE.Color(pathEdge ? graphPalette.bridge : edgeThemeColor(edge, fromEntity, toEntity)),
         transparent: true,
-        opacity: threeEdgeOpacity(edge, fromEntity, toEntity, connected),
+        opacity: pathEdge ? 0.82 : threeEdgeOpacity(edge, fromEntity, toEntity, connected),
         depthWrite: false,
         depthTest: false
       });
@@ -3426,7 +3922,7 @@
       : null;
     state.three.drag = null;
     if (picked) {
-      state.selected = { kind: "entity", id: picked.id };
+      selectEntity(picked.id, true);
       render();
     }
   }
@@ -3447,7 +3943,7 @@
   function handleThreeDoubleClick(event) {
     var picked = pickThreeNode(event);
     if (!picked) return;
-    state.selected = { kind: "entity", id: picked.id };
+    selectEntity(picked.id, true);
     render();
   }
 
@@ -3632,6 +4128,7 @@
     if (state.pan && state.pan.moved) return;
     if (event.target !== els.svg) return;
     state.selected = null;
+    closeWorkspace();
     render();
   }
 
