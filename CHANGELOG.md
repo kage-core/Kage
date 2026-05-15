@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.1.27 - 2026-05-15
+
+- Added `kage hook install/status/uninstall` for repo-local git
+  `post-commit` automation. The hook preserves existing hook content, supports
+  `KAGE_SKIP_HOOK=1`, and runs `kage refresh` plus `kage pr summarize` after
+  commits.
+- Upgraded the viewer's Repo Intelligence panel from summary cards to
+  navigable operational maps for ownership silos, module health, onboarding
+  targets, architecture communities, execution flows, and blast radius.
+- Updated README, package docs, website docs, and hosted viewer assets for the
+  new hook and viewer intelligence surfaces.
+
 ## v1.1.25 - 2026-05-12
 
 - Rebuilt the website into a darker product/docs surface with clearer install,

@@ -1,0 +1,69 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:repo-git-hook-keeps-kage-memory-current-after-commits-1778819434328",
+  "title": "Repo git hook keeps Kage memory current after commits",
+  "summary": "Kage should offer an explicit repo local git post commit hook command because Repowise has stronger auto sync ergonomics. The hook manager installs, checks, and uninstalls a marker delimited post commit block that preser",
+  "body": "Kage should offer an explicit repo-local git post-commit hook command because Repowise has stronger auto-sync ergonomics. The hook manager installs, checks, and uninstalls a marker-delimited post-commit block that preserves existing hook content, runs kage refresh and kage pr summarize in the background after commits, supports KAGE_SKIP_HOOK=1 and KAGE_BIN override, and can be removed cleanly.\nEvidence: Implemented kage hook install/status/uninstall in mcp/kernel.ts and mcp/cli.ts with tests in mcp/kernel.test.ts; documented in README.md, mcp/README.md, and docs/guide.html.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js hook status --project . --json; git diff --check",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "hooks",
+    "git",
+    "auto-sync",
+    "repowise-comparison",
+    "pr-check"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/cli.ts",
+    "mcp/kernel.test.ts",
+    "README.md",
+    "mcp/README.md",
+    "docs/guide.html"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-15T04:30:34.328Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage should offer an explicit repo-local git post-commit hook command because Repowise has stronger auto-sync ergonomics. The hook manager installs, checks, and uninstalls a marker-delimited post-commit block that preserves existing hook content, runs kage refresh and kage pr summarize in the background after commits, supports KAGE_SKIP_HOOK=1 and KAGE_BIN override, and can be removed cleanly.\nEvidence: Implemented kage hook install/status/uninstall in mcp/kernel.ts and mcp/cli.ts with tests in mcp/kernel.test.ts; documented in README.md, mcp/README.md, and docs/guide.html.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js hook status --project . --json; git diff --check",
+    "verification": "Implemented kage hook install/status/uninstall in mcp/kernel.ts and mcp/cli.ts with tests in mcp/kernel.test.ts; documented in README.md, mcp/README.md, and docs/guide.html."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-15T04:30:34.328Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 172
+  },
+  "created_at": "2026-05-15T04:30:34.328Z",
+  "updated_at": "2026-05-15T04:30:43.158Z"
+}

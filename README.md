@@ -133,6 +133,7 @@ kage reviewers --project . --changed-files src/auth.ts,src/session.ts --json
 kage risk --project . --targets src/auth.ts --json
 kage learn --project . --learning "Use npm test after changing parser code."
 kage refresh --project .
+kage hook install --project .
 kage pr check --project .
 kage viewer --project .
 ```
@@ -206,6 +207,11 @@ which repos already have Kage memory, detects package dependencies and route
 contract links between workspace repos, and lets agents run recall across every
 indexed repo with `kage workspace recall`. It is intentionally lightweight: no
 hosted database, no generated wiki, and no copied memory between repos.
+
+`kage hook install` adds a marker-delimited git `post-commit` hook that runs
+`kage refresh` and `kage pr summarize` after commits. It preserves existing hook
+content, supports `KAGE_SKIP_HOOK=1`, and can be inspected or removed with
+`kage hook status` and `kage hook uninstall`.
 
 The important behavior: agents retrieve a bounded, relevant context result
 instead of loading everything.

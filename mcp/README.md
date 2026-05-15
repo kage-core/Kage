@@ -72,6 +72,7 @@ kage reviewers --project . --changed-files src/auth.ts,src/session.ts --json
 kage risk --project . --targets src/auth.ts --json
 kage learn --project . --learning "Use npm test after parser changes."
 kage refresh --project .
+kage hook install --project .
 kage pr check --project .
 kage metrics --project . --json
 kage audit --project . --json
@@ -133,6 +134,7 @@ Kage is optimized so repeat work scales with changed files, not the whole repo:
 - read-only recall reuses fresh graph artifacts
 - unchanged structural file facts are reused
 - generated graphs are compact and avoid duplicated structural JSON
+- optional git `post-commit` hooks keep repo memory and branch summaries current
 - generated/vendor/cache paths are ignored
 - huge files are represented safely instead of deeply expanded
 - recall builds lookup maps once per query instead of repeatedly scanning graph

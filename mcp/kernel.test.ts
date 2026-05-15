@@ -37,6 +37,9 @@ import {
   kageDecisionIntelligence,
   kageDependencyPath,
   kageGraphInsights,
+  kageHookInstall,
+  kageHookStatus,
+  kageHookUninstall,
   kageRisk,
   kageMetrics,
   kageModuleHealth,
@@ -1099,6 +1102,43 @@ test("setup generates all-agent MCP configuration and writes Codex config idempo
 
   const mcpVerify = verifyAgentActivation("codex", project, { homeDir: home, mcpToolReachable: true });
   assert.equal(mcpVerify.status, "ready");
+});
+
+test("git hook manager installs status and uninstall while preserving existing hooks", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  const hookPath = join(project, ".git", "hooks", "post-commit");
+  writeFileSync(hookPath, "#!/bin/sh\nprintf existing-hook\\n\n", "utf8");
+  chmodSync(hookPath, 0o755);
+
+  const install = kageHookInstall(project);
+  assert.equal(install.ok, true);
+  assert.equal(install.installed, true);
+  assert.equal(install.changed, true);
+  assert.equal(install.hook_path, hookPath);
+  const installed = readFileSync(hookPath, "utf8");
+  assert.match(installed, /printf existing-hook/);
+  assert.match(installed, /KAGE_POST_COMMIT_HOOK_V1/);
+  assert.match(installed, /KAGE_SKIP_HOOK/);
+  assert.match(installed, /"\$KAGE_BIN" refresh/);
+  assert.match(installed, /pr summarize/);
+  assert.equal(installed.includes(project), true);
+
+  const reinstall = kageHookInstall(project);
+  assert.equal(reinstall.ok, true);
+  assert.equal(reinstall.changed, false);
+
+  const status = kageHookStatus(project);
+  assert.equal(status.ok, true);
+  assert.equal(status.installed, true);
+
+  const uninstall = kageHookUninstall(project);
+  assert.equal(uninstall.ok, true);
+  assert.equal(uninstall.changed, true);
+  const removed = readFileSync(hookPath, "utf8");
+  assert.match(removed, /printf existing-hook/);
+  assert.doesNotMatch(removed, /KAGE_POST_COMMIT_HOOK_V1/);
+  assert.equal(kageHookStatus(project).installed, false);
 });
 
 test("observations are privacy-scanned, deduplicated, and generic commands stay telemetry", () => {

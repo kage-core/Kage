@@ -361,6 +361,12 @@ kage setup verify-agent --agent claude-code --project .</pre>
 kage pr check --project .</pre>
             </div>
             <div class="card">
+              <h3>Optional automation</h3>
+              <p>Install a repo-local post-commit hook when you want Kage to refresh memory and branch summaries after commits without replacing existing hook content.</p>
+              <pre>kage hook install --project .
+kage hook status --project .</pre>
+            </div>
+            <div class="card">
               <h3>Before handoff</h3>
               <p>Create branch memory from the diff and run the merge-readiness check.</p>
               <pre>kage propose --project . --from-diff
@@ -384,6 +390,9 @@ kage setup verify-agent --agent codex --project . --json</pre></div>
 kage refresh --project . --full --json</pre></div>
           <div class="method"><h3><code>kage pr</code> Prepare a branch</h3><p>Summarizes branch memory and verifies validation, stale packets, graph freshness, and memory changes.</p><pre>kage pr summarize --project .
 kage pr check --project . --json</pre></div>
+          <div class="method"><h3><code>kage hook</code> Automate post-commit refresh</h3><p>Installs, checks, or removes a marker-delimited git <code>post-commit</code> hook. The hook preserves existing hook content and runs <code>kage refresh</code> plus <code>kage pr summarize</code> after commits. Set <code>KAGE_SKIP_HOOK=1</code> to bypass it.</p><pre>kage hook install --project .
+kage hook status --project . --json
+kage hook uninstall --project .</pre></div>
           <div class="method"><h3><code>kage viewer</code> Inspect memory, graphs, and reports</h3><p>Starts the local viewer with repo graph, code graph, metrics, review queue, pending memory, and repo-intelligence reports preloaded.</p><pre>kage viewer --project . --port 3113</pre></div>
           <div class="method"><h3><code>kage graph</code> Query memory graph</h3><p>Queries evidence-backed entities and relationships generated from approved memory packets.</p><pre>kage graph --project . --json
 kage graph "checkout retry" --project . --json
@@ -502,6 +511,7 @@ kage code-graph "checkout tests" --project . --json</pre>
           <p>Kage uses cache-backed structural indexing and generated artifacts so repeat refreshes can reuse unchanged work. Full rebuilds should be deliberate.</p>
           <ul>
             <li>Run normal <code>kage refresh</code> for day-to-day updates.</li>
+            <li>Use <code>kage hook install</code> when the repo should refresh generated Kage state after commits.</li>
             <li>Use <code>kage refresh --full</code> when changing indexer behavior or recovering from stale artifacts.</li>
             <li>Use <code>kage metrics</code> to inspect indexable files, ignored files, cache hits, and parser coverage.</li>
             <li>Use <code>kage gc</code> to inspect or clean generated artifacts when needed.</li>

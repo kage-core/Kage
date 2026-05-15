@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import type { Stats } from "node:fs";
 import { availableParallelism } from "node:os";
 import { basename, delimiter, dirname, join, relative, resolve } from "node:path";
@@ -1317,6 +1317,20 @@ export interface PrCheckResult {
   errors: string[];
   warnings: string[];
   required_actions: string[];
+}
+
+export type KageHookAction = "install" | "status" | "uninstall";
+
+export interface KageHookResult {
+  ok: boolean;
+  action: KageHookAction;
+  project_dir: string;
+  hook_path: string | null;
+  installed: boolean;
+  changed: boolean;
+  message: string;
+  errors: string[];
+  warnings: string[];
 }
 
 export interface PublicBundleResult {
@@ -9593,6 +9607,164 @@ export function prCheck(projectDir: string): PrCheckResult {
     errors,
     warnings,
     required_actions: requiredActions,
+  };
+}
+
+const KAGE_POST_COMMIT_HOOK_START = "# >>> KAGE_POST_COMMIT_HOOK_V1";
+const KAGE_POST_COMMIT_HOOK_END = "# <<< KAGE_POST_COMMIT_HOOK_V1";
+
+function regexpEscape(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\"'\"'")}'`;
+}
+
+function gitHookPath(projectDir: string): string | null {
+  const raw = readGit(projectDir, ["rev-parse", "--git-path", "hooks/post-commit"]);
+  if (!raw) return null;
+  return resolve(projectDir, raw);
+}
+
+function hasKageHookBlock(content: string): boolean {
+  return content.includes(KAGE_POST_COMMIT_HOOK_START) && content.includes(KAGE_POST_COMMIT_HOOK_END);
+}
+
+function stripKageHookBlock(content: string): string {
+  const pattern = new RegExp(`\\n?${regexpEscape(KAGE_POST_COMMIT_HOOK_START)}[\\s\\S]*?${regexpEscape(KAGE_POST_COMMIT_HOOK_END)}\\n?`, "g");
+  const stripped = content.replace(pattern, "\n").replace(/\n{3,}/g, "\n\n").trimEnd();
+  return stripped ? `${stripped}\n` : "";
+}
+
+function kagePostCommitHookBlock(projectDir: string): string {
+  const project = shellQuote(resolve(projectDir));
+  return [
+    KAGE_POST_COMMIT_HOOK_START,
+    "# Kage post-commit hook: keep repo memory and review summary current.",
+    "# Set KAGE_SKIP_HOOK=1 to bypass, or KAGE_BIN=/path/to/kage to override.",
+    "if [ \"${KAGE_SKIP_HOOK:-0}\" != \"1\" ]; then",
+    "  KAGE_BIN=\"${KAGE_BIN:-kage}\"",
+    "  if command -v \"$KAGE_BIN\" >/dev/null 2>&1; then",
+    "    (",
+    `      "$KAGE_BIN" refresh --project ${project} --json >/dev/null 2>&1 || true`,
+    `      "$KAGE_BIN" pr summarize --project ${project} --json >/dev/null 2>&1 || true`,
+    "    ) &",
+    "  fi",
+    "fi",
+    KAGE_POST_COMMIT_HOOK_END,
+  ].join("\n");
+}
+
+export function kageHookStatus(projectDir: string): KageHookResult {
+  const hookPath = gitHookPath(projectDir);
+  if (!hookPath) {
+    return {
+      ok: false,
+      action: "status",
+      project_dir: projectDir,
+      hook_path: null,
+      installed: false,
+      changed: false,
+      message: "Not a git repository or git is unavailable.",
+      errors: ["Not a git repository or git is unavailable."],
+      warnings: [],
+    };
+  }
+  const content = safeReadText(hookPath) ?? "";
+  const installed = hasKageHookBlock(content);
+  return {
+    ok: true,
+    action: "status",
+    project_dir: projectDir,
+    hook_path: hookPath,
+    installed,
+    changed: false,
+    message: installed ? "Kage post-commit hook is installed." : "Kage post-commit hook is not installed.",
+    errors: [],
+    warnings: existsSync(hookPath) ? [] : ["No post-commit hook file exists yet."],
+  };
+}
+
+export function kageHookInstall(projectDir: string): KageHookResult {
+  const hookPath = gitHookPath(projectDir);
+  if (!hookPath) {
+    return {
+      ok: false,
+      action: "install",
+      project_dir: projectDir,
+      hook_path: null,
+      installed: false,
+      changed: false,
+      message: "Not a git repository or git is unavailable.",
+      errors: ["Not a git repository or git is unavailable."],
+      warnings: [],
+    };
+  }
+  ensureDir(dirname(hookPath));
+  const existing = safeReadText(hookPath) ?? "";
+  const base = stripKageHookBlock(existing);
+  const prefix = base.trim() ? base.trimEnd() : "#!/bin/sh";
+  const next = `${prefix}\n\n${kagePostCommitHookBlock(projectDir)}\n`;
+  const changed = existing !== next;
+  if (changed) writeFileSync(hookPath, next, "utf8");
+  chmodSync(hookPath, 0o755);
+  return {
+    ok: true,
+    action: "install",
+    project_dir: projectDir,
+    hook_path: hookPath,
+    installed: true,
+    changed,
+    message: changed ? "Installed Kage post-commit hook." : "Kage post-commit hook is already current.",
+    errors: [],
+    warnings: [],
+  };
+}
+
+export function kageHookUninstall(projectDir: string): KageHookResult {
+  const hookPath = gitHookPath(projectDir);
+  if (!hookPath) {
+    return {
+      ok: false,
+      action: "uninstall",
+      project_dir: projectDir,
+      hook_path: null,
+      installed: false,
+      changed: false,
+      message: "Not a git repository or git is unavailable.",
+      errors: ["Not a git repository or git is unavailable."],
+      warnings: [],
+    };
+  }
+  const existing = safeReadText(hookPath) ?? "";
+  const installed = hasKageHookBlock(existing);
+  if (!installed) {
+    return {
+      ok: true,
+      action: "uninstall",
+      project_dir: projectDir,
+      hook_path: hookPath,
+      installed: false,
+      changed: false,
+      message: "Kage post-commit hook was not installed.",
+      errors: [],
+      warnings: existsSync(hookPath) ? [] : ["No post-commit hook file exists."],
+    };
+  }
+  const next = stripKageHookBlock(existing);
+  writeFileSync(hookPath, next, "utf8");
+  chmodSync(hookPath, 0o755);
+  return {
+    ok: true,
+    action: "uninstall",
+    project_dir: projectDir,
+    hook_path: hookPath,
+    installed: false,
+    changed: true,
+    message: "Removed Kage post-commit hook.",
+    errors: [],
+    warnings: [],
   };
 }
 

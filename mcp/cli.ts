@@ -31,6 +31,9 @@ import {
   kageDecisionIntelligence,
   kageDependencyPath,
   kageGraphInsights,
+  kageHookInstall,
+  kageHookStatus,
+  kageHookUninstall,
   kageRisk,
   kageMetrics,
   kageModuleHealth,
@@ -89,6 +92,9 @@ Usage:
   kage daemon status --project <dir> [--json]
   kage daemon doctor --project <dir> [--json]
   kage viewer --project <dir> [--port 3113]
+  kage hook install --project <dir> [--json]
+  kage hook status --project <dir> [--json]
+  kage hook uninstall --project <dir> [--json]
   kage refresh --project <dir> [--full] [--json]
   kage gc --project <dir> [--dry-run] [--force] [--json]
   kage pr summarize --project <dir> [--json]
@@ -367,6 +373,32 @@ async function main(): Promise<void> {
 
   if (command === "viewer") {
     await startViewer(projectArg(args), { port: numberArg(args, "--port", 3113) });
+    return;
+  }
+
+  if (command === "hook") {
+    const action = args[1];
+    const projectDir = projectArg(args);
+    const result = action === "install"
+      ? kageHookInstall(projectDir)
+      : action === "status"
+        ? kageHookStatus(projectDir)
+        : action === "uninstall"
+          ? kageHookUninstall(projectDir)
+          : null;
+    if (!result) usage();
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      if (!result.ok) process.exit(2);
+      return;
+    }
+    console.log(result.message);
+    if (result.hook_path) console.log(`Hook: ${result.hook_path}`);
+    console.log(`Installed: ${result.installed ? "yes" : "no"}`);
+    console.log(`Changed: ${result.changed ? "yes" : "no"}`);
+    if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
+    if (result.errors.length) console.log(`Errors:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);
+    if (!result.ok) process.exit(2);
     return;
   }
 

@@ -2252,6 +2252,257 @@
       });
       els.intelligenceList.appendChild(item);
     });
+    var sections = buildIntelligenceSections(reports);
+    if (sections.length) {
+      var grid = document.createElement("div");
+      grid.className = "intel-deep-grid";
+      sections.forEach(function (section) {
+        grid.appendChild(renderIntelligenceSection(section));
+      });
+      els.intelligenceList.appendChild(grid);
+    }
+  }
+
+  function renderIntelligenceSection(section) {
+    var panel = document.createElement("article");
+    panel.className = "intel-section";
+    var header = document.createElement("div");
+    header.className = "intel-section-header";
+    header.innerHTML = "<div><h3></h3><span></span></div><strong></strong>";
+    header.querySelector("h3").textContent = section.title;
+    header.querySelector("span").textContent = section.kicker || "";
+    header.querySelector("strong").textContent = section.stat || "";
+    panel.appendChild(header);
+    if (section.summary) {
+      var summary = document.createElement("p");
+      summary.className = "intel-section-summary";
+      summary.textContent = section.summary;
+      panel.appendChild(summary);
+    }
+    var list = document.createElement("div");
+    list.className = "intel-section-list";
+    section.rows.slice(0, section.limit || 8).forEach(function (row) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = classNames("intel-row", row.status && "intel-row-" + safeCssName(row.status), row.path && "clickable");
+      button.innerHTML = [
+        "<span class=\"intel-row-main\"><strong></strong><em></em></span>",
+        "<span class=\"intel-row-meta\"></span>",
+        "<span class=\"intel-row-bar\"><i></i></span>"
+      ].join("");
+      button.querySelector("strong").textContent = row.label || "";
+      button.querySelector("em").textContent = row.value || "";
+      button.querySelector(".intel-row-meta").textContent = row.meta || "";
+      button.querySelector(".intel-row-bar i").style.width = clamp(Number(row.score || 0), 4, 100) + "%";
+      if (row.path) {
+        button.title = "Focus " + row.path + " in the graph";
+        button.addEventListener("click", function () {
+          focusGraphPath(row.path);
+        });
+      } else {
+        button.disabled = true;
+      }
+      list.appendChild(button);
+    });
+    panel.appendChild(list);
+    return panel;
+  }
+
+  function buildIntelligenceSections(reports) {
+    var sections = [];
+    var contributors = reports.contributors;
+    var risk = reports.risk;
+    var decisions = reports.decisions;
+    var health = reports.moduleHealth;
+    var insights = reports.graphInsights;
+
+    if (contributors || risk) {
+      var profiles = contributors && Array.isArray(contributors.contributors) ? contributors.contributors : [];
+      var silos = risk && Array.isArray(risk.ownership_silos) ? risk.ownership_silos : [];
+      var maxOwned = Math.max(1, profiles.reduce(function (max, profile) {
+        return Math.max(max, Number(profile.primary_owned_files || 0));
+      }, 0));
+      var rows = profiles.slice(0, 6).map(function (profile) {
+        var owned = Number(profile.primary_owned_files || 0);
+        return {
+          label: shortContributor(profile.contributor),
+          value: owned + " owned",
+          meta: profile.commits_90d + " commits in 90d, " + (profile.silo_files ? profile.silo_files.length : 0) + " silo files",
+          score: owned / maxOwned * 100,
+          status: owned > 0 && profile.silo_files && profile.silo_files.length ? "warn" : "ok",
+        };
+      }).concat(silos.slice(0, 4).map(function (silo) {
+        return {
+          label: silo.file_path,
+          value: Math.round(Number(silo.primary_owner_pct || 0) * 100) + "% owner",
+          meta: shortContributor(silo.primary_owner || "unknown") + ", " + (silo.commit_count_total || 0) + " commits",
+          score: Number(silo.primary_owner_pct || 0) * 100,
+          status: "warn",
+          path: silo.file_path,
+        };
+      }));
+      if (rows.length) {
+        sections.push({
+          title: "Ownership Map",
+          kicker: "who owns what",
+          stat: silos.length + " silos",
+          summary: "Repowise has a dedicated ownership page. Kage now surfaces the same reviewer-critical signal inside the memory viewer, tied back to selectable files.",
+          rows: rows,
+          limit: 10,
+        });
+      }
+    }
+
+    if (health && Array.isArray(health.modules)) {
+      var modules = health.modules.slice().sort(function (a, b) {
+        return Number(a.score || 0) - Number(b.score || 0) || String(a.module).localeCompare(String(b.module));
+      });
+      sections.push({
+        title: "Module Health Map",
+        kicker: "churn / tests / ownership",
+        stat: modules.length + " modules",
+        summary: "Lowest-scoring modules are shown first so the viewer points people toward the riskiest areas instead of only drawing nodes.",
+        rows: modules.slice(0, 8).map(function (item) {
+          return {
+            label: item.module,
+            value: item.grade + " / " + item.score,
+            meta: Array.isArray(item.reasons) ? item.reasons.slice(0, 2).join("; ") : "",
+            score: Number(item.score || 0),
+            status: Number(item.score || 0) < 60 ? "danger" : Number(item.score || 0) < 75 ? "warn" : "ok",
+          };
+        }),
+      });
+    }
+
+    if (decisions && Array.isArray(decisions.coverage_gaps)) {
+      var gaps = decisions.coverage_gaps;
+      sections.push({
+        title: "Onboarding Targets",
+        kicker: "missing repo lore",
+        stat: (decisions.coverage_percent != null ? decisions.coverage_percent + "%" : "n/a"),
+        summary: "Files with centrality, churn, test gaps, or ownership but no linked why-memory. These are the places a future agent is most likely to rediscover context.",
+        rows: gaps.slice(0, 8).map(function (gap) {
+          var score = Math.min(100, Number(gap.dependents || 0) * 18 + Number(gap.churn_90d || 0) * 6 + 12);
+          return {
+            label: gap.path,
+            value: "needs memory",
+            meta: gap.reason || "",
+            score: score,
+            status: "warn",
+            path: gap.path,
+          };
+        }),
+      });
+    }
+
+    if (insights && Array.isArray(insights.communities)) {
+      var communities = insights.communities.slice().sort(function (a, b) {
+        return (b.files ? b.files.length : 0) - (a.files ? a.files.length : 0);
+      });
+      var maxFiles = Math.max(1, communities.reduce(function (max, community) {
+        return Math.max(max, community.files ? community.files.length : 0);
+      }, 0));
+      sections.push({
+        title: "Architecture Communities",
+        kicker: "module clusters",
+        stat: communities.length + " clusters",
+        summary: "Repowise exposes architecture/community views. Kage can show the same high-level clusters next to the memory-code graph so users know what a dense graph means.",
+        rows: communities.slice(0, 8).map(function (community) {
+          var files = community.files || [];
+          var entrypoints = community.entrypoints || [];
+          var routes = community.routes || [];
+          return {
+            label: community.label || ("community " + community.id),
+            value: files.length + " files",
+            meta: entrypoints.length + " entrypoints, " + routes.length + " routes",
+            score: files.length / maxFiles * 100,
+            status: routes.length || entrypoints.length ? "ok" : "",
+            path: files[0],
+          };
+        }),
+      });
+    }
+
+    if (insights && Array.isArray(insights.entry_flows) && insights.entry_flows.length) {
+      sections.push({
+        title: "Execution Flows",
+        kicker: "entrypoint traces",
+        stat: insights.entry_flows.length + " flows",
+        summary: "Short traces make the code graph explainable: where execution starts, what it crosses, and which file to inspect first.",
+        rows: insights.entry_flows.slice(0, 8).map(function (flow) {
+          var path = flow.path || [];
+          return {
+            label: flow.entry,
+            value: Math.max(0, path.length - 1) + " hops",
+            meta: path.slice(0, 5).join(" -> "),
+            score: Math.min(100, Math.max(12, path.length * 18)),
+            status: "ok",
+            path: flow.entry,
+          };
+        }),
+      });
+    }
+
+    if (risk) {
+      var targets = Array.isArray(risk.targets) ? risk.targets : Object.keys(risk.targets || {}).map(function (key) { return risk.targets[key]; });
+      var hotspots = Array.isArray(risk.global_hotspots) ? risk.global_hotspots : [];
+      var riskRows = targets.slice(0, 6).map(function (item) {
+        return {
+          label: item.target,
+          value: item.risk_type || "risk",
+          meta: item.risk_summary || "",
+          score: Math.round(Number(item.hotspot_score || 0) * 100) || Math.min(100, Number(item.dependents_count || 0) * 12 + (item.test_gap ? 24 : 0)),
+          status: item.test_gap || item.risk_type === "single-owner" ? "warn" : "",
+          path: item.target,
+        };
+      }).concat(hotspots.slice(0, 4).map(function (hotspot) {
+        return {
+          label: hotspot.file_path,
+          value: Math.round(Number(hotspot.hotspot_score || 0) * 100) + "% hot",
+          meta: (hotspot.commit_count_90d || 0) + " commits in 90d, owner " + shortContributor(hotspot.primary_owner || "unknown"),
+          score: Math.round(Number(hotspot.hotspot_score || 0) * 100),
+          status: "danger",
+          path: hotspot.file_path,
+        };
+      }));
+      if (riskRows.length) {
+        sections.push({
+          title: "Blast Radius",
+          kicker: "change impact",
+          stat: riskRows.length + " signals",
+          summary: "Change risk is useful only if it is browsable. Rows focus the graph on affected files when the graph node exists.",
+          rows: riskRows,
+          limit: 10,
+        });
+      }
+    }
+
+    return sections.filter(function (section) { return section.rows && section.rows.length; });
+  }
+
+  function focusGraphPath(path) {
+    if (!path) return;
+    var normalized = String(path).replace(/\\/g, "/").replace(/^\.\//, "");
+    var found = state.entities.find(function (entity) {
+      var entityPath = String(entity.path || "").replace(/\\/g, "/").replace(/^\.\//, "");
+      return entityPath === normalized || entity.id === normalized || entity.id === "code:file:" + normalized;
+    }) || state.entities.find(function (entity) {
+      var text = [entity.id, entity.path, entity.name].filter(Boolean).join(" ");
+      return text.indexOf(normalized) !== -1;
+    });
+    if (!found) {
+      els.searchInput.value = normalized;
+      scheduleRender();
+      return;
+    }
+    state.selected = { kind: "entity", id: found.id };
+    els.searchInput.value = normalized;
+    scheduleRender();
+  }
+
+  function shortContributor(value) {
+    var text = String(value || "unknown");
+    return text.replace(/\s*<[^>]+>\s*$/, "");
   }
 
   function buildIntelligenceCards(reports) {
