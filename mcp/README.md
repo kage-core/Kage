@@ -38,6 +38,8 @@ Restart your agent once after setup so MCP tools reload.
   and code explanations
 - a code graph for files, symbols, imports, calls, routes, tests, and packages,
   including generic call/test signals and mixed-language framework routes
+- conservative cleanup candidates for unreferenced files, unused exports, and
+  internal-looking unused symbols
 - memory-code links so project knowledge points at the code it affects
 - decision intelligence for why-memory coverage, stale/weak packets, and
   important files that still lack linked repo knowledge

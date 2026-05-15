@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.30 - 2026-05-15
+
+- Expanded `kage cleanup-candidates` beyond unreferenced source files to also
+  report conservative unused exported symbols and internal-looking symbols.
+- Kept cleanup output as review input only: candidates include confidence,
+  reasons, symbol name/id/line when available, git recency, test coverage
+  signals, and runtime-reference safeguards.
+- Added regression coverage so imported symbols are not flagged while unused
+  sibling exports and private helpers can be surfaced.
+
 ## v1.1.29 - 2026-05-15
 
 - Expanded mixed-language framework route extraction in the code graph for

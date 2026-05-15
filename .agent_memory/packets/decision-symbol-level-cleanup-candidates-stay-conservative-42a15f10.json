@@ -1,0 +1,70 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:symbol-level-cleanup-candidates-stay-conservative-1778821715274",
+  "title": "Symbol-level cleanup candidates stay conservative",
+  "summary": "Kage cleanup candidates now include review only unused export and unused internal symbol entries in addition to unreferenced files. Symbol candidates should only surface when the code graph has absence evidence: exported",
+  "body": "Kage cleanup candidates now include review-only unused_export and unused_internal_symbol entries in addition to unreferenced files. Symbol candidates should only surface when the code graph has absence evidence: exported symbols are skipped unless the same file has at least one named export that is imported, imported/called/route/test-covered symbols are skipped, and internal symbols are limited to underscore-prefixed helpers. Keep cleanup as review input only; never auto-delete.\nVerified by: npm test --prefix mcp; npm pack --dry-run",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "cleanup",
+    "dead-code",
+    "code-graph",
+    "repowise-comparison"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts",
+    "mcp/index.ts",
+    "README.md",
+    "mcp/README.md",
+    "docs/guide.html",
+    "docs/releases.html",
+    "CHANGELOG.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-15T05:08:35.274Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage cleanup candidates now include review-only unused_export and unused_internal_symbol entries in addition to unreferenced files. Symbol candidates should only surface when the code graph has absence evidence: exported symbols are skipped unless the same file has at least one named export that is imported, imported/called/route/test-covered symbols are skipped, and internal symbols are limited to underscore-prefixed helpers. Keep cleanup as review input only; never auto-delete.\nVerified by: npm test --prefix mcp; npm pack --dry-run",
+    "verification": "exported symbols are skipped unless the same file has at least one named export that is imported, imported/called/route/test-covered symbols are skipped, and internal symbols are limited to underscore-prefixed helpers. Keep cleanup as review input only; never auto-delete."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-15T05:08:35.274Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 135
+  },
+  "created_at": "2026-05-15T05:08:35.274Z",
+  "updated_at": "2026-05-15T05:08:40.996Z"
+}

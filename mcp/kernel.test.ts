@@ -429,7 +429,7 @@ test("cleanup candidates conservatively reports unreferenced source files", () =
   const project = tempProject();
   mkdirSync(join(project, "src"), { recursive: true });
   writeFileSync(join(project, "src", "index.js"), "import { used } from './used.js';\nused();\n", "utf8");
-  writeFileSync(join(project, "src", "used.js"), "export function used() { return true; }\n", "utf8");
+  writeFileSync(join(project, "src", "used.js"), "export function used() { return true; }\nexport function spare() { return false; }\nfunction _orphanHelper() { return false; }\n", "utf8");
   writeFileSync(join(project, "src", "unused.js"), "export function unused() { return false; }\n", "utf8");
   writeFileSync(join(project, "src", "job.ts"), "export function runJob() { return true; }\n", "utf8");
   writeFileSync(join(project, "src", "runner.js"), "export const jobPath = 'job.js';\n", "utf8");
@@ -437,13 +437,16 @@ test("cleanup candidates conservatively reports unreferenced source files", () =
 
   const report = kageCleanupCandidates(project);
   assert.equal(report.candidates.some((candidate) => candidate.path === "src/unused.js"), true);
-  assert.equal(report.candidates.some((candidate) => candidate.path === "src/used.js"), false);
+  assert.equal(report.candidates.some((candidate) => candidate.path === "src/used.js" && candidate.kind === "unreferenced_file"), false);
   assert.equal(report.candidates.some((candidate) => candidate.path === "src/job.ts"), false);
   assert.equal(report.skipped_runtime_references.includes("src/job.ts"), true);
   assert.equal(report.skipped_entrypoints.includes("src/index.js"), true);
   const unused = report.candidates.find((candidate) => candidate.path === "src/unused.js");
   assert.equal(unused?.kind, "unreferenced_file");
   assert.equal(unused?.inbound_imports, 0);
+  assert.equal(report.candidates.some((candidate) => candidate.path === "src/used.js" && candidate.kind === "unused_export" && candidate.symbol_name === "spare"), true);
+  assert.equal(report.candidates.some((candidate) => candidate.path === "src/used.js" && candidate.kind === "unused_internal_symbol" && candidate.symbol_name === "_orphanHelper"), true);
+  assert.equal(report.candidates.some((candidate) => candidate.path === "src/used.js" && candidate.symbol_name === "used"), false);
 });
 
 test("reviewer suggestions rank local git authors and co-change owners", () => {

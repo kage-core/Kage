@@ -896,7 +896,10 @@ export interface KageDependencyPathResult {
 
 export interface KageCleanupCandidate {
   path: string;
-  kind: "unreferenced_file";
+  kind: "unreferenced_file" | "unused_export" | "unused_internal_symbol";
+  symbol_id?: string;
+  symbol_name?: string;
+  line?: number;
   confidence: "high" | "medium" | "low";
   score: number;
   reasons: string[];
@@ -6848,6 +6851,35 @@ function hasRuntimePathReference(projectDir: string, graph: CodeGraph, target: s
   return false;
 }
 
+function cleanupSymbolKind(symbol: CodeSymbolNode): boolean {
+  return ["function", "method", "class", "constant"].includes(symbol.kind);
+}
+
+function symbolCleanupCandidate(
+  symbol: CodeSymbolNode,
+  kind: KageCleanupCandidate["kind"],
+  reasons: string[],
+  score: number,
+  coveredByTests: boolean,
+  git: ReturnType<typeof gitFileSignal> | null
+): KageCleanupCandidate {
+  return {
+    path: symbol.path,
+    kind,
+    symbol_id: symbol.id,
+    symbol_name: symbol.name,
+    line: symbol.line,
+    confidence: cleanupConfidence(score),
+    score,
+    reasons,
+    inbound_imports: 0,
+    source_inbound_imports: 0,
+    outbound_imports: 0,
+    covered_by_tests: coveredByTests,
+    last_commit_at: git?.last_commit_at ?? null,
+  };
+}
+
 export function kageCleanupCandidates(projectDir: string): KageCleanupCandidatesReport {
   const graph = readCurrentCodeGraph(projectDir) ?? buildCodeGraph(projectDir);
   const fileByPath = new Map(graph.files.map((file) => [file.path, file]));
@@ -6870,6 +6902,7 @@ export function kageCleanupCandidates(projectDir: string): KageCleanupCandidates
   if (!hasGit) warnings.push("Git history is unavailable, so cleanup confidence does not use recency.");
   const candidates: KageCleanupCandidate[] = [];
   const skippedRuntimeReferences: string[] = [];
+  const wholeFileCandidates = new Set<string>();
 
   for (const file of graph.files) {
     if (file.kind !== "source") continue;
@@ -6918,6 +6951,56 @@ export function kageCleanupCandidates(projectDir: string): KageCleanupCandidates
       covered_by_tests: coveredByTests,
       last_commit_at: git?.last_commit_at ?? null,
     });
+    wholeFileCandidates.add(file.path);
+  }
+
+  const calledSymbols = new Set(graph.calls.map((call) => call.to_symbol));
+  const routeHandlers = new Set(graph.routes.map((route) => route.handler_symbol).filter((value): value is string => Boolean(value)));
+  const coveredSymbolNames = new Set(graph.tests.map((test) => test.covers_symbol?.toLowerCase()).filter((value): value is string => Boolean(value)));
+  const symbolsByPath = new Map<string, CodeSymbolNode[]>();
+  for (const symbol of graph.symbols.filter(cleanupSymbolKind)) {
+    const list = symbolsByPath.get(symbol.path) ?? [];
+    list.push(symbol);
+    symbolsByPath.set(symbol.path, list);
+  }
+
+  const importedNamesByPath = new Map<string, Set<string>>();
+  for (const edge of graph.imports) {
+    if (!edge.to_path || !edge.imported.length) continue;
+    const names = importedNamesByPath.get(edge.to_path) ?? new Set<string>();
+    for (const name of edge.imported) names.add(name);
+    importedNamesByPath.set(edge.to_path, names);
+  }
+
+  for (const file of graph.files) {
+    if (file.kind !== "source" || wholeFileCandidates.has(file.path)) continue;
+    if (isEntrypointLike(file.path) || routeFiles.has(file.path)) continue;
+    const fileSymbols = symbolsByPath.get(file.path) ?? [];
+    if (!fileSymbols.length) continue;
+    const git = hasGit ? gitFileSignal(projectDir, file.path, graphPaths) : null;
+    const coveredByTests = hasTestCoverage(file.path, graph);
+    const importedNames = importedNamesByPath.get(file.path) ?? new Set<string>();
+    const exportedSymbols = fileSymbols.filter((symbol) => symbol.export);
+    const hasMatchedNamedExport = exportedSymbols.some((symbol) => importedNames.has(symbol.name));
+
+    for (const symbol of fileSymbols) {
+      const symbolReferenced = calledSymbols.has(symbol.id) || routeHandlers.has(symbol.id) || coveredSymbolNames.has(symbol.name.toLowerCase());
+      if (symbolReferenced) continue;
+      if (symbol.export) {
+        if (!hasMatchedNamedExport || importedNames.has(symbol.name)) continue;
+        candidates.push(symbolCleanupCandidate(symbol, "unused_export", [
+          `export "${symbol.name}" is not imported by current named import edges`,
+          "symbol is not a known call target, route handler, or covered test target",
+          "file has at least one other exported symbol imported by name",
+        ], 0.62, coveredByTests, git));
+      } else if (/^_[A-Za-z0-9_]+/.test(symbol.name)) {
+        candidates.push(symbolCleanupCandidate(symbol, "unused_internal_symbol", [
+          `internal-looking symbol "${symbol.name}" has no known call edge`,
+          "symbol is not a route handler or covered test target",
+          "candidate is review input only; dynamic references may exist",
+        ], 0.5, coveredByTests, git));
+      }
+    }
   }
 
   candidates.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));

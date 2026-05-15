@@ -319,7 +319,7 @@ export function listTools() {
     {
       name: "kage_cleanup_candidates",
       description:
-        "Find conservative cleanup candidates from Kage's code graph. Reports unreferenced source files with confidence and reasons; never auto-deletes.",
+        "Find conservative cleanup candidates from Kage's code graph. Reports unreferenced source files, unused exports, and internal-looking unused symbols with confidence and reasons; never auto-deletes.",
       inputSchema: {
         type: "object",
         properties: {

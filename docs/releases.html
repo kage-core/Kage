@@ -264,7 +264,7 @@
         <div class="wrap">
           <h2>Current package</h2>
           <div class="stats">
-            <div class="stat"><strong>1.1.29</strong><span>latest npm version checked May 15, 2026</span></div>
+            <div class="stat"><strong>1.1.30</strong><span>latest npm version checked May 15, 2026</span></div>
             <div class="stat"><strong>1,628</strong><span>npm downloads last week</span></div>
             <div class="stat"><strong>3,575</strong><span>npm downloads last month</span></div>
           </div>
@@ -277,12 +277,14 @@ kage init --project .</pre>
         <div class="wrap">
           <h2>Latest package notes</h2>
           <div class="panel">
-            <h3>v1.1.29</h3>
+            <h3>v1.1.30</h3>
             <p>
               Current npm package for local-first repo memory, code graph, recall, viewer, PR checks,
-              repo-intelligence maps, optional post-commit automation, and broader mixed-language route indexing.
+              repo-intelligence maps, optional post-commit automation, mixed-language route indexing, and conservative cleanup review input.
             </p>
             <ul>
+              <li><code>kage cleanup-candidates</code> now reports unused exports and internal-looking unused symbols in addition to unreferenced files.</li>
+              <li>Symbol candidates include confidence, reasons, and source location while remaining review input only.</li>
               <li>Code graph route extraction now recognizes Rails, Laravel, Spring, Go routers, Rust routers, and ASP.NET.</li>
               <li>Code graph route extraction now recognizes FastAPI/APIRouter, Flask, and Django route declarations.</li>
               <li>Route params are normalized into Kage's cross-framework <code>:param</code> graph format.</li>

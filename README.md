@@ -174,9 +174,10 @@ agents before touching shared or high-churn files.
 whether one depends on the other, the dependency flows the other way, or they
 only meet through an undirected import relationship.
 
-`kage cleanup-candidates` reports conservative unreferenced-file candidates
-with confidence and reasons. It never deletes code; cleanup still needs human
-or PR review.
+`kage cleanup-candidates` reports conservative cleanup review input: unreferenced
+source files, unused exported symbols, and internal-looking unused symbols with
+confidence and reasons. It never deletes code; cleanup still needs human or PR
+review.
 
 `kage reviewers` suggests reviewers from local git authorship, recency, and
 co-change ownership for target or changed files. It does not contact GitHub or
