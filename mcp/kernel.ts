@@ -1067,6 +1067,16 @@ export interface KageWorkspaceRouteContract {
   evidence: string;
 }
 
+export interface KageWorkspaceTopicContract {
+  topic: string;
+  producer_repo: string;
+  producer_file: string;
+  consumer_repo: string;
+  consumer_file: string;
+  confidence: "high" | "medium";
+  evidence: string;
+}
+
 export interface KageWorkspaceReport {
   schema_version: 1;
   workspace_dir: string;
@@ -1074,6 +1084,7 @@ export interface KageWorkspaceReport {
   repos: KageWorkspaceRepo[];
   package_dependencies: Array<{ from: string; to: string; package_name: string }>;
   route_contracts: KageWorkspaceRouteContract[];
+  topic_contracts: KageWorkspaceTopicContract[];
   warnings: string[];
   summary: string;
 }
@@ -7826,6 +7837,95 @@ function workspaceRouteContracts(workspaceDir: string, repos: KageWorkspaceRepo[
     .slice(0, 50);
 }
 
+interface WorkspaceTopicMention {
+  repo: string;
+  file: string;
+  topic: string;
+  role: "producer" | "consumer";
+  evidence: string;
+}
+
+const TOPIC_PRODUCER_METHODS = "publish|produce|send|emit|enqueue|dispatch";
+const TOPIC_CONSUMER_METHODS = "subscribe|consume|listen|handle";
+
+function likelyWorkspaceTopic(value: string): boolean {
+  const topic = value.trim();
+  if (topic.length < 3 || topic.length > 120) return false;
+  if (topic.startsWith("/") || /^https?:\/\//i.test(topic)) return false;
+  if (/\s/.test(topic)) return false;
+  if (/[.:-]/.test(topic)) return true;
+  if (/_/.test(topic) && /^[a-z0-9_]+$/i.test(topic)) return true;
+  return /\b(created|updated|deleted|requested|completed|failed|received|changed)$/i.test(topic);
+}
+
+function extractWorkspaceTopicMentions(repo: string, file: string, text: string): WorkspaceTopicMention[] {
+  const mentions: WorkspaceTopicMention[] = [];
+  const patterns: Array<{ role: WorkspaceTopicMention["role"]; regex: RegExp }> = [
+    { role: "producer", regex: new RegExp(`\\b(?:${TOPIC_PRODUCER_METHODS})\\s*\\(\\s*["'\`]([^"'\`]+)["'\`]`, "gi") },
+    { role: "producer", regex: new RegExp(`\\.(?:${TOPIC_PRODUCER_METHODS})\\s*\\(\\s*["'\`]([^"'\`]+)["'\`]`, "gi") },
+    { role: "consumer", regex: new RegExp(`\\b(?:${TOPIC_CONSUMER_METHODS})\\s*\\(\\s*["'\`]([^"'\`]+)["'\`]`, "gi") },
+    { role: "consumer", regex: new RegExp(`\\.(?:${TOPIC_CONSUMER_METHODS})\\s*\\(\\s*["'\`]([^"'\`]+)["'\`]`, "gi") },
+  ];
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern.regex)) {
+      const topic = match[1]?.trim();
+      if (!topic || !likelyWorkspaceTopic(topic)) continue;
+      mentions.push({
+        repo,
+        file,
+        topic,
+        role: pattern.role,
+        evidence: `${file} ${pattern.role === "producer" ? "publishes" : "subscribes to"} ${topic}`,
+      });
+    }
+  }
+  return mentions;
+}
+
+function workspaceTopicContracts(workspaceDir: string, repos: KageWorkspaceRepo[]): KageWorkspaceTopicContract[] {
+  const mentions: WorkspaceTopicMention[] = [];
+  for (const repo of repos) {
+    const repoRoot = repo.path === "." ? workspaceDir : join(workspaceDir, repo.path);
+    const graph = readCurrentCodeGraph(repoRoot);
+    if (!graph) continue;
+    for (const file of graph.files) {
+      if (!["source", "config", "manifest"].includes(file.kind)) continue;
+      if (file.size_bytes > MAX_CODE_FILE_BYTES) continue;
+      const absolutePath = join(repoRoot, file.path);
+      if (!existsSync(absolutePath)) continue;
+      try {
+        mentions.push(...extractWorkspaceTopicMentions(repo.alias, file.path, readFileSync(absolutePath, "utf8")));
+      } catch {
+        continue;
+      }
+    }
+  }
+  const producers = mentions.filter((mention) => mention.role === "producer");
+  const consumers = mentions.filter((mention) => mention.role === "consumer");
+  const contracts: KageWorkspaceTopicContract[] = [];
+  const seen = new Set<string>();
+  for (const producer of producers) {
+    for (const consumer of consumers) {
+      if (producer.topic !== consumer.topic || producer.repo === consumer.repo) continue;
+      const key = `${producer.repo}\0${producer.file}\0${consumer.repo}\0${consumer.file}\0${producer.topic}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      contracts.push({
+        topic: producer.topic,
+        producer_repo: producer.repo,
+        producer_file: producer.file,
+        consumer_repo: consumer.repo,
+        consumer_file: consumer.file,
+        confidence: /[.:/-]/.test(producer.topic) ? "high" : "medium",
+        evidence: `${producer.evidence}; ${consumer.evidence}`,
+      });
+    }
+  }
+  return contracts
+    .sort((a, b) => a.topic.localeCompare(b.topic) || a.producer_repo.localeCompare(b.producer_repo) || a.consumer_repo.localeCompare(b.consumer_repo))
+    .slice(0, 50);
+}
+
 export function kageWorkspace(projectDir: string): KageWorkspaceReport {
   const root = resolve(projectDir);
   const warnings: string[] = [];
@@ -7848,6 +7948,7 @@ export function kageWorkspace(projectDir: string): KageWorkspaceReport {
     return { ...rest, dependencies_on_workspace_repos: deps };
   });
   const routeContracts = workspaceRouteContracts(root, repos);
+  const topicContracts = workspaceTopicContracts(root, repos);
   if (repos.length && repos.every((repo) => !repo.indexed)) warnings.push("Workspace repos were found, but none has .agent_memory yet. Run kage init or kage refresh in each repo you want searchable.");
   return {
     schema_version: 1,
@@ -7856,8 +7957,9 @@ export function kageWorkspace(projectDir: string): KageWorkspaceReport {
     repos,
     package_dependencies: packageDependencies.sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to)),
     route_contracts: routeContracts,
+    topic_contracts: topicContracts,
     warnings,
-    summary: `${repos.length} repo(s), ${repos.filter((repo) => repo.indexed).length} with Kage memory, ${packageDependencies.length} workspace package dependenc${packageDependencies.length === 1 ? "y" : "ies"}, ${routeContracts.length} route contract link(s).`,
+    summary: `${repos.length} repo(s), ${repos.filter((repo) => repo.indexed).length} with Kage memory, ${packageDependencies.length} workspace package dependenc${packageDependencies.length === 1 ? "y" : "ies"}, ${routeContracts.length} route contract link(s), ${topicContracts.length} topic contract link(s).`,
   };
 }
 

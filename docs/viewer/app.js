@@ -2619,6 +2619,7 @@
       var repos = Array.isArray(workspace.repos) ? workspace.repos : [];
       var deps = Array.isArray(workspace.package_dependencies) ? workspace.package_dependencies : [];
       var contracts = Array.isArray(workspace.route_contracts) ? workspace.route_contracts : [];
+      var topics = Array.isArray(workspace.topic_contracts) ? workspace.topic_contracts : [];
       cards.push({
         title: "Workspace",
         kicker: "multi-repo memory",
@@ -2627,7 +2628,8 @@
           ["Repos", String(repos.length)],
           ["Indexed", String(repos.filter(function (repo) { return repo.indexed; }).length)],
           ["Package deps", String(deps.length)],
-          ["Route links", String(contracts.length)]
+          ["Route links", String(contracts.length)],
+          ["Topic links", String(topics.length)]
         ].concat(repos.slice(0, 2).map(function (repo) { return [repo.alias, repo.approved_packets + " packets, " + repo.code_files + " files"]; }))
       });
     }

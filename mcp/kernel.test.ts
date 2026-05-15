@@ -595,7 +595,9 @@ test("workspace summarizes sibling repos and recalls across repo memory", () => 
   writeFileSync(join(web, "package.json"), JSON.stringify({ name: "@demo/web", dependencies: { "@demo/api": "workspace:*" } }), "utf8");
   writeFileSync(join(api, "src", "auth.js"), "export function auth() { return true; }\n", "utf8");
   writeFileSync(join(api, "src", "server.js"), "const app = { get() {} };\nfunction handler() {}\napp.get('/auth/user', handler);\n", "utf8");
+  writeFileSync(join(api, "src", "events.js"), "export function created(bus) { bus.publish('auth.user.created', { id: 1 }); }\n", "utf8");
   writeFileSync(join(web, "src", "client.js"), "export function client() { return fetch('/auth/user'); }\n", "utf8");
+  writeFileSync(join(web, "src", "events.js"), "export function listen(bus) { bus.subscribe('auth.user.created', () => true); }\n", "utf8");
   buildCodeGraph(api, { force: true });
   buildCodeGraph(web, { force: true });
   learn({
@@ -621,6 +623,7 @@ test("workspace summarizes sibling repos and recalls across repo memory", () => 
   assert.equal(webRepo?.dependencies_on_workspace_repos.some((dep) => dep.alias === "api"), true);
   assert.equal(workspace.package_dependencies.some((dep) => dep.from === "web" && dep.to === "api"), true);
   assert.equal(workspace.route_contracts.some((contract) => contract.provider_repo === "api" && contract.consumer_repo === "web" && contract.path === "/auth/user"), true);
+  assert.equal(workspace.topic_contracts.some((contract) => contract.producer_repo === "api" && contract.consumer_repo === "web" && contract.topic === "auth.user.created"), true);
 
   const recalled = kageWorkspaceRecall(workspaceRoot, "auth header contract", 5);
   assert.equal(recalled.repos_searched, 2);

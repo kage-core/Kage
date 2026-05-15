@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.32 - 2026-05-15
+
+- Added deterministic workspace topic/event contract links alongside package
+  dependencies and route contracts.
+- `kage workspace` now reports producer/consumer pairs when sibling repos use
+  the same topic string through common publish/subscribe style calls.
+- Kept the workspace contract layer local and source-evidence based: no server
+  database, no generated API docs, and route-like strings are excluded from the
+  topic detector.
+
 ## v1.1.31 - 2026-05-15
 
 - Added confidence and resolution metadata to code graph call edges so

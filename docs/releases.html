@@ -264,7 +264,7 @@
         <div class="wrap">
           <h2>Current package</h2>
           <div class="stats">
-            <div class="stat"><strong>1.1.31</strong><span>latest npm version checked May 15, 2026</span></div>
+            <div class="stat"><strong>1.1.32</strong><span>latest npm version checked May 15, 2026</span></div>
             <div class="stat"><strong>1,628</strong><span>npm downloads last week</span></div>
             <div class="stat"><strong>3,575</strong><span>npm downloads last month</span></div>
           </div>
@@ -277,12 +277,14 @@ kage init --project .</pre>
         <div class="wrap">
           <h2>Latest package notes</h2>
           <div class="panel">
-            <h3>v1.1.31</h3>
+            <h3>v1.1.32</h3>
             <p>
               Current npm package for local-first repo memory, code graph, recall, viewer, PR checks,
-              repo-intelligence maps, optional post-commit automation, mixed-language route indexing, confidence-scored call edges, and conservative cleanup review input.
+              repo-intelligence maps, optional post-commit automation, mixed-language route indexing, confidence-scored call edges, workspace topic contracts, and conservative cleanup review input.
             </p>
             <ul>
+              <li><code>kage workspace</code> now reports source-evidence based topic/event producer-consumer links across sibling repos.</li>
+              <li>Workspace contract intelligence remains local and deterministic: package dependencies, route string evidence, and topic string evidence only.</li>
               <li>Code graph call edges now carry confidence and resolution metadata for TypeScript AST, generic static, and external index facts.</li>
               <li>The viewer and <code>kage code-graph</code> context now expose call confidence instead of treating every call link as certainty.</li>
               <li><code>kage cleanup-candidates</code> now reports unused exports and internal-looking unused symbols in addition to unreferenced files.</li>

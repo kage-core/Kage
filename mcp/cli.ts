@@ -868,6 +868,12 @@ async function main(): Promise<void> {
         console.log(`- ${contract.provider_repo} ${contract.method} ${contract.path} -> ${contract.consumer_repo}/${contract.consumer_file}`);
       }
     }
+    if (result.topic_contracts.length) {
+      console.log("Topic/event contracts:");
+      for (const contract of result.topic_contracts.slice(0, 10)) {
+        console.log(`- ${contract.producer_repo} ${contract.topic} -> ${contract.consumer_repo}/${contract.consumer_file}`);
+      }
+    }
     if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
     return;
   }
