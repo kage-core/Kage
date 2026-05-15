@@ -14,7 +14,6 @@ __pycache__/
 node_modules/
 dist/
 mcp/viewer/graphs/*.json
-docs/viewer/
 docs/assets/viewer-demo-frames*/
 docs/assets/*.mp4
 docs/assets/*.mov
