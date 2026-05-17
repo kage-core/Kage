@@ -6,7 +6,8 @@ on:
     paths:
       - "docs/**"
       - "mcp/viewer/**"
-      - "mcp/src/**"
+      - "mcp/*.ts"
+      - "mcp/**/*.ts"
       - "mcp/package*.json"
       - ".agent_memory/packets/**"
       - "README.md"
@@ -43,13 +44,18 @@ jobs:
       - uses: actions/configure-pages@v5
         with:
           enablement: true
-      - name: Add static viewer
+      - name: Mirror viewer source to docs
         run: |
           rm -rf docs/viewer
           mkdir -p docs/viewer
           cp -R mcp/viewer/. docs/viewer/
+      - name: Verify viewer mirror
+        run: diff -qr mcp/viewer docs/viewer
+      - name: Add generated graph data to hosted viewer
+        run: |
           mkdir -p docs/viewer/data/kage/code_graph
           mkdir -p docs/viewer/data/kage/structural
+          mkdir -p docs/viewer/data/kage/reports
           cp .agent_memory/graph/graph.json docs/viewer/data/kage/graph.json
           cp .agent_memory/graph/entities.json docs/viewer/data/kage/entities.json
           cp .agent_memory/graph/edges.json docs/viewer/data/kage/edges.json
@@ -60,6 +66,12 @@ jobs:
           cp .agent_memory/structural/imports.json docs/viewer/data/kage/structural/imports.json
           cp .agent_memory/metrics.json docs/viewer/data/kage/metrics.json
           cp .agent_memory/inbox.json docs/viewer/data/kage/inbox.json
+          # Optional reports the hosted viewer fetches if present.
+          for report in risk contributors decisions module-health graph-insights workspace quality benchmark; do
+            if [ -f ".agent_memory/reports/${report}.json" ]; then
+              cp ".agent_memory/reports/${report}.json" "docs/viewer/data/kage/reports/${report}.json"
+            fi
+          done
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs

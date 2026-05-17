@@ -13,10 +13,10 @@
     visibleEntityIds: new Set(),
     visibleEdgeIds: new Set(),
     selected: null,
+    viewerPage: "overview",
     viewerSection: "overview",
     viewerAction: null,
-    workspaceTab: "controls",
-    workspaceOpen: false,
+    graphActionFilter: "",
     pathHighlight: {
       nodes: new Set(),
       edges: new Set(),
@@ -140,6 +140,9 @@
     renderMode: document.getElementById("renderMode"),
     typeFilter: document.getElementById("typeFilter"),
     relationFilter: document.getElementById("relationFilter"),
+    showUntrusted: document.getElementById("showUntrusted"),
+    showUncovered: document.getElementById("showUncovered"),
+    showMemoryCode: document.getElementById("showMemoryCode"),
     scopeFilter: document.getElementById("scopeFilter"),
     maxNodes: document.getElementById("maxNodes"),
     showDependencies: document.getElementById("showDependencies"),
@@ -160,27 +163,75 @@
     entityList: document.getElementById("entityList"),
     edgeList: document.getElementById("edgeList"),
     metricsSummary: document.getElementById("metricsSummary"),
+    graphInsightStatus: document.getElementById("graphInsightStatus"),
+    graphInsights: document.getElementById("graphInsights"),
     entityCount: document.getElementById("entityCount"),
     edgeCount: document.getElementById("edgeCount"),
     reviewCount: document.getElementById("reviewCount"),
     dashboardStats: document.getElementById("dashboardStats"),
+    dashboardCharts: document.getElementById("dashboardCharts"),
+    memoryStatus: document.getElementById("memoryStatus"),
+    memoryStats: document.getElementById("memoryStats"),
+    memoryOverview: document.getElementById("memoryOverview"),
+    memorySearch: document.getElementById("memorySearch"),
+    memoryFilter: document.getElementById("memoryFilter"),
+    memoryList: document.getElementById("memoryList"),
+    ownersStatus: document.getElementById("ownersStatus"),
+    ownersSummary: document.getElementById("ownersSummary"),
+    ownersList: document.getElementById("ownersList"),
+    reviewOverview: document.getElementById("reviewOverview"),
     reviewList: document.getElementById("reviewList"),
+    proofOverview: document.getElementById("proofOverview"),
     proofStatus: document.getElementById("proofStatus"),
     proofList: document.getElementById("proofList"),
     intelligenceStatus: document.getElementById("intelligenceStatus"),
     intelligenceList: document.getElementById("intelligenceList"),
-    viewerSectionButtons: typeof document.querySelectorAll === "function" ? Array.from(document.querySelectorAll("[data-viewer-section]")) : [],
-    dashboardActionButtons: typeof document.querySelectorAll === "function" ? Array.from(document.querySelectorAll("[data-dashboard-action]")) : [],
-    workspaceTabs: typeof document.querySelectorAll === "function" ? Array.from(document.querySelectorAll("[data-workspace-tab]")) : [],
-    quickViewButtons: typeof document.querySelectorAll === "function" ? Array.from(document.querySelectorAll("[data-quick-view]")) : [],
-    quickRenderButtons: typeof document.querySelectorAll === "function" ? Array.from(document.querySelectorAll("[data-quick-render]")) : [],
-    quickSearch: document.getElementById("quickSearch"),
-    quickPath: document.getElementById("quickPath"),
-    quickInspector: document.getElementById("quickInspector"),
-    closeWorkspace: document.getElementById("closeWorkspace")
+    debugOverview: document.getElementById("debugOverview"),
+    pageEyebrow: document.getElementById("pageEyebrow"),
+    pageTitle: document.getElementById("pageTitle"),
+    viewerPageLinks: typeof document.querySelectorAll === "function" ? Array.from(document.querySelectorAll("[data-viewer-page]")) : [],
+  };
+
+  var PAGE_META = {
+    overview: {
+      eyebrow: "kage://overview",
+      title: "Repo dashboard",
+      summary: "What is safe to change next, what needs attention, and what is ready to hand off."
+    },
+    graph: {
+      eyebrow: "kage://graph",
+      title: "Dependency graph",
+      summary: "Search a file or symbol, then follow connected memory, routes, and tests before editing."
+    },
+    memory: {
+      eyebrow: "kage://memory",
+      title: "Memory library",
+      summary: "Find repo lore by file, feature, bug, command, or decision. Pick a packet to see linked code."
+    },
+    intel: {
+      eyebrow: "kage://risks",
+      title: "Risks",
+      summary: "Files, owners, and modules to inspect before changes. Each card links into the graph."
+    },
+    review: {
+      eyebrow: "kage://review",
+      title: "Review & handoff",
+      summary: "Blockers that must clear before another agent or teammate picks up this branch."
+    },
+    owners: {
+      eyebrow: "kage://owners",
+      title: "Owners & reviewers",
+      summary: "Local git ownership signal. Use it for reviewer routing and bus-factor checks."
+    },
+    data: {
+      eyebrow: "kage://artifacts",
+      title: "Artifacts & diagnostics",
+      summary: "Raw nodes, relations, and indexing health. Use only when graph or recall looks wrong."
+    }
   };
 
   var MEMORY_CODE_RELATIONS = new Set(["explains_symbol", "informs_symbol", "fixes_symbol", "applies_to_route", "verified_by_test", "affects_code_path"]);
+  var MEMORY_PACKET_TYPES = new Set(["memory", "command", "repo_map", "runbook", "bug_fix", "decision", "rationale", "convention", "workflow", "gotcha", "reference", "policy", "issue_context", "code_explanation", "negative_result", "constraint"]);
   var INSPECTOR_CONNECTION_LIMIT = 8;
   var PATH_BRIDGE_EDGE_LIMIT_PER_PATH = 8;
   var PATH_BRIDGE_EDGE_LIMIT_TOTAL = 160;
@@ -188,82 +239,40 @@
   var VISIBLE_EDGE_MIN = 160;
   var VISIBLE_EDGE_MAX = 560;
 
-  setViewerSection(state.viewerSection);
-  setWorkspaceTab(state.workspaceTab, false);
-  els.viewerSectionButtons.forEach(function (button) {
-    button.addEventListener("click", function () {
-      setViewerSection(button.getAttribute("data-viewer-section"));
+  state.viewerPage = initialViewerPage();
+  applyViewerPage(state.viewerPage);
+  els.viewerPageLinks.forEach(function (link) {
+    link.addEventListener("click", function (event) {
+      var page = link.getAttribute("data-viewer-page") || "overview";
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+      event.preventDefault();
+      navigateViewerPage(page);
     });
   });
-  els.dashboardActionButtons.forEach(function (button) {
-    button.addEventListener("click", function () {
-      openDashboardAction(button.getAttribute("data-dashboard-action"));
-    });
-  });
-  els.workspaceTabs.forEach(function (button) {
-    button.addEventListener("click", function () {
-      setWorkspaceTab(button.getAttribute("data-workspace-tab"), true);
-    });
-  });
-  els.quickViewButtons.forEach(function (button) {
-    button.addEventListener("click", function () {
-      setViewerSection("graph");
-      els.viewMode.value = button.getAttribute("data-quick-view") || "combined";
-      state.lastVisibleSignature = "";
-      syncQuickControls();
-      render();
-    });
-  });
-  els.quickRenderButtons.forEach(function (button) {
-    button.addEventListener("click", function () {
-      setViewerSection("graph");
-      els.renderMode.value = button.getAttribute("data-quick-render") || "2d";
-      state.lastVisibleSignature = "";
-      syncQuickControls();
-      render();
-    });
-  });
-  if (els.quickSearch) {
-    els.quickSearch.addEventListener("click", function () {
-      setViewerSection("graph");
-      setWorkspaceTab("controls", true);
-      els.searchInput.focus();
-    });
-  }
-  if (els.quickPath) {
-    els.quickPath.addEventListener("click", function () {
-      setViewerSection("graph");
-      setWorkspaceTab("controls", true);
-      els.pathFromInput.focus();
-    });
-  }
-  if (els.quickInspector) {
-    els.quickInspector.addEventListener("click", function () {
-      setViewerSection("graph");
-      setWorkspaceTab("inspector", true);
-    });
-  }
-  if (els.closeWorkspace) els.closeWorkspace.addEventListener("click", closeWorkspace);
-  syncQuickControls();
   els.graphFile.addEventListener("change", handleFile);
   els.searchInput.addEventListener("input", scheduleRender);
   els.findPath.addEventListener("click", findDependencyPath);
   els.clearPath.addEventListener("click", clearDependencyPath);
   els.pathFromInput.addEventListener("keydown", function (event) { if (event.key === "Enter") findDependencyPath(); });
   els.pathToInput.addEventListener("keydown", function (event) { if (event.key === "Enter") findDependencyPath(); });
-  els.viewMode.addEventListener("change", render);
+  els.viewMode.addEventListener("change", function () { clearGraphActionFilter(); render(); });
   els.renderMode.addEventListener("change", function () {
     state.lastVisibleSignature = "";
     render();
   });
-  els.typeFilter.addEventListener("change", render);
-  els.relationFilter.addEventListener("change", render);
+  els.typeFilter.addEventListener("change", function () { clearGraphActionFilter(); render(); });
+  els.relationFilter.addEventListener("change", function () { clearGraphActionFilter(); render(); });
   els.scopeFilter.addEventListener("change", render);
   els.maxNodes.addEventListener("change", render);
   els.showDependencies.addEventListener("change", render);
+  if (els.showUntrusted) els.showUntrusted.addEventListener("click", function () { applyGraphActionFilter("untrusted"); });
+  if (els.showUncovered) els.showUncovered.addEventListener("click", function () { applyGraphActionFilter("uncovered"); });
+  if (els.showMemoryCode) els.showMemoryCode.addEventListener("click", function () { applyGraphActionFilter("memory-code"); });
   els.zoomOut.addEventListener("click", function () { zoomGraph(0.82); });
   els.zoomIn.addEventListener("click", function () { zoomGraph(1.22); });
   els.fitView.addEventListener("click", fitActiveGraph);
+  if (els.memorySearch) els.memorySearch.addEventListener("input", renderMemoryLibrary);
+  if (els.memoryFilter) els.memoryFilter.addEventListener("change", renderMemoryLibrary);
   els.canvas.addEventListener("mousedown", startCanvasPointer);
   els.canvas.addEventListener("mousemove", moveCanvasPointer);
   els.canvas.addEventListener("mouseup", endCanvasPointer);
@@ -284,7 +293,9 @@
   window.addEventListener("resize", function () {
     resizeActiveGraph();
   });
-  els.resetView.addEventListener("click", function () {
+  els.resetView.addEventListener("click", resetGraphView);
+
+  function resetGraphView() {
     els.searchInput.value = "";
     els.viewMode.value = "combined";
     els.renderMode.value = "2d";
@@ -294,80 +305,160 @@
     els.maxNodes.value = "90";
     els.showDependencies.checked = false;
     state.selected = null;
-    setWorkspaceTab("controls", true);
+    state.graphActionFilter = "";
     clearDependencyPath(false);
     state.lastVisibleSignature = "";
     render();
-  });
+  }
   loadFromUrlParams();
 
-  function setWorkspaceTab(tab, open) {
-    var allowed = new Set(["controls", "inspector", "intelligence", "review", "tables"]);
-    state.workspaceTab = allowed.has(tab) ? tab : "controls";
-    if (open !== false) state.workspaceOpen = true;
-    if (document.body && document.body.classList) {
-      document.body.classList.remove(
-        "viewer-tab-controls",
-        "viewer-tab-inspector",
-        "viewer-tab-intelligence",
-        "viewer-tab-review",
-        "viewer-tab-tables"
-      );
-      document.body.classList.add("viewer-tab-" + state.workspaceTab);
-      document.body.classList.toggle("viewer-workspace-open", state.workspaceOpen);
+  function initialViewerPage() {
+    var fileName = "";
+    try {
+      fileName = String(window.location.pathname || "").split("/").pop() || "index.html";
+    } catch (_error) {
+      fileName = "index.html";
     }
-    els.workspaceTabs.forEach(function (button) {
-      var active = button.getAttribute("data-workspace-tab") === state.workspaceTab;
-      button.classList.toggle("active", active);
-      button.setAttribute("aria-selected", active ? "true" : "false");
+    var pageByFile = {
+      "index.html": "overview",
+      "": "overview",
+      "graph.html": "graph",
+      "memory.html": "memory",
+      "owners.html": "owners",
+      "intel.html": "intel",
+      "review.html": "review",
+      "data.html": "data"
+    };
+    return pageByFile[fileName] || "overview";
+  }
+
+  function applyViewerPage(page, updateLinks) {
+    var normalized = normalizeViewerPage(page);
+    state.viewerPage = normalized;
+    if (normalized === "overview") {
+      setViewerSection("overview");
+    } else if (normalized === "graph") {
+      setViewerSection("graph");
+    } else {
+      setViewerSection("graph", pageToAction(normalized));
+    }
+    state.viewerPage = normalized;
+    applyPageHeader(normalized);
+    if (updateLinks !== false) syncViewerPageLinks();
+    syncViewerPageClass();
+  }
+
+  function applyPageHeader(page) {
+    var meta = PAGE_META[page] || PAGE_META.overview;
+    if (els.pageEyebrow) els.pageEyebrow.textContent = meta.eyebrow;
+    if (els.pageTitle) els.pageTitle.textContent = meta.title;
+    if (els.graphSummary && !state.graph) els.graphSummary.textContent = meta.summary;
+    try {
+      if (typeof document !== "undefined" && document.title !== undefined) {
+        document.title = "Kage " + meta.title.toLowerCase() + " viewer";
+      }
+    } catch (_error) {
+      // ignore
+    }
+  }
+
+  function normalizeViewerPage(page) {
+    var normalized = String(page || "overview").toLowerCase();
+    if (normalized === "intelligence") normalized = "intel";
+    if (["overview", "graph", "memory", "owners", "intel", "review", "data"].indexOf(normalized) === -1) return "overview";
+    return normalized;
+  }
+
+  function pageToAction(page) {
+    if (page === "intel") return "intelligence";
+    if (page === "owners") return "intelligence";
+    if (page === "memory") return "memory";
+    if (page === "review") return "review";
+    if (page === "data") return "data";
+    return null;
+  }
+
+  function pageFromSection(section, action) {
+    if (section === "overview") return "overview";
+    if (action === "intelligence") return "intel";
+    if (action === "memory") return "memory";
+    if (action === "review") return "review";
+    if (action === "data") return "data";
+    return "graph";
+  }
+
+  function viewerPageHref(page) {
+    var fileByPage = {
+      overview: "./",
+      graph: "./graph.html",
+      memory: "./memory.html",
+      owners: "./owners.html",
+      intel: "./intel.html",
+      review: "./review.html",
+      data: "./data.html"
+    };
+    var search = "";
+    try {
+      search = window.location.search || "";
+    } catch (_error) {
+      search = "";
+    }
+    return (fileByPage[normalizeViewerPage(page)] || "./") + search;
+  }
+
+  function navigateViewerPage(page) {
+    window.location.href = viewerPageHref(page);
+  }
+
+  function showViewerPageInPlace(page) {
+    applyViewerPage(page);
+    try {
+      window.history.pushState({}, "", viewerPageHref(page));
+    } catch (_error) {
+      // Static/file viewers can ignore history failures; visual state is enough.
+    }
+  }
+
+  function syncViewerPageLinks() {
+    els.viewerPageLinks.forEach(function (link) {
+      var page = normalizeViewerPage(link.getAttribute("data-viewer-page"));
+      link.setAttribute("href", viewerPageHref(page));
+      var active = page === state.viewerPage;
+      link.classList.toggle("active", active);
+      if (active) link.setAttribute("aria-current", "page");
+      else link.removeAttribute("aria-current");
     });
+  }
+
+  function syncViewerPageClass() {
+    if (!document.body || !document.body.classList) return;
+    document.body.classList.remove(
+      "viewer-page-overview",
+      "viewer-page-graph",
+      "viewer-page-memory",
+      "viewer-page-owners",
+      "viewer-page-intel",
+      "viewer-page-review",
+      "viewer-page-data"
+    );
+    document.body.classList.add("viewer-page-" + normalizeViewerPage(state.viewerPage));
   }
 
   function setViewerSection(section, action) {
     state.viewerSection = section === "graph" ? "graph" : "overview";
     state.viewerAction = action || null;
+    state.viewerPage = pageFromSection(state.viewerSection, state.viewerAction);
     if (state.viewerSection === "overview") closeWorkspace();
     if (document.body && document.body.classList) {
       document.body.classList.remove("viewer-section-overview", "viewer-section-graph");
       document.body.classList.add("viewer-section-" + state.viewerSection);
     }
-    syncSectionControls();
+    syncViewerPageLinks();
+    syncViewerPageClass();
     if (state.viewerSection === "graph") resizeActiveGraph();
   }
 
-  function openDashboardAction(action) {
-    var normalized = String(action || "").toLowerCase();
-    var tabByAction = {
-      memory: "review",
-      intelligence: "intelligence",
-      review: "review",
-      data: "tables"
-    };
-    setViewerSection("graph", normalized);
-    setWorkspaceTab(tabByAction[normalized] || "controls", true);
-  }
-
-  function syncSectionControls() {
-    els.viewerSectionButtons.forEach(function (button) {
-      var section = button.getAttribute("data-viewer-section");
-      var active = state.viewerSection === section && !state.viewerAction;
-      if (button.classList && button.classList.contains("viewer-section")) {
-        button.classList.toggle("active", active);
-        button.setAttribute("aria-selected", active ? "true" : "false");
-      }
-    });
-    els.dashboardActionButtons.forEach(function (button) {
-      var action = button.getAttribute("data-dashboard-action");
-      var active = state.viewerSection === "graph" && state.viewerAction === action;
-      if (button.classList && button.classList.contains("viewer-section")) {
-        button.classList.toggle("active", active);
-        button.setAttribute("aria-selected", active ? "true" : "false");
-      }
-    });
-  }
-
   function closeWorkspace() {
-    state.workspaceOpen = false;
     if (document.body && document.body.classList) {
       document.body.classList.remove("viewer-workspace-open");
     }
@@ -375,27 +466,10 @@
 
   function selectEntity(id, openInspector) {
     state.selected = { kind: "entity", id: id };
-    setViewerSection("graph");
-    if (openInspector) setWorkspaceTab("inspector", true);
   }
 
   function selectEdge(id, openInspector) {
     state.selected = { kind: "edge", id: id };
-    setViewerSection("graph");
-    if (openInspector) setWorkspaceTab("inspector", true);
-  }
-
-  function syncQuickControls() {
-    els.quickViewButtons.forEach(function (button) {
-      var active = button.getAttribute("data-quick-view") === els.viewMode.value;
-      button.classList.toggle("active", active);
-      button.setAttribute("aria-pressed", active ? "true" : "false");
-    });
-    els.quickRenderButtons.forEach(function (button) {
-      var active = button.getAttribute("data-quick-render") === els.renderMode.value;
-      button.classList.toggle("active", active);
-      button.setAttribute("aria-pressed", active ? "true" : "false");
-    });
   }
 
   function handleFile(event) {
@@ -411,7 +485,8 @@
         state.entityById = new Map();
         state.episodesById = new Map();
         els.emptyState.classList.add("hidden");
-        els.graphSummary.textContent = "Metrics loaded.";
+        var pageMeta = PAGE_META[state.viewerPage] || PAGE_META.overview;
+        els.graphSummary.textContent = state.viewerPage === "graph" ? "Metrics loaded." : pageMeta.summary;
         renderMetrics();
         return;
       }
@@ -452,7 +527,10 @@
     populateFilters();
     populatePathOptions();
     els.emptyState.classList.add("hidden");
-    els.graphSummary.textContent = fileName + " loaded: " + entities.length + " nodes, " + edges.length + " relations.";
+    var meta = PAGE_META[state.viewerPage] || PAGE_META.overview;
+    els.graphSummary.textContent = state.viewerPage === "graph"
+      ? fileName + " loaded: " + entities.length + " nodes, " + edges.length + " relations."
+      : meta.summary;
     render();
   }
 
@@ -1246,7 +1324,6 @@
 
   function render() {
     if (!state.graph) return;
-    syncQuickControls();
 
     var query = parseSearchQuery(els.searchInput.value);
     state.renderQuery = query;
@@ -1283,6 +1360,10 @@
       matchedEdgeIds = new Set(state.edges.filter(function (edge) { return mode === "combined" || edge.graph_kind === mode; }).map(function (edge) { return edge.id; }));
     }
 
+    var actionFiltered = applyMatchedGraphActionFilter(matchedEntityIds, matchedEdgeIds);
+    matchedEntityIds = actionFiltered.entities;
+    matchedEdgeIds = actionFiltered.edges;
+
     var visible = refineVisibleGraph(matchedEntityIds, matchedEdgeIds, {
       query: query,
       type: type,
@@ -1301,12 +1382,7 @@
     state.lastVisibleSignature = nextSignature;
 
     renderActiveGraph(graphChanged);
-    renderLists();
-    renderDetails();
-    renderMetrics();
-    renderReviewQueue();
-    renderProof();
-    renderIntelligence();
+    renderPagePanels();
   }
 
   function scheduleRender() {
@@ -1315,6 +1391,88 @@
       state.renderRaf = null;
       render();
     });
+  }
+
+  function renderPagePanels() {
+    if (state.viewerPage === "graph") {
+      renderDetails();
+      renderMetrics();
+      return;
+    }
+    if (state.viewerPage === "memory") {
+      renderDetails();
+      renderMemoryLibrary();
+      return;
+    }
+    if (state.viewerPage === "owners") {
+      renderOwners();
+      return;
+    }
+    if (state.viewerPage === "intel") {
+      renderIntelligence();
+      return;
+    }
+    if (state.viewerPage === "review") {
+      renderReviewQueue();
+      renderProof();
+      return;
+    }
+    if (state.viewerPage === "data") {
+      renderDetails();
+      renderArtifactDiagnostics(state.entities, state.edges);
+      renderLists();
+      return;
+    }
+    renderDashboard();
+  }
+
+  function applyGraphActionFilter(filter) {
+    state.graphActionFilter = state.graphActionFilter === filter ? "" : filter;
+    if (filter === "memory-code") {
+      els.viewMode.value = "combined";
+      els.relationFilter.value = "__memory_code__";
+    } else if (state.graphActionFilter) {
+      els.viewMode.value = "combined";
+      els.relationFilter.value = "";
+    }
+    state.lastVisibleSignature = "";
+    render();
+  }
+
+  function clearGraphActionFilter() {
+    state.graphActionFilter = "";
+  }
+
+  function applyMatchedGraphActionFilter(entityIds, edgeIds) {
+    if (!state.graphActionFilter) return { entities: entityIds, edges: edgeIds };
+    if (state.graphActionFilter === "memory-code") {
+      var memoryCodeEdges = state.edges.filter(isMemoryCodeEdge);
+      return entitiesForEdges(memoryCodeEdges);
+    }
+    if (state.graphActionFilter === "untrusted") {
+      var flagged = state.edges.filter(function (edge) { return reviewStatus(edge) !== "ok"; });
+      return entitiesForEdges(flagged);
+    }
+    if (state.graphActionFilter === "uncovered") {
+      var covered = memoryLinkedCodeKeys();
+      var uncovered = state.entities.filter(function (entity) {
+        return entity.graph_kind === "code" && entity.type === "file" && !covered.has(codeCoverageKey(entity));
+      });
+      var entities = new Set(uncovered.map(function (entity) { return entity.id; }));
+      return { entities: entities, edges: edgesWithVisibleEndpoints(new Set(state.edges.map(function (edge) { return edge.id; })), entities) };
+    }
+    return { entities: entityIds, edges: edgeIds };
+  }
+
+  function entitiesForEdges(edges) {
+    var entities = new Set();
+    var edgeIds = new Set();
+    edges.forEach(function (edge) {
+      edgeIds.add(edge.id);
+      if (state.entityById.has(edge.from)) entities.add(edge.from);
+      if (state.entityById.has(edge.to)) entities.add(edge.to);
+    });
+    return { entities: entities, edges: edgeIds };
   }
 
   function refineVisibleGraph(entityIds, edgeIds, options) {
@@ -1828,8 +1986,8 @@
     ctx.fillStyle = graphPalette.background;
     ctx.fillRect(0, 0, width, height);
     var gradient = ctx.createRadialGradient(width * 0.52, height * 0.44, 40, width * 0.52, height * 0.44, Math.max(width, height) * 0.72);
-    gradient.addColorStop(0, "rgba(65,255,143,0.080)");
-    gradient.addColorStop(0.48, "rgba(65,255,143,0.018)");
+    gradient.addColorStop(0, "rgba(65,255,143,0.145)");
+    gradient.addColorStop(0.48, "rgba(65,255,143,0.030)");
     gradient.addColorStop(1, "rgba(2,5,3,0)");
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
@@ -1905,9 +2063,9 @@
       var color = nodeThemeColor(entity);
       ctx.save();
       ctx.globalAlpha = alpha;
-      if (selected || hovered || pathNode) {
+      if (selected || hovered || pathNode || entity.graph_kind === "memory") {
         ctx.shadowColor = pathNode ? graphPalette.bridge : color;
-        ctx.shadowBlur = selected ? 14 : pathNode ? 12 : 10;
+        ctx.shadowBlur = selected ? 16 : pathNode ? 14 : entity.graph_kind === "memory" ? 9 : 10;
       }
       drawNodeShape(ctx, node.x, node.y, node.r, entity);
       ctx.fillStyle = nodeFillColor(entity);
@@ -2150,12 +2308,16 @@
   }
 
   function renderLists() {
-    var visibleEntities = state.entities.filter(function (entity) {
-      return state.visibleEntityIds.has(entity.id);
-    });
-    var visibleEdges = state.edges.filter(function (edge) {
-      return state.visibleEdgeIds.has(edge.id);
-    }).sort(function (a, b) {
+    var visibleEntities = state.viewerPage === "data"
+      ? state.entities.slice()
+      : state.entities.filter(function (entity) {
+        return state.visibleEntityIds.has(entity.id);
+      });
+    var visibleEdges = (state.viewerPage === "data"
+      ? state.edges.slice()
+      : state.edges.filter(function (edge) {
+        return state.visibleEdgeIds.has(edge.id);
+      })).sort(function (a, b) {
       return reviewRank(a) - reviewRank(b);
     });
 
@@ -2164,7 +2326,11 @@
     els.entityList.textContent = "";
     els.edgeList.textContent = "";
 
-    visibleEntities.forEach(function (entity) {
+    var rowLimit = state.viewerPage === "data" ? 40 : 80;
+    var entityRows = visibleEntities.slice(0, rowLimit);
+    var edgeRows = visibleEdges.slice(0, rowLimit);
+
+    entityRows.forEach(function (entity) {
       var button = document.createElement("button");
       button.type = "button";
       button.className = classNames("list-item", state.selected && state.selected.kind === "entity" && state.selected.id === entity.id && "selected");
@@ -2177,8 +2343,11 @@
       });
       els.entityList.appendChild(button);
     });
+    if (visibleEntities.length > entityRows.length) {
+      appendListNote(els.entityList, "Showing " + entityRows.length + " of " + visibleEntities.length + ". Use search to narrow.");
+    }
 
-    visibleEdges.forEach(function (edge) {
+    edgeRows.forEach(function (edge) {
       var button = document.createElement("button");
       button.type = "button";
       button.className = classNames("list-item", state.selected && state.selected.kind === "edge" && state.selected.id === edge.id && "selected");
@@ -2191,13 +2360,25 @@
       });
       els.edgeList.appendChild(button);
     });
+    if (visibleEdges.length > edgeRows.length) {
+      appendListNote(els.edgeList, "Showing " + edgeRows.length + " of " + visibleEdges.length + ". Filter by relation or select a node first.");
+    }
+  }
+
+  function appendListNote(parent, text) {
+    var note = document.createElement("div");
+    note.className = "list-note";
+    note.textContent = text;
+    parent.appendChild(note);
   }
 
   function renderDetails() {
     if (!state.selected) {
+      setSelectionBodyState(null);
       els.selectionDetails.className = "details-empty";
-      els.selectionDetails.textContent = "Select an entity or edge.";
+      els.selectionDetails.textContent = "Select a node or relation to see what it means, why it exists, and which connected memory or code to inspect next.";
       els.selectionStatus.textContent = "No selection";
+      if (!state.pathHighlight.steps.length) setPathStatus("Select a code node, then trace to another code node when you need impact proof.", "");
       return;
     }
 
@@ -2206,10 +2387,12 @@
       : state.edges.find(function (edge) { return edge.id === state.selected.id; });
 
     if (!item) {
+      setSelectionBodyState(null);
       els.selectionDetails.textContent = "Selection no longer exists.";
       return;
     }
 
+    setSelectionBodyState(state.selected.kind === "entity" ? item : null);
     els.selectionDetails.className = "";
     els.selectionDetails.textContent = "";
     var title = document.createElement("div");
@@ -2246,6 +2429,32 @@
     els.selectionDetails.appendChild(kind);
     els.selectionDetails.appendChild(rows);
     renderInspectorConnections(item);
+    if (state.selected.kind === "entity" && item.graph_kind === "code") prefillPathFromSelection(true);
+  }
+
+  function setSelectionBodyState(entity) {
+    if (!document.body || !document.body.classList) return;
+    document.body.classList.toggle("has-selection", Boolean(state.selected));
+    document.body.classList.toggle("has-code-selection", Boolean(entity && entity.graph_kind === "code"));
+  }
+
+  function prefillPathFromSelection(silent) {
+    if (!state.selected || state.selected.kind !== "entity") {
+      if (!silent) setPathStatus("Select a code node first. Path tracing is for files, symbols, routes, tests, and scripts.", "warn");
+      return;
+    }
+    var entity = state.entityById.get(state.selected.id);
+    if (!entity || entity.graph_kind !== "code" || ["file", "symbol", "route", "test", "script"].indexOf(entity.type) === -1) {
+      if (!silent) setPathStatus("Select a code node first. Memory nodes are shown through memory-code links, not code path tracing.", "warn");
+      return;
+    }
+    if (!els.pathFromInput.value || silent) {
+      els.pathFromInput.value = entity.path || displayName(entity) || entity.id;
+    }
+    if (!silent) {
+      els.pathToInput.focus();
+      setPathStatus("Selected " + displayName(entity) + ". Pick a target test, route, file, or symbol to trace impact.", "ok");
+    }
   }
 
   function entityDetailRows(entity) {
@@ -2373,6 +2582,23 @@
     return Boolean(edge && (edge.memory_code_link || isMemoryCodeRelation(edge.relation)));
   }
 
+  function codeCoverageKey(entity) {
+    if (!entity) return "";
+    return String(entity.path || entity.id || "").replace(/\\/g, "/").replace(/^\.\//, "");
+  }
+
+  function memoryLinkedCodeKeys() {
+    var keys = new Set();
+    state.edges.filter(isMemoryCodeEdge).forEach(function (edge) {
+      [state.entityById.get(edge.from), state.entityById.get(edge.to)].forEach(function (entity) {
+        if (!entity || entity.graph_kind !== "code") return;
+        var key = codeCoverageKey(entity);
+        if (key) keys.add(key);
+      });
+    });
+    return keys;
+  }
+
   function connectionImportance(link) {
     var relation = String(link.edge.relation || "");
     var score = entityImportance(link.other);
@@ -2475,13 +2701,15 @@
     }).length;
     var evidenceEdges = visibleEdges.filter(function (edge) { return Array.isArray(edge.evidence) && edge.evidence.length > 0; }).length;
     var official = state.metrics;
+    var memoryCodeLinks = state.edges.filter(isMemoryCodeEdge).length;
+    var pendingReview = official && official.memory_graph ? Number(firstNumber(official.memory_graph.pending_packets, 0)) : 0;
     var metrics = official ? [
-      ["Readiness", official.harness.readiness_score + "/100"],
-      ["Code Files", official.code_graph.files],
-      ["Structural Symbols", official.structural_index ? official.structural_index.symbols : official.code_graph.symbols],
-      ["Parser Coverage", official.code_graph.indexer_coverage_percent + "%"],
-      ["Cache Hits", official.structural_index ? official.structural_index.cache_hits : official.code_graph.cache_hits],
-      ["Tokens Saved", official.savings ? official.savings.estimated_tokens_saved_per_recall : "n/a"]
+      ["Validation", official.harness && official.harness.validation_ok ? "Clean" : "Check"],
+      ["Review queue", pendingReview ? pendingReview + " pending" : "Clear"],
+      ["Reusable memory", official.memory_graph ? official.memory_graph.approved_packets + " packets" : "n/a"],
+      ["Code indexed", official.structural_index ? official.structural_index.files + " files" : official.code_graph.files + " files"],
+      ["Parser coverage", official.code_graph.indexer_coverage_percent + "%"],
+      ["Memory-code links", memoryCodeLinks]
     ] : [
       ["Nodes", visibleEntities.length + "/" + state.entities.length],
       ["Relations", visibleEdges.length + "/" + state.edges.length],
@@ -2503,7 +2731,136 @@
     els.workspaceMode.textContent = (els.viewMode.value || "combined").replace(/^./, function (letter) { return letter.toUpperCase(); });
     els.graphSubhead.textContent = visibleEntities.length + " visible nodes and " + visibleEdges.length + " visible relations" +
       (hiddenDependencies && !els.showDependencies.checked ? " (" + hiddenDependencies + " dependency/noise nodes hidden)." : ".");
-    renderDashboard();
+    renderGraphInsights(visibleEntities, visibleEdges, hiddenDependencies);
+    updateGraphActionButtons();
+  }
+
+  function renderGraphInsights(visibleEntities, visibleEdges, hiddenDependencies) {
+    if (!els.graphInsights) return;
+    els.graphInsights.textContent = "";
+    var allMemoryCode = state.edges.filter(isMemoryCodeEdge);
+    var visibleMemoryCode = visibleEdges.filter(isMemoryCodeEdge);
+    var reviewFlags = visibleEdges.filter(function (edge) { return reviewStatus(edge) !== "ok"; });
+    var visibleCodeFiles = visibleEntities.filter(function (entity) { return entity.graph_kind === "code" && entity.type === "file"; });
+    var coveredKeys = memoryLinkedCodeKeys();
+    var uncoveredCodeFiles = visibleCodeFiles.filter(function (entity) { return !coveredKeys.has(codeCoverageKey(entity)); });
+    var evidenceEdges = visibleEdges.filter(function (edge) { return Array.isArray(edge.evidence) && edge.evidence.length; }).length;
+    var evidencePercent = visibleEdges.length ? Math.round(evidenceEdges / visibleEdges.length * 100) : 0;
+    var coveragePercent = visibleCodeFiles.length ? Math.round((visibleCodeFiles.length - uncoveredCodeFiles.length) / visibleCodeFiles.length * 100) : 0;
+    var queryActive = parseSearchQuery(els.searchInput.value).active;
+    var hasActiveFilters = queryActive || state.graphActionFilter || els.viewMode.value !== "combined" || els.typeFilter.value || els.relationFilter.value || els.showDependencies.checked;
+    if (!visibleEntities.length || hasActiveFilters) {
+      var recovery = document.createElement("article");
+      recovery.className = classNames("metric-card graph-action-card graph-recovery-card", !visibleEntities.length && "metric-card-warn");
+      recovery.innerHTML = [
+        "<div class=\"metric-card-head\"><span></span><strong></strong></div>",
+        "<p></p>",
+        "<button type=\"button\">Clear search/filter</button>",
+        "<em></em>"
+      ].join("");
+      recovery.querySelector(".metric-card-head span").textContent = !visibleEntities.length ? "No graph results" : "Active graph filter";
+      recovery.querySelector(".metric-card-head strong").textContent = !visibleEntities.length ? "0 visible" : "filtered";
+      recovery.querySelector("p").textContent = !visibleEntities.length
+        ? "The current search or filter hides every node. Clear it to recover the graph."
+        : "A search, relation, or journey filter is active.";
+      recovery.querySelector("button").addEventListener("click", resetGraphView);
+      recovery.querySelector("em").textContent = queryActive ? "Search: " + els.searchInput.value : (state.graphActionFilter || "custom filter");
+      els.graphInsights.appendChild(recovery);
+    }
+    var cards = [
+      graphActionCard("Memory coverage", coveragePercent + "%", uncoveredCodeFiles.length
+        ? uncoveredCodeFiles.length + " visible code file(s) have no linked repo memory."
+        : "Visible code files have linked repo memory.",
+        "Show uncovered code", "uncovered", uncoveredCodeFiles.length ? "warn" : "ok"),
+      graphActionCard("Untrusted edges", reviewFlags.length ? reviewFlags.length + " flagged" : "clear", reviewFlags.length
+        ? "Low-confidence, missing-evidence, or invalidated relations are visible."
+        : "Visible relations are evidence-backed enough for inspection.",
+        "Filter to untrusted", "untrusted", reviewFlags.length ? "warn" : "ok", [
+        { label: "Low confidence", value: reviewFlags.filter(function (edge) { return reviewStatus(edge) === "low confidence"; }).length, score: Math.min(100, reviewFlags.length * 20), status: reviewFlags.length ? "warn" : "ok" },
+        { label: "Missing evidence", value: reviewFlags.filter(function (edge) { return reviewStatus(edge) === "missing evidence"; }).length, score: Math.min(100, reviewFlags.length * 20), status: reviewFlags.length ? "warn" : "ok" },
+        { label: "Invalidated", value: reviewFlags.filter(function (edge) { return reviewStatus(edge) === "invalidated"; }).length, score: Math.min(100, reviewFlags.length * 20), status: reviewFlags.length ? "danger" : "ok" }
+      ]),
+      graphActionCard("Evidence in view", evidencePercent + "%", evidenceEdges + " of " + visibleEdges.length + " visible relation(s) carry evidence.",
+        "Show memory-code links", "memory-code", evidencePercent >= 80 ? "ok" : "warn"),
+      graphActionCard("Trace impact", visibleMemoryCode.length + " links", "Select a code node, then trace to a test, route, or symbol from the Inspector.",
+        "Use selected node", "path", visibleMemoryCode.length ? "ok" : "warn")
+    ];
+    cards.forEach(function (card) { els.graphInsights.appendChild(card); });
+    if (els.graphInsightStatus) els.graphInsightStatus.textContent = state.graphActionFilter || (hiddenDependencies ? hiddenDependencies + " external hidden" : "ready");
+  }
+
+  function graphActionCard(title, value, detail, actionLabel, action, status, rows) {
+    var card = document.createElement("article");
+    card.className = classNames("metric-card graph-action-card", status && "metric-card-" + status, state.graphActionFilter === action && "active");
+    card.innerHTML = [
+      "<div class=\"metric-card-head\"><span></span><strong></strong></div>",
+      "<p></p>",
+      "<div class=\"metric-bars\"></div>",
+      "<button type=\"button\"></button>",
+      "<em></em>"
+    ].join("");
+    card.querySelector(".metric-card-head span").textContent = title;
+    card.querySelector(".metric-card-head strong").textContent = value;
+    card.querySelector("p").textContent = detail;
+    var bars = card.querySelector(".metric-bars");
+    if (Array.isArray(rows) && rows.length) {
+      rows.forEach(function (row) {
+        var item = document.createElement("div");
+        item.className = classNames("metric-bar", row.status && "metric-bar-" + row.status);
+        item.innerHTML = "<span></span><strong></strong><i></i>";
+        item.querySelector("span").textContent = row.label;
+        item.querySelector("strong").textContent = formatDashboardValue(row.value);
+        item.querySelector("i").style.width = clamp(Number(row.score || 0), row.value ? 8 : 0, 100) + "%";
+        bars.appendChild(item);
+      });
+    } else {
+      bars.remove();
+    }
+    var button = card.querySelector("button");
+    button.textContent = actionLabel;
+    button.addEventListener("click", function () {
+      if (action === "path") {
+        prefillPathFromSelection();
+        return;
+      }
+      applyGraphActionFilter(action);
+    });
+    card.querySelector("em").textContent = state.graphActionFilter === action ? "Active filter" : "";
+    return card;
+  }
+
+  function updateGraphActionButtons() {
+    [
+      [els.showUntrusted, "untrusted"],
+      [els.showUncovered, "uncovered"],
+      [els.showMemoryCode, "memory-code"]
+    ].forEach(function (entry) {
+      if (!entry[0]) return;
+      entry[0].classList.toggle("active", state.graphActionFilter === entry[1]);
+    });
+  }
+
+  function renderArtifactDiagnostics(visibleEntities, visibleEdges) {
+    if (!els.debugOverview) return;
+    els.debugOverview.textContent = "";
+    var episodes = state.episodesById ? state.episodesById.size : 0;
+    var evidenceEdges = state.edges.filter(function (edge) { return Array.isArray(edge.evidence) && edge.evidence.length; }).length;
+    var evidencePercent = state.edges.length ? Math.round(evidenceEdges / state.edges.length * 100) : 0;
+    var memoryCodeEdges = state.edges.filter(isMemoryCodeEdge).length;
+    var reviewFlags = state.edges.filter(function (edge) { return reviewStatus(edge) !== "ok"; }).length;
+    [
+      metricBars("Artifact shape", state.entities.length + " nodes", [
+        { label: "Visible nodes", value: visibleEntities.length, score: state.entities.length ? visibleEntities.length / state.entities.length * 100 : 0, status: "ok" },
+        { label: "Relations", value: state.edges.length, score: 100, status: "ok" },
+        { label: "Episodes", value: episodes, score: episodes ? 100 : 0, status: episodes ? "ok" : "warn" }
+      ], "Use this when graph generation seems incomplete.", "ok"),
+      metricDonut("Evidence", evidencePercent, evidenceEdges + " of " + state.edges.length + " relation(s) have evidence", "Low evidence means recall may explain less than expected.", evidencePercent >= 80 ? "ok" : "warn"),
+      metricBars("Link diagnostics", memoryCodeEdges + " memory-code", [
+        { label: "Memory-code", value: memoryCodeEdges, score: Math.min(100, memoryCodeEdges / Math.max(1, state.edges.length) * 100), status: memoryCodeEdges ? "ok" : "warn" },
+        { label: "Review flags", value: reviewFlags, score: Math.min(100, reviewFlags * 12), status: reviewFlags ? "warn" : "ok" },
+        { label: "Visible edges", value: visibleEdges.length, score: state.edges.length ? visibleEdges.length / state.edges.length * 100 : 0, status: "ok" }
+      ], "Use raw rows below to inspect exact IDs, relations, and evidence.", reviewFlags ? "warn" : "ok")
+    ].forEach(function (card) { els.debugOverview.appendChild(card); });
   }
 
   function renderDashboard() {
@@ -2519,64 +2876,174 @@
     var memoryCodeEdges = state.edges.filter(isMemoryCodeEdge);
     var reports = state.reports || {};
     var reportCount = Object.keys(reports).filter(function (key) { return reports[key]; }).length;
+    var risk = reports.risk || {};
+    var riskTargets = Array.isArray(risk.targets) ? risk.targets : Object.keys(risk.targets || {});
+    var inboxCounts = state.inbox && state.inbox.counts ? state.inbox.counts : {};
+    var pendingReview = Number(firstNumber(inboxCounts.pending, memoryGraph.pending_packets, (state.pendingPackets || []).length, 0));
+    var staleFlags = Number(firstNumber(inboxCounts.stale, 0));
+    var duplicateFlags = Number(firstNumber(inboxCounts.duplicates, memoryGraph.duplicate_candidate_pairs, 0));
+    var missingContext = Number(firstNumber(inboxCounts.missing_context, 0));
+    var ownerSilos = Array.isArray(risk.ownership_silos) ? risk.ownership_silos.length : 0;
+    var hotspots = Array.isArray(risk.global_hotspots) ? risk.global_hotspots.length : 0;
+    var readiness = dashboardReadiness(metrics, pendingReview, staleFlags, duplicateFlags, missingContext);
+    var memoryCoverage = dashboardMemoryCoverage(reports, memoryCodeEdges, memoryGraph, memoryNodes);
+    var riskHealth = riskTargets.length || hotspots ? (riskTargets.length + hotspots) + " signals" : "No flags";
     var statRows = [
-      ["Memory packets", firstNumber(memoryGraph.approved_packets, memoryNodes)],
-      ["Code nodes", firstNumber(codeGraph.symbols, structural.symbols, codeNodes)],
-      ["Files", firstNumber(codeGraph.files, structural.files, countEntitiesByType("file"))],
-      ["Memory-code links", memoryCodeEdges.length],
-      ["Parser coverage", codeGraph.indexer_coverage_percent != null ? codeGraph.indexer_coverage_percent + "%" : "n/a"],
-      ["Tokens saved", firstNumber(savings.estimated_tokens_saved_per_recall, pain.estimated_tokens_saved, "n/a")]
+      ["Handoff", readiness.label, readiness.detail, readiness.status],
+      ["Memory", memoryCoverage.label, memoryCoverage.detail, memoryCoverage.status],
+      ["Risk", riskHealth, riskTargets.length + " targets, " + ownerSilos + " ownership silos", riskTargets.length || ownerSilos || hotspots ? "warn" : "ok"],
+      ["Code map", firstNumber(codeGraph.files, structural.files, countEntitiesByType("file")) + " files", firstNumber(codeGraph.symbols, structural.symbols, codeNodes) + " symbols indexed", "code"]
     ];
     els.dashboardStats.textContent = "";
     statRows.forEach(function (row) {
       var item = document.createElement("div");
-      item.className = "dashboard-stat";
-      item.innerHTML = "<strong></strong><span></span>";
+      item.className = classNames("dashboard-stat", row[3] && "dashboard-stat-" + row[3]);
+      item.innerHTML = "<span></span><strong></strong><em></em>";
       item.querySelector("strong").textContent = formatDashboardValue(row[1]);
       item.querySelector("span").textContent = row[0];
+      item.querySelector("em").textContent = row[2] || "";
       els.dashboardStats.appendChild(item);
     });
 
     setDashboardRows("dashboardMemory", [
-      ["Approved packets", firstNumber(memoryGraph.approved_packets, memoryNodes)],
-      ["Pending review", firstNumber(memoryGraph.pending_packets, (state.pendingPackets || []).length)],
-      ["Evidence coverage", memoryGraph.evidence_coverage_percent != null ? memoryGraph.evidence_coverage_percent + "%" : "n/a"],
-      ["Code-linked memory", memoryCodeEdges.length]
+      ["Reusable", firstNumber(memoryGraph.approved_packets, memoryNodes) + " packets"],
+      ["Linked", memoryCodeEdges.length + " code links"],
+      ["Review", pendingReview ? pendingReview + " pending" : "clear"]
     ]);
     setDashboardRows("dashboardGraph", [
       ["Files", firstNumber(codeGraph.files, structural.files, countEntitiesByType("file"))],
       ["Symbols", firstNumber(codeGraph.symbols, structural.symbols, countEntitiesByType("symbol"))],
-      ["Relations", state.edges.length],
-      ["Dependency/noise hidden", state.entities.filter(function (entity) { return isDependencyEntity(entity); }).length]
+      ["Coverage", codeGraph.indexer_coverage_percent != null ? codeGraph.indexer_coverage_percent + "%" : "not loaded"]
     ]);
     setDashboardRows("dashboardIntel", [
-      ["Reports loaded", reportCount],
-      ["Decision coverage", reports.decisions && reports.decisions.coverage_percent != null ? reports.decisions.coverage_percent + "%" : "n/a"],
-      ["Modules scored", reports.moduleHealth && Array.isArray(reports.moduleHealth.modules) ? reports.moduleHealth.modules.length : "n/a"],
-      ["Communities", reports.graphInsights && Array.isArray(reports.graphInsights.communities) ? reports.graphInsights.communities.length : "n/a"]
+      ["Risk targets", riskTargets.length || "none"],
+      ["Ownership silos", ownerSilos || "none"],
+      ["Decision coverage", reports.decisions && reports.decisions.coverage_percent != null ? reports.decisions.coverage_percent + "%" : "not loaded"]
     ]);
-    var risk = reports.risk || {};
-    var riskTargets = Array.isArray(risk.targets) ? risk.targets : Object.keys(risk.targets || {});
-    setDashboardRows("dashboardRisk", [
-      ["Risk targets", riskTargets.length || "n/a"],
-      ["Hotspots", Array.isArray(risk.global_hotspots) ? risk.global_hotspots.length : "n/a"],
-      ["Ownership silos", Array.isArray(risk.ownership_silos) ? risk.ownership_silos.length : "n/a"],
-      ["Cycles", reports.graphInsights && Array.isArray(reports.graphInsights.dependency_cycles) ? reports.graphInsights.dependency_cycles.length : "n/a"]
-    ]);
-    var inboxCounts = state.inbox && state.inbox.counts ? state.inbox.counts : {};
     setDashboardRows("dashboardReview", [
-      ["Readiness", metrics.harness && metrics.harness.readiness_score != null ? metrics.harness.readiness_score + "/100" : "n/a"],
-      ["Inbox pending", firstNumber(inboxCounts.pending, (state.pendingPackets || []).length)],
-      ["Stale flags", firstNumber(inboxCounts.stale, 0)],
-      ["Duplicate flags", firstNumber(inboxCounts.duplicates, 0)]
+      ["Handoff", readiness.label],
+      ["Pending", pendingReview || "none"],
+      ["Stale / duplicate", staleFlags + " / " + duplicateFlags],
+      ["Missing context", missingContext || "none"]
     ]);
-    var workspace = reports.workspace || {};
-    setDashboardRows("dashboardWorkspace", [
-      ["Repos", Array.isArray(workspace.repos) ? workspace.repos.length : "n/a"],
-      ["Package deps", Array.isArray(workspace.package_dependencies) ? workspace.package_dependencies.length : "n/a"],
-      ["Route contracts", Array.isArray(workspace.route_contracts) ? workspace.route_contracts.length : "n/a"],
-      ["Co-changes", Array.isArray(workspace.co_changes) ? workspace.co_changes.length : "n/a"]
-    ]);
+    renderDashboardCharts({
+      metrics: metrics,
+      reports: reports,
+      memoryGraph: memoryGraph,
+      codeGraph: codeGraph,
+      structural: structural,
+      memoryCodeEdges: memoryCodeEdges,
+      memoryNodes: memoryNodes,
+      pendingReview: pendingReview,
+      staleFlags: staleFlags,
+      duplicateFlags: duplicateFlags,
+      missingContext: missingContext,
+      riskTargets: riskTargets,
+      ownerSilos: ownerSilos,
+      hotspots: hotspots
+    });
+  }
+
+  function renderDashboardCharts(data) {
+    if (!els.dashboardCharts) return;
+    var approvedPackets = Number(firstNumber(data.memoryGraph.approved_packets, data.memoryNodes, 0));
+    var linkedPacketIds = new Set();
+    data.memoryCodeEdges.forEach(function (edge) {
+      var from = state.entityById.get(edge.from);
+      var to = state.entityById.get(edge.to);
+      if (from && isMemoryPacketEntity(from)) linkedPacketIds.add(from.id);
+      if (to && isMemoryPacketEntity(to)) linkedPacketIds.add(to.id);
+    });
+    var memoryGrounding = approvedPackets ? Math.round(linkedPacketIds.size / approvedPackets * 100) : 0;
+    var sourceCoverage = Number(firstNumber(data.codeGraph.indexer_coverage_percent, 0));
+    var blockers = data.pendingReview + data.staleFlags + data.duplicateFlags + data.missingContext;
+    var riskSignals = data.riskTargets.length + data.ownerSilos + data.hotspots;
+    els.dashboardCharts.textContent = "";
+    [
+      metricDonut("Memory grounding", memoryGrounding, linkedPacketIds.size + " of " + approvedPackets + " packets linked to code", "Open Memory and fix Needs paths first.", memoryGrounding >= 70 ? "ok" : "warn"),
+      metricDonut("Source map", sourceCoverage, firstNumber(data.codeGraph.files, data.structural.files, 0) + " files indexed for graph recall", "If this drops, refresh indexing before relying on graph answers.", sourceCoverage >= 90 ? "ok" : "warn"),
+      metricBars("Handoff blockers", blockers ? blockers + " open" : "clear", [
+        { label: "Pending", value: data.pendingReview, score: Math.min(100, data.pendingReview * 24), status: data.pendingReview ? "warn" : "ok" },
+        { label: "Stale", value: data.staleFlags, score: Math.min(100, data.staleFlags * 24), status: data.staleFlags ? "warn" : "ok" },
+        { label: "Duplicate", value: data.duplicateFlags, score: Math.min(100, data.duplicateFlags * 24), status: data.duplicateFlags ? "warn" : "ok" },
+        { label: "Missing context", value: data.missingContext, score: Math.min(100, data.missingContext * 18), status: data.missingContext ? "warn" : "ok" }
+      ], blockers ? "Resolve Review before handing work to another agent." : "Memory is clean for handoff.", blockers ? "warn" : "ok"),
+      metricBars("Change risk", riskSignals ? riskSignals + " signals" : "none", [
+        { label: "Targets", value: data.riskTargets.length, score: Math.min(100, data.riskTargets.length * 18), status: data.riskTargets.length ? "warn" : "ok" },
+        { label: "Silos", value: data.ownerSilos, score: Math.min(100, data.ownerSilos * 18), status: data.ownerSilos ? "warn" : "ok" },
+        { label: "Hotspots", value: data.hotspots, score: Math.min(100, data.hotspots * 18), status: data.hotspots ? "danger" : "ok" }
+      ], riskSignals ? "Open Intel or Owners before editing risky files." : "No loaded risk flags.", riskSignals ? "warn" : "ok")
+    ].forEach(function (card) { els.dashboardCharts.appendChild(card); });
+  }
+
+  function metricDonut(title, percent, detail, action, status) {
+    var card = document.createElement("article");
+    var value = clamp(Number(percent || 0), 0, 100);
+    card.className = classNames("metric-card", status && "metric-card-" + status);
+    card.innerHTML = [
+      "<div class=\"metric-card-head\"><span></span><strong></strong></div>",
+      "<div class=\"metric-visual\"><div class=\"metric-donut\"><span></span></div><p></p></div>",
+      "<em></em>"
+    ].join("");
+    card.querySelector(".metric-card-head span").textContent = title;
+    card.querySelector(".metric-card-head strong").textContent = value + "%";
+    card.querySelector(".metric-donut").style.setProperty("--value", value);
+    card.querySelector(".metric-donut span").textContent = value + "%";
+    card.querySelector("p").textContent = detail || "";
+    card.querySelector("em").textContent = action || "";
+    return card;
+  }
+
+  function metricBars(title, value, rows, action, status) {
+    var card = document.createElement("article");
+    card.className = classNames("metric-card", status && "metric-card-" + status);
+    card.innerHTML = [
+      "<div class=\"metric-card-head\"><span></span><strong></strong></div>",
+      "<div class=\"metric-bars\"></div>",
+      "<em></em>"
+    ].join("");
+    card.querySelector(".metric-card-head span").textContent = title;
+    card.querySelector(".metric-card-head strong").textContent = formatDashboardValue(value);
+    var list = card.querySelector(".metric-bars");
+    rows.forEach(function (row) {
+      var item = document.createElement("div");
+      item.className = classNames("metric-bar", row.status && "metric-bar-" + row.status);
+      item.innerHTML = "<span></span><strong></strong><i></i>";
+      item.querySelector("span").textContent = row.label;
+      item.querySelector("strong").textContent = formatDashboardValue(row.value);
+      item.querySelector("i").style.width = clamp(Number(row.score || 0), row.value ? 8 : 0, 100) + "%";
+      list.appendChild(item);
+    });
+    card.querySelector("em").textContent = action || "";
+    return card;
+  }
+
+  function dashboardReadiness(metrics, pendingReview, staleFlags, duplicateFlags, missingContext) {
+    if (pendingReview || staleFlags || duplicateFlags || missingContext) {
+      return { label: "Needs review", detail: pendingReview + " pending, " + staleFlags + " stale, " + duplicateFlags + " duplicate, " + missingContext + " missing context", status: "warn" };
+    }
+    if (metrics && metrics.harness && metrics.harness.validation_ok) {
+      return { label: "Ready", detail: "Memory and graph checks are clean", status: "ok" };
+    }
+    return { label: "Unknown", detail: "Run kage refresh or open local viewer with metrics", status: "warn" };
+  }
+
+  function dashboardMemoryCoverage(reports, memoryCodeEdges, memoryGraph, memoryNodes) {
+    var coverage = reports.decisions && reports.decisions.coverage_percent;
+    if (coverage != null) {
+      return {
+        label: coverage + "%",
+        detail: "Decision memory coverage for important code paths",
+        status: Number(coverage) >= 70 ? "ok" : "warn"
+      };
+    }
+    var packets = Number(firstNumber(memoryGraph.approved_packets, memoryNodes, 0));
+    if (!packets) return { label: "No memory", detail: "Agents will rediscover repo context", status: "warn" };
+    return {
+      label: memoryCodeEdges.length + " links",
+      detail: "Memory packets connected back to code",
+      status: memoryCodeEdges.length ? "ok" : "warn"
+    };
   }
 
   function setDashboardRows(cardId, rows) {
@@ -2611,13 +3078,290 @@
     return String(value == null ? "n/a" : value);
   }
 
+  function escapeHtml(value) {
+    return String(value == null ? "" : value).replace(/[&<>"']/g, function (char) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char] || char;
+    });
+  }
+
+  function renderMemoryLibrary() {
+    if (!els.memoryList) return;
+    var memoryEntities = state.entities.filter(function (entity) {
+      return isMemoryPacketEntity(entity);
+    }).sort(function (a, b) {
+      return entityImportance(b) - entityImportance(a) || displayName(a).localeCompare(displayName(b));
+    });
+    var memoryLinkCounts = new Map();
+    state.edges.forEach(function (edge) {
+      if (!isMemoryCodeEdge(edge)) return;
+      var fromEntity = state.entityById.get(edge.from);
+      var toEntity = state.entityById.get(edge.to);
+      if (fromEntity && fromEntity.graph_kind === "memory" && toEntity && toEntity.graph_kind === "code") {
+        memoryLinkCounts.set(edge.from, (memoryLinkCounts.get(edge.from) || 0) + 1);
+      }
+      if (toEntity && toEntity.graph_kind === "memory" && fromEntity && fromEntity.graph_kind === "code") {
+        memoryLinkCounts.set(edge.to, (memoryLinkCounts.get(edge.to) || 0) + 1);
+      }
+    });
+    var linkedCount = memoryEntities.filter(function (entity) { return (memoryLinkCounts.get(entity.id) || 0) > 0; }).length;
+    var query = parseSearchQuery(els.memorySearch ? els.memorySearch.value : "");
+    var filter = els.memoryFilter ? els.memoryFilter.value : "all";
+    var filtered = memoryEntities.filter(function (entity) {
+      var linkCount = memoryLinkCounts.get(entity.id) || 0;
+      if (filter === "linked" && !linkCount) return false;
+      if (filter === "needs-paths" && linkCount) return false;
+      if (["decision", "runbook", "bug_fix"].indexOf(filter) !== -1 && !memoryMatchesKind(entity, filter)) return false;
+      return matchesSearchQuery(entity, query);
+    });
+    els.memoryStatus.textContent = filtered.length + " shown";
+    if (els.memoryStats) {
+      els.memoryStats.innerHTML = [
+        memoryStat("Reusable", memoryEntities.length),
+        memoryStat("Code-linked", linkedCount),
+        memoryStat("Needs paths", memoryEntities.length - linkedCount)
+      ].join("");
+    }
+    if (els.memoryOverview) renderMemoryOverview(memoryEntities, linkedCount);
+    els.memoryList.textContent = "";
+    if (!memoryEntities.length) {
+      els.memoryList.className = "memory-list details-empty";
+      els.memoryList.textContent = "No memory packets loaded. Launch with `kage viewer --project <repo>` to load repo memory.";
+      return;
+    }
+    if (!filtered.length) {
+      els.memoryList.className = "memory-list details-empty";
+      els.memoryList.textContent = "No matching memory. Clear search or switch the filter.";
+      return;
+    }
+    filtered.sort(function (a, b) {
+      return (memoryLinkCounts.get(b.id) || 0) - (memoryLinkCounts.get(a.id) || 0) ||
+        entityImportance(b) - entityImportance(a) ||
+        displayName(a).localeCompare(displayName(b));
+    });
+    els.memoryList.className = "memory-list";
+    filtered.slice(0, 60).forEach(function (entity) {
+      var links = memoryCodeLinksForEntity(entity.id);
+      var firstCodeTarget = primaryCodeTargetForMemory(entity.id, links);
+      var item = document.createElement("button");
+      item.type = "button";
+      var selected = state.selected && state.selected.kind === "entity" && state.selected.id === entity.id;
+      item.className = classNames("memory-row", selected && "selected");
+      item.setAttribute("aria-selected", selected ? "true" : "false");
+      item.innerHTML = [
+        "<span class=\"memory-row-main\"><strong></strong><em></em></span>",
+        "<span class=\"memory-row-meta\"></span>",
+        "<span class=\"memory-row-target\"></span>"
+      ].join("");
+      item.querySelector("strong").textContent = displayName(entity);
+      item.querySelector("em").textContent = entity.type || "memory";
+      item.querySelector(".memory-row-meta").textContent = trimIntelText(entity.summary || entity.description || entity.path || "No summary", 150);
+      item.querySelector(".memory-row-target").textContent = links.length
+        ? links.length + " code link" + (links.length === 1 ? "" : "s") + (firstCodeTarget ? " | " + trimIntelText(codeTargetLabel(firstCodeTarget), 64) : "")
+        : "needs code paths";
+      item.addEventListener("click", function () {
+        selectEntity(entity.id, true);
+        render();
+      });
+      els.memoryList.appendChild(item);
+    });
+    if (filtered.length > 60) appendListNote(els.memoryList, "Showing 60 of " + filtered.length + ". Search a path or topic to narrow.");
+  }
+
+  function memoryStat(label, value) {
+    return "<div><strong>" + escapeHtml(String(value)) + "</strong><span>" + escapeHtml(label) + "</span></div>";
+  }
+
+  function renderMemoryOverview(memoryEntities, linkedCount) {
+    els.memoryOverview.textContent = "";
+    var total = memoryEntities.length;
+    var linkedPercent = total ? Math.round(linkedCount / total * 100) : 0;
+    var typeCounts = new Map();
+    memoryEntities.forEach(function (entity) {
+      typeCounts.set(entity.type || "memory", (typeCounts.get(entity.type || "memory") || 0) + 1);
+    });
+    var topTypes = Array.from(typeCounts.entries()).sort(function (a, b) { return b[1] - a[1] || a[0].localeCompare(b[0]); }).slice(0, 4);
+    var maxType = Math.max(1, topTypes.reduce(function (max, row) { return Math.max(max, row[1]); }, 0));
+    els.memoryOverview.appendChild(metricDonut(
+      "Code grounding",
+      linkedPercent,
+      linkedCount + " packet(s) are connected to files, symbols, routes, or tests",
+      linkedPercent >= 70 ? "Use linked memory before edits." : "Filter Needs paths and add concrete code references.",
+      linkedPercent >= 70 ? "ok" : "warn"
+    ));
+    els.memoryOverview.appendChild(metricBars("Memory mix", total + " packets", topTypes.map(function (row) {
+      return {
+        label: row[0],
+        value: row[1],
+        score: row[1] / maxType * 100,
+        status: row[0] === "memory" ? "" : "ok"
+      };
+    }), "A healthy repo has decisions, bug fixes, runbooks, gotchas, and code explanations.", "ok"));
+  }
+
+  function memoryCodeLinksForEntity(entityId) {
+    return state.edges.filter(function (edge) {
+      if ((edge.from !== entityId && edge.to !== entityId) || !isMemoryCodeEdge(edge)) return false;
+      var other = state.entityById.get(edge.from === entityId ? edge.to : edge.from);
+      return Boolean(other && other.graph_kind === "code");
+    });
+  }
+
+  function primaryCodeTargetForMemory(entityId, links) {
+    return links.map(function (edge) {
+      return state.entityById.get(edge.from === entityId ? edge.to : edge.from);
+    }).filter(Boolean).sort(function (a, b) {
+      return codeTargetScore(b) - codeTargetScore(a) || codeTargetLabel(a).localeCompare(codeTargetLabel(b));
+    })[0] || null;
+  }
+
+  function codeTargetScore(entity) {
+    var score = 0;
+    if (!entity) return score;
+    if (entity.type === "file") score += 80;
+    if (entity.type === "route" || entity.type === "test") score += 60;
+    if (entity.type === "symbol") score += 45;
+    if (entity.path) score += 35;
+    if (entity.line) score += 8;
+    if (String(entity.path || "").indexOf(".agent_memory/") === 0) score -= 100;
+    return score;
+  }
+
+  function codeTargetLabel(entity) {
+    if (!entity) return "";
+    if (entity.type === "file" && entity.path) return entity.path;
+    if (entity.type === "route") {
+      return (entity.method && entity.route_path ? entity.method + " " + entity.route_path : displayName(entity)) +
+        (entity.path ? " in " + entity.path : "");
+    }
+    if ((entity.type === "symbol" || entity.type === "test") && entity.path) {
+      return displayName(entity) + " in " + entity.path;
+    }
+    return entity.path || displayName(entity);
+  }
+
+  function memoryMatchesKind(entity, kind) {
+    if (!entity) return false;
+    if (entity.type === kind) return true;
+    var normalizedKind = String(kind || "").replace(/_/g, " ");
+    var text = [
+      entity.type,
+      entity.name,
+      entity.summary,
+      entity.description,
+      entity.path
+    ].join(" ").toLowerCase();
+    return text.indexOf(kind) !== -1 || text.indexOf(normalizedKind) !== -1;
+  }
+
+  function isMemoryPacketEntity(entity) {
+    return Boolean(entity && entity.graph_kind === "memory" && MEMORY_PACKET_TYPES.has(entity.type));
+  }
+
+  function renderOwners() {
+    if (!els.ownersList) return;
+    var contributors = state.reports && state.reports.contributors;
+    var risk = state.reports && state.reports.risk;
+    var profiles = contributors && Array.isArray(contributors.contributors) ? contributors.contributors : [];
+    var silos = risk && Array.isArray(risk.ownership_silos) ? risk.ownership_silos : [];
+    els.ownersStatus.textContent = profiles.length ? profiles.length + " contributors" : "not loaded";
+    els.ownersList.textContent = "";
+    if (els.ownersSummary) renderOwnersSummary(profiles, silos);
+    if (!profiles.length && !silos.length) {
+      els.ownersList.className = "owners-list details-empty";
+      els.ownersList.textContent = "No owner report loaded. Launch with `kage viewer --project <repo>` to load contributor and ownership reports.";
+      return;
+    }
+    els.ownersList.className = "owners-list";
+    profiles.slice(0, 24).forEach(function (profile) {
+      var item = document.createElement("article");
+      item.className = "owner-card";
+      item.innerHTML = [
+        "<div class=\"owner-head\"><strong></strong><span></span></div>",
+        "<div class=\"owner-stats\"></div>",
+        "<p></p>"
+      ].join("");
+      item.querySelector("strong").textContent = shortContributor(profile.contributor);
+      item.querySelector(".owner-head span").textContent = (profile.primary_owned_files || 0) + " owned files";
+      item.querySelector(".owner-stats").textContent = [
+        (profile.commits_total || 0) + " commits",
+        (profile.commits_90d || 0) + " in 90d",
+        (profile.silo_files && profile.silo_files.length ? profile.silo_files.length + " silo files" : "no silo flags")
+      ].join(" | ");
+      item.querySelector("p").textContent = Array.isArray(profile.top_modules) && profile.top_modules.length
+        ? "Modules: " + profile.top_modules.slice(0, 4).join(", ")
+        : "Local git ownership signal.";
+      els.ownersList.appendChild(item);
+    });
+    if (silos.length) {
+      var siloSection = document.createElement("section");
+      siloSection.className = "owner-silos";
+      siloSection.innerHTML = "<h3>Ownership Silos</h3>";
+      silos.slice(0, 16).forEach(function (silo) {
+        var row = document.createElement("button");
+        row.type = "button";
+        row.className = "owner-silo-row";
+        row.innerHTML = "<strong></strong><span></span>";
+        row.querySelector("strong").textContent = silo.file_path || "file";
+        row.querySelector("span").textContent = [
+          shortContributor(silo.primary_owner || "unknown"),
+          silo.primary_owner_pct != null ? Math.round(Number(silo.primary_owner_pct || 0) * 100) + "% ownership" : "",
+          (silo.commit_count_total || 0) + " commits"
+        ].filter(Boolean).join(" | ");
+        row.addEventListener("click", function () {
+          focusGraphPath(silo.file_path);
+        });
+        siloSection.appendChild(row);
+      });
+      els.ownersList.appendChild(siloSection);
+    }
+  }
+
+  function renderOwnersSummary(profiles, silos) {
+    els.ownersSummary.textContent = "";
+    if (!profiles.length && !silos.length) return;
+    var totalOwned = profiles.reduce(function (sum, profile) { return sum + Number(profile.primary_owned_files || 0); }, 0);
+    var topOwned = profiles.reduce(function (max, profile) { return Math.max(max, Number(profile.primary_owned_files || 0)); }, 0);
+    var topOwnerShare = totalOwned ? Math.round(topOwned / totalOwned * 100) : 0;
+    var commits90 = profiles.reduce(function (sum, profile) { return sum + Number(profile.commits_90d || 0); }, 0);
+    var maxOwned = Math.max(1, topOwned);
+    els.ownersSummary.appendChild(metricDonut(
+      "Backup coverage",
+      Math.max(0, 100 - topOwnerShare),
+      silos.length ? silos.length + " single-owner file(s) need backup reviewers" : "No loaded ownership silos",
+      silos.length ? "Click silo rows to inspect the file in Graph." : "Keep ownership spread visible before large changes.",
+      silos.length ? "warn" : "ok"
+    ));
+    els.ownersSummary.appendChild(metricBars("Owner concentration", profiles.length + " profiles", profiles.slice(0, 4).map(function (profile) {
+      var owned = Number(profile.primary_owned_files || 0);
+      return {
+        label: shortContributor(profile.contributor),
+        value: owned + " files",
+        score: owned / maxOwned * 100,
+        status: owned && Array.isArray(profile.silo_files) && profile.silo_files.length ? "warn" : "ok"
+      };
+    }), "Use this for reviewer routing and bus-factor checks.", silos.length ? "warn" : "ok"));
+    els.ownersSummary.appendChild(metricBars("Recent activity", commits90 + " commits", profiles.slice(0, 4).map(function (profile) {
+      var commits = Number(profile.commits_90d || 0);
+      var maxCommits = Math.max(1, profiles.reduce(function (max, item) { return Math.max(max, Number(item.commits_90d || 0)); }, 0));
+      return {
+        label: shortContributor(profile.contributor),
+        value: commits,
+        score: commits / maxCommits * 100,
+        status: commits ? "ok" : ""
+      };
+    }), "Prefer recent editors for fast review context.", "ok"));
+  }
+
   function renderReviewQueue() {
     if (!els.reviewList) return;
     var packets = state.pendingPackets || [];
     var inbox = state.inbox;
     var inboxItems = inbox && Array.isArray(inbox.items) ? inbox.items : [];
-    els.reviewCount.textContent = String(packets.length + inboxItems.length);
+    var counts = inbox && inbox.counts ? inbox.counts : {};
+    var openCount = reviewOpenCount(counts, packets, inboxItems);
+    els.reviewCount.textContent = String(openCount);
     els.reviewList.textContent = "";
+    if (els.reviewOverview) renderReviewOverview(inbox, packets, inboxItems);
     if (!packets.length && !inboxItems.length && !state.reviewText) {
       els.reviewList.className = "review-list details-empty";
       els.reviewList.textContent = "No pending packets loaded. Launch with `kage viewer --project <repo>` to load review context automatically.";
@@ -2627,7 +3371,6 @@
     if (inbox) {
       var summary = document.createElement("div");
       summary.className = "review-item";
-      var counts = inbox.counts || {};
       summary.innerHTML = [
         "<div class=\"review-title\"></div>",
         "<div class=\"review-meta\"></div>",
@@ -2644,10 +3387,10 @@
       summary.querySelector(".review-summary").textContent = Array.isArray(inbox.recommendations) && inbox.recommendations.length
         ? inbox.recommendations.slice(0, 2).join(" ")
         : "No inbox recommendations.";
-      summary.querySelector(".review-risks").textContent = inbox.ok ? "ready for handoff" : "requires review";
+      summary.querySelector(".review-risks").textContent = openCount ? "Resolve inbox items before merge" : "Ready for handoff";
       els.reviewList.appendChild(summary);
     }
-    inboxItems.slice(0, 20).forEach(function (entry) {
+    inboxItems.slice(0, 8).forEach(function (entry) {
       var item = document.createElement("div");
       item.className = "review-item";
       item.innerHTML = [
@@ -2659,7 +3402,9 @@
       item.querySelector(".review-title").textContent = entry.title || entry.summary || entry.kind;
       item.querySelector(".review-meta").textContent = [entry.kind, entry.severity, entry.type, entry.status].filter(Boolean).join(" | ");
       item.querySelector(".review-summary").textContent = entry.action || entry.summary || "";
-      item.querySelector(".review-risks").textContent = Array.isArray(entry.reasons) && entry.reasons.length ? "reasons: " + entry.reasons.slice(0, 3).join(", ") : "reasons: none";
+      item.querySelector(".review-risks").textContent = Array.isArray(entry.reasons) && entry.reasons.length
+        ? trimIntelText(entry.reasons[0], 86)
+        : "Review before handoff";
       els.reviewList.appendChild(item);
     });
     packets.forEach(function (packet) {
@@ -2675,7 +3420,9 @@
       item.querySelector(".review-title").textContent = packet.title || packet.id;
       item.querySelector(".review-meta").textContent = [packet.type, packet.status, "score " + (quality.score == null ? "n/a" : quality.score + "/100")].filter(Boolean).join(" | ");
       item.querySelector(".review-summary").textContent = packet.summary || "";
-      item.querySelector(".review-risks").textContent = Array.isArray(quality.risks) && quality.risks.length ? "risks: " + quality.risks.join(", ") : "risks: none";
+      item.querySelector(".review-risks").textContent = Array.isArray(quality.risks) && quality.risks.length
+        ? "Resolve " + quality.risks.join(", ")
+        : "Evidence looks clean";
       els.reviewList.appendChild(item);
     });
     if (state.reviewText) {
@@ -2687,25 +3434,58 @@
     }
   }
 
+  function renderReviewOverview(inbox, packets, inboxItems) {
+    els.reviewOverview.textContent = "";
+    var counts = inbox && inbox.counts ? inbox.counts : {};
+    var pending = Number(firstNumber(counts.pending, packets.length, 0));
+    var stale = Number(firstNumber(counts.stale, 0));
+    var duplicates = Number(firstNumber(counts.duplicates, 0));
+    var missingContext = Number(firstNumber(counts.missing_context, 0));
+    var blockers = reviewOpenCount(counts, packets, inboxItems);
+    els.reviewOverview.appendChild(metricDonut(
+      "Handoff readiness",
+      blockers ? 0 : 100,
+      blockers ? blockers + " review blocker(s) need attention" : "No pending, stale, duplicate, or missing-context memory",
+      blockers ? "Resolve these before trusting branch memory." : "Ready to hand work to another agent or teammate.",
+      blockers ? "warn" : "ok"
+    ));
+    els.reviewOverview.appendChild(metricBars("Inbox breakdown", blockers ? blockers + " open" : "clear", [
+      { label: "Pending", value: pending, score: Math.min(100, pending * 24), status: pending ? "warn" : "ok" },
+      { label: "Stale", value: stale, score: Math.min(100, stale * 24), status: stale ? "warn" : "ok" },
+      { label: "Duplicates", value: duplicates, score: Math.min(100, duplicates * 24), status: duplicates ? "warn" : "ok" },
+      { label: "Missing context", value: missingContext, score: Math.min(100, missingContext * 24), status: missingContext ? "warn" : "ok" }
+    ], "These are the only review metrics that should block merge or handoff.", blockers ? "warn" : "ok"));
+  }
+
+  function reviewOpenCount(counts, packets, inboxItems) {
+    var pending = Number(firstNumber(counts && counts.pending, packets && packets.length, 0));
+    var stale = Number(firstNumber(counts && counts.stale, 0));
+    var duplicates = Number(firstNumber(counts && counts.duplicates, 0));
+    var missingContext = Number(firstNumber(counts && counts.missing_context, 0));
+    var counted = pending + stale + duplicates + missingContext;
+    if (counted) return counted;
+    return Array.isArray(inboxItems) ? inboxItems.length : 0;
+  }
+
   function renderProof() {
     if (!els.proofList) return;
     var metrics = state.metrics;
     els.proofList.textContent = "";
     if (!metrics) {
       els.proofStatus.textContent = "not loaded";
+      if (els.proofOverview) els.proofOverview.textContent = "";
       els.proofList.className = "proof-list details-empty";
       els.proofList.textContent = "Metrics not loaded. Run `kage metrics --project <repo> --json > .agent_memory/metrics.json` or launch with `kage viewer`.";
       return;
     }
     els.proofStatus.textContent = "loaded";
     els.proofList.className = "proof-list";
+    if (els.proofOverview) renderProofOverview(metrics, state.reports || {});
     var rows = [
-      ["Readiness", metrics.harness && metrics.harness.readiness_score != null ? metrics.harness.readiness_score + "/100" : "n/a"],
-      ["Useful memory", metrics.quality ? metrics.quality.useful_memory_ratio_percent + "%" : "n/a"],
+      ["Validation", metrics.harness && metrics.harness.validation_ok ? "clean" : "check"],
       ["Evidence", metrics.memory_graph ? metrics.memory_graph.evidence_coverage_percent + "%" : "n/a"],
       ["Pending review", metrics.memory_graph ? String(metrics.memory_graph.pending_packets) : "n/a"],
-      ["Recall hit rate", metrics.pain ? metrics.pain.recall_hit_rate_percent + "%" : "n/a"],
-      ["Tokens saved", metrics.pain ? String(metrics.pain.estimated_tokens_saved) : metrics.savings ? String(metrics.savings.estimated_tokens_saved_per_recall) : "n/a"]
+      ["Recall savings", metrics.pain ? String(metrics.pain.estimated_tokens_saved) : metrics.savings ? String(metrics.savings.estimated_tokens_saved_per_recall) : "n/a"]
     ];
     rows.forEach(function (row) {
       var item = document.createElement("div");
@@ -2715,6 +3495,29 @@
       item.querySelector("span").textContent = row[0];
       els.proofList.appendChild(item);
     });
+  }
+
+  function renderProofOverview(metrics, reports) {
+    els.proofOverview.textContent = "";
+    var quality = reports.quality || {};
+    var benchmark = reports.benchmark || {};
+    var gates = Array.isArray(benchmark.gates) ? benchmark.gates : [];
+    var passingGates = gates.filter(function (gate) { return gate.pass; }).length;
+    var gatePercent = gates.length ? Math.round(passingGates / gates.length * 100) : (benchmark.ok ? 100 : 0);
+    var evidence = Number(firstNumber(metrics.memory_graph && metrics.memory_graph.evidence_coverage_percent, quality.evidence_coverage_percent, 0));
+    var pathGrounding = Number(firstNumber(quality.path_grounding_coverage_percent, 0));
+    els.proofOverview.appendChild(metricDonut(
+      "Trust gate",
+      gatePercent,
+      gates.length ? passingGates + " of " + gates.length + " benchmark gates passing" : "Benchmark report not loaded",
+      gatePercent >= 100 ? "Keep this green before publishing or handing off." : "Fix failing proof gates before release.",
+      gatePercent >= 100 ? "ok" : "warn"
+    ));
+    els.proofOverview.appendChild(metricBars("Memory quality", evidence + "% evidence", [
+      { label: "Evidence", value: evidence + "%", score: evidence, status: evidence >= 80 ? "ok" : "warn" },
+      { label: "Path grounded", value: pathGrounding ? pathGrounding + "%" : "n/a", score: pathGrounding || 0, status: pathGrounding >= 80 ? "ok" : "warn" },
+      { label: "Useful", value: quality.useful_memory_ratio_percent != null ? quality.useful_memory_ratio_percent + "%" : "n/a", score: Number(quality.useful_memory_ratio_percent || 0), status: Number(quality.useful_memory_ratio_percent || 0) >= 70 ? "ok" : "warn" }
+    ], "Trust memory only when it is evidence-backed and path-grounded.", evidence >= 80 ? "ok" : "warn"));
   }
 
   function renderIntelligence() {
@@ -2729,36 +3532,40 @@
       return;
     }
     els.intelligenceList.className = "intelligence-list";
-    cards.forEach(function (card) {
+    normalizeIntelCards(cards).slice(0, 6).forEach(function (card) {
       var item = document.createElement("article");
       item.className = "intel-card";
       item.innerHTML = [
-        "<h3></h3>",
-        "<div class=\"intel-kicker\"></div>",
-        "<div class=\"intel-summary\"></div>",
+        "<div class=\"intel-card-head\"><div><h3></h3><span></span></div><strong></strong></div>",
+        "<div class=\"intel-metric-label\"></div>",
+        "<p class=\"intel-highlight\"></p>",
+        "<p class=\"intel-action\"><b>Action:</b> <span></span></p>",
         "<ul></ul>"
       ].join("");
       item.querySelector("h3").textContent = card.title;
-      item.querySelector(".intel-kicker").textContent = card.kicker;
-      item.querySelector(".intel-summary").textContent = card.summary;
+      item.querySelector(".intel-card-head span").textContent = card.kicker;
+      item.querySelector(".intel-card-head strong").textContent = card.metric || "n/a";
+      item.querySelector(".intel-metric-label").textContent = card.metricLabel || "signal";
+      item.querySelector(".intel-highlight").textContent = card.highlight || card.summary || "";
+      item.querySelector(".intel-action span").textContent = card.action || "Review this signal before changing related code.";
       var list = item.querySelector("ul");
-      card.rows.slice(0, 5).forEach(function (row) {
+      card.rows.slice(0, 3).forEach(function (row) {
         var li = document.createElement("li");
         li.innerHTML = "<strong></strong> <span></span>";
         li.querySelector("strong").textContent = row[0];
-        li.querySelector("span").textContent = row[1];
+        li.querySelector("span").textContent = trimIntelText(row[1], 92);
         list.appendChild(li);
       });
       els.intelligenceList.appendChild(item);
     });
-    var sections = buildIntelligenceSections(reports);
+    var sections = rankIntelligenceSections(buildIntelligenceSections(reports)).slice(0, 4);
     if (sections.length) {
-      var grid = document.createElement("div");
-      grid.className = "intel-deep-grid";
+      var deepGrid = document.createElement("div");
+      deepGrid.className = "intel-deep-grid";
       sections.forEach(function (section) {
-        grid.appendChild(renderIntelligenceSection(section));
+        deepGrid.appendChild(renderIntelligenceSection(section));
       });
-      els.intelligenceList.appendChild(grid);
+      els.intelligenceList.appendChild(deepGrid);
     }
   }
 
@@ -2781,30 +3588,44 @@
     var list = document.createElement("div");
     list.className = "intel-section-list";
     section.rows.slice(0, section.limit || 8).forEach(function (row) {
-      var button = document.createElement("button");
-      button.type = "button";
-      button.className = classNames("intel-row", row.status && "intel-row-" + safeCssName(row.status), row.path && "clickable");
-      button.innerHTML = [
+      var rowEl = document.createElement(row.path ? "button" : "div");
+      if (row.path) rowEl.type = "button";
+      rowEl.className = classNames("intel-row", row.status && "intel-row-" + safeCssName(row.status), row.path && "clickable");
+      rowEl.innerHTML = [
         "<span class=\"intel-row-main\"><strong></strong><em></em></span>",
         "<span class=\"intel-row-meta\"></span>",
         "<span class=\"intel-row-bar\"><i></i></span>"
       ].join("");
-      button.querySelector("strong").textContent = row.label || "";
-      button.querySelector("em").textContent = row.value || "";
-      button.querySelector(".intel-row-meta").textContent = row.meta || "";
-      button.querySelector(".intel-row-bar i").style.width = clamp(Number(row.score || 0), 4, 100) + "%";
+      rowEl.querySelector("strong").textContent = row.label || "";
+      rowEl.querySelector("em").textContent = row.value || "";
+      rowEl.querySelector(".intel-row-meta").textContent = row.meta || "";
+      rowEl.querySelector(".intel-row-bar i").style.width = clamp(Number(row.score || 0), 4, 100) + "%";
       if (row.path) {
-        button.title = "Focus " + row.path + " in the graph";
-        button.addEventListener("click", function () {
+        rowEl.title = "Focus " + row.path + " in the graph";
+        rowEl.setAttribute("aria-label", "Focus " + row.path + " in Graph");
+        rowEl.addEventListener("click", function () {
           focusGraphPath(row.path);
         });
-      } else {
-        button.disabled = true;
       }
-      list.appendChild(button);
+      list.appendChild(rowEl);
     });
     panel.appendChild(list);
     return panel;
+  }
+
+  function rankIntelligenceSections(sections) {
+    return sections.slice().sort(function (a, b) {
+      return intelligenceSectionPriority(a) - intelligenceSectionPriority(b);
+    });
+  }
+
+  function intelligenceSectionPriority(section) {
+    var title = String(section && section.title || "").toLowerCase();
+    if (title.indexOf("blast") !== -1 || title.indexOf("risk") !== -1) return 0;
+    if (title.indexOf("onboarding") !== -1 || title.indexOf("decision") !== -1) return 1;
+    if (title.indexOf("module") !== -1 || title.indexOf("health") !== -1) return 2;
+    if (title.indexOf("owner") !== -1 || title.indexOf("contributor") !== -1) return 3;
+    return 4;
   }
 
   function buildIntelligenceSections(reports) {
@@ -2846,7 +3667,7 @@
           title: "Ownership Map",
           kicker: "who owns what",
           stat: silos.length + " silos",
-          summary: "Repowise has a dedicated ownership page. Kage now surfaces the same reviewer-critical signal inside the memory viewer, tied back to selectable files.",
+          summary: "Action: assign backup reviewers for silo files before risky changes.",
           rows: rows,
           limit: 10,
         });
@@ -2861,7 +3682,7 @@
         title: "Module Health Map",
         kicker: "churn / tests / ownership",
         stat: modules.length + " modules",
-        summary: "Lowest-scoring modules are shown first so the viewer points people toward the riskiest areas instead of only drawing nodes.",
+        summary: "Action: start cleanup and test planning from the lowest-score modules.",
         rows: modules.slice(0, 8).map(function (item) {
           return {
             label: item.module,
@@ -2880,7 +3701,7 @@
         title: "Onboarding Targets",
         kicker: "missing repo lore",
         stat: (decisions.coverage_percent != null ? decisions.coverage_percent + "%" : "n/a"),
-        summary: "Files with centrality, churn, test gaps, or ownership but no linked why-memory. These are the places a future agent is most likely to rediscover context.",
+        summary: "Action: capture why-memory for these files before the next agent works there.",
         rows: gaps.slice(0, 8).map(function (gap) {
           var score = Math.min(100, Number(gap.dependents || 0) * 18 + Number(gap.churn_90d || 0) * 6 + 12);
           return {
@@ -2906,7 +3727,7 @@
         title: "Architecture Communities",
         kicker: "module clusters",
         stat: communities.length + " clusters",
-        summary: "Repowise exposes architecture/community views. Kage can show the same high-level clusters next to the memory-code graph so users know what a dense graph means.",
+        summary: "Action: use clusters to understand the graph before changing architecture.",
         rows: communities.slice(0, 8).map(function (community) {
           var files = community.files || [];
           var entrypoints = community.entrypoints || [];
@@ -2928,7 +3749,7 @@
         title: "Execution Flows",
         kicker: "entrypoint traces",
         stat: insights.entry_flows.length + " flows",
-        summary: "Short traces make the code graph explainable: where execution starts, what it crosses, and which file to inspect first.",
+        summary: "Action: inspect entry files first when debugging runtime behavior.",
         rows: insights.entry_flows.slice(0, 8).map(function (flow) {
           var path = flow.path || [];
           return {
@@ -2987,7 +3808,7 @@
           title: "Workspace Map",
           kicker: "deps / contracts / co-changes",
           stat: workspaceRows.length + " links",
-          summary: "Workspace links show how sibling repos relate through package dependencies, source-evidence contracts, topic/event links, and local git co-change history.",
+          summary: "Action: check linked repos before changing shared packages or contracts.",
           rows: workspaceRows,
           limit: 14,
         });
@@ -3021,7 +3842,7 @@
           title: "Blast Radius",
           kicker: "change impact",
           stat: riskRows.length + " signals",
-          summary: "Change risk is useful only if it is browsable. Rows focus the graph on affected files when the graph node exists.",
+          summary: "Action: review tests, owners, and dependents before editing these targets.",
           rows: riskRows,
           limit: 10,
         });
@@ -3043,11 +3864,13 @@
     });
     if (!found) {
       els.searchInput.value = normalized;
+      showViewerPageInPlace("graph");
       scheduleRender();
       return;
     }
     selectEntity(found.id, true);
     els.searchInput.value = normalized;
+    showViewerPageInPlace("graph");
     scheduleRender();
   }
 
@@ -3209,18 +4032,86 @@
     return cards;
   }
 
+  function normalizeIntelCards(cards) {
+    return cards.map(function (card) {
+      var normalized = Object.assign({}, card);
+      var row = function (label) {
+        var found = (card.rows || []).find(function (item) { return item[0] === label; });
+        return found ? found[1] : null;
+      };
+      if (card.title === "Memory-Code Bridge") {
+        normalized.metric = row("Links") || "0";
+        normalized.metricLabel = "memory-code links";
+        normalized.highlight = "Shows whether saved repo knowledge is tied to actual files, symbols, routes, and tests.";
+        normalized.action = "If this is low, capture memory with concrete paths so agents can recall it during edits.";
+      } else if (card.title === "Change Risk") {
+        var siloText = row("Silos");
+        var siloMatch = siloText && String(siloText).match(/\d+/);
+        normalized.metric = siloMatch ? siloMatch[0] + " silos" : ((card.rows || []).length + " signals");
+        normalized.metricLabel = "risk signals";
+        normalized.highlight = "Flags files with blast radius, test gaps, or ownership concentration.";
+        normalized.action = "Use these rows to pick tests and reviewers before touching risky files.";
+      } else if (card.title === "Contributors") {
+        normalized.metric = (card.rows || []).length + " profiles";
+        normalized.metricLabel = "review routing";
+        normalized.highlight = "Shows who recently touched or owns parts of the repo.";
+        normalized.action = "Use this to find backup reviewers and avoid single-person knowledge bottlenecks.";
+      } else if (card.title === "Decision Memory") {
+        normalized.metric = row("Coverage") || "n/a";
+        normalized.metricLabel = "why-memory coverage";
+        normalized.highlight = "Shows whether important code paths have captured rationale and gotchas.";
+        normalized.action = "Add memory for coverage gaps before future agents rediscover the same context.";
+      } else if (card.title === "Module Health") {
+        normalized.metric = (card.rows || []).length + " modules";
+        normalized.metricLabel = "lowest scores first";
+        normalized.highlight = "Ranks modules by churn, tests, ownership, and graph signals.";
+        normalized.action = "Start with low-score modules when planning cleanup or refactors.";
+      } else if (card.title === "Graph Insights") {
+        normalized.metric = row("Cycles") || row("Communities") || "n/a";
+        normalized.metricLabel = row("Cycles") != null ? "dependency cycles" : "architecture clusters";
+        normalized.highlight = "Explains dense graph structure through central files, cycles, and communities.";
+        normalized.action = "Inspect central files and cycles before making architectural changes.";
+      } else if (card.title === "Workspace") {
+        normalized.metric = row("Repos") || "n/a";
+        normalized.metricLabel = "connected repos";
+        normalized.highlight = "Shows package, route, topic, and co-change links across local repos.";
+        normalized.action = "Check these links before changing shared contracts or packages.";
+      } else if (card.title === "Memory Quality") {
+        normalized.metric = row("Evidence") || row("Useful") || "n/a";
+        normalized.metricLabel = "trust signal";
+        normalized.highlight = "Shows whether memory is evidence-backed, grounded, and reviewable.";
+        normalized.action = "Review pending or weak memory before relying on it for agent handoff.";
+      } else if (card.title === "Benchmark") {
+        normalized.metric = (card.rows || []).filter(function (item) { return String(item[1] || "").indexOf("pass") !== -1; }).length + " pass";
+        normalized.metricLabel = "local proof checks";
+        normalized.highlight = "Shows whether repo memory and graph behavior pass local quality checks.";
+        normalized.action = "Use failed checks as release blockers or cleanup targets.";
+      }
+      return normalized;
+    });
+  }
+
+  function trimIntelText(value, limit) {
+    var text = String(value == null ? "" : value);
+    var max = Number(limit || 90);
+    if (text.length <= max) return text;
+    return text.slice(0, Math.max(0, max - 1)).replace(/\s+\S*$/, "") + "...";
+  }
+
   function renderStatusStrip(visibleEntities, visibleEdges, official) {
     if (!els.statusStrip) return;
     var memoryCount = visibleEntities.filter(function (entity) { return entity.graph_kind === "memory"; }).length;
     var codeCount = visibleEntities.filter(function (entity) { return entity.graph_kind === "code"; }).length;
     var reviewFlags = visibleEdges.filter(function (edge) { return reviewStatus(edge) !== "ok"; }).length;
+    var memoryCodeLinks = state.edges.filter(isMemoryCodeEdge).length;
+    var pendingReview = official && official.memory_graph ? Number(firstNumber(official.memory_graph.pending_packets, 0)) : 0;
     var pills = official ? [
-      ["Readiness", official.harness.readiness_score + "/100", ""],
-      ["Pending", official.memory_graph ? String(official.memory_graph.pending_packets) : "n/a", official.memory_graph && official.memory_graph.pending_packets ? "warn" : ""],
-      ["Structural", official.structural_index ? official.structural_index.files + " files" : official.code_graph.files + " files", "code"],
-      ["Code symbols", String(official.code_graph.symbols), "code"],
-      ["Parser coverage", official.code_graph.indexer_coverage_percent + "%", "code"],
-      ["Memory packets", official.memory_graph ? String(official.memory_graph.approved_packets) : "n/a", "memory"]
+      ["Status", official.harness && official.harness.validation_ok ? "Clean" : "Check", official.harness && official.harness.validation_ok ? "memory" : "warn"],
+      ["Review", pendingReview ? pendingReview + " pending" : "Clear", pendingReview ? "warn" : "memory"],
+      ["Source map", official.structural_index ? official.structural_index.files + " files" : official.code_graph.files + " files", "code"],
+      ["Symbols", String(official.code_graph.symbols), "code"],
+      ["Coverage", official.code_graph.indexer_coverage_percent + "%", "code"],
+      ["Memory links", String(memoryCodeLinks), memoryCodeLinks ? "memory" : "warn"]
     ] : [
       ["Memory", String(memoryCount), "memory"],
       ["Code", String(codeCount), "code"],
@@ -3473,10 +4364,15 @@
     if (state.three.THREE) return Promise.resolve(state.three.THREE);
     if (state.three.loading) return state.three.loading;
     state.three.failed = false;
-    state.three.loading = import("/vendor/three/build/three.module.min.js")
-      .catch(function () {
-        return import("https://unpkg.com/three@0.184.0/build/three.module.min.js");
-      })
+    var threeSources = [
+      "./vendor/three/build/three.module.min.js",
+      "../vendor/three/build/three.module.min.js",
+      "/vendor/three/build/three.module.min.js",
+      "https://unpkg.com/three@0.184.0/build/three.module.min.js"
+    ];
+    state.three.loading = threeSources.reduce(function (chain, source) {
+      return chain.catch(function () { return import(source); });
+    }, Promise.reject())
       .then(function (mod) {
         state.three.THREE = mod;
         return mod;
@@ -3493,7 +4389,7 @@
     ensureThree().then(function () {
       if (activeRenderMode() !== "3d") return;
       setupThreeScene();
-      rebuildThreeScene();
+      if (graphChanged || !state.three.nodeById.size) rebuildThreeScene();
       if (graphChanged || state.three.distance <= 0) fitThreeGraph();
       startThreeGraph();
       renderThreeFrame();

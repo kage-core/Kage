@@ -3,270 +3,127 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Kage documentation: setup, commands, MCP tools, memory packets, graphs, review flows, and troubleshooting." />
+    <meta name="description" content="Kage docs: quickstart, agent setup, first-day workflow, CLI by job, MCP tool reference, viewer, privacy and trust, troubleshooting." />
     <title>Kage Docs</title>
+    <link rel="stylesheet" href="assets/site.css?v=1" />
     <style>
-      :root {
-        color-scheme: dark;
-        --bg: #050806;
-        --panel: #08110d;
-        --panel-2: #0d1913;
-        --ink: #e4f7e9;
-        --muted: #8aab94;
-        --line: #1b3a2a;
-        --line-strong: #2d6b45;
-        --green: #41ff8f;
-        --green-soft: rgba(65, 255, 143, 0.12);
-        --code-bg: #020503;
-        --code-text: #c9f8dc;
-        --memory: #c49cff;
-        --code: #6ad7ff;
-        --warn: #ffd166;
-        --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-      }
-
-      * { box-sizing: border-box; }
-      html { scroll-behavior: smooth; }
-      body {
-        margin: 0;
-        background:
-          radial-gradient(circle at 14% 0%, rgba(65, 255, 143, 0.12), transparent 34%),
-          linear-gradient(180deg, #07100b 0%, var(--bg) 38%, #030504 100%);
-        color: var(--ink);
-        font-family: var(--sans);
-        letter-spacing: 0;
-      }
-      a { color: inherit; text-decoration: none; }
-      a:hover { color: var(--green); }
-      code { color: var(--green); font-family: var(--mono); }
-
-      .nav {
-        position: sticky;
-        top: 0;
-        z-index: 20;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        min-height: 68px;
-        padding: 0 clamp(18px, 4vw, 54px);
-        border-bottom: 1px solid var(--line);
-        background: rgba(5, 8, 6, 0.9);
-        backdrop-filter: blur(16px);
-      }
-      .brand {
-        display: inline-flex;
-        align-items: center;
-        gap: 12px;
-        font-weight: 850;
-      }
-      .brand img {
-        width: 34px;
-        height: 34px;
-        padding: 6px;
-        border: 1px solid var(--line-strong);
-        border-radius: 8px;
-        background: #07130d;
-      }
-      .nav-links {
-        display: flex;
-        gap: 22px;
-        color: var(--muted);
-        font: 700 14px/1 var(--sans);
-      }
-
       .docs-layout {
         display: grid;
-        grid-template-columns: 280px minmax(0, 1fr);
+        grid-template-columns: 240px minmax(0, 1fr);
         gap: 36px;
-        width: min(1280px, calc(100% - 40px));
+        width: min(1200px, calc(100% - 32px));
         margin: 0 auto;
-        padding: 38px 0 72px;
+        padding: 28px 0 60px;
       }
       .sidebar {
         position: sticky;
-        top: 92px;
+        top: 76px;
         align-self: start;
-        max-height: calc(100vh - 112px);
+        max-height: calc(100vh - 96px);
         overflow: auto;
-        padding: 18px;
+        padding: 12px;
         border: 1px solid var(--line);
-        border-radius: 8px;
-        background: rgba(8, 17, 13, 0.88);
+        border-radius: var(--r-panel);
+        background: rgba(8, 17, 13, 0.7);
       }
       .sidebar strong {
         display: block;
-        margin-bottom: 12px;
-        color: var(--green);
-        font: 850 12px/1 var(--mono);
+        padding: 4px 8px 8px;
+        color: var(--muted);
+        font: 600 11px/1 var(--mono);
         text-transform: uppercase;
+        letter-spacing: 0.05em;
       }
       .sidebar a {
         display: block;
-        padding: 8px 0;
-        border-top: 1px solid rgba(45, 107, 69, 0.34);
+        padding: 7px 8px;
+        border-radius: var(--r-control);
         color: var(--muted);
-        font: 740 14px/1.25 var(--sans);
+        font: 500 13px/1.3 var(--sans);
       }
+      .sidebar a:hover { background: rgba(65, 255, 143, 0.06); color: var(--ink); }
 
-      main {
-        min-width: 0;
-      }
-      .hero {
-        padding: 8px 0 24px;
-      }
-      .eyebrow {
-        color: var(--green);
-        font: 850 12px/1 var(--mono);
-        text-transform: uppercase;
-      }
-      h1, h2, h3, p { margin: 0; }
-      h1 {
-        max-width: 860px;
-        margin-top: 14px;
-        font: 850 clamp(42px, 6vw, 82px) / 0.98 var(--sans);
-      }
-      .lede {
-        max-width: 780px;
-        margin-top: 18px;
-        color: var(--muted);
-        font: 19px/1.65 var(--sans);
-      }
+      main { min-width: 0; }
+
+      .hero { padding: 6px 0 12px; }
+      .lede { max-width: 760px; }
+
       section {
-        scroll-margin-top: 96px;
-        padding: 40px 0;
-        border-top: 1px solid rgba(45, 107, 69, 0.42);
+        scroll-margin-top: 80px;
+        padding: 36px 0;
+        border-top: 1px solid rgba(45, 107, 69, 0.32);
       }
-      h2 {
-        font: 820 clamp(28px, 4vw, 44px) / 1.08 var(--sans);
+      section:first-of-type { border-top: 0; padding-top: 8px; }
+
+      p, li { color: var(--muted); font: 400 15px/1.65 var(--sans); }
+      p { margin-top: 10px; }
+      ul { margin: 12px 0 0; }
+
+      .callout {
+        margin-top: 16px;
+        padding: 14px 16px;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--r-card);
+        background: rgba(65, 255, 143, 0.06);
       }
-      h3 {
-        margin-top: 26px;
-        font: 820 20px/1.25 var(--sans);
-      }
-      p, li {
-        color: var(--muted);
-        font: 16px/1.7 var(--sans);
-      }
-      p { margin-top: 12px; }
-      ul {
-        margin: 14px 0 0;
-        padding-left: 22px;
-      }
-      pre {
-        margin: 16px 0 0;
-        overflow-x: auto;
-        padding: 16px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: var(--code-bg);
-        color: var(--code-text);
-        font: 13px/1.65 var(--mono);
-        white-space: pre-wrap;
-        overflow-wrap: anywhere;
-      }
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 14px;
-        margin-top: 18px;
-      }
-      .card, .method, .callout {
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: rgba(8, 17, 13, 0.88);
-      }
-      .card {
-        padding: 18px;
-      }
-      .card h3, .method h3 {
-        margin-top: 0;
-      }
+      .callout strong { color: var(--ink); font-weight: 600; }
+      .callout p { margin-top: 4px; font-size: 14px; }
+
+      .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+      .card { padding: 14px 16px; }
+      .card h3 { margin-top: 0; font: 600 15px/1.3 var(--sans); }
+      .card p { margin-top: 6px; font-size: 14px; }
+      .card pre { margin-top: 8px; font-size: 12px; }
+
       .method {
-        margin-top: 14px;
-        padding: 18px;
+        margin-top: 10px;
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        border-radius: var(--r-card);
+        background: var(--paper);
       }
       .method h3 {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         gap: 10px;
+        margin: 0;
         color: var(--ink);
-        font: 820 18px/1.25 var(--sans);
+        font: 600 15px/1.3 var(--sans);
       }
       .method h3 code {
-        padding: 4px 7px;
+        padding: 3px 6px;
         border: 1px solid var(--line-strong);
-        border-radius: 6px;
+        border-radius: var(--r-control);
         background: var(--green-soft);
-        font-size: 13px;
+        color: var(--green);
+        font-size: 12px;
       }
-      .method p {
-        margin-top: 8px;
-      }
-      .tag-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 12px;
-      }
+      .method p { margin-top: 6px; font-size: 14px; }
+      .method pre { margin-top: 8px; font-size: 12px; }
+
+      h2 { font: 700 clamp(22px, 2.6vw, 28px) / 1.2 var(--sans); }
+      h3 { font: 600 15px/1.3 var(--sans); }
+      h3.section-sub { margin-top: 24px; color: var(--ink); }
+
+      .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
       .tag {
-        padding: 5px 8px;
+        padding: 4px 8px;
         border: 1px solid var(--line);
         border-radius: 999px;
         color: var(--muted);
-        font: 740 12px/1 var(--mono);
-      }
-      .callout {
-        margin-top: 18px;
-        padding: 18px;
-        border-color: var(--line-strong);
-        background: linear-gradient(135deg, rgba(65, 255, 143, 0.1), rgba(8, 17, 13, 0.88));
-      }
-      .callout strong {
-        color: var(--green);
-      }
-      .split-list {
-        columns: 2;
-        column-gap: 34px;
-      }
-      .footer {
-        padding: 32px 0 52px;
-        border-top: 1px solid var(--line);
-        color: var(--muted);
-        font: 14px/1.4 var(--sans);
-      }
-      .footer-inner {
-        width: min(1280px, calc(100% - 40px));
-        margin: 0 auto;
+        font: 500 11px/1 var(--mono);
       }
 
-      @media (max-width: 980px) {
-        .docs-layout {
-          grid-template-columns: 1fr;
-        }
-        .sidebar {
-          position: static;
-          max-height: none;
-        }
-        .grid {
-          grid-template-columns: 1fr;
-        }
-      }
-      @media (max-width: 720px) {
-        .nav-links {
-          display: none;
-        }
-        .docs-layout {
-          width: min(100% - 28px, 1280px);
-          padding-top: 26px;
-        }
-        h1 {
-          font-size: 44px;
-        }
-        .split-list {
-          columns: 1;
-        }
+      .split-list { columns: 2; column-gap: 28px; }
+
+      pre { margin-top: 12px; }
+
+      @media (max-width: 900px) {
+        .docs-layout { grid-template-columns: 1fr; }
+        .sidebar { position: static; max-height: none; }
+        .grid { grid-template-columns: 1fr; }
+        .split-list { columns: 1; }
       }
     </style>
   </head>
@@ -277,55 +134,66 @@
         <span>Kage</span>
       </a>
       <div class="nav-links">
-        <a href="guide.html">Docs</a>
-        <a href="releases.html">Releases</a>
+        <a href="guide.html#quickstart">Quickstart</a>
+        <a href="guide.html" aria-current="page">Docs</a>
         <a href="viewer/">Viewer</a>
-        <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a>
+        <a href="releases.html">Releases</a>
         <a href="https://github.com/kage-core/Kage">GitHub</a>
       </div>
+      <a class="nav-cta" href="#quickstart">Install Kage</a>
     </nav>
 
     <div class="docs-layout">
       <aside class="sidebar" aria-label="Documentation sections">
-        <strong>Docs</strong>
+        <strong>Get started</strong>
         <a href="#overview">Overview</a>
-        <a href="#install">Install</a>
-        <a href="#agent-setup">Agent setup</a>
-        <a href="#daily-workflow">Daily workflow</a>
-        <a href="#cli-reference">CLI reference</a>
-        <a href="#mcp-tools">MCP tools</a>
-        <a href="#memory-model">Memory model</a>
-        <a href="#graphs">Graphs and viewer</a>
-        <a href="#review">Review and sharing</a>
-        <a href="#large-repos">Large repos</a>
+        <a href="#quickstart">Quickstart</a>
+        <a href="#choose-agent">Choose your agent</a>
+        <a href="#first-day">First-day workflow</a>
+        <strong>Concepts</strong>
+        <a href="#concepts">Core concepts</a>
+        <a href="#what-to-commit">What to commit</a>
+        <a href="#good-memory">Good memory examples</a>
+        <strong>Reference</strong>
+        <a href="#cli">CLI by job</a>
+        <a href="#mcp">MCP tools</a>
+        <a href="#viewer">Viewer</a>
+        <a href="#trust">Privacy and trust</a>
+        <strong>Help</strong>
         <a href="#troubleshooting">Troubleshooting</a>
       </aside>
 
       <main>
         <header class="hero" id="overview">
-          <div class="eyebrow">kage://docs</div>
-          <h1>Documentation for repo memory, code graphs, and agent recall.</h1>
+          <span class="eyebrow">kage://docs</span>
+          <h1>Kage docs.</h1>
           <p class="lede">
-            Kage is a CLI and MCP server that gives coding agents repo-local memory. It stores reusable learnings as
-            reviewable packets, connects them to code, and recalls the right context before future edits.
+            Kage is a CLI and MCP server that gives AI coding agents repo-local memory. Stored as reviewable JSON
+            packets connected to code, recalled before future edits. This guide gets you from <code>npm install</code>
+            to a working setup, then explains the concepts and reference.
           </p>
         </header>
 
-        <section id="install">
-          <h2>Install</h2>
-          <p>Install the npm package globally, then initialize a repo. Kage writes repo-local memory under <code>.agent_memory/</code> and installs the agent policy in <code>AGENTS.md</code>.</p>
+        <section id="quickstart">
+          <h2>Quickstart</h2>
+          <p>Requires Node.js 18 or newer. The package installs two binaries: <code>kage</code> and <code>kage-graph-mcp</code>.</p>
           <pre>npm install -g @kage-core/kage-graph-mcp
+cd your-repo
 kage init --project .
-kage doctor --project .</pre>
+kage setup codex --project . --write
+# or: kage setup claude-code --project . --write
+# restart the agent once
+kage setup verify-agent --agent codex --project .
+kage recall "how do I run tests" --project .</pre>
           <div class="callout">
             <strong>Repo-local by default.</strong>
-            <p>Kage does not need a hosted database for normal use. Memory packets are plain JSON and generated graph artifacts stay in the repo memory directory.</p>
+            <p>Kage doesn't need a hosted database or API key. Memory packets live in <code>.agent_memory/</code> next to your code as plain JSON.</p>
           </div>
         </section>
 
-        <section id="agent-setup">
-          <h2>Agent setup</h2>
-          <p>Use setup commands to add Kage MCP configuration for your agent. Restart the agent after setup so the MCP server and repo policy are loaded.</p>
+        <section id="choose-agent">
+          <h2>Choose your agent</h2>
+          <p>Run <code>kage setup &lt;agent&gt; --project . --write</code> once per repo, then restart the agent so the MCP server reloads.</p>
           <div class="grid">
             <div class="card">
               <h3>Codex</h3>
@@ -337,126 +205,67 @@ kage setup verify-agent --agent codex --project .</pre>
               <pre>kage setup claude-code --project . --write
 kage setup verify-agent --agent claude-code --project .</pre>
             </div>
+            <div class="card">
+              <h3>Cursor</h3>
+              <pre>kage setup cursor --project . --write</pre>
+            </div>
+            <div class="card">
+              <h3>Other MCP clients</h3>
+              <pre>kage setup list
+kage setup generic-mcp --project .</pre>
+            </div>
           </div>
-          <p>Other supported setup targets include Cursor, Windsurf, Gemini CLI, OpenCode, Cline, Goose, Roo Code, Kilo Code, Claude Desktop, Aider, and generic MCP clients.</p>
+          <p>Other supported targets: Windsurf, Gemini CLI, OpenCode, Cline, Goose, Roo Code, Kilo Code, Claude Desktop, Aider, generic MCP.</p>
+          <h3 class="section-sub">CLI-only path</h3>
+          <p>Kage works without an MCP-capable agent. Use the CLI directly to capture and recall memory:</p>
+          <pre>kage init --project .
+kage learn --project . --learning "Run npm test --prefix mcp after parser changes."
+kage recall "parser tests" --project .</pre>
+          <h3 class="section-sub">Verifying setup</h3>
+          <p><code>kage setup verify-agent</code> confirms the harness is live by checking config, repo policy, indexes, recall, and MCP reachability.</p>
+          <pre>kage setup verify-agent --agent codex --project . --json
+kage doctor --project .</pre>
         </section>
 
-        <section id="daily-workflow">
-          <h2>Daily workflow</h2>
+        <section id="first-day">
+          <h2>First-day workflow</h2>
+          <p>Use your coding agent normally. Kage is meant to feel ambient.</p>
           <div class="grid">
             <div class="card">
               <h3>Before work</h3>
-              <p>Agents call <code>kage_context</code> or the CLI recall path to load relevant memory and code graph facts for the task.</p>
+              <p>Agents call <code>kage_context</code> (MCP) or <code>kage recall</code> (CLI) to load relevant memory and code graph facts.</p>
               <pre>kage recall "how does auth work?" --project . --explain</pre>
             </div>
             <div class="card">
               <h3>After learning</h3>
-              <p>Capture durable repo knowledge: decisions, gotchas, setup commands, test workflows, and code explanations.</p>
-              <pre>kage learn --project . --type gotcha --learning "Do not merge these retry paths; one uses idempotency keys and the other uses session state."</pre>
+              <p>Capture decisions, gotchas, setup commands, and code explanations as concise packets.</p>
+              <pre>kage learn --project . --type gotcha \
+  --learning "Do not merge these retry paths; one uses idempotency keys."</pre>
             </div>
             <div class="card">
               <h3>After meaningful changes</h3>
-              <p>Refresh generated artifacts so recall, graph views, metrics, and stale checks match the current tree.</p>
-              <pre>kage refresh --project .
-kage pr check --project .</pre>
-            </div>
-            <div class="card">
-              <h3>Optional automation</h3>
-              <p>Install a repo-local post-commit hook when you want Kage to refresh memory and branch summaries after commits without replacing existing hook content.</p>
-              <pre>kage hook install --project .
-kage hook status --project .</pre>
+              <p>Refresh generated artifacts so recall, graph, metrics, and stale checks match the current tree.</p>
+              <pre>kage refresh --project .</pre>
             </div>
             <div class="card">
               <h3>Before handoff</h3>
-              <p>Create branch memory from the diff and run the merge-readiness check.</p>
+              <p>Create branch change memory from the diff and run merge readiness.</p>
               <pre>kage propose --project . --from-diff
 kage pr check --project . --json</pre>
             </div>
           </div>
+          <h3 class="section-sub">Optional automation</h3>
+          <p>Install a marker-delimited git <code>post-commit</code> hook so Kage refreshes memory after commits. It preserves existing hook content and respects <code>KAGE_SKIP_HOOK=1</code>.</p>
+          <pre>kage hook install --project .
+kage hook status --project .</pre>
         </section>
 
-        <section id="cli-reference">
-          <h2>CLI reference</h2>
-          <p>The CLI is the user-facing control surface. Use <code>--json</code> where automation needs structured output.</p>
-
-          <div class="method"><h3><code>kage init</code> Initialize a repo</h3><p>Creates repo memory structure, installs policy, and builds the first index.</p><pre>kage init --project .</pre></div>
-          <div class="method"><h3><code>kage setup</code> Configure agents</h3><p>Lists setup targets, writes agent config, and verifies live agent integration.</p><pre>kage setup list
-kage setup codex --project . --write
-kage setup verify-agent --agent codex --project . --json</pre></div>
-          <div class="method"><h3><code>kage recall</code> Retrieve relevant memory</h3><p>Searches repo-local packets and returns an agent-ready context block. Use <code>--explain</code> to see why packets matched.</p><pre>kage recall "query" --project . --json --explain</pre></div>
-          <div class="method"><h3><code>kage learn</code> Capture a learning</h3><p>Writes a concise repo-local memory packet for a reusable fact learned during work.</p><pre>kage learn --project . --type decision --title "Parser tests need fixtures" --learning "Run parser fixture tests after grammar edits." --paths mcp/kernel.ts,mcp/kernel.test.ts</pre></div>
-          <div class="method"><h3><code>kage capture</code> Create a structured packet</h3><p>Writes a packet with explicit title, summary, body, type, tags, paths, and stack metadata.</p><pre>kage capture --project . --title "Auth retry gotcha" --body "..." --type gotcha --tags auth,retry</pre></div>
-          <div class="method"><h3><code>kage refresh</code> Rebuild generated intelligence</h3><p>Updates indexes, structural artifacts, code graph, memory graph, metrics, and stale-memory checks. Use <code>--full</code> only when you need to bypass cache.</p><pre>kage refresh --project .
-kage refresh --project . --full --json</pre></div>
-          <div class="method"><h3><code>kage pr</code> Prepare a branch</h3><p>Summarizes branch memory and verifies validation, stale packets, graph freshness, and memory changes.</p><pre>kage pr summarize --project .
-kage pr check --project . --json</pre></div>
-          <div class="method"><h3><code>kage hook</code> Automate post-commit refresh</h3><p>Installs, checks, or removes a marker-delimited git <code>post-commit</code> hook. The hook preserves existing hook content and runs <code>kage refresh</code> plus <code>kage pr summarize</code> after commits. Set <code>KAGE_SKIP_HOOK=1</code> to bypass it.</p><pre>kage hook install --project .
-kage hook status --project . --json
-kage hook uninstall --project .</pre></div>
-          <div class="method"><h3><code>kage viewer</code> Inspect memory, graphs, and reports</h3><p>Starts the local viewer with repo graph, code graph, metrics, review queue, pending memory, and repo-intelligence reports preloaded.</p><pre>kage viewer --project . --port 3113</pre></div>
-          <div class="method"><h3><code>kage graph</code> Query memory graph</h3><p>Queries evidence-backed entities and relationships generated from approved memory packets.</p><pre>kage graph --project . --json
-kage graph "checkout retry" --project . --json
-kage graph --project . --mermaid</pre></div>
-          <div class="method"><h3><code>kage code-graph</code> Query source graph</h3><p>Queries files, symbols, imports, confidence-scored calls, routes, tests, and package scripts generated from source. For non-TypeScript code, the generic indexer also extracts bounded call edges, test function coverage signals, and framework routes for FastAPI, Flask, Django, Rails, Laravel, Spring, Go routers, Rust routers, and ASP.NET; SCIP, LSP, LSIF, and tree-sitter artifacts override generic facts when present.</p><pre>kage code-graph --project . --json
-kage code-graph "recall ranking" --project . --json</pre></div>
-          <div class="method"><h3><code>kage dependency-path</code> Explain file connections</h3><p>Finds the shortest code graph path between two files and reports whether the source depends on the target, the target depends on the source, or the connection is only undirected.</p><pre>kage dependency-path --project . --from src/app.ts --to src/auth.ts --json</pre></div>
-          <div class="method"><h3><code>kage cleanup-candidates</code> Find conservative cleanup candidates</h3><p>Reports unreferenced source files, unused exports, and internal-looking unused symbols with confidence and reasons. It does not delete code; use it as review input before cleanup PRs.</p><pre>kage cleanup-candidates --project . --json</pre></div>
-          <div class="method"><h3><code>kage reviewers</code> Suggest local reviewers</h3><p>Ranks reviewers for target or changed files using local git authorship, recent edits, and co-change ownership. It does not call GitHub or external services.</p><pre>kage reviewers --project . --changed-files src/auth.ts,src/session.ts --json</pre></div>
-          <div class="method"><h3><code>kage contributors</code> Profile local ownership</h3><p>Builds contributor profiles from local git history: commits, recent activity, touched files and modules, primary-owned files, ownership silos, hotspot ownership, and commit category mix.</p><pre>kage contributors --project . --json</pre></div>
-          <div class="method"><h3><code>kage decisions</code> Audit why-memory coverage</h3><p>Reports decisions, gotchas, runbooks, conventions, constraints, code explanations, weak or stale memories, and important code paths that still lack linked decision memory.</p><pre>kage decisions --project . --json</pre></div>
-          <div class="method"><h3><code>kage module-health</code> Score local modules</h3><p>Rolls up code graph, test, cleanup, churn, and ownership signals into local module scorecards for review planning.</p><pre>kage module-health --project . --json</pre></div>
-          <div class="method"><h3><code>kage graph-insights</code> Summarize architecture signals</h3><p>Reports language parser coverage, edge mix, central files, dependency cycles, import communities, and short entry flows from the source graph.</p><pre>kage graph-insights --project . --json</pre></div>
-          <div class="method"><h3><code>kage workspace</code> Recall across sibling repos</h3><p>Scans a local workspace for git repos, reports Kage memory coverage, detects package dependencies, route contract links, topic/event contract links, and cross-repo git co-change links, and can fan out recall across every indexed repo.</p><pre>kage workspace --project .. --json
-kage workspace recall "auth header contract" --project .. --json</pre></div>
-          <div class="method"><h3><code>kage risk</code> Check change risk before editing</h3><p>Combines the code graph with local git history to report dependents, impact surface, churn, ownership, ownership silos, co-change partners missing from the change set, hotspots, and missing test signals for target files.</p><pre>kage risk --project . --targets src/auth.ts --json
-kage risk --project . --changed-files src/auth.ts,src/session.ts</pre></div>
-          <div class="method"><h3><code>kage code-index</code> Build source indexes</h3><p>Writes external code index artifacts. It prefers SCIP where available and falls back to built-in indexing.</p><pre>kage code-index --project . --json
-kage structural-index --project . --json</pre></div>
-          <div class="method"><h3><code>kage metrics</code> Show adoption and graph metrics</h3><p>Reports code graph coverage, memory graph evidence coverage, useful memory ratio, validation state, and readiness.</p><pre>kage metrics --project . --json</pre></div>
-          <div class="method"><h3><code>kage benchmark</code> Estimate recall impact</h3><p>Reports coverage and compares baseline discovery cost against Kage context for a task.</p><pre>kage benchmark --project . --json
-kage benchmark --project . --compare --task "fix flaky checkout retry" --json</pre></div>
-          <div class="method"><h3><code>kage inbox</code> Review memory work</h3><p>Shows pending packets, stale packets, duplicates, validation issues, and recommended actions.</p><pre>kage inbox --project . --json
-kage review-artifact --project .</pre></div>
-          <div class="method"><h3><code>kage audit</code> Check trustworthiness</h3><p>Audits memory health, structured context coverage, code graph quality, graph links, and concrete recommendations.</p><pre>kage audit --project . --json
-kage quality --project . --json
-kage validate --project .</pre></div>
-          <div class="method"><h3><code>kage org/global</code> Explicit sharing flows</h3><p>Org, global, public, registry, and marketplace surfaces are review-gated. They do not publish automatically.</p><pre>kage org status --project . --org acme --json
-kage org upload --project . --org acme --packet &lt;approved-packet-id&gt;
-kage org review --project . --org acme --packet &lt;org-packet-id&gt; --approve
-kage layered-recall "query" --project . --org acme --global --json
-kage promote --project . --public &lt;packet-id&gt;
-kage export-public --project .
-kage global build --project . --json</pre></div>
-        </section>
-
-        <section id="mcp-tools">
-          <h2>MCP tools</h2>
-          <p>Agents should prefer MCP tools when available. The most important tool is <code>kage_context</code>, which combines validation, recall, code graph search, knowledge graph search, and target-aware risk signals.</p>
-          <div class="method"><h3><code>kage_context</code> Main task entry point</h3><p>Call before repo-specific implementation, debugging, architecture, or code questions. When a query or target list includes file paths, Kage also adds risk and dependency-path context.</p></div>
-          <div class="method"><h3><code>kage_recall</code>, <code>kage_graph</code>, <code>kage_code_graph</code></h3><p>Lower-level recall and graph tools when the combined context tool is not enough.</p></div>
-          <div class="method"><h3><code>kage_risk</code> Pre-edit risk assessment</h3><p>Use before changing shared or high-churn files. Returns graph dependents, git churn, ownership, ownership silos, co-change warnings, impact surface, and test-gap signals.</p></div>
-          <div class="method"><h3><code>kage_dependency_path</code> Code graph path finder</h3><p>Use when an agent needs to understand how two files connect before changing a flow or explaining impact.</p></div>
-          <div class="method"><h3><code>kage_cleanup_candidates</code> Cleanup review input</h3><p>Returns conservative unreferenced-file, unused-export, and internal-symbol candidates from the code graph with confidence and reasons. It never mutates files.</p></div>
-          <div class="method"><h3><code>kage_reviewers</code> Local reviewer suggestions</h3><p>Suggests reviewers from git history and co-change ownership for target or changed files.</p></div>
-          <div class="method"><h3><code>kage_contributors</code> Contributor profiles</h3><p>Returns local git profiles with commits, recent activity, touched files/modules, primary ownership, ownership silos, hotspot ownership, and commit category mix.</p></div>
-          <div class="method"><h3><code>kage_decisions</code> Why-memory coverage</h3><p>Returns decision, gotcha, runbook, convention, constraint, and code explanation coverage by path, plus important uncovered code paths and weak or stale memories.</p></div>
-          <div class="method"><h3><code>kage_module_health</code> Module health scorecards</h3><p>Returns local module scorecards from code graph, tests, cleanup candidates, churn, and ownership concentration.</p></div>
-          <div class="method"><h3><code>kage_graph_insights</code> Graph architecture signals</h3><p>Returns language parser coverage, edge mix, central files, dependency cycles, import communities, and entry flows for broad architecture orientation.</p></div>
-          <div class="method"><h3><code>kage_workspace</code>, <code>kage_workspace_recall</code></h3><p>Summarizes sibling repos, package dependencies, route and topic/event contract links, git co-change links, and recalls Kage memory across a local multi-repo workspace without copying packets or requiring a hosted database.</p></div>
-          <div class="method"><h3><code>kage_learn</code>, <code>kage_capture</code>, <code>kage_feedback</code></h3><p>Capture new repo knowledge, write structured packets, or mark recalled memory helpful, wrong, or stale.</p></div>
-          <div class="method"><h3><code>kage_refresh</code>, <code>kage_pr_summarize</code>, <code>kage_pr_check</code></h3><p>Keep generated artifacts current and create merge-ready branch memory.</p></div>
-          <div class="method"><h3><code>kage_metrics</code>, <code>kage_audit</code>, <code>kage_inbox</code>, <code>kage_quality</code>, <code>kage_benchmark</code></h3><p>Inspect readiness, quality, benchmark estimates, duplicates, stale packets, and review actions.</p></div>
-          <div class="method"><h3><code>kage_setup_agent</code>, <code>kage_verify_agent</code>, <code>kage_install_policy</code></h3><p>Install or verify agent harness configuration.</p></div>
-          <div class="method"><h3><code>kage_search</code>, <code>kage_fetch</code>, <code>kage_list_domains</code></h3><p>Optional community knowledge graph search. Treat returned public context as advisory and untrusted compared with repo memory.</p></div>
-          <div class="method"><h3><code>kage_org_status</code>, <code>kage_org_upload_candidate</code>, <code>kage_org_recall</code>, <code>kage_layered_recall</code>, <code>kage_global_build</code></h3><p>Review-gated sharing and layered recall. Repo-local memory wins when context conflicts.</p></div>
-        </section>
-
-        <section id="memory-model">
-          <h2>Memory model</h2>
+        <section id="concepts">
+          <h2>Core concepts</h2>
           <p>Kage stores reusable learnings as packets, not raw chat transcripts. A good packet is short, source-backed, path-grounded, and useful to a future agent.</p>
           <ul class="split-list">
-            <li><code>runbook</code>: how to run, test, build, or debug.</li>
-            <li><code>bug_fix</code>: cause, fix, evidence, and verification.</li>
+            <li><code>runbook</code>: how to run, test, build, debug.</li>
+            <li><code>bug_fix</code>: cause, fix, evidence, verification.</li>
             <li><code>decision</code>: what was decided and why.</li>
             <li><code>rationale</code>: why a tradeoff exists.</li>
             <li><code>convention</code>: a repo rule agents should follow.</li>
@@ -464,7 +273,7 @@ kage global build --project . --json</pre></div>
             <li><code>gotcha</code>: a failure mode to avoid.</li>
             <li><code>code_explanation</code>: why non-obvious code exists.</li>
             <li><code>negative_result</code>: what was tried and did not work.</li>
-            <li><code>constraint</code>: a limitation that changes implementation choices.</li>
+            <li><code>constraint</code>: a limitation that changes choices.</li>
           </ul>
           <div class="tag-row">
             <span class="tag">repo-local</span>
@@ -473,66 +282,203 @@ kage global build --project . --json</pre></div>
             <span class="tag">source-backed</span>
             <span class="tag">not transcripts</span>
           </div>
+          <h3 class="section-sub">Memory graph vs code graph</h3>
+          <p>Two graph surfaces: a memory graph generated from approved packets, and a source-derived code graph generated from your code. The viewer overlays them so humans can see what was recalled, why it matters, and what signals are attached.</p>
         </section>
 
-        <section id="graphs">
-          <h2>Graphs and viewer</h2>
-          <p>Kage maintains two related graph surfaces: a memory graph generated from packets and a source-derived code graph generated from code. The viewer overlays them and adds a Repo Intelligence cockpit so humans can inspect what was recalled, why it matters, and what risk or graph signals are attached to the repo.</p>
+        <section id="what-to-commit">
+          <h2>What to commit</h2>
+          <p>Kage writes to <code>.agent_memory/</code>. Some files are durable repo memory; others are rebuildable artifacts.</p>
           <div class="grid">
             <div class="card">
-              <h3>Memory graph</h3>
-              <p>Entities, episodes, and evidence-backed edges from approved packets.</p>
+              <h3>Commit these</h3>
+              <ul>
+                <li><code>.agent_memory/packets/*.json</code> &mdash; durable repo memory.</li>
+                <li><code>AGENTS.md</code> &mdash; agent harness policy.</li>
+              </ul>
             </div>
             <div class="card">
-              <h3>Code graph</h3>
-              <p>Files, symbols, imports, confidence-scored calls, tests, routes, and source relationships.</p>
+              <h3>Optional to commit</h3>
+              <ul>
+                <li><code>.agent_memory/graph/</code>, <code>code_graph/</code>, <code>structural/</code> &mdash; rebuildable with <code>kage refresh</code>.</li>
+                <li><code>.agent_memory/reports/*.json</code> &mdash; helpful for CI viewer artifacts.</li>
+              </ul>
             </div>
           </div>
-          <pre>kage viewer --project .
-kage graph "retry logic" --project . --json
-kage code-graph "checkout tests" --project . --json</pre>
-          <p>The local viewer writes and loads <code>.agent_memory/reports/*.json</code> for risk, contributors, decisions, module health, graph insights, workspace coverage, workspace link maps, quality, and benchmark proof. It opens with a dashboard for repo readiness, memory coverage, graph health, risk, review, and workspace links, then lets users jump into dedicated graph, memory, intelligence, review, and data sections. The graph stays primary: common graph actions sit in a floating canvas toolbar, and the side workspace opens as a drawer for controls, Inspector, Repo Intelligence, review/proof, and tables without shrinking the graph by default. Workspace Map rows expose package dependencies, route contracts, topic/event links, and cross-repo co-change pairs. Path Finder highlights the shortest dependency path between two code nodes, files, symbols, routes, or tests in 2D or 3D. The hosted viewer at <a href="viewer/">viewer/</a> is useful for static demos. The local viewer is preferred for real repos because it loads the active repo artifacts automatically.</p>
+          <p>If you don't want to commit generated artifacts, add <code>.agent_memory/graph</code>, <code>.agent_memory/code_graph</code>, <code>.agent_memory/structural</code>, and <code>.agent_memory/reports</code> to <code>.gitignore</code>. <code>.agent_memory/packets/</code> should stay tracked.</p>
         </section>
 
-        <section id="review">
-          <h2>Review and sharing</h2>
-          <p>Kage is collaborative because repo memory travels with the repository and can be reviewed like code. Sharing outside the repo is explicit.</p>
-          <ul>
-            <li>Repo packets live under <code>.agent_memory/packets/</code>.</li>
-            <li>Generated indexes and graph artifacts can be refreshed from the repo.</li>
-            <li>Branch change memory is created from diffs with <code>kage propose --from-diff</code>.</li>
-            <li>PR readiness is checked with <code>kage pr check</code>.</li>
-            <li>Org/global/public promotion requires human review commands.</li>
-          </ul>
+        <section id="good-memory">
+          <h2>Good memory examples</h2>
+          <div class="grid">
+            <div class="card">
+              <h3>Worth saving</h3>
+              <ul>
+                <li>Cause + verified fix for a recurring bug.</li>
+                <li>A command teammates re-discover (test, build, lint, deploy).</li>
+                <li>A decision and its rationale (why this design over that one).</li>
+                <li>A path-specific gotcha that would surprise the next agent.</li>
+                <li>An explanation of non-obvious code.</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>Do not save</h3>
+              <ul>
+                <li>Raw chat transcripts or step-by-step session logs.</li>
+                <li>Anything the code or git history already shows clearly.</li>
+                <li>Secrets, tokens, private URLs, customer data, PII.</li>
+                <li>Personal notes irrelevant to future agents.</li>
+              </ul>
+            </div>
+          </div>
         </section>
 
-        <section id="large-repos">
-          <h2>Large repos</h2>
-          <p>Kage uses cache-backed structural indexing and generated artifacts so repeat refreshes can reuse unchanged work. Full rebuilds should be deliberate.</p>
+        <section id="cli">
+          <h2>CLI by job</h2>
+          <p>Use <code>--json</code> where automation needs structured output. Below: commands grouped by what you need to do.</p>
+
+          <h3 class="section-sub">Setup and verification</h3>
+          <div class="method"><h3><code>kage init</code> Initialize a repo</h3><p>Creates memory structure, installs policy, builds the first index.</p><pre>kage init --project .</pre></div>
+          <div class="method"><h3><code>kage setup</code> Configure agents</h3><p>Lists targets, writes agent config, verifies live integration.</p><pre>kage setup list
+kage setup codex --project . --write
+kage setup verify-agent --agent codex --project . --json</pre></div>
+          <div class="method"><h3><code>kage doctor</code> Diagnose a repo</h3><p>Validates config, indexes, and policy state.</p><pre>kage doctor --project .</pre></div>
+
+          <h3 class="section-sub">Recall and capture</h3>
+          <div class="method"><h3><code>kage recall</code> Retrieve relevant memory</h3><p>Returns an agent-ready context block. Use <code>--explain</code> to see why packets matched.</p><pre>kage recall "query" --project . --json --explain</pre></div>
+          <div class="method"><h3><code>kage learn</code> Capture a learning</h3><p>Writes a concise repo-local memory packet for a reusable fact.</p><pre>kage learn --project . --type decision --title "Parser tests need fixtures" \
+  --learning "Run parser fixture tests after grammar edits." \
+  --paths mcp/kernel.ts,mcp/kernel.test.ts</pre></div>
+          <div class="method"><h3><code>kage capture</code> Create a structured packet</h3><p>Writes a packet with explicit title, summary, body, type, tags, paths, and stack metadata.</p><pre>kage capture --project . --title "Auth retry gotcha" --body "..." --type gotcha --tags auth,retry</pre></div>
+          <div class="method"><h3><code>kage feedback</code> Mark memory helpful, wrong, stale</h3><p>Records usefulness signals on recalled packets.</p><pre>kage feedback --project . --packet &lt;id&gt; --kind stale</pre></div>
+
+          <h3 class="section-sub">Maintain generated state</h3>
+          <div class="method"><h3><code>kage refresh</code> Rebuild generated state</h3><p>Updates indexes, structural artifacts, graphs, metrics, and stale-memory checks. <code>--full</code> bypasses cache.</p><pre>kage refresh --project .
+kage refresh --project . --full --json</pre></div>
+          <div class="method"><h3><code>kage hook</code> Auto-refresh after commits</h3><p>Marker-delimited git <code>post-commit</code> hook. Preserves existing hook content; respects <code>KAGE_SKIP_HOOK=1</code>.</p><pre>kage hook install --project .
+kage hook status --project . --json
+kage hook uninstall --project .</pre></div>
+          <div class="method"><h3><code>kage gc</code> Inspect or clean generated artifacts</h3><p>Reports or prunes regenerable files when needed.</p><pre>kage gc --project . --dry-run</pre></div>
+
+          <h3 class="section-sub">Inspect graphs</h3>
+          <div class="method"><h3><code>kage graph</code> Query memory graph</h3><p>Evidence-backed entities and relationships from approved packets.</p><pre>kage graph "checkout retry" --project . --json</pre></div>
+          <div class="method"><h3><code>kage code-graph</code> Query source graph</h3><p>Files, symbols, imports, confidence-scored calls, routes, tests. Recognizes FastAPI, Flask, Django, Rails, Laravel, Spring, Go, Rust, ASP.NET routes. SCIP/LSP/LSIF/tree-sitter override generic facts when present.</p><pre>kage code-graph "recall ranking" --project . --json</pre></div>
+          <div class="method"><h3><code>kage dependency-path</code> Connect two files</h3><p>Shortest source graph path between two files.</p><pre>kage dependency-path --project . --from src/app.ts --to src/auth.ts --json</pre></div>
+          <div class="method"><h3><code>kage graph-insights</code> Architecture signals</h3><p>Parser coverage, edge mix, central files, cycles, communities, entry flows.</p><pre>kage graph-insights --project . --json</pre></div>
+
+          <h3 class="section-sub">Risk, ownership, review</h3>
+          <div class="method"><h3><code>kage risk</code> Pre-edit risk check</h3><p>Dependents, impact surface, churn, ownership silos, co-change warnings, missing test signals.</p><pre>kage risk --project . --targets src/auth.ts --json</pre></div>
+          <div class="method"><h3><code>kage reviewers</code> Suggest local reviewers</h3><p>Ranks reviewers from git authorship and co-change ownership. Local-only.</p><pre>kage reviewers --project . --changed-files src/auth.ts --json</pre></div>
+          <div class="method"><h3><code>kage contributors</code> Profile local ownership</h3><p>Commits, recent activity, touched files/modules, ownership silos, hotspot ownership.</p><pre>kage contributors --project . --json</pre></div>
+          <div class="method"><h3><code>kage decisions</code> Why-memory coverage</h3><p>Decision/runbook/gotcha coverage, weak/stale memories, important paths without why-memory.</p><pre>kage decisions --project . --json</pre></div>
+          <div class="method"><h3><code>kage module-health</code> Module scorecards</h3><p>Rolls up graph, test, cleanup, churn, ownership signals.</p><pre>kage module-health --project . --json</pre></div>
+          <div class="method"><h3><code>kage cleanup-candidates</code> Cleanup review input</h3><p>Conservative unreferenced-file, unused-export, and internal-symbol candidates with confidence and reasons. Never mutates code.</p><pre>kage cleanup-candidates --project . --json</pre></div>
+
+          <h3 class="section-sub">PR and handoff</h3>
+          <div class="method"><h3><code>kage propose --from-diff</code> Branch change memory</h3><p>Creates a branch summary and repo-local change-memory packet from git diff.</p><pre>kage propose --project . --from-diff</pre></div>
+          <div class="method"><h3><code>kage pr</code> Summarize and check</h3><p>Verifies validation, stale packets, graph freshness, and memory changes for merge.</p><pre>kage pr summarize --project .
+kage pr check --project . --json</pre></div>
+
+          <h3 class="section-sub">Workspace</h3>
+          <div class="method"><h3><code>kage workspace</code> Recall across sibling repos</h3><p>Scans a local parent dir for git repos, reports memory coverage, package deps, route/topic contracts, and git co-change links.</p><pre>kage workspace --project .. --json
+kage workspace recall "auth header contract" --project .. --json</pre></div>
+
+          <h3 class="section-sub">Adoption and quality</h3>
+          <div class="method"><h3><code>kage metrics</code></h3><p>Code graph coverage, memory graph evidence, useful memory ratio, readiness.</p><pre>kage metrics --project . --json</pre></div>
+          <div class="method"><h3><code>kage audit</code> / <code>kage quality</code> / <code>kage validate</code></h3><p>Audit health, structured context coverage, code graph quality, and trust signals.</p><pre>kage audit --project . --json
+kage quality --project . --json
+kage validate --project .</pre></div>
+          <div class="method"><h3><code>kage benchmark</code></h3><p>Compares baseline discovery cost vs Kage context for a task.</p><pre>kage benchmark --project . --compare --task "fix flaky checkout retry" --json</pre></div>
+          <div class="method"><h3><code>kage inbox</code> / <code>kage review-artifact</code></h3><p>Pending, stale, duplicate packets, validation issues, recommended actions.</p><pre>kage inbox --project . --json</pre></div>
+
+          <h3 class="section-sub">Sharing (review-gated)</h3>
+          <div class="method"><h3><code>kage org</code> / <code>kage global</code> / <code>kage promote</code></h3><p>Org, global, public, registry, and marketplace surfaces are explicit and human-gated. Nothing publishes automatically.</p><pre>kage org status --project . --org acme --json
+kage org upload --project . --org acme --packet &lt;approved-packet-id&gt;
+kage layered-recall "query" --project . --org acme --global --json
+kage promote --project . --public &lt;packet-id&gt;
+kage global build --project . --json</pre></div>
+
+          <h3 class="section-sub">Viewer</h3>
+          <div class="method"><h3><code>kage viewer</code></h3><p>Starts the local viewer with repo graph, code graph, metrics, review queue, pending memory, and reports preloaded.</p><pre>kage viewer --project . --port 3113</pre></div>
+        </section>
+
+        <section id="mcp">
+          <h2>MCP tools</h2>
+          <p>Agents should prefer MCP tools when available. <strong>Start with <code>kage_context</code></strong> &mdash; it combines validation, recall, code graph search, knowledge graph search, and target-aware risk signals.</p>
+
+          <div class="method"><h3><code>kage_context</code> Main task entry point</h3><p>Call before repo-specific implementation, debugging, architecture, or code questions. When a query or target list includes file paths, Kage also adds risk and dependency-path context.</p></div>
+          <div class="method"><h3><code>kage_recall</code>, <code>kage_graph</code>, <code>kage_code_graph</code></h3><p>Lower-level recall and graph tools when the combined context tool is not enough.</p></div>
+          <div class="method"><h3><code>kage_risk</code></h3><p>Pre-edit risk assessment with graph dependents, churn, ownership, co-change warnings, impact surface, test-gap signals.</p></div>
+          <div class="method"><h3><code>kage_dependency_path</code></h3><p>Shortest code graph path between two files.</p></div>
+          <div class="method"><h3><code>kage_cleanup_candidates</code></h3><p>Conservative review input. Never mutates files.</p></div>
+          <div class="method"><h3><code>kage_reviewers</code>, <code>kage_contributors</code></h3><p>Local git-derived reviewer suggestions and contributor profiles.</p></div>
+          <div class="method"><h3><code>kage_decisions</code>, <code>kage_module_health</code>, <code>kage_graph_insights</code></h3><p>Why-memory coverage, module scorecards, architecture signals.</p></div>
+          <div class="method"><h3><code>kage_workspace</code>, <code>kage_workspace_recall</code></h3><p>Summarize sibling repos and recall across a local multi-repo workspace.</p></div>
+          <div class="method"><h3><code>kage_learn</code>, <code>kage_capture</code>, <code>kage_feedback</code></h3><p>Capture new repo knowledge or mark recalled memory helpful, wrong, or stale.</p></div>
+          <div class="method"><h3><code>kage_refresh</code>, <code>kage_pr_summarize</code>, <code>kage_pr_check</code></h3><p>Keep generated artifacts current and create merge-ready branch memory.</p></div>
+          <div class="method"><h3><code>kage_metrics</code>, <code>kage_audit</code>, <code>kage_inbox</code>, <code>kage_quality</code>, <code>kage_benchmark</code></h3><p>Inspect readiness, quality, duplicates, stale packets, benchmark estimates.</p></div>
+          <div class="method"><h3><code>kage_setup_agent</code>, <code>kage_verify_agent</code>, <code>kage_install_policy</code></h3><p>Install or verify agent harness configuration.</p></div>
+          <div class="method"><h3><code>kage_search</code>, <code>kage_fetch</code>, <code>kage_list_domains</code></h3><p>Optional community knowledge graph search. Returned public context is advisory.</p></div>
+          <div class="method"><h3><code>kage_org_*</code>, <code>kage_layered_recall</code>, <code>kage_global_build</code></h3><p>Review-gated sharing and layered recall. Repo-local memory wins when context conflicts.</p></div>
+        </section>
+
+        <section id="viewer">
+          <h2>Viewer</h2>
+          <p>Two ways to use it: a hosted demo at <a href="viewer/">viewer/</a>, and the local viewer for your real repo.</p>
+          <pre>kage viewer --project .</pre>
+          <h3 class="section-sub">When to open the viewer</h3>
           <ul>
-            <li>Run normal <code>kage refresh</code> for day-to-day updates.</li>
-            <li>Use <code>kage hook install</code> when the repo should refresh generated Kage state after commits.</li>
-            <li>Use <code>kage refresh --full</code> when changing indexer behavior or recovering from stale artifacts.</li>
-            <li>Use <code>kage metrics</code> to inspect indexable files, ignored files, cache hits, and parser coverage.</li>
-            <li>Use <code>kage gc</code> to inspect or clean generated artifacts when needed.</li>
+            <li>Before editing a shared file &mdash; check Risks for dependents and co-change partners.</li>
+            <li>To find repo lore &mdash; search the Memory page by file, feature, bug, or command.</li>
+            <li>To inspect why an agent recalled something &mdash; follow memory-to-code links from the Graph.</li>
+            <li>Before merging &mdash; clear the Review queue (pending, stale, duplicate, weak memory).</li>
+            <li>To diagnose generation quality &mdash; open the Artifacts diagnostics link.</li>
           </ul>
+          <p>The local viewer is preferred for real repos because it loads active artifacts and reports automatically.</p>
+        </section>
+
+        <section id="trust">
+          <h2>Privacy and trust</h2>
+          <p>Kage is collaborative because repo memory travels with the repository and can be reviewed like code. Sharing outside the repo is explicit and human-gated.</p>
+          <div class="grid">
+            <div class="card">
+              <h3>Repo-local (default)</h3>
+              <p>Packets, graphs, reports, and metrics stay under <code>.agent_memory/</code>. No external service is contacted for normal recall.</p>
+            </div>
+            <div class="card">
+              <h3>Org / global / public</h3>
+              <p>Promotion needs explicit review commands. Repo-local memory wins when context conflicts. Treat public/community content as advisory.</p>
+            </div>
+            <div class="card">
+              <h3>Capture safety</h3>
+              <p>Capture scans for obvious secrets and PII before writing. Do not store credentials, customer data, or private URLs in packets.</p>
+            </div>
+            <div class="card">
+              <h3>Reviewable changes</h3>
+              <p>Memory packets are JSON. Branch changes can be summarized with <code>kage propose --from-diff</code> and checked with <code>kage pr check</code>.</p>
+            </div>
+          </div>
         </section>
 
         <section id="troubleshooting">
           <h2>Troubleshooting</h2>
-          <div class="method"><h3>Agent does not call Kage</h3><p>Verify setup and restart the agent so the MCP server and repo policy are loaded.</p><pre>kage setup verify-agent --agent codex --project .
+          <div class="method"><h3>Agent does not call Kage</h3><p>Verify setup and restart the agent.</p><pre>kage setup verify-agent --agent codex --project .
 kage doctor --project .</pre></div>
-          <div class="method"><h3>Recall returns stale or wrong memory</h3><p>Mark the packet as stale or wrong, then refresh and review the inbox.</p><pre>kage feedback --project . --packet &lt;packet-id&gt; --kind stale
+          <div class="method"><h3>Recall returns stale or wrong memory</h3><p>Mark the packet, refresh, and review the inbox.</p><pre>kage feedback --project . --packet &lt;packet-id&gt; --kind stale
 kage inbox --project . --json</pre></div>
-          <div class="method"><h3>Viewer has no graph</h3><p>Launch it from the repo with <code>kage viewer</code>, or open the hosted viewer with graph/code/metrics URL parameters.</p><pre>kage viewer --project .</pre></div>
-          <div class="method"><h3>Refresh seems slow</h3><p>Check cache hits, indexable file counts, ignored files, and parser coverage before forcing a full rebuild.</p><pre>kage metrics --project . --json
+          <div class="method"><h3>Viewer has no graph</h3><p>Launch from the repo or open the hosted viewer with graph/code/metrics URL params.</p><pre>kage viewer --project .</pre></div>
+          <div class="method"><h3>Refresh is slow</h3><p>Check cache hits, indexable files, ignored files, and parser coverage before forcing a full rebuild.</p><pre>kage metrics --project . --json
 kage audit --project . --json</pre></div>
+          <div class="method"><h3>Node version error</h3><p>Kage requires Node 18 or newer. Check with <code>node --version</code> and upgrade if needed.</p></div>
         </section>
       </main>
     </div>
 
     <footer class="footer">
-      <div class="footer-inner">Kage docs. <a href="./">Home</a> · <a href="viewer/">Viewer</a> · <a href="https://github.com/kage-core/Kage">GitHub</a></div>
+      <div class="footer-inner" style="width: min(1200px, calc(100% - 32px)); margin: 0 auto;">
+        <span>Kage docs</span>
+        <span><a href="./">Home</a> &middot; <a href="viewer/">Viewer</a> &middot; <a href="releases.html">Releases</a> &middot; <a href="https://github.com/kage-core/Kage">GitHub</a></span>
+      </div>
     </footer>
   </body>
 </html>

@@ -3,230 +3,60 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Kage releases, npm package status, downloads, changelog, and release links." />
+    <meta name="description" content="Kage releases: current npm package status, user-impact highlights, and links to npm, GitHub, and the changelog." />
     <title>Kage Releases</title>
+    <link rel="stylesheet" href="assets/site.css?v=1" />
     <style>
-      :root {
-        color-scheme: dark;
-        --bg: #050806;
-        --paper: #08110d;
-        --ink: #e4f7e9;
-        --muted: #8aab94;
-        --line: #1b3a2a;
-        --green: #41ff8f;
-        --green-strong: #87f7b5;
-        --code-bg: #020503;
-        --code-text: #c9f8dc;
-        --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        margin: 0;
-        background:
-          radial-gradient(circle at 16% 0%, rgba(65, 255, 143, 0.13), transparent 34%),
-          linear-gradient(180deg, #07100b 0%, var(--bg) 42%, #030504 100%);
-        color: var(--ink);
-        font-family: var(--sans);
-      }
-
-      a {
-        color: inherit;
-        text-decoration: none;
-      }
-
-      a:hover {
-        color: var(--green-strong);
-      }
-
-      .nav {
-        position: sticky;
-        top: 0;
-        z-index: 20;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        min-height: 72px;
-        padding: 0 clamp(20px, 5vw, 72px);
-        border-bottom: 1px solid var(--line);
-        background: rgba(5, 8, 6, 0.9);
-        backdrop-filter: blur(16px);
-      }
-
-      .brand {
-        display: inline-flex;
-        align-items: center;
-        gap: 12px;
-        font-weight: 800;
-      }
-
-      .brand img {
-        width: 34px;
-        height: 34px;
-        padding: 6px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: var(--paper);
-      }
-
-      .nav-links {
-        display: flex;
-        gap: 22px;
-        color: var(--muted);
-        font: 600 14px/1 var(--sans);
-      }
-
-      .wrap {
-        width: min(1040px, calc(100% - 40px));
-        margin: 0 auto;
-      }
-
-      .hero {
-        padding: 72px 0 36px;
-      }
-
-      h1,
-      h2,
-      h3,
-      p {
-        margin: 0;
-      }
-
-      h1 {
-        max-width: 760px;
-        font: 850 clamp(44px, 7vw, 76px) / 1 var(--sans);
-      }
-
-      .lede {
-        max-width: 720px;
-        margin-top: 20px;
-        color: var(--muted);
-        font: 20px/1.6 var(--sans);
-      }
-
-      .badges {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 24px;
-      }
-
-      .badges img {
-        height: 22px;
-      }
-
-      .section {
-        padding: 54px 0;
-        border-top: 1px solid rgba(45, 107, 69, 0.42);
-      }
-
-      h2 {
-        font: 820 34px/1.1 var(--sans);
-      }
-
-      p,
-      li {
-        color: var(--muted);
-        font: 16px/1.7 var(--sans);
-      }
-
-      p {
-        margin-top: 12px;
-      }
-
-      ul {
-        margin: 14px 0 0;
-        padding-left: 22px;
-      }
+      .hero { padding: 48px 0 16px; }
+      .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+      .badges img { height: 20px; }
 
       .stats {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 12px;
-        margin-top: 24px;
+        margin-top: 22px;
       }
-
-      .stat,
-      .panel {
-        padding: 22px;
+      .stat {
+        padding: 18px;
         border: 1px solid var(--line);
-        border-radius: 8px;
+        border-radius: var(--r-card);
         background: var(--paper);
       }
+      .stat strong { display: block; font: 700 26px/1 var(--sans); }
+      .stat span { display: block; margin-top: 6px; color: var(--muted); font: 400 13px/1.4 var(--sans); }
 
-      .stat strong {
-        display: block;
-        font: 850 34px/1 var(--sans);
-      }
-
-      .stat span {
-        display: block;
-        margin-top: 8px;
-        color: var(--muted);
-        font: 14px/1.4 var(--sans);
-      }
-
-      .panel {
+      .highlights {
+        display: grid;
+        gap: 10px;
         margin-top: 18px;
       }
-
-      .panel h3 {
-        font: 820 22px/1.2 var(--sans);
+      .highlight {
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        border-radius: var(--r-card);
+        background: var(--paper);
       }
-
-      pre {
-        margin: 16px 0 0;
-        overflow-x: auto;
-        padding: 18px;
-        border-radius: 8px;
-        background: var(--code-bg);
-        color: var(--code-text);
-        font: 13px/1.65 var(--mono);
-        white-space: pre-wrap;
-        overflow-wrap: anywhere;
-      }
-
-      code {
-        color: var(--green-strong);
-        font-family: var(--mono);
-      }
+      .highlight strong { display: block; color: var(--ink); font: 600 14px/1.3 var(--sans); }
+      .highlight span { display: block; margin-top: 4px; color: var(--muted); font: 400 14px/1.55 var(--sans); }
 
       .links {
         display: flex;
         flex-wrap: wrap;
-        gap: 10px;
-        margin-top: 18px;
+        gap: 8px;
+        margin-top: 20px;
       }
-
       .links a {
-        padding: 9px 12px;
+        padding: 8px 12px;
         border: 1px solid var(--line);
-        border-radius: 999px;
+        border-radius: var(--r-control);
         background: var(--paper);
         color: var(--green-strong);
-        font: 800 13px/1 var(--sans);
+        font: 600 13px/1 var(--sans);
       }
+      .links a:hover { color: var(--green); border-color: var(--line-strong); }
 
-      .footer {
-        padding: 36px 0 52px;
-        border-top: 1px solid rgba(45, 107, 69, 0.42);
-        color: var(--muted);
-        font: 14px/1.4 var(--sans);
-      }
-
-      @media (max-width: 820px) {
-        .nav-links {
-          display: none;
-        }
-
-        .stats {
-          grid-template-columns: 1fr;
-        }
-      }
+      @media (max-width: 720px) { .stats { grid-template-columns: 1fr; } }
     </style>
   </head>
   <body>
@@ -236,22 +66,21 @@
         <span>Kage</span>
       </a>
       <div class="nav-links">
+        <a href="guide.html#quickstart">Quickstart</a>
         <a href="guide.html">Docs</a>
-        <a href="releases.html">Releases</a>
         <a href="viewer/">Viewer</a>
-        <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a>
+        <a href="releases.html" aria-current="page">Releases</a>
         <a href="https://github.com/kage-core/Kage">GitHub</a>
       </div>
+      <a class="nav-cta" href="guide.html#quickstart">Install Kage</a>
     </nav>
 
     <main>
       <section class="hero">
         <div class="wrap">
+          <span class="eyebrow">kage://releases</span>
           <h1>Releases</h1>
-          <p class="lede">
-            Kage ships through npm as <code>@kage-core/kage-graph-mcp</code>. This page collects the package,
-            download, changelog, and release links users look for before installing.
-          </p>
+          <p class="lede">Current package status, what changed for users, and the canonical links. Kage ships through npm as <code>@kage-core/kage-graph-mcp</code>.</p>
           <div class="badges" aria-label="Release badges">
             <img alt="npm version" src="https://img.shields.io/npm/v/@kage-core/kage-graph-mcp?style=flat-square&color=0f8f57" />
             <img alt="npm monthly downloads" src="https://img.shields.io/npm/dm/@kage-core/kage-graph-mcp?style=flat-square&color=0f8f57" />
@@ -262,51 +91,51 @@
 
       <section class="section">
         <div class="wrap">
-          <h2>Current package</h2>
+          <div class="section-head">
+            <span class="eyebrow">Current package</span>
+            <h2>v1.1.36</h2>
+          </div>
           <div class="stats">
-            <div class="stat"><strong>1.1.35</strong><span>latest npm version checked May 15, 2026</span></div>
+            <div class="stat"><strong>1.1.36</strong><span>latest npm version checked May 17, 2026</span></div>
             <div class="stat"><strong>1,628</strong><span>npm downloads last week</span></div>
             <div class="stat"><strong>3,575</strong><span>npm downloads last month</span></div>
           </div>
-          <pre>npm install -g @kage-core/kage-graph-mcp
+          <pre style="margin-top: 18px;">npm install -g @kage-core/kage-graph-mcp
 kage init --project .</pre>
         </div>
       </section>
 
       <section class="section">
         <div class="wrap">
-          <h2>Latest package notes</h2>
-          <div class="panel">
-            <h3>v1.1.35</h3>
-            <p>
-              Current npm package for local-first repo memory, code graph, recall, viewer, PR checks,
-              repo-intelligence maps, optional post-commit automation, mixed-language route indexing, confidence-scored call edges, workspace topic contracts, cross-repo co-change links, dashboard-first viewer sections, graph-first drawer workspace, floating graph toolbar, viewer Workspace Map drill-down, source graph Path Finder, and conservative cleanup review input.
-            </p>
-            <ul>
-              <li>The viewer now opens with a repo dashboard for readiness, memory coverage, graph health, risk, review, and workspace links.</li>
-              <li>Top-level viewer sections let users move between Overview, Graph, Memory, Intel, Review, and Data without cramming everything into one page.</li>
-              <li>The viewer now uses a graph-first drawer workspace so controls, Inspector, Repo Intelligence, review/proof, and tables open only when needed instead of shrinking the graph by default.</li>
-              <li>Scope, 2D/3D mode, search, Path Finder, and Inspector access are now available from a compact floating toolbar on the graph canvas.</li>
-              <li>The viewer now includes Path Finder for highlighting the shortest dependency path between two code nodes in 2D Canvas or 3D Space.</li>
-              <li>Path highlights are preserved through graph capping so selected code routes stay visible in dense repos.</li>
-              <li>The viewer Repo Intelligence cockpit now includes a Workspace Map section for package dependencies, route links, topic links, and cross-repo co-change pairs.</li>
-              <li>Workspace intelligence is now browsable as rows instead of only appearing as summary counts.</li>
-              <li><code>kage workspace</code> now reports same-author, near-time cross-repo co-change links from local git history.</li>
-              <li>The CLI and viewer workspace summary show co-change counts alongside package, route, and topic links.</li>
-              <li><code>kage workspace</code> now reports source-evidence based topic/event producer-consumer links across sibling repos.</li>
-              <li>Workspace contract intelligence remains local and deterministic: package dependencies, route string evidence, and topic string evidence only.</li>
-              <li>Code graph call edges now carry confidence and resolution metadata for TypeScript AST, generic static, and external index facts.</li>
-              <li>The viewer and <code>kage code-graph</code> context now expose call confidence instead of treating every call link as certainty.</li>
-              <li><code>kage cleanup-candidates</code> now reports unused exports and internal-looking unused symbols in addition to unreferenced files.</li>
-              <li>Symbol candidates include confidence, reasons, and source location while remaining review input only.</li>
-              <li>Code graph route extraction now recognizes Rails, Laravel, Spring, Go routers, Rust routers, and ASP.NET.</li>
-              <li>Code graph route extraction now recognizes FastAPI/APIRouter, Flask, and Django route declarations.</li>
-              <li>Route params are normalized into Kage's cross-framework <code>:param</code> graph format.</li>
-              <li>New <code>kage hook install/status/uninstall</code> command for marker-delimited git post-commit refresh automation.</li>
-              <li>Viewer Repo Intelligence maps for ownership, modules, onboarding targets, architecture communities, execution flows, and blast radius.</li>
-              <li>Updated README, npm docs, website docs, and hosted viewer assets for the new workflow.</li>
-              <li>Repo-local memory packets, code graph, recall, viewer, and PR checks remain git-shareable.</li>
-            </ul>
+          <div class="section-head">
+            <span class="eyebrow">User-impact highlights</span>
+            <h2>What changed for users</h2>
+          </div>
+          <div class="highlights">
+            <div class="highlight">
+              <strong>Pre-edit risk and impact checks</strong>
+              <span><code>kage risk</code> and the viewer surface dependents, co-change partners, churn, ownership silos, and missing tests before you edit shared files.</span>
+            </div>
+            <div class="highlight">
+              <strong>Workspace recall across sibling repos</strong>
+              <span><code>kage workspace</code> indexes a local parent directory and exposes package, route, topic, and git co-change links without copying memory.</span>
+            </div>
+            <div class="highlight">
+              <strong>Conservative cleanup review input</strong>
+              <span><code>kage cleanup-candidates</code> reports unreferenced files, unused exports, and internal-looking unused symbols with confidence and reasons. It never deletes code.</span>
+            </div>
+            <div class="highlight">
+              <strong>Mixed-language route and call indexing</strong>
+              <span>The code graph now recognizes FastAPI, Flask, Django, Rails, Laravel, Spring, Go, Rust, and ASP.NET routes, plus confidence-scored call edges.</span>
+            </div>
+            <div class="highlight">
+              <strong>Optional post-commit refresh hook</strong>
+              <span><code>kage hook install</code> adds a marker-delimited git hook that refreshes memory and branch summaries after commits, preserving existing hook content.</span>
+            </div>
+            <div class="highlight">
+              <strong>Viewer redesigned around tasks</strong>
+              <span>Overview, Graph, Memory, Risks, and Review pages with a focused inspector, search, and contextual path tracing &mdash; not a graph-engine cockpit.</span>
+            </div>
           </div>
           <div class="links">
             <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm package</a>
@@ -319,17 +148,20 @@ kage init --project .</pre>
 
       <section class="section">
         <div class="wrap">
-          <h2>Release channels</h2>
-          <p>
-            npm is the source of installable package truth. GitHub releases are human-readable milestones,
-            and the changelog records package-level changes across versions.
-          </p>
+          <div class="section-head">
+            <span class="eyebrow">Release channels</span>
+            <h2>Where to look</h2>
+          </div>
+          <p class="lede">npm is the source of installable package truth. GitHub releases are human-readable milestones. <a href="https://github.com/kage-core/Kage/blob/master/CHANGELOG.md">CHANGELOG.md</a> records package-level changes across versions.</p>
         </div>
       </section>
     </main>
 
     <footer class="footer">
-      <div class="wrap">Kage releases. <a href="./">Back to homepage</a>.</div>
+      <div class="wrap footer-inner">
+        <span>Kage releases</span>
+        <span><a href="./">Home</a> &middot; <a href="guide.html">Docs</a> &middot; <a href="viewer/">Viewer</a> &middot; <a href="https://github.com/kage-core/Kage">GitHub</a></span>
+      </div>
     </footer>
   </body>
 </html>

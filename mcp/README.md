@@ -1,92 +1,66 @@
-# Kage Repo-Recall MCP
+# Kage — repo memory for AI coding agents
 
-Local-first repo memory, code graph, and recall tools for AI coding agents.
+Local-first repo memory, code graph, and recall tools for MCP-capable coding
+agents (Codex, Claude Code, Cursor, etc.).
 
 Kage helps agents stop rediscovering the same project context. It stores
 reviewable repo memory, builds generated recall/code indexes, and exposes the
 result through an MCP server plus a CLI.
 
+- Website: https://kage-core.github.io/Kage/
+- Docs: https://kage-core.github.io/Kage/guide.html
+- Hosted viewer: https://kage-core.github.io/Kage/viewer/
+
 ## Install
+
+Requires Node.js 18 or newer. The package installs two binaries: `kage` and
+`kage-graph-mcp`.
 
 ```bash
 npm install -g @kage-core/kage-graph-mcp
-```
-
-Set up Codex:
-
-```bash
 cd your-repo
+kage init --project .
 kage setup codex --project . --write
-kage init --project .
+# or: kage setup claude-code --project . --write
+# restart the agent once
 kage setup verify-agent --agent codex --project .
+kage recall "how do I run tests" --project .
 ```
 
-Set up Claude Code:
+Other supported targets: Cursor, Windsurf, Gemini CLI, OpenCode, Cline, Goose,
+Roo Code, Kilo Code, Claude Desktop, Aider, generic MCP (`kage setup list`).
 
-```bash
-cd your-repo
-kage setup claude-code --project . --write
-kage init --project .
-kage setup verify-agent --agent claude-code --project .
-```
+## What you get
 
-Restart your agent once after setup so MCP tools reload.
-
-## What Kage Gives Agents
-
-- repo-local memory for decisions, runbooks, bug fixes, gotchas, conventions,
-  and code explanations
-- a code graph for files, symbols, imports, confidence-scored calls, routes,
-  tests, and packages, including generic call/test signals and mixed-language
-  framework routes
-- conservative cleanup candidates for unreferenced files, unused exports, and
-  internal-looking unused symbols
-- memory-code links so project knowledge points at the code it affects
-- decision intelligence for why-memory coverage, stale/weak packets, and
-  important files that still lack linked repo knowledge
-- lightweight workspace recall across sibling repos, including package,
-  route-contract, topic/event contract, and git co-change links when existing
-  local evidence exposes them
-- local git intelligence for risk, reviewers, contributor profiles, co-change
-  warnings, ownership silos, and module health
-- `AGENTS.md` bootstrap instructions so agents recall context automatically
-- a local viewer for memory, code graph, decision memory, risk, module health,
-  workspace reports, metrics, evidence, and review state
-- review and validation commands for stale or risky memory
+- Repo-local memory for decisions, runbooks, bug fixes, gotchas, conventions,
+  and code explanations.
+- A code graph for files, symbols, imports, confidence-scored calls, routes
+  (FastAPI / Flask / Django / Rails / Laravel / Spring / Go / Rust / ASP.NET),
+  tests, and packages.
+- Memory-code links so repo knowledge points at the code it affects.
+- Local git intelligence: risk, reviewers, contributors, co-change warnings,
+  ownership silos, module health.
+- Conservative cleanup review input (unreferenced files, unused exports,
+  internal-looking unused symbols). Never deletes code.
+- A local viewer for memory, code graph, risks, review, and metrics.
 
 No hosted service, external database, or API key is required.
 
-## Common Commands
+## Common commands
 
 ```bash
-kage setup list
-kage init --project .
 kage recall "how do I run tests" --project .
-kage recall "how do I run tests" --project . --json --explain
 kage code-graph "auth routes tests" --project .
-kage cleanup-candidates --project . --json
-kage dependency-path --project . --from src/app.ts --to src/auth.ts --json
-kage module-health --project . --json
-kage graph-insights --project . --json
-kage workspace --project .. --json
-kage workspace recall "auth header contract" --project .. --json
-kage contributors --project . --json
-kage decisions --project . --json
-kage reviewers --project . --changed-files src/auth.ts,src/session.ts --json
 kage risk --project . --targets src/auth.ts --json
 kage learn --project . --learning "Use npm test after parser changes."
 kage refresh --project .
 kage hook install --project .
 kage pr check --project .
-kage metrics --project . --json
-kage audit --project . --json
-kage inbox --project . --json
 kage viewer --project .
 ```
 
 MCP agents should start with `kage_context`. When the query or target list
-mentions file paths, it includes risk and dependency-path context alongside
-memory recall.
+mentions file paths, it also includes risk and dependency-path context.
 
 For stale or wrong memory:
 
@@ -95,14 +69,9 @@ kage feedback --project . --packet <packet-id> --kind stale
 kage gc --project . --dry-run
 ```
 
-## MCP Server
+For the full CLI and MCP reference, see the [docs](https://kage-core.github.io/Kage/guide.html).
 
-The package exposes:
-
-- `kage-graph-mcp`: stdio MCP server
-- `kage`: CLI
-
-Typical MCP clients should use the setup command instead of hand-writing config:
+## MCP server
 
 ```bash
 kage setup codex --project . --write
@@ -110,54 +79,23 @@ kage setup claude-code --project . --write
 kage setup generic-mcp --project .
 ```
 
-Supported setup targets include Codex, Claude Code, Cursor, Windsurf, Gemini
-CLI, OpenCode, Cline, Goose, Roo Code, Kilo Code, Claude Desktop, Aider, and
-generic MCP clients.
+## Storage
 
-## Storage Model
+Kage writes to `.agent_memory/`. Packets are durable repo memory; everything
+else is rebuildable with `kage refresh`.
 
-Kage keeps learned memory separate from generated code facts.
+| Path | Purpose |
+|---|---|
+| `.agent_memory/packets/` | durable repo memory |
+| `.agent_memory/graph/` | memory graph (rebuildable) |
+| `.agent_memory/code_graph/` | source-derived code facts (rebuildable) |
+| `.agent_memory/structural/` | files, symbols, imports |
+| `.agent_memory/reports/` | risk, contributors, decisions, module health, workspace, quality, benchmark |
 
-| Layer | Path | Purpose |
-|---|---|---|
-| Packets | `.agent_memory/packets/` | durable repo memory |
-| Indexes | `.agent_memory/indexes/` | rebuildable recall indexes |
-| Memory graph | `.agent_memory/graph/` | packet relationships and evidence |
-| Structural map | `.agent_memory/structural/` | files, symbols, imports |
-| Code graph | `.agent_memory/code_graph/` | source-derived code facts |
-| Metrics | `.agent_memory/metrics.json` | readiness, quality, coverage |
-| Reports | `.agent_memory/reports/` | risk, contributors, decisions, module health, graph insights, workspace, quality, benchmark |
-
-Repo-local packets are git-visible and reviewable. Generated indexes and graphs
-are rebuildable.
-
-## Performance Notes
-
-Kage is optimized so repeat work scales with changed files, not the whole repo:
-
-- read-only recall reuses fresh graph artifacts
-- unchanged structural file facts are reused
-- generated graphs are compact and avoid duplicated structural JSON
-- optional git `post-commit` hooks keep repo memory and branch summaries current
-- generated/vendor/cache paths are ignored
-- huge files are represented safely instead of deeply expanded
-- recall builds lookup maps once per query instead of repeatedly scanning graph
-  edges for every memory packet
-- local risk reports include hidden co-change warnings and ownership-silo
-  signals from git history
-- contributor reports show commits, recent activity, touched files/modules,
-  primary ownership, ownership silos, hotspot ownership, and commit category mix
-- decision reports show why-memory coverage, weak/stale decision packets, and
-  high-signal source paths with no linked decision memory
-- graph insights include language parser coverage and edge mix so large-repo
-  index gaps are visible instead of hidden
-- the generic non-TypeScript indexer extracts bounded call edges and test
-  function coverage, while SCIP/LSP/LSIF/tree-sitter artifacts override it when
-  available
+Repo-local packets are git-visible and reviewable. Generated indexes and
+graphs are rebuildable.
 
 ## Viewer
-
-Open a local viewer for the current repo:
 
 ```bash
 kage viewer --project .
@@ -165,37 +103,22 @@ kage viewer --project .
 
 The local viewer loads graph artifacts plus `.agent_memory/reports/*.json`.
 It opens with a dashboard for repo readiness, memory coverage, graph health,
-risk, review, and workspace links, then lets you jump into a dedicated graph
-workspace. The graph stays primary: common graph actions sit in a floating
-canvas toolbar, and the side workspace opens as a drawer for controls,
-Inspector, Repo Intelligence, review/proof, and tables without shrinking the
-graph by default. Workspace Map rows expose package dependencies, route
-contracts, topic/event links, and cross-repo co-change pairs from local
-workspace reports. Path Finder highlights the shortest dependency path between
-two code nodes, files, symbols, routes, or tests in 2D or 3D.
+risks, review, and workspace links, then jumps to focused Graph, Memory,
+Risks, and Review pages. Use it when you need to:
 
-Hosted demo:
+- Inspect what agents recall and why.
+- Check risk before editing shared files.
+- Find repo lore by file, feature, bug, command, or decision.
+- Clear the review queue before handoff.
 
-```text
-https://kage-core.github.io/Kage/viewer/
-```
+Hosted demo: https://kage-core.github.io/Kage/viewer/
 
 ## Development
 
 ```bash
 npm install
 npm test
-```
-
-Build:
-
-```bash
 npm run build
-```
-
-Package smoke check:
-
-```bash
 npm pack --dry-run
 ```
 

@@ -3,95 +3,83 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Kage Graph Viewer</title>
-    <link rel="stylesheet" href="./styles.css?v=26">
+    <title>Kage viewer</title>
+    <link rel="stylesheet" href="./styles.css?v=33">
   </head>
   <body>
-    <header class="app-header">
-      <div class="brand-block">
-        <span class="eyebrow">kage://repo-intelligence</span>
-        <h1>Kage Graph</h1>
-        <p id="graphSummary">Load memory, code, and metrics graphs to inspect what agents know and why.</p>
-      </div>
-      <nav class="site-links" aria-label="Kage site links">
-        <a href="../">Home</a>
-        <a href="../guide.html">Docs</a>
-        <a href="../releases.html">Releases</a>
-        <a href="https://github.com/kage-core/Kage">GitHub</a>
-      </nav>
-      <nav class="viewer-sections" aria-label="Kage viewer sections">
-        <button class="viewer-section active" type="button" data-viewer-section="overview" aria-selected="true">Overview</button>
-        <button class="viewer-section" type="button" data-viewer-section="graph" aria-selected="false">Graph</button>
-        <button class="viewer-section" type="button" data-dashboard-action="memory" aria-selected="false">Memory</button>
-        <button class="viewer-section" type="button" data-dashboard-action="intelligence" aria-selected="false">Intel</button>
-        <button class="viewer-section" type="button" data-dashboard-action="review" aria-selected="false">Review</button>
-        <button class="viewer-section" type="button" data-dashboard-action="data" aria-selected="false">Data</button>
-      </nav>
-      <div id="statusStrip" class="status-strip" aria-label="Graph health"></div>
-      <div id="autoLoadStatus" class="autoload-status">auto-load: waiting</div>
-      <label class="file-picker">
-        <span>Manual JSON</span>
-        <input id="graphFile" type="file" accept=".json,application/json" multiple>
-      </label>
-    </header>
-
-    <main class="layout">
-      <section class="dashboard-panel" aria-label="Kage repo dashboard">
-        <div class="dashboard-hero">
-          <div>
-            <span class="dashboard-kicker">Repo Memory Dashboard</span>
-            <h2>What agents know, where it maps to code, and what needs attention.</h2>
-            <p>Kage turns repo-local memory packets, source graph facts, git signals, and review state into one navigable dashboard before you dive into the graph.</p>
-          </div>
-          <div class="dashboard-actions">
-            <button type="button" data-viewer-section="graph">Open graph</button>
-            <button type="button" data-dashboard-action="intelligence">Repo intelligence</button>
-            <button type="button" data-dashboard-action="memory">Memory review</button>
-          </div>
+    <div class="viewer-shell">
+      <aside class="repo-sidebar" aria-label="Repository navigation">
+        <a class="sidebar-brand" href="../">
+          <span class="brand-mark">K</span>
+          <span>Kage</span>
+        </a>
+        <div class="repo-card">
+          <span>Repository</span>
+          <strong>kage-core/Kage</strong>
         </div>
+        <nav class="viewer-sections" aria-label="Kage viewer sections">
+          <a class="viewer-section active" href="./" data-viewer-page="overview" aria-current="page">Overview</a>
+          <a class="viewer-section" href="./graph.html" data-viewer-page="graph">Graph</a>
+          <a class="viewer-section" href="./memory.html" data-viewer-page="memory">Memory</a>
+          <a class="viewer-section" href="./intel.html" data-viewer-page="intel">Risks</a>
+          <a class="viewer-section" href="./review.html" data-viewer-page="review">Review</a>
+        </nav>
+        <nav class="sidebar-secondary" aria-label="Diagnostics">
+          <span class="sidebar-secondary-label">Diagnostics</span>
+          <a href="./owners.html" data-viewer-page="owners">Owners</a>
+          <a href="./data.html" data-viewer-page="data">Artifacts</a>
+        </nav>
+        <nav class="sidebar-links" aria-label="Kage links">
+          <a href="https://kage-core.com/">Home</a>
+          <a href="https://kage-core.com/guide.html">Docs</a>
+          <a href="https://kage-core.com/releases.html">Releases</a>
+          <a href="https://github.com/kage-core/Kage">GitHub</a>
+        </nav>
+      </aside>
+
+      <section class="viewer-main">
+        <header class="app-header">
+          <div class="brand-block">
+            <span class="eyebrow" id="pageEyebrow">kage://overview</span>
+            <h1 id="pageTitle">Repo dashboard</h1>
+            <p id="graphSummary">What is safe to change next, what needs attention, and what is ready to hand off.</p>
+          </div>
+          <div id="statusStrip" class="status-strip" aria-label="Graph health"></div>
+          <div id="autoLoadStatus" class="autoload-status">auto-load: waiting</div>
+          <label class="file-picker">
+            <span>Manual JSON</span>
+            <input id="graphFile" type="file" accept=".json,application/json" multiple>
+          </label>
+        </header>
+
+        <main class="layout">
+      <section class="dashboard-panel" aria-label="Kage repo dashboard">
         <div id="dashboardStats" class="dashboard-stats" aria-label="Repo dashboard stats"></div>
+        <div id="dashboardCharts" class="dashboard-charts" aria-label="Repo health charts"></div>
         <div class="dashboard-grid">
-          <article class="dashboard-card" id="dashboardMemory">
+          <article class="dashboard-card primary" id="dashboardMemory">
             <div class="dashboard-card-head"><span>Memory</span><strong>repo lore</strong></div>
-            <h3>Shareable agent context</h3>
-            <p>Approved packets, memory-code links, and review state.</p>
+            <h3>Reusable repo context</h3>
             <ul></ul>
-            <button type="button" data-dashboard-action="memory">Open memory</button>
+            <a href="./memory.html" data-viewer-page="memory">Open memory</a>
           </article>
-          <article class="dashboard-card" id="dashboardGraph">
+          <article class="dashboard-card primary" id="dashboardGraph">
             <div class="dashboard-card-head"><span>Graph</span><strong>source map</strong></div>
-            <h3>Files, symbols, calls, routes, tests</h3>
-            <p>Explore the source graph and memory-code bridge.</p>
+            <h3>What to inspect before editing</h3>
             <ul></ul>
-            <button type="button" data-viewer-section="graph">Explore graph</button>
+            <a href="./graph.html" data-viewer-page="graph">Explore graph</a>
           </article>
-          <article class="dashboard-card" id="dashboardIntel">
-            <div class="dashboard-card-head"><span>Intel</span><strong>reports</strong></div>
-            <h3>Risk, modules, owners, decisions</h3>
-            <p>Operational maps generated from local artifacts.</p>
+          <article class="dashboard-card primary" id="dashboardIntel">
+            <div class="dashboard-card-head"><span>Risks</span><strong>reports</strong></div>
+            <h3>What needs attention</h3>
             <ul></ul>
-            <button type="button" data-dashboard-action="intelligence">Open intel</button>
+            <a href="./intel.html" data-viewer-page="intel">Open risks</a>
           </article>
-          <article class="dashboard-card" id="dashboardRisk">
-            <div class="dashboard-card-head"><span>Risk</span><strong>impact</strong></div>
-            <h3>Hotspots and blast radius</h3>
-            <p>Git and graph signals for risky change areas.</p>
-            <ul></ul>
-            <button type="button" data-dashboard-action="intelligence">Open risk map</button>
-          </article>
-          <article class="dashboard-card" id="dashboardReview">
+          <article class="dashboard-card primary" id="dashboardReview">
             <div class="dashboard-card-head"><span>Review</span><strong>handoff</strong></div>
-            <h3>Inbox, proof, and merge readiness</h3>
-            <p>Check pending memory, graph freshness, and proof metrics.</p>
+            <h3>Ready for handoff?</h3>
             <ul></ul>
-            <button type="button" data-dashboard-action="review">Open review</button>
-          </article>
-          <article class="dashboard-card" id="dashboardWorkspace">
-            <div class="dashboard-card-head"><span>Workspace</span><strong>team map</strong></div>
-            <h3>Cross-repo links and collaboration</h3>
-            <p>Package links, contracts, topics, and co-change pairs.</p>
-            <ul></ul>
-            <button type="button" data-dashboard-action="data">Open data</button>
+            <a href="./review.html" data-viewer-page="review">Open review</a>
           </article>
         </div>
       </section>
@@ -107,24 +95,6 @@
             <button id="zoomOut" type="button">-</button>
             <button id="fitView" type="button">Fit</button>
             <button id="zoomIn" type="button">+</button>
-          </div>
-        </div>
-        <div class="graph-quickbar" aria-label="Graph quick controls">
-          <div class="quick-group" aria-label="Scope">
-            <span>Scope</span>
-            <button type="button" data-quick-view="combined">Combined</button>
-            <button type="button" data-quick-view="memory">Memory</button>
-            <button type="button" data-quick-view="code">Code</button>
-          </div>
-          <div class="quick-group" aria-label="Render mode">
-            <span>Mode</span>
-            <button type="button" data-quick-render="2d">2D</button>
-            <button type="button" data-quick-render="3d">3D</button>
-          </div>
-          <div class="quick-group quick-actions" aria-label="Graph tools">
-            <button id="quickSearch" type="button">Search</button>
-            <button id="quickPath" type="button">Path</button>
-            <button id="quickInspector" type="button">Inspect</button>
           </div>
         </div>
         <div id="graphCanvasWrap" class="graph-canvas-wrap">
@@ -150,89 +120,80 @@
       </section>
 
       <section class="workspace-shell" aria-label="Viewer workspace">
-        <div class="workspace-top">
-          <nav class="workspace-tabs" aria-label="Viewer panels">
-            <button class="workspace-tab active" type="button" data-workspace-tab="controls" aria-selected="true">Tools</button>
-            <button class="workspace-tab" type="button" data-workspace-tab="inspector" aria-selected="false">Inspect</button>
-            <button class="workspace-tab" type="button" data-workspace-tab="intelligence" aria-selected="false">Intel</button>
-            <button class="workspace-tab" type="button" data-workspace-tab="review" aria-selected="false">Review</button>
-            <button class="workspace-tab" type="button" data-workspace-tab="tables" aria-selected="false">Data</button>
-          </nav>
-          <button id="closeWorkspace" class="workspace-close" type="button" aria-label="Close viewer workspace">x</button>
-        </div>
-
         <div class="workspace-body">
           <aside class="control-panel" aria-label="Graph controls">
             <div class="panel-heading compact">
-              <h2>Workspace</h2>
+              <h2>Find Context</h2>
               <span id="workspaceMode">Combined</span>
             </div>
             <div id="metricsSummary" class="metrics-grid"></div>
             <label>
-              <span>Search</span>
-              <input id="searchInput" type="search" placeholder="Entity, edge, type, tag, path...">
+              <span>File, symbol, route, test, or memory</span>
+              <input id="searchInput" type="search" placeholder="Search before changing code...">
             </label>
-            <div class="path-finder" aria-label="Dependency path finder">
-              <div class="path-finder-header">
-                <span>Path Finder</span>
-                <button id="clearPath" type="button">Clear</button>
-              </div>
-              <div class="path-finder-inputs">
-                <input id="pathFromInput" type="search" list="pathNodeOptions" placeholder="From file, symbol, route...">
-                <input id="pathToInput" type="search" list="pathNodeOptions" placeholder="To file, symbol, route...">
-                <button id="findPath" type="button">Find</button>
-              </div>
-              <datalist id="pathNodeOptions"></datalist>
-              <div id="pathStatus" class="path-status">Pick two code nodes to trace a dependency path.</div>
-              <div id="pathResult" class="path-result"></div>
+            <div class="journey-actions" aria-label="Graph journeys">
+              <button id="showUntrusted" type="button">Show untrusted edges</button>
+              <button id="showUncovered" type="button">Show code without memory</button>
+              <button id="showMemoryCode" type="button">Show memory-code links</button>
             </div>
-            <label>
-              <span>View</span>
-              <select id="viewMode">
-                <option value="combined">Combined</option>
-                <option value="memory">Memory</option>
-                <option value="code">Code</option>
-              </select>
-            </label>
-            <label>
-              <span>Graph Mode</span>
-              <select id="renderMode">
-                <option value="2d" selected>2D Canvas</option>
-                <option value="3d">3D Space</option>
-              </select>
-            </label>
-            <label>
-              <span>Node Type</span>
-              <select id="typeFilter">
-                <option value="">All types</option>
-              </select>
-            </label>
-            <label>
-              <span>Relation</span>
-              <select id="relationFilter">
-                <option value="">All relations</option>
-              </select>
-            </label>
+            <details class="advanced-controls">
+              <summary>More filters</summary>
+              <label>
+                <span>View</span>
+                <select id="viewMode">
+                  <option value="combined">Combined</option>
+                  <option value="memory">Memory</option>
+                  <option value="code">Code</option>
+                </select>
+              </label>
+              <label>
+                <span>Node Type</span>
+                <select id="typeFilter">
+                  <option value="">All types</option>
+                </select>
+              </label>
+              <label>
+                <span>Relation</span>
+                <select id="relationFilter">
+                  <option value="">All relations</option>
+                </select>
+              </label>
+              <label>
+                <span>Max Nodes</span>
+                <select id="maxNodes">
+                  <option value="60">60</option>
+                  <option value="90" selected>90</option>
+                  <option value="140">140</option>
+                  <option value="220">220</option>
+                </select>
+              </label>
+              <label class="toggle-control">
+                <input id="showDependencies" type="checkbox">
+                <span>Include external dependencies</span>
+              </label>
+              <label>
+                <span>Render Mode</span>
+                <select id="renderMode">
+                  <option value="2d" selected>2D Canvas</option>
+                  <option value="3d">3D Space</option>
+                </select>
+              </label>
+              <button id="resetView" type="button">Reset filters</button>
+            </details>
             <input id="scopeFilter" type="hidden" value="signal">
-            <label>
-              <span>Max Nodes</span>
-              <select id="maxNodes">
-                <option value="60">60</option>
-                <option value="90" selected>90</option>
-                <option value="140">140</option>
-                <option value="220">220</option>
-              </select>
-            </label>
-            <label class="toggle-control">
-              <input id="showDependencies" type="checkbox">
-              <span>Show dependency noise</span>
-            </label>
-            <button id="resetView" type="button">Reset</button>
             <div class="legend" aria-label="Legend">
               <span><i class="dot memory-dot"></i>memory packet</span>
               <span><i class="dot code-dot"></i>code artifact</span>
               <span><i class="line sample-line"></i>relation</span>
             </div>
+          </aside>
+
+          <aside class="graph-insights-panel" aria-label="Graph insights">
+            <div class="panel-heading compact">
+              <h2>Before You Change</h2>
+              <span id="graphInsightStatus">signals</span>
+            </div>
+            <div id="graphInsights" class="graph-insights"></div>
           </aside>
 
           <aside class="details-panel" aria-label="Selection details">
@@ -241,13 +202,58 @@
               <span id="selectionStatus">No selection</span>
             </div>
             <div id="selectionDetails" class="details-empty">Select an entity or edge.</div>
+            <div class="path-finder inspector-path-finder" aria-label="Dependency path finder">
+              <div class="path-finder-header">
+                <span>Trace Code Path</span>
+                <button id="clearPath" type="button">Clear</button>
+              </div>
+              <div class="path-finder-inputs">
+                <input id="pathFromInput" type="search" list="pathNodeOptions" placeholder="From selected file or symbol...">
+                <input id="pathToInput" type="search" list="pathNodeOptions" placeholder="To related test, route, or symbol...">
+                <button id="findPath" type="button">Trace</button>
+              </div>
+              <datalist id="pathNodeOptions"></datalist>
+              <div id="pathStatus" class="path-status">Select a code node, then trace to another code node when you need impact proof.</div>
+              <div id="pathResult" class="path-result"></div>
+            </div>
           </aside>
+
+          <section class="memory-panel" aria-label="Memory library">
+            <div class="panel-heading">
+              <h2>Memory</h2>
+              <span id="memoryStatus">packets</span>
+            </div>
+            <div id="memoryStats" class="memory-stats" aria-label="Memory summary"></div>
+            <div id="memoryOverview" class="memory-overview" aria-label="Memory coverage chart"></div>
+            <div class="memory-toolbar">
+              <input id="memorySearch" type="search" placeholder="Search memory, path, command, bug, decision...">
+              <select id="memoryFilter" aria-label="Memory filter">
+                <option value="all">All memory</option>
+                <option value="linked">Linked to code</option>
+                <option value="needs-paths">Needs paths</option>
+                <option value="decision">Decisions</option>
+                <option value="runbook">Runbooks</option>
+                <option value="bug_fix">Bug fixes</option>
+              </select>
+            </div>
+            <div id="memoryList" class="memory-list"></div>
+          </section>
+
+          <section class="owners-panel" aria-label="Owners and contributors">
+            <div class="panel-heading">
+              <h2>Owners</h2>
+              <span id="ownersStatus">git signals</span>
+            </div>
+            <div id="ownersSummary" class="owners-summary"></div>
+            <div id="ownersList" class="owners-list"></div>
+          </section>
 
           <section class="review-panel" aria-label="Review queue">
             <div class="panel-heading">
               <h2>Memory Inbox</h2>
               <span id="reviewCount">0</span>
             </div>
+            <div id="reviewOverview" class="review-overview"></div>
             <div id="reviewList" class="review-list"></div>
           </section>
 
@@ -256,12 +262,13 @@
               <h2>Proof</h2>
               <span id="proofStatus">metrics</span>
             </div>
+            <div id="proofOverview" class="proof-overview"></div>
             <div id="proofList" class="proof-list"></div>
           </section>
 
-          <section class="intelligence-panel" aria-label="Repo intelligence">
+          <section class="intelligence-panel" aria-label="Risks and reports">
             <div class="panel-heading">
-              <h2>Repo Intelligence</h2>
+              <h2>Risks</h2>
               <span id="intelligenceStatus">reports</span>
             </div>
             <div id="intelligenceList" class="intelligence-list"></div>
@@ -269,23 +276,28 @@
 
           <section class="table-panel entities-panel" aria-label="Nodes">
             <div class="panel-heading">
-              <h2>Nodes</h2>
+              <h2>Artifact Nodes</h2>
               <span id="entityCount">0</span>
             </div>
+            <div id="debugOverview" class="debug-overview"></div>
+            <div class="debug-guide">Use artifacts when the graph or recall output looks wrong. Normal repo work starts from Overview, Graph, Memory, Risks, or Review.</div>
             <div id="entityList" class="list"></div>
           </section>
 
           <section class="table-panel edges-panel" aria-label="Relations">
             <div class="panel-heading">
-              <h2>Relations</h2>
+              <h2>Artifact Relations</h2>
               <span id="edgeCount">0</span>
             </div>
+            <div class="debug-guide">Relations expose generation quality: evidence, confidence, invalidation, and memory-code linking.</div>
             <div id="edgeList" class="list"></div>
           </section>
         </div>
       </section>
-    </main>
+        </main>
+      </section>
+    </div>
 
-    <script src="./app.js?v=26"></script>
+    <script src="./app.js?v=33"></script>
   </body>
 </html>

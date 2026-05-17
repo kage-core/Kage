@@ -1,18 +1,36 @@
 # Changelog
 
-## v1.1.35 - 2026-05-15
+## v1.1.36 - 2026-05-17
 
 - Added a viewer overview dashboard with sections for readiness, memory
   coverage, graph health, repo intelligence, review, and workspace links.
-- Added top-level viewer navigation so users can scan the dashboard first and
-  then move into the dedicated graph, memory, intelligence, review, or data
-  workspace.
+- Added viewer navigation so users can scan the dashboard first and then move
+  into focused graph, memory, intelligence, and review workspaces, with raw
+  Artifacts kept as an advanced diagnostics link.
+- Replaced duplicate drawer/quick-control surfaces with separate page layouts
+  for Graph, Memory, Owners, Intel, and Review so each route has one
+  clear job.
+- Simplified the viewer around fewer decisions: the overview now shows four
+  primary cards, Intel only shows six priority signals, and Artifacts caps raw rows
+  so the UI does not turn into an information dump.
+- Reworked the Memory page into a packet review workflow with search, filters,
+  code-link coverage, and a side-by-side Inspector so users can see which repo
+  lore is reusable, which memory is grounded to code, and which packets need
+  better paths.
+- Added action-oriented viewer charts for memory grounding, source-map coverage,
+  handoff blockers, change risk, owner concentration, memory quality, benchmark
+  gates, and raw-artifact diagnostics.
+- Reworked the Graph page with a compact "Before You Change" action panel for
+  untrusted relations, code without memory, memory-code links, and contextual
+  impact tracing so the graph answers edit-readiness questions instead of only
+  rendering nodes.
+- Reframed the old Debug route as Artifacts for diagnosing generated graph
+  shape, evidence coverage, memory-code links, and raw relation quality.
 - Added a viewer Path Finder for source graph navigation.
-- Reworked the viewer into a graph-first drawer workspace so controls,
-  inspector, repo intelligence, review/proof, and tables open only when needed
-  instead of cluttering the graph by default.
-- Added a floating graph toolbar for scope, 2D/3D mode, search, Path Finder,
-  and Inspector access without leaving the canvas.
+- Reworked the viewer into a graph-first workspace with controls and Inspector
+  beside the graph instead of overlaying the canvas.
+- Kept zoom and fit controls on the graph canvas while moving advanced filters
+  behind a collapsed control and moving Path Finder into the Inspector.
 - The local and hosted viewers can now resolve two code nodes, files, symbols,
   routes, or tests and highlight the shortest forward, reverse, or undirected
   dependency path between them.

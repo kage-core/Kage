@@ -5,476 +5,108 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Kage is shared memory for AI coding agents. Save repo knowledge, connect it to code, and recall it across sessions and teammates."
+      content="Kage is shared repo memory for AI coding agents. Save what your agent learns, connect it to code, recall it next session."
     />
-    <title>Kage - Shared Memory For AI Coding Agents</title>
+    <title>Kage - Shared repo memory for AI coding agents</title>
+    <link rel="stylesheet" href="assets/site.css?v=1" />
     <style>
-      :root {
-        color-scheme: dark;
-        --bg: #050806;
-        --paper: #08110d;
-        --ink: #e4f7e9;
-        --muted: #8aab94;
-        --faint: #1b3a2a;
-        --soft: #0d1913;
-        --green: #41ff8f;
-        --green-strong: #87f7b5;
-        --blue: #6ad7ff;
-        --amber: #ffd166;
-        --line: #1b3a2a;
-        --code-bg: #020503;
-        --code-text: #c9f8dc;
-        --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      html {
-        scroll-behavior: smooth;
-      }
-
-      body {
-        margin: 0;
-        background:
-          radial-gradient(circle at 16% 0%, rgba(65, 255, 143, 0.13), transparent 34%),
-          radial-gradient(circle at 82% 10%, rgba(106, 215, 255, 0.08), transparent 30%),
-          linear-gradient(180deg, #07100b 0%, var(--bg) 42%, #030504 100%);
-        color: var(--ink);
-        font-family: var(--sans);
-        letter-spacing: 0;
-      }
-
-      a {
-        color: inherit;
-        text-decoration: none;
-      }
-
-      a:hover {
-        color: var(--green-strong);
-      }
-
-      .nav {
-        position: sticky;
-        top: 0;
-        z-index: 20;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 24px;
-        min-height: 72px;
-        padding: 0 clamp(20px, 5vw, 72px);
-        border-bottom: 1px solid var(--line);
-        background: rgba(5, 8, 6, 0.9);
-        backdrop-filter: blur(16px);
-      }
-
-      .brand {
-        display: inline-flex;
-        align-items: center;
-        gap: 12px;
-        min-width: 0;
-        font-weight: 800;
-      }
-
-      .brand img {
-        width: 34px;
-        height: 34px;
-        padding: 6px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: #07130d;
-      }
-
-      .nav-links {
-        display: flex;
-        align-items: center;
-        gap: 22px;
-        color: var(--muted);
-        font: 600 14px/1 var(--sans);
-      }
-
-      .nav-cta {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 38px;
-        padding: 0 15px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        color: var(--ink);
-        font: 700 14px/1 var(--sans);
-      }
-
-      .wrap {
-        width: min(1160px, calc(100% - 40px));
-        margin: 0 auto;
-      }
-
-      .hero {
-        padding: 84px 0 54px;
-      }
-
+      /* Page-specific layout */
+      .hero { padding: 64px 0 40px; }
       .hero-grid {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(360px, 0.74fr);
-        gap: 56px;
+        grid-template-columns: minmax(0, 1fr) minmax(340px, 0.72fr);
+        gap: 40px;
         align-items: center;
       }
-
-      .eyebrow {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 18px;
-        color: var(--green-strong);
-        font: 800 13px/1 var(--mono);
-      }
-
-      .eyebrow::before {
-        content: "";
-        width: 8px;
-        height: 8px;
-        border-radius: 999px;
-        background: var(--green);
-      }
-
-      h1,
-      h2,
-      h3,
-      p {
-        margin: 0;
-      }
-
-      h1 {
-        max-width: 760px;
-        font: 850 clamp(48px, 7vw, 88px) / 0.98 var(--sans);
-      }
-
-      .hero-copy {
-        max-width: 680px;
-        margin-top: 24px;
-        color: var(--muted);
-        font: 21px/1.55 var(--sans);
-      }
-
-      .actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-        margin-top: 30px;
-      }
-
-      .button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 46px;
-        padding: 0 18px;
-        border-radius: 8px;
-        border: 1px solid var(--line);
-        background: var(--paper);
-        font: 800 15px/1 var(--sans);
-      }
-
-      .button.primary {
-        border-color: var(--green);
-        background: var(--green);
-        color: #031006;
-      }
-
-      .badges {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 22px;
-      }
-
-      .badges img {
-        height: 22px;
-      }
-
-      .terminal {
-        overflow: hidden;
-        border: 1px solid #1d3028;
-        border-radius: 10px;
-        background: var(--code-bg);
-        box-shadow: 0 22px 70px rgba(0, 0, 0, 0.42);
-      }
-
-      .terminal-head {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 12px 14px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        color: #7fb091;
-        font: 12px/1 var(--mono);
-      }
-
-      pre {
-        margin: 0;
-        overflow-x: auto;
-        padding: 18px;
-        color: var(--code-text);
-        font: 13px/1.65 var(--mono);
-        white-space: pre-wrap;
-        overflow-wrap: anywhere;
-      }
+      .hero h1 { max-width: 640px; }
+      .hero-copy { margin-top: 16px; max-width: 540px; color: var(--muted); font: 400 18px/1.55 var(--sans); }
+      .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+      .badges img { height: 20px; }
 
       .trust-row {
         display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-        gap: 1px;
-        margin-top: 56px;
-        border: 1px solid var(--line);
-        border-radius: 10px;
-        overflow: hidden;
-        background: var(--line);
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 44px;
       }
-
       .trust {
-        min-height: 98px;
-        padding: 18px;
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        border-radius: var(--r-card);
         background: var(--paper);
       }
+      .trust strong { display: block; font: 700 20px/1 var(--sans); }
+      .trust span { display: block; margin-top: 4px; color: var(--muted); font: 400 12px/1.4 var(--sans); }
 
-      .trust strong {
-        display: block;
-        font: 850 24px/1 var(--sans);
-      }
-
-      .trust span {
-        display: block;
-        margin-top: 8px;
-        color: var(--muted);
-        font: 13px/1.35 var(--sans);
-      }
-
-      .section {
-        padding: 76px 0;
-        border-top: 1px solid rgba(45, 107, 69, 0.42);
-      }
-
-      .section-head {
-        max-width: 760px;
-        margin-bottom: 28px;
-      }
-
-      .label {
-        margin-bottom: 12px;
-        color: var(--green-strong);
-        font: 850 12px/1 var(--mono);
-        text-transform: uppercase;
-      }
-
-      h2 {
-        font: 820 clamp(30px, 4.2vw, 56px) / 1.05 var(--sans);
-      }
-
-      .section-head p {
-        margin-top: 16px;
-        color: var(--muted);
-        font: 18px/1.6 var(--sans);
-      }
-
-      .cards {
+      .why-grid {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 14px;
+        gap: 12px;
       }
-
-      .card {
-        min-height: 190px;
-        padding: 22px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: var(--paper);
-      }
-
-      .card h3 {
-        font: 800 18px/1.25 var(--sans);
-      }
-
-      .card p {
-        margin-top: 12px;
-        color: var(--muted);
-        font: 15px/1.55 var(--sans);
-      }
-
-      .workflow {
-        display: grid;
-        grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
-        gap: 18px;
-        align-items: stretch;
-      }
+      .why-card { padding: 18px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--paper); }
+      .why-card h3 { font: 600 15px/1.3 var(--sans); }
+      .why-card p { margin-top: 8px; font-size: 14px; }
 
       .steps {
         display: grid;
-        gap: 10px;
+        gap: 8px;
       }
-
       .step {
         display: grid;
-        grid-template-columns: 42px 1fr;
-        gap: 14px;
-        padding: 16px;
+        grid-template-columns: 28px 1fr;
+        gap: 12px;
+        padding: 14px 16px;
         border: 1px solid var(--line);
-        border-radius: 8px;
+        border-radius: var(--r-card);
         background: var(--paper);
       }
-
       .num {
         display: grid;
         place-items: center;
-        width: 34px;
-        height: 34px;
+        width: 22px; height: 22px;
+        margin-top: 1px;
         border-radius: 999px;
-        background: var(--soft);
-        color: var(--green-strong);
-        font: 900 13px/1 var(--mono);
+        background: rgba(65, 255, 143, 0.14);
+        color: var(--green);
+        font: 700 12px/1 var(--mono);
       }
+      .step b { display: block; font: 600 15px/1.3 var(--sans); color: var(--ink); }
+      .step span { display: block; margin-top: 4px; color: var(--muted); font: 400 14px/1.5 var(--sans); }
 
-      .step b {
-        display: block;
-        font: 800 16px/1.2 var(--sans);
-      }
-
-      .step span {
-        display: block;
-        margin-top: 6px;
-        color: var(--muted);
-        font: 14px/1.45 var(--sans);
-      }
-
-      .split {
+      .agents {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 16px;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
       }
-
-      .surface-grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 16px;
-      }
-
-      .resource {
-        display: flex;
-        flex-direction: column;
-        gap: 18px;
-        justify-content: space-between;
-        min-height: 220px;
-        padding: 24px;
+      .agent {
+        padding: 14px;
         border: 1px solid var(--line);
-        border-radius: 8px;
+        border-radius: var(--r-card);
         background: var(--paper);
+        text-align: center;
       }
+      .agent strong { display: block; font: 600 14px/1.3 var(--sans); }
+      .agent span { display: block; margin-top: 4px; color: var(--muted); font: 400 12px/1.4 var(--sans); }
 
-      .resource h3 {
-        font: 850 24px/1.15 var(--sans);
-      }
-
-      .resource p {
-        color: var(--muted);
-        font: 16px/1.55 var(--sans);
-      }
-
-      .resource a {
-        width: fit-content;
-        color: var(--green-strong);
-        font: 800 14px/1 var(--sans);
-      }
+      .trust-points { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+      .trust-point { padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--paper); }
+      .trust-point strong { display: block; color: var(--ink); font: 600 14px/1.3 var(--sans); }
+      .trust-point span { display: block; margin-top: 4px; color: var(--muted); font: 400 13px/1.5 var(--sans); }
 
       .demo {
         overflow: hidden;
         border: 1px solid var(--line);
-        border-radius: 10px;
+        border-radius: var(--r-card);
         background: var(--paper);
       }
+      .demo img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #07100d; }
+      .demo-caption { display: flex; justify-content: space-between; gap: 14px; padding: 12px 14px; border-top: 1px solid var(--line); color: var(--muted); font: 400 13px/1.4 var(--sans); }
+      .demo-caption strong { color: var(--ink); font-weight: 600; }
 
-      .demo img {
-        display: block;
-        width: 100%;
-        aspect-ratio: 16 / 9;
-        object-fit: cover;
-        background: #07100d;
-      }
-
-      .demo-caption {
-        display: flex;
-        justify-content: space-between;
-        gap: 18px;
-        padding: 14px 16px;
-        border-top: 1px solid var(--line);
-        color: var(--muted);
-        font: 14px/1.45 var(--sans);
-      }
-
-      .demo-caption strong {
-        color: var(--ink);
-      }
-
-      .footer {
-        padding: 38px 0 56px;
-        border-top: 1px solid rgba(45, 107, 69, 0.42);
-        color: var(--muted);
-      }
-
-      .footer-inner {
-        display: flex;
-        justify-content: space-between;
-        gap: 18px;
-        font: 14px/1.4 var(--sans);
-      }
-
-      @media (max-width: 920px) {
-        .nav-links {
-          display: none;
-        }
-
-        .hero-grid,
-        .workflow,
-        .split,
-        .surface-grid {
-          grid-template-columns: 1fr;
-        }
-
-        .trust-row,
-        .cards {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-      }
-
-      @media (max-width: 620px) {
-        .wrap {
-          width: min(100% - 28px, 1160px);
-        }
-
-        .hero {
-          padding-top: 54px;
-        }
-
-        h1 {
-          font-size: 44px;
-        }
-
-        .hero-copy,
-        .section-head p {
-          font-size: 16px;
-        }
-
-        .trust-row,
-        .cards {
-          grid-template-columns: 1fr;
-        }
-
-        .footer-inner,
-        .demo-caption {
-          display: grid;
-        }
+      @media (max-width: 820px) {
+        .hero-grid { grid-template-columns: 1fr; }
+        .trust-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .why-grid, .agents, .trust-points { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -485,28 +117,28 @@
         <span>Kage</span>
       </a>
       <div class="nav-links">
+        <a href="guide.html#quickstart">Quickstart</a>
         <a href="guide.html">Docs</a>
-        <a href="releases.html">Releases</a>
         <a href="viewer/">Viewer</a>
-        <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a>
+        <a href="releases.html">Releases</a>
         <a href="https://github.com/kage-core/Kage">GitHub</a>
       </div>
-      <a class="nav-cta" href="https://github.com/kage-core/Kage" target="_blank" rel="noopener">GitHub</a>
+      <a class="nav-cta" href="guide.html#quickstart">Install Kage</a>
     </nav>
 
     <main>
       <section class="hero">
         <div class="wrap hero-grid">
           <div>
-            <div class="eyebrow">CLI + MCP memory for coding agents</div>
-            <h1>Shared memory for AI coding agents.</h1>
+            <span class="eyebrow">CLI + MCP memory for coding agents</span>
+            <h1>Shared repo memory for AI coding agents.</h1>
             <p class="hero-copy">
-              Kage lets agents save what they learn about a repo, connect it to code, and recall it later
-              across sessions, tools, and teammates.
+              Kage lets Codex, Claude Code, Cursor, and other MCP agents save what they learn about a repo,
+              connect it to code, and recall it next session.
             </p>
             <div class="actions">
-              <a class="button primary" href="guide.html">Read the docs</a>
-              <a class="button" href="viewer/">Open viewer</a>
+              <a class="button primary" href="guide.html#quickstart">Install Kage</a>
+              <a class="button" href="viewer/">Open viewer demo</a>
             </div>
             <div class="badges" aria-label="Project badges">
               <img alt="npm version" src="https://img.shields.io/npm/v/@kage-core/kage-graph-mcp?style=flat-square&color=0f8f57" />
@@ -516,27 +148,26 @@
             </div>
           </div>
 
-          <div class="terminal" aria-label="Kage install commands">
+          <div class="terminal" aria-label="Install Kage">
             <div class="terminal-head">
               <span>install</span>
-              <span>local-first</span>
+              <span>Node 18+</span>
             </div>
             <pre>npm install -g @kage-core/kage-graph-mcp
+cd your-repo
 kage init --project .
-
-kage recall "how does auth work?" --project .
-kage learn --project . --learning "Run tests after parser changes."
-kage pr check --project .</pre>
+kage setup codex --project . --write
+# restart your agent once
+kage setup verify-agent --agent codex --project .</pre>
           </div>
         </div>
 
         <div class="wrap">
-          <div class="trust-row" aria-label="Kage trust signals">
-            <div class="trust"><strong>v1.1.25</strong><span>latest package on npm</span></div>
-            <div class="trust"><strong>3.3k</strong><span>npm downloads last month</span></div>
-            <div class="trust"><strong>CLI + MCP</strong><span>works with Codex, Claude Code, Cursor, and MCP clients</span></div>
-            <div class="trust"><strong>repo-local</strong><span>memory is plain JSON in git</span></div>
-            <div class="trust"><strong>0 DB</strong><span>no hosted service required</span></div>
+          <div class="trust-row" aria-label="Kage signals">
+            <div class="trust"><strong>v1.1.36</strong><span>latest on npm</span></div>
+            <div class="trust"><strong>Local-first</strong><span>no hosted DB, no API key</span></div>
+            <div class="trust"><strong>CLI + MCP</strong><span>works with major agents</span></div>
+            <div class="trust"><strong>Git-visible</strong><span>memory is reviewable JSON</span></div>
           </div>
         </div>
       </section>
@@ -544,23 +175,20 @@ kage pr check --project .</pre>
       <section class="section">
         <div class="wrap">
           <div class="section-head">
-            <div class="label">The problem</div>
-            <h2>Agents forget the context your team keeps relearning.</h2>
-            <p>
-              Every repo has commands, gotchas, conventions, and decisions that are obvious only after hours of work.
-              Kage gives that knowledge a durable place to live.
-            </p>
+            <span class="eyebrow">Why agents need Kage</span>
+            <h2>Agents forget the context teams keep relearning.</h2>
+            <p class="lede">Every repo has commands, gotchas, conventions, and decisions that take hours to rediscover. Kage gives that knowledge a durable, source-backed place to live.</p>
           </div>
-          <div class="cards">
-            <div class="card">
-              <h3>Before Kage</h3>
-              <p>Every new session asks the same setup questions, scans the same files, and risks repeating the same mistakes.</p>
+          <div class="why-grid">
+            <div class="why-card">
+              <h3>Without Kage</h3>
+              <p>Every session asks the same setup questions, scans the same files, and repeats the same mistakes.</p>
             </div>
-            <div class="card">
+            <div class="why-card">
               <h3>With Kage</h3>
               <p>Agents recall source-backed memory before they act: commands, decisions, known bugs, and path-specific workflows.</p>
             </div>
-            <div class="card">
+            <div class="why-card">
               <h3>For teams</h3>
               <p>Memory travels with the repo, so teammates and different agents start from the same reviewed context.</p>
             </div>
@@ -569,17 +197,13 @@ kage pr check --project .</pre>
       </section>
 
       <section class="section">
-        <div class="wrap workflow">
+        <div class="wrap">
           <div class="section-head">
-            <div class="label">How it works</div>
+            <span class="eyebrow">How it works</span>
             <h2>Capture what matters. Recall it when it matters.</h2>
-            <p>
-              Kage is intentionally boring infrastructure: a CLI, an MCP server, repo-local packets, a code graph,
-              and retrieval tuned for agent work.
-            </p>
           </div>
           <div class="steps">
-            <div class="step"><span class="num">1</span><div><b>Initialize the repo</b><span>`kage init` creates the local memory harness and source graph.</span></div></div>
+            <div class="step"><span class="num">1</span><div><b>Initialize the repo</b><span><code>kage init</code> creates repo-local memory and an indexed source graph.</span></div></div>
             <div class="step"><span class="num">2</span><div><b>Agents learn during real work</b><span>Bug causes, setup commands, decisions, and gotchas become concise memory packets.</span></div></div>
             <div class="step"><span class="num">3</span><div><b>Memory stays reviewable</b><span>Packets are git-visible JSON, not hidden chat transcripts or vendor state.</span></div></div>
             <div class="step"><span class="num">4</span><div><b>Future sessions recall context</b><span>Agents retrieve relevant packets and code graph facts before editing.</span></div></div>
@@ -590,31 +214,15 @@ kage pr check --project .</pre>
       <section class="section">
         <div class="wrap">
           <div class="section-head">
-            <div class="label">Product surfaces</div>
-            <h2>One package, three serious surfaces.</h2>
+            <span class="eyebrow">Works with your agent</span>
+            <h2>One package. Any MCP-capable coding agent.</h2>
+            <p class="lede">Kage ships a stdio MCP server and a CLI. Run <code>kage setup &lt;agent&gt;</code> once per repo.</p>
           </div>
-          <div class="surface-grid">
-            <div class="resource">
-              <div>
-                <h3>Docs that get users running</h3>
-                <p>Quickstart, agent setup, memory model, command reference, viewer, large repo behavior, and trust boundaries.</p>
-              </div>
-              <a href="guide.html">Open docs</a>
-            </div>
-            <div class="resource">
-              <div>
-                <h3>Release and package proof</h3>
-                <p>Latest npm version, download badges, release notes, changelog links, and package metadata in one place.</p>
-              </div>
-              <a href="releases.html">View releases</a>
-            </div>
-            <div class="resource">
-              <div>
-                <h3>Viewer for inspection</h3>
-                <p>Inspect memory packets, code nodes, relationships, metrics, and the graph behind recall.</p>
-              </div>
-              <a href="viewer/">Open viewer</a>
-            </div>
+          <div class="agents">
+            <div class="agent"><strong>Codex</strong><span>kage setup codex</span></div>
+            <div class="agent"><strong>Claude Code</strong><span>kage setup claude-code</span></div>
+            <div class="agent"><strong>Cursor</strong><span>kage setup cursor</span></div>
+            <div class="agent"><strong>Any MCP client</strong><span>kage setup generic-mcp</span></div>
           </div>
         </div>
       </section>
@@ -622,20 +230,32 @@ kage pr check --project .</pre>
       <section class="section">
         <div class="wrap">
           <div class="section-head">
-            <div class="label">Viewer</div>
-            <h2>Inspect the memory and code graph when you need to trust it.</h2>
-            <p>
-              Use the viewer when you need to inspect memory packets, code nodes, edges, and metrics
-              behind what agents recall.
-            </p>
+            <span class="eyebrow">Trust model</span>
+            <h2>Local-first by default. Sharing is explicit.</h2>
+          </div>
+          <div class="trust-points">
+            <div class="trust-point"><strong>Repo-local memory</strong><span>Packets live in <code>.agent_memory/</code> next to the code, reviewable as JSON.</span></div>
+            <div class="trust-point"><strong>No hosted service required</strong><span>Recall, viewer, and graphs work without external databases or API keys.</span></div>
+            <div class="trust-point"><strong>Capture scans for secrets</strong><span>Obvious credentials and PII are filtered before a packet is written.</span></div>
+            <div class="trust-point"><strong>Sharing is human-gated</strong><span>Org, global, and public promotion require explicit review commands.</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="wrap">
+          <div class="section-head">
+            <span class="eyebrow">Viewer</span>
+            <h2>Inspect what agents recall and why.</h2>
+            <p class="lede">The viewer shows memory packets, code nodes, risks, and review queues. Use it when you need to trust what was retrieved.</p>
           </div>
           <div class="demo">
             <a href="viewer/" aria-label="Open Kage viewer">
               <img src="assets/kage-viewer-demo-poster.png" alt="Kage viewer showing memory and code graph inspection" />
             </a>
             <div class="demo-caption">
-              <strong>Actual hosted viewer</strong>
-              <span>Search, graph views, memory/code relationships, and repo metrics.</span>
+              <strong>Open the hosted viewer</strong>
+              <span>Search packets, follow memory-to-code links, and check risks before edits.</span>
             </div>
           </div>
         </div>
@@ -644,9 +264,9 @@ kage pr check --project .</pre>
       <section class="section">
         <div class="wrap">
           <div class="section-head">
-            <div class="label">Quickstart</div>
+            <span class="eyebrow">Quickstart</span>
             <h2>Start with one repo.</h2>
-            <p>Install the package, initialize memory, set up your agent, and work normally.</p>
+            <p class="lede">Requires Node.js 18 or newer. The package installs two binaries: <code>kage</code> and <code>kage-graph-mcp</code>.</p>
           </div>
           <div class="terminal">
             <div class="terminal-head">
@@ -654,9 +274,17 @@ kage pr check --project .</pre>
               <span>npm</span>
             </div>
             <pre>npm install -g @kage-core/kage-graph-mcp
+cd your-repo
 kage init --project .
 kage setup codex --project . --write
-kage setup verify-agent --agent codex --project .</pre>
+# or: kage setup claude-code --project . --write
+# restart the agent once
+kage setup verify-agent --agent codex --project .
+kage recall "how do I run tests" --project .</pre>
+          </div>
+          <div class="actions">
+            <a class="button primary" href="guide.html">Read the docs</a>
+            <a class="button" href="https://github.com/kage-core/Kage">View on GitHub</a>
           </div>
         </div>
       </section>
@@ -664,8 +292,14 @@ kage setup verify-agent --agent codex --project .</pre>
 
     <footer class="footer">
       <div class="wrap footer-inner">
-        <span>Kage: shared memory for AI coding agents.</span>
-        <span><a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a> · <a href="https://github.com/kage-core/Kage">GitHub</a> · <a href="guide.html">Docs</a></span>
+        <span>Kage &middot; shared memory for AI coding agents</span>
+        <span>
+          <a href="guide.html">Docs</a> &middot;
+          <a href="viewer/">Viewer</a> &middot;
+          <a href="releases.html">Releases</a> &middot;
+          <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a> &middot;
+          <a href="https://github.com/kage-core/Kage">GitHub</a>
+        </span>
       </div>
     </footer>
   </body>

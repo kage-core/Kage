@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:viewer-pages-should-lead-with-action-metrics-1778844567754",
+  "title": "Viewer pages should lead with action metrics",
+  "summary": "Viewer pages should not make users infer value from raw lists. Overview, Memory, Owners, Review, and Proof should lead with compact charts tied to decisions: memory grounding, source map coverage, handoff blockers, owner",
+  "body": "Viewer pages should not make users infer value from raw lists. Overview, Memory, Owners, Review, and Proof should lead with compact charts tied to decisions: memory grounding, source-map coverage, handoff blockers, ownership concentration, memory quality, and benchmark gates. Debug should be labeled as raw artifact inspection, not a normal workflow.\nVerified by: Playwright desktop/mobile page checks for Overview, Graph, Memory, Owners, Intel, Review, Debug and homepage; npm test --prefix mcp",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning"
+  ],
+  "paths": [
+    "mcp/viewer/index.html",
+    "mcp/viewer/app.js",
+    "mcp/viewer/styles.css",
+    "docs/index.html",
+    "docs/viewer/index.html",
+    "docs/viewer/app.js",
+    "docs/viewer/styles.css"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-15T11:29:27.754Z"
+    }
+  ],
+  "context": {
+    "fact": "Viewer pages should not make users infer value from raw lists. Overview, Memory, Owners, Review, and Proof should lead with compact charts tied to decisions: memory grounding, source-map coverage, handoff blockers, ownership concentration, memory quality, and benchmark gates. Debug should be labeled as raw artifact inspection, not a normal workflow.\nVerified by: Playwright desktop/mobile page checks for Overview, Graph, Memory, Owners, Intel, Review, Debug and homepage; npm test --prefix mcp",
+    "verification": "Playwright desktop/mobile page checks for Overview, Graph, Memory, Owners, Intel, Review, Debug and homepage; npm test --prefix mcp"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-15T11:29:27.754Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 124
+  },
+  "created_at": "2026-05-15T11:29:27.754Z",
+  "updated_at": "2026-05-15T11:29:35.105Z"
+}
