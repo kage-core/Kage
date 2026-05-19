@@ -1,0 +1,68 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:longmemeval-temporal-retrieval-uses-question-date-metadata-1779026379806",
+  "title": "LongMemEval temporal retrieval uses question-date metadata",
+  "summary": "Kage recall now expands relative temporal phrases when the query includes explicit date metadata such as 'Question date: 2023/03/28'. The LongMemEval S benchmark harness uses this retrieval time question date for relativ",
+  "body": "Kage recall now expands relative temporal phrases when the query includes explicit date metadata such as 'Question date: 2023/03/28'. The LongMemEval-S benchmark harness uses this retrieval-time question date for relative temporal questions. Full LongMemEval-S retrieval now scores R@5 96.17%, R@10 98.72%, R@20 99.79%, MRR 0.9099, NDCG@10 0.9283 over 470 non-abstention questions. This is evidence retrieval, not answer accuracy.\nEvidence: Implemented in mcp/kernel.ts, covered in mcp/kernel.test.ts, benchmark harnesses updated in benchmarks/longmemeval-kage-retrieval.mjs and benchmarks/longmemeval-bm25-baseline.mjs, and documented in README.md and benchmarks/LONGMEMEVAL.md.\nVerified by: npm test --prefix mcp; node benchmarks/longmemeval-kage-retrieval.mjs --data /private/tmp/kage-external-bench/longmemeval_s_cleaned.json --limit 470 --top-k 10 --out /private/tmp/kage-external-bench/longmemeval-kage-full-temporal.json",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "retrieval",
+    "benchmark",
+    "longmemeval",
+    "temporal",
+    "agentmemory-comparison"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts",
+    "benchmarks/longmemeval-kage-retrieval.mjs",
+    "benchmarks/LONGMEMEVAL.md",
+    "README.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-17T13:59:39.806Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage recall now expands relative temporal phrases when the query includes explicit date metadata such as 'Question date: 2023/03/28'. The LongMemEval-S benchmark harness uses this retrieval-time question date for relative temporal questions. Full LongMemEval-S retrieval now scores R@5 96.17%, R@10 98.72%, R@20 99.79%, MRR 0.9099, NDCG@10 0.9283 over 470 non-abstention questions. This is evidence retrieval, not answer accuracy.\nEvidence: Implemented in mcp/kernel.ts, covered in mcp/kernel.test.ts, benchmark harnesses updated in benchmarks/longmemeval-kage-retrieval.mjs and benchmarks/longmemeval-bm25-baseline.mjs, and documented in README.md and benchmarks/LONGMEMEVAL.md.\nVerified by: npm test --prefix mcp; node benchmarks/longmemeval-kage-retrieval.mjs --data /private/tmp/kage-external-bench/longmemeval_s_cleaned.json --limit 470 --top-k 10 --out /private/tmp/kage-external-bench/longmemeval-kage-full-temporal.json",
+    "verification": "Implemented in mcp/kernel.ts, covered in mcp/kernel.test.ts, benchmark harnesses updated in benchmarks/longmemeval-kage-retrieval.mjs and benchmarks/longmemeval-bm25-baseline.mjs, and documented in README.md and benchmarks/LONGMEMEVAL.md."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-17T13:59:39.806Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 232
+  },
+  "created_at": "2026-05-17T13:59:39.806Z",
+  "updated_at": "2026-05-19T04:53:22.456Z"
+}

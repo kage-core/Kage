@@ -1,0 +1,63 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:pr-checks-now-block-undistilled-session-learnings-1779058360638",
+  "title": "PR checks now block undistilled session learnings",
+  "summary": "After comparing AgentMemory's automatic session capture, Kage now makes observed but undistilled live session learnings part of merge readiness. prCheck calls kageSessionCaptureReport and fails when any session has durab",
+  "body": "After comparing AgentMemory's automatic session capture, Kage now makes observed but undistilled live-session learnings part of merge readiness. prCheck calls kageSessionCaptureReport and fails when any session has durable observations, adding the existing kage distill command as a required action. This preserves Kage's repo-local collaborative memory model: raw observations remain telemetry, but durable learnings must be distilled into reviewable memory packets before handoff or merge.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'pr check blocks when observed session learnings still need distillation'; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "agentmemory-comparison",
+    "session-distillation",
+    "pr-check"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-17T22:52:40.638Z"
+    }
+  ],
+  "context": {
+    "fact": "After comparing AgentMemory's automatic session capture, Kage now makes observed but undistilled live-session learnings part of merge readiness. prCheck calls kageSessionCaptureReport and fails when any session has durable observations, adding the existing kage distill command as a required action. This preserves Kage's repo-local collaborative memory model: raw observations remain telemetry, but durable learnings must be distilled into reviewable memory packets before handoff or merge.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'pr check blocks when observed session learnings still need distillation'; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check",
+    "verification": "npm test --prefix mcp -- --test-name-pattern 'pr check blocks when observed session learnings still need distillation'; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-17T22:52:40.638Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 177
+  },
+  "created_at": "2026-05-17T22:52:40.638Z",
+  "updated_at": "2026-05-19T04:53:22.457Z"
+}

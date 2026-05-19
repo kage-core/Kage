@@ -204,6 +204,7 @@ kage setup verify-agent --agent codex --project .</pre>
               <h3>Claude Code</h3>
               <pre>kage setup claude-code --project . --write
 kage setup verify-agent --agent claude-code --project .</pre>
+              <p>Installs MCP plus SessionStart, UserPromptSubmit, PostToolUse, PostToolUseFailure, PreCompact, Stop, and SessionEnd hooks for prompt-time recall, observation, distillation, handoff refresh, and memory reconciliation.</p>
             </div>
             <div class="card">
               <h3>Cursor</h3>
@@ -221,8 +222,14 @@ kage setup generic-mcp --project .</pre>
           <pre>kage init --project .
 kage learn --project . --learning "Run npm test --prefix mcp after parser changes."
 kage recall "parser tests" --project .</pre>
+          <h3 class="section-sub">REST path</h3>
+          <p>HTTP-only agents can use the daemon instead of MCP. <code>/kage/context</code> returns combined recall, graph facts, validation, risk, and dependency context; <code>/kage/profile</code> gives a compact project orientation; <code>/kage/capabilities</code> audits memory-system readiness; <code>/kage/context-slots</code> manages pinned repo guidance; <code>/kage/replay</code> shows privacy-preserving observed-session timelines; <code>/kage/capture</code>, <code>/kage/learn</code>, and <code>/kage/feedback</code> write or review the same repo-local packets used by CLI and MCP.</p>
+          <pre>kage daemon start --project .
+curl -X POST http://127.0.0.1:3111/kage/context \
+  -H 'content-type: application/json' \
+  -d '{"query":"how does auth work?","limit":5}'</pre>
           <h3 class="section-sub">Verifying setup</h3>
-          <p><code>kage setup verify-agent</code> confirms the harness is live by checking config, repo policy, indexes, recall, and MCP reachability.</p>
+          <p><code>kage setup verify-agent</code> confirms the harness is live by checking config, repo policy, indexes, recall, MCP reachability, and Claude Code ambient hooks when applicable. <code>kage setup doctor --json</code> and the MCP <code>kage_setup_doctor</code> tool expose the same hook summary for install audits.</p>
           <pre>kage setup verify-agent --agent codex --project . --json
 kage doctor --project .</pre>
         </section>
@@ -339,22 +346,43 @@ kage hook status --project .</pre>
 
           <h3 class="section-sub">Setup and verification</h3>
           <div class="method"><h3><code>kage init</code> Initialize a repo</h3><p>Creates memory structure, installs policy, builds the first index.</p><pre>kage init --project .</pre></div>
-          <div class="method"><h3><code>kage setup</code> Configure agents</h3><p>Lists targets, writes agent config, verifies live integration.</p><pre>kage setup list
+          <div class="method"><h3><code>kage setup</code> Configure agents</h3><p>Lists targets, writes agent config, verifies live integration. Claude Code setup also installs ambient hooks for prompt recall, observation, compaction distillation, and stop-time handoff refresh.</p><pre>kage setup list
 kage setup codex --project . --write
 kage setup verify-agent --agent codex --project . --json</pre></div>
           <div class="method"><h3><code>kage doctor</code> Diagnose a repo</h3><p>Validates config, indexes, and policy state.</p><pre>kage doctor --project .</pre></div>
 
           <h3 class="section-sub">Recall and capture</h3>
           <div class="method"><h3><code>kage recall</code> Retrieve relevant memory</h3><p>Returns an agent-ready context block. Use <code>--explain</code> to see why packets matched.</p><pre>kage recall "query" --project . --json --explain</pre></div>
+          <div class="method"><h3><code>kage profile</code> Orient an agent quickly</h3><p>Summarizes repo totals, languages, top code+memory concepts, key files, run commands, memory focus, and next actions without loading every packet or graph node.</p><pre>kage profile --project . --json</pre></div>
+          <div class="method"><h3><code>kage capabilities</code> Audit memory-system readiness</h3><p>Scores repo memory, collaboration/session proof, benchmark proof, and dashboard/viewer readiness with evidence, gaps, and next actions.</p><pre>kage capabilities --project . --json</pre></div>
+          <div class="method"><h3><code>kage slots</code> Pin tiny repo guidance</h3><p>Creates reviewable repo-local context slots that Kage includes before task-specific recall. Use this for stable constraints, commands, or warnings that are too important to rediscover but too small for a full memory search.</p><pre>kage slots set --project . --label project_context \
+  --content "Always run checkout retry tests after touching retry modules." \
+  --paths src/retry.ts --tags checkout,tests
+kage slots --project . --json</pre></div>
+          <div class="method"><h3><code>kage embeddings</code> Optional dense local recall</h3><p>Builds a rebuildable local embedding artifact for semantic recall after installing <code>@xenova/transformers</code> in the same Node environment as Kage. Normal recall remains dependency-free.</p><pre>npm install -g @xenova/transformers
+kage embeddings build --project .
+kage recall "query" --project . --embeddings --explain</pre></div>
           <div class="method"><h3><code>kage learn</code> Capture a learning</h3><p>Writes a concise repo-local memory packet for a reusable fact.</p><pre>kage learn --project . --type decision --title "Parser tests need fixtures" \
   --learning "Run parser fixture tests after grammar edits." \
   --paths mcp/kernel.ts,mcp/kernel.test.ts</pre></div>
           <div class="method"><h3><code>kage capture</code> Create a structured packet</h3><p>Writes a packet with explicit title, summary, body, type, tags, paths, and stack metadata.</p><pre>kage capture --project . --title "Auth retry gotcha" --body "..." --type gotcha --tags auth,retry</pre></div>
           <div class="method"><h3><code>kage feedback</code> Mark memory helpful, wrong, stale</h3><p>Records usefulness signals on recalled packets.</p><pre>kage feedback --project . --packet &lt;id&gt; --kind stale</pre></div>
+          <div class="method"><h3><code>kage sessions</code> Review observed sessions</h3><p>Shows privacy-scanned local observations, durable distillation candidates, and next actions without raw transcript replay.</p><pre>kage sessions --project . --json
+kage replay --project . --json
+kage distill --project . --session &lt;id&gt;</pre></div>
+          <div class="method"><h3><code>kage memory-access</code> See reused memory</h3><p>Reports hot, cold, and recently recalled packets from local ignored access telemetry, then recommends what to verify, ground, or clean up. Recall does not mutate shareable packet files.</p><pre>kage memory-access --project . --json</pre></div>
+          <div class="method"><h3><code>kage memory-audit</code> Review memory mutations</h3><p>Shows explicit memory changes: capture, feedback, approve, reject, supersede, deprecate, and delete, with packet ids, branch/head, actor, and details.</p><pre>kage memory-audit --project . --limit 50 --json</pre></div>
+          <div class="method"><h3><code>kage handoff</code> Prepare the next teammate or agent</h3><p>Combines inbox, lifecycle, audit, timeline, and lineage into one action queue: what is blocking handoff, what changed recently, and which retired memories need replacement links.</p><pre>kage handoff --project . --json</pre></div>
+          <div class="method"><h3><code>kage lifecycle</code> Review memory health</h3><p>Classifies packets as healthy, hot, cold, stale, disputed, ungrounded, pending, or generated, then gives teammates concrete review actions.</p><pre>kage lifecycle --project . --json</pre></div>
+          <div class="method"><h3><code>kage timeline</code> Review memory history</h3><p>Shows recently added, updated, pending, and retired packets so teammates know what repo knowledge changed before handoff.</p><pre>kage timeline --project . --days 14 --json</pre></div>
+          <div class="method"><h3><code>kage lineage</code> Replace old memory safely</h3><p>Shows superseded packets, their current replacements, and orphaned retired memory that needs a replacement link.</p><pre>kage supersede --project . --packet &lt;old-id&gt; --replacement &lt;new-id&gt; --reason "newer verified context"
+kage lineage --project . --json</pre></div>
 
           <h3 class="section-sub">Maintain generated state</h3>
-          <div class="method"><h3><code>kage refresh</code> Rebuild generated state</h3><p>Updates indexes, structural artifacts, graphs, metrics, and stale-memory checks. <code>--full</code> bypasses cache.</p><pre>kage refresh --project .
+          <div class="method"><h3><code>kage refresh</code> Rebuild generated state</h3><p>Updates indexes, structural artifacts, graphs, metrics, and stale-memory checks. Newly captured and diff-derived packets store linked-file fingerprints, so Kage can flag memory when the source code it explains has changed. <code>--full</code> bypasses cache.</p><pre>kage refresh --project .
 kage refresh --project . --full --json</pre></div>
+          <div class="method"><h3><code>kage reconcile</code> Agent memory repair gate</h3><p>Reports linked-memory packets that the current agent must update, supersede, or mark stale after changing related source files. Claude Code Stop hooks and <code>kage pr check</code> use this as an enforcement gate, so users do not have to manually babysit memory updates.</p><pre>kage reconcile --project . --json
+kage reconcile --project . --session &lt;session-id&gt;</pre></div>
           <div class="method"><h3><code>kage hook</code> Auto-refresh after commits</h3><p>Marker-delimited git <code>post-commit</code> hook. Preserves existing hook content; respects <code>KAGE_SKIP_HOOK=1</code>.</p><pre>kage hook install --project .
 kage hook status --project . --json
 kage hook uninstall --project .</pre></div>
@@ -376,7 +404,7 @@ kage hook uninstall --project .</pre></div>
 
           <h3 class="section-sub">PR and handoff</h3>
           <div class="method"><h3><code>kage propose --from-diff</code> Branch change memory</h3><p>Creates a branch summary and repo-local change-memory packet from git diff.</p><pre>kage propose --project . --from-diff</pre></div>
-          <div class="method"><h3><code>kage pr</code> Summarize and check</h3><p>Verifies validation, stale packets, graph freshness, and memory changes for merge.</p><pre>kage pr summarize --project .
+          <div class="method"><h3><code>kage pr</code> Summarize and check</h3><p>Verifies validation, stale packets, graph freshness, memory changes, and unresolved agent memory reconciliation before merge.</p><pre>kage pr summarize --project .
 kage pr check --project . --json</pre></div>
 
           <h3 class="section-sub">Workspace</h3>
@@ -388,7 +416,9 @@ kage workspace recall "auth header contract" --project .. --json</pre></div>
           <div class="method"><h3><code>kage audit</code> / <code>kage quality</code> / <code>kage validate</code></h3><p>Audit health, structured context coverage, code graph quality, and trust signals.</p><pre>kage audit --project . --json
 kage quality --project . --json
 kage validate --project .</pre></div>
-          <div class="method"><h3><code>kage benchmark</code></h3><p>Compares baseline discovery cost vs Kage context for a task.</p><pre>kage benchmark --project . --compare --task "fix flaky checkout retry" --json</pre></div>
+          <div class="method"><h3><code>kage benchmark</code></h3><p>Compares baseline discovery cost vs Kage context and can run packaged coding-memory retrieval and scale benchmarks.</p><pre>kage benchmark --project . --compare --task "fix flaky checkout retry" --json
+kage benchmark --memory-quality --json
+kage benchmark --scale --sizes 240,1000,5000 --json</pre></div>
           <div class="method"><h3><code>kage inbox</code> / <code>kage review-artifact</code></h3><p>Pending, stale, duplicate packets, validation issues, recommended actions.</p><pre>kage inbox --project . --json</pre></div>
 
           <h3 class="section-sub">Sharing (review-gated)</h3>
@@ -404,19 +434,24 @@ kage global build --project . --json</pre></div>
 
         <section id="mcp">
           <h2>MCP tools</h2>
-          <p>Agents should prefer MCP tools when available. <strong>Start with <code>kage_context</code></strong> &mdash; it combines validation, recall, code graph search, knowledge graph search, and target-aware risk signals.</p>
+          <p>Agents should prefer MCP tools when available. <strong>Start with <code>kage_context</code></strong> &mdash; it combines validation, recall, code graph search, knowledge graph search, target-aware risk signals, and memory reconciliation.</p>
 
-          <div class="method"><h3><code>kage_context</code> Main task entry point</h3><p>Call before repo-specific implementation, debugging, architecture, or code questions. When a query or target list includes file paths, Kage also adds risk and dependency-path context.</p></div>
+          <div class="method"><h3><code>kage_context</code> Main task entry point</h3><p>Call before repo-specific implementation, debugging, architecture, or code questions. When a query or target list includes file paths, Kage also adds risk, dependency-path context, and any linked memory the agent must repair before final handoff.</p></div>
           <div class="method"><h3><code>kage_recall</code>, <code>kage_graph</code>, <code>kage_code_graph</code></h3><p>Lower-level recall and graph tools when the combined context tool is not enough.</p></div>
+          <div class="method"><h3><code>kage_memory_reconcile</code></h3><p>Agent-owned repair list for memory linked to source files changed in the current task. Use it to decide which packet to update, supersede, or mark stale before final handoff.</p></div>
           <div class="method"><h3><code>kage_risk</code></h3><p>Pre-edit risk assessment with graph dependents, churn, ownership, co-change warnings, impact surface, test-gap signals.</p></div>
           <div class="method"><h3><code>kage_dependency_path</code></h3><p>Shortest code graph path between two files.</p></div>
           <div class="method"><h3><code>kage_cleanup_candidates</code></h3><p>Conservative review input. Never mutates files.</p></div>
+          <div class="method"><h3><code>kage_profile</code></h3><p>Compact project orientation for agents: repo shape, top concepts, key files, commands, memory focus, and next actions.</p></div>
+          <div class="method"><h3><code>kage_capabilities</code></h3><p>Evidence-backed readiness report across memory, collaboration, benchmark proof, and dashboard/viewer proof.</p></div>
+          <div class="method"><h3><code>kage_context_slots</code>, <code>kage_context_slot_set</code>, <code>kage_context_slot_delete</code></h3><p>List, upsert, or delete pinned repo context slots that are included before task-specific recall.</p></div>
+          <div class="method"><h3><code>kage_session_replay</code></h3><p>Review observed agent session timelines, touched paths, commands, durable candidates, and distill actions without raw transcript text.</p></div>
           <div class="method"><h3><code>kage_reviewers</code>, <code>kage_contributors</code></h3><p>Local git-derived reviewer suggestions and contributor profiles.</p></div>
           <div class="method"><h3><code>kage_decisions</code>, <code>kage_module_health</code>, <code>kage_graph_insights</code></h3><p>Why-memory coverage, module scorecards, architecture signals.</p></div>
           <div class="method"><h3><code>kage_workspace</code>, <code>kage_workspace_recall</code></h3><p>Summarize sibling repos and recall across a local multi-repo workspace.</p></div>
-          <div class="method"><h3><code>kage_learn</code>, <code>kage_capture</code>, <code>kage_feedback</code></h3><p>Capture new repo knowledge or mark recalled memory helpful, wrong, or stale.</p></div>
+          <div class="method"><h3><code>kage_learn</code>, <code>kage_capture</code>, <code>kage_feedback</code>, <code>kage_supersede</code></h3><p>Capture new repo knowledge, mark recalled memory helpful/wrong/stale, or link old memory to a current replacement.</p></div>
           <div class="method"><h3><code>kage_refresh</code>, <code>kage_pr_summarize</code>, <code>kage_pr_check</code></h3><p>Keep generated artifacts current and create merge-ready branch memory.</p></div>
-          <div class="method"><h3><code>kage_metrics</code>, <code>kage_audit</code>, <code>kage_inbox</code>, <code>kage_quality</code>, <code>kage_benchmark</code></h3><p>Inspect readiness, quality, duplicates, stale packets, benchmark estimates.</p></div>
+          <div class="method"><h3><code>kage_metrics</code>, <code>kage_audit</code>, <code>kage_inbox</code>, <code>kage_quality</code>, <code>kage_benchmark</code>, <code>kage_memory_handoff</code>, <code>kage_memory_audit</code></h3><p>Inspect readiness, quality, duplicates, stale packets, benchmark estimates, profile, handoff, lifecycle, memory timeline, lineage, and mutation audit reports.</p></div>
           <div class="method"><h3><code>kage_setup_agent</code>, <code>kage_verify_agent</code>, <code>kage_install_policy</code></h3><p>Install or verify agent harness configuration.</p></div>
           <div class="method"><h3><code>kage_search</code>, <code>kage_fetch</code>, <code>kage_list_domains</code></h3><p>Optional community knowledge graph search. Returned public context is advisory.</p></div>
           <div class="method"><h3><code>kage_org_*</code>, <code>kage_layered_recall</code>, <code>kage_global_build</code></h3><p>Review-gated sharing and layered recall. Repo-local memory wins when context conflicts.</p></div>
@@ -431,7 +466,8 @@ kage global build --project . --json</pre></div>
             <li>Before editing a shared file &mdash; check Risks for dependents and co-change partners.</li>
             <li>To find repo lore &mdash; search the Memory page by file, feature, bug, or command.</li>
             <li>To inspect why an agent recalled something &mdash; follow memory-to-code links from the Graph.</li>
-            <li>Before merging &mdash; clear the Review queue (pending, stale, duplicate, weak memory).</li>
+            <li>Before merging &mdash; clear the Review queue, including distillable session learnings that should become memory.</li>
+            <li>Before quoting benchmark numbers &mdash; check Quality/Benchmark for proof commands, thresholds, and next actions.</li>
             <li>To diagnose generation quality &mdash; open the Artifacts diagnostics link.</li>
           </ul>
           <p>The local viewer is preferred for real repos because it loads active artifacts and reports automatically.</p>

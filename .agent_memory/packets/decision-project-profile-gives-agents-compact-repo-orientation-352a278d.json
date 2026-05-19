@@ -1,0 +1,77 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:project-profile-gives-agents-compact-repo-orientation-1779074707075",
+  "title": "Project profile gives agents compact repo orientation",
+  "summary": "Kage now has an AgentMemory inspired project profile implemented as a rebuildable Kage report, not a separate mutable memory store. kageProjectProfile summarizes existing structural index, code graph, and approved repo m",
+  "body": "Kage now has an AgentMemory-inspired project profile implemented as a rebuildable Kage report, not a separate mutable memory store. kageProjectProfile summarizes existing structural index, code graph, and approved repo memory into repo totals, languages, top code+memory concepts, key files, memory focus, run commands, next actions, and warnings. It is exposed through CLI kage profile, MCP kage_profile, REST GET /kage/profile, local viewer report generation, and the dashboard. The profile tolerates older packets that lack quality/freshness fields so existing repos keep working.",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "agentmemory-comparison",
+    "project-profile",
+    "profile",
+    "viewer",
+    "dashboard",
+    "mcp",
+    "rest",
+    "compatibility"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts",
+    "mcp/cli.ts",
+    "mcp/index.ts",
+    "mcp/mcp.test.ts",
+    "mcp/daemon.ts",
+    "mcp/daemon.test.ts",
+    "mcp/viewer/app.js",
+    "docs/viewer/app.js",
+    "README.md",
+    "mcp/README.md",
+    "docs/guide.html"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-18T03:25:07.074Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage now has an AgentMemory-inspired project profile implemented as a rebuildable Kage report, not a separate mutable memory store. kageProjectProfile summarizes existing structural index, code graph, and approved repo memory into repo totals, languages, top code+memory concepts, key files, memory focus, run commands, next actions, and warnings. It is exposed through CLI kage profile, MCP kage_profile, REST GET /kage/profile, local viewer report generation, and the dashboard. The profile tolerates older packets that lack quality/freshness fields so existing repos keep working."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-18T03:25:07.074Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 146
+  },
+  "created_at": "2026-05-18T03:25:07.074Z",
+  "updated_at": "2026-05-19T04:53:22.457Z"
+}

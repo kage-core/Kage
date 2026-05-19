@@ -1,0 +1,64 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:recall-diversifies-observed-session-sources-1779058571895",
+  "title": "Recall diversifies observed session sources",
+  "summary": "After studying AgentMemory's search diversity, Kage recall now caps session provenance dominance for distilled observation session packets. recallWithVectorScores ranks all relevant packets, then diversifyRecallEntries a",
+  "body": "After studying AgentMemory's search diversity, Kage recall now caps session-provenance dominance for distilled observation-session packets. recallWithVectorScores ranks all relevant packets, then diversifyRecallEntries allows at most three packets from the same observation_session source before including independent session sources. This keeps noisy live-agent sessions from crowding out useful teammate memory while leaving normal explicit repo captures ungrouped and preserving existing score order within each source.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'recall diversifies results across observed session sources'; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "agentmemory-comparison",
+    "recall",
+    "ranking",
+    "session-distillation"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-17T22:56:11.895Z"
+    }
+  ],
+  "context": {
+    "fact": "After studying AgentMemory's search diversity, Kage recall now caps session-provenance dominance for distilled observation-session packets. recallWithVectorScores ranks all relevant packets, then diversifyRecallEntries allows at most three packets from the same observation_session source before including independent session sources. This keeps noisy live-agent sessions from crowding out useful teammate memory while leaving normal explicit repo captures ungrouped and preserving existing score order within each source.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'recall diversifies results across observed session sources'; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check",
+    "verification": "npm test --prefix mcp -- --test-name-pattern 'recall diversifies results across observed session sources'; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-17T22:56:11.895Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 181
+  },
+  "created_at": "2026-05-17T22:56:11.895Z",
+  "updated_at": "2026-05-19T04:53:22.457Z"
+}

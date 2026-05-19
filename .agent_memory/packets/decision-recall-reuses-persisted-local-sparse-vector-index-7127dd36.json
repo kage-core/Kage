@@ -1,0 +1,68 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:recall-reuses-persisted-local-sparse-vector-index-1779032378023",
+  "title": "Recall reuses persisted local sparse vector index",
+  "summary": "Kage now writes a persisted local sparse vector packet index at .agent memory/indexes/vector local.json during indexing and refresh. Recall validates the artifact against approved packet count and latest updated at, then",
+  "body": "Kage now writes a persisted local sparse-vector packet index at .agent_memory/indexes/vector-local.json during indexing and refresh. Recall validates the artifact against approved packet count and latest updated_at, then reuses stored packet vectors instead of rebuilding every packet vector for every query. If the artifact is missing or stale, recall falls back to live vector scoring.\nEvidence: Implemented SparseVectorIndex helpers, vector-local index writing, setup/doctor index expectations, and indexed recall scoring in mcp/kernel.ts. Added tests for vector-local index generation and recall using vector-local-index explanations.\nVerified by: npm test --prefix mcp; git diff --check; node --check benchmarks/longmemeval-kage-retrieval.mjs",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "recall",
+    "vector-local",
+    "indexing",
+    "agentmemory-comparison",
+    "performance"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts",
+    "README.md",
+    "benchmarks/README.md",
+    "benchmarks/LONGMEMEVAL.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-17T15:39:38.023Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage now writes a persisted local sparse-vector packet index at .agent_memory/indexes/vector-local.json during indexing and refresh. Recall validates the artifact against approved packet count and latest updated_at, then reuses stored packet vectors instead of rebuilding every packet vector for every query. If the artifact is missing or stale, recall falls back to live vector scoring.\nEvidence: Implemented SparseVectorIndex helpers, vector-local index writing, setup/doctor index expectations, and indexed recall scoring in mcp/kernel.ts. Added tests for vector-local index generation and recall using vector-local-index explanations.\nVerified by: npm test --prefix mcp; git diff --check; node --check benchmarks/longmemeval-kage-retrieval.mjs",
+    "verification": "Implemented SparseVectorIndex helpers, vector-local index writing, setup/doctor index expectations, and indexed recall scoring in mcp/kernel.ts. Added tests for vector-local index generation and recall using vector-local-index explanations."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-17T15:39:38.023Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 187
+  },
+  "created_at": "2026-05-17T15:39:38.023Z",
+  "updated_at": "2026-05-19T04:53:22.458Z"
+}

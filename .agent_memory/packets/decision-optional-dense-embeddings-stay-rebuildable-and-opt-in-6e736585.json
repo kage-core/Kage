@@ -1,0 +1,63 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:optional-dense-embeddings-stay-rebuildable-and-opt-in-1779032867364",
+  "title": "Optional dense embeddings stay rebuildable and opt-in",
+  "summary": "Kage now has two local retrieval layers: refresh writes the default dependency free sparse packet index at .agent memory/indexes/vector local.json, while kage embeddings build writes an optional rebuildable dense artifac",
+  "body": "Kage now has two local retrieval layers: refresh writes the default dependency-free sparse packet index at .agent_memory/indexes/vector-local.json, while kage embeddings build writes an optional rebuildable dense artifact at .agent_memory/indexes/embeddings-local.json for semantic recall via kage recall --embeddings. Keep dense embeddings opt-in because they may download a model and create a larger artifact; normal recall should remain local, fast, inspectable, and dependency-free.",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/cli.ts",
+    "mcp/index.ts",
+    "mcp/kernel.test.ts",
+    "README.md",
+    "benchmarks/LONGMEMEVAL.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-17T15:47:47.364Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage now has two local retrieval layers: refresh writes the default dependency-free sparse packet index at .agent_memory/indexes/vector-local.json, while kage embeddings build writes an optional rebuildable dense artifact at .agent_memory/indexes/embeddings-local.json for semantic recall via kage recall --embeddings. Keep dense embeddings opt-in because they may download a model and create a larger artifact; normal recall should remain local, fast, inspectable, and dependency-free."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-17T15:47:47.364Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 122
+  },
+  "created_at": "2026-05-17T15:47:47.364Z",
+  "updated_at": "2026-05-19T04:53:22.457Z"
+}

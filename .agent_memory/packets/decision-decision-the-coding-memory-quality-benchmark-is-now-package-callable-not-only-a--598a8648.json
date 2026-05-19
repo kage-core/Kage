@@ -1,0 +1,61 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:decision-the-coding-memory-quality-benchmark-is-now-package-callable-not-only-a-",
+  "title": "Decision: The coding-memory quality benchmark is now package-callable, not only a source-t",
+  "summary": "Decision: The coding memory quality benchmark is now package callable, not only a source tree script. benchmarkCodingMemoryQuality lives in mcp/kernel.ts, kage benchmark memory quality exposes it through the CLI, and kag",
+  "body": "Decision: The coding-memory quality benchmark is now package-callable, not only a source-tree script. benchmarkCodingMemoryQuality lives in mcp/kernel.ts, kage benchmark --memory-quality exposes it through the CLI, and kage_benchmark accepts mode=memory_quality for MCP users. The repo script benchmarks/coding-memory-quality.mjs now delegates to the packaged kernel function so npm users and source users exercise the same benchmark logic. Why: Kage should ship benchmark proof with the product package instead of relying on repo-only artifacts. Verified by: node mcp/dist/cli.js benchmark --memory-quality; node benchmarks/coding-memory-quality.mjs --out /tmp/kage-coding-memory-quality-packaged.json; npm test --prefix mcp.",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "benchmarks"
+  ],
+  "paths": [
+    "mcp/kernel.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-17T20:57:06.493Z"
+    }
+  ],
+  "context": {
+    "fact": "The coding-memory quality benchmark is now package-callable, not only a source-tree script. benchmarkCodingMemoryQuality lives in mcp/kernel.ts, kage benchmark --memory-quality exposes it through the CLI, and kage_benchmark accepts mode=memory_quality for MCP users. The repo script benchmarks/coding-memory-quality.mjs now delegates to the packaged kernel function so npm users and source users exercise the same benchmark logic.",
+    "why": "Kage should ship benchmark proof with the product package instead of relying on repo-only artifacts.",
+    "verification": "node mcp/dist/cli.js benchmark --memory-quality; node benchmarks/coding-memory-quality.mjs --out /tmp/kage-coding-memory-quality-packaged.json; npm test --prefix mcp."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-17T20:57:06.493Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 182
+  },
+  "created_at": "2026-05-17T20:57:06.493Z",
+  "updated_at": "2026-05-19T04:53:22.454Z"
+}

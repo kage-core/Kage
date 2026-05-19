@@ -1,0 +1,66 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:memory-handoff-combines-agentmemory-style-team-signals-into-kage-native-review-1",
+  "title": "Memory handoff combines AgentMemory-style team signals into Kage-native review",
+  "summary": "Kage now exposes a memory handoff report that composes inbox, lifecycle, audit, timeline, and lineage into one teammate/agent action queue. It does not add a new shared runtime or KV store; it reuses repo local packets,",
+  "body": "Kage now exposes a memory handoff report that composes inbox, lifecycle, audit, timeline, and lineage into one teammate/agent action queue. It does not add a new shared runtime or KV store; it reuses repo-local packets, audit JSONL, and generated reports so collaboration stays git-visible and local-first. Use kage handoff or MCP kage_memory_handoff before switching agents, handing work to a teammate, or reviewing memory changes.",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/cli.ts",
+    "mcp/index.ts",
+    "mcp/daemon.ts",
+    "mcp/viewer/app.js",
+    "mcp/viewer/review.html",
+    "README.md",
+    "mcp/README.md",
+    "docs/guide.html"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-17T22:20:37.727Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage now exposes a memory handoff report that composes inbox, lifecycle, audit, timeline, and lineage into one teammate/agent action queue. It does not add a new shared runtime or KV store; it reuses repo-local packets, audit JSONL, and generated reports so collaboration stays git-visible and local-first. Use kage handoff or MCP kage_memory_handoff before switching agents, handing work to a teammate, or reviewing memory changes."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-17T22:20:37.727Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 108
+  },
+  "created_at": "2026-05-17T22:20:37.727Z",
+  "updated_at": "2026-05-19T04:53:22.456Z"
+}

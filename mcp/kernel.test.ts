@@ -8,10 +8,15 @@ import vm from "node:vm";
 import {
   SETUP_AGENTS,
   benchmarkTaskComparison,
+  benchmarkCodingMemoryQuality,
+  benchmarkMemoryScale,
   benchmarkProject,
+  buildEmbeddingIndex,
   buildGlobalCdnBundle,
   buildCodeGraph,
   buildIndexes,
+  approvePending,
+  createDenseEmbeddingProvider,
   buildKnowledgeGraph,
   buildBranchOverlay,
   buildMarketplace,
@@ -33,16 +38,29 @@ import {
   indexProject,
   installAgentPolicy,
   kageCleanupCandidates,
+  kageCapabilityAudit,
   kageContributors,
+  kageContextSlots,
   kageDecisionIntelligence,
+  deleteContextSlot,
   kageDependencyPath,
   kageGraphInsights,
+  kageMemoryLifecycle,
+  kageMemoryLineage,
+  kageMemoryTimeline,
+  kageMemoryAccess,
+  kageMemoryAudit,
+  kageMemoryHandoff,
   kageHookInstall,
   kageHookStatus,
   kageHookUninstall,
+  kageMemoryReconciliation,
   kageRisk,
+  kageSessionCaptureReport,
+  kageSessionReplay,
   kageMetrics,
   kageModuleHealth,
+  kageProjectProfile,
   kageReviewerSuggestions,
   kageWorkspace,
   kageWorkspaceRecall,
@@ -63,12 +81,16 @@ import {
   queryCodeGraph,
   queryGraph,
   recall,
+  recallWithEmbeddings,
   recordFeedback,
   refreshProject,
+  rejectPending,
   registryRecommendations,
   scanSensitiveText,
   setupAgent,
   setupDoctor,
+  setContextSlot,
+  supersedeMemory,
   structuralIndexDir,
   qualityReport,
   evaluateMemoryAdmission,
@@ -161,8 +183,12 @@ test("builds generated indexes after indexing", () => {
   writeFileSync(join(project, "src", "demo.test.ts"), "test('demo', () => {});\n", "utf8");
   const result = indexProject(project);
   assert.equal(result.indexes.some((path) => path.endsWith("indexes/catalog.json")), true);
+  assert.equal(result.indexes.some((path) => path.endsWith("indexes/vector-local.json")), true);
   const catalog = JSON.parse(readFileSync(join(project, ".agent_memory", "indexes", "catalog.json"), "utf8"));
+  const vectorIndex = JSON.parse(readFileSync(join(project, ".agent_memory", "indexes", "vector-local.json"), "utf8"));
   assert.equal(catalog.packet_count >= 2, true);
+  assert.equal(vectorIndex.packet_count, catalog.packet_count);
+  assert.equal(Array.isArray(vectorIndex.documents), true);
   assert.equal(catalog.packets.some((packet: { title: string }) => packet.title.includes("repo structure")), true);
   const firstCatalog = readFileSync(join(project, ".agent_memory", "indexes", "catalog.json"), "utf8");
   indexProject(project);
@@ -172,6 +198,7 @@ test("builds generated indexes after indexing", () => {
   indexProject(project);
   const overview = loadApprovedPackets(project).find((packet) => packet.title.includes("repo overview"));
   assert.match(overview?.body ?? "", /New setup flow/);
+  assert.deepEqual(overview?.paths.sort(), ["README.md", "package.json"]);
   const structure = loadApprovedPackets(project).find((packet) => packet.title.includes("repo structure"));
   assert.match(overview?.context?.why ?? "", /repo orientation/i);
   assert.match(structure?.context?.verification ?? "", /Generated from files present/);
@@ -199,6 +226,32 @@ test("recall returns run command context from repo overview", () => {
   const result = recall(project, "how do I run tests");
   assert.match(result.context_block, /vitest|test/i);
   assert.equal(result.results.length > 0, true);
+});
+
+test("pinned context slots are reviewable and included in recall", () => {
+  const project = tempProject();
+  const saved = setContextSlot(project, {
+    label: "project_context",
+    content: "Always run checkout retry tests after touching retry modules.",
+    description: "High-signal repo guidance for agents.",
+    paths: ["src/retry.ts"],
+    tags: ["checkout", "tests"],
+  });
+  assert.equal(saved.ok, true);
+
+  const report = kageContextSlots(project);
+  assert.equal(report.totals.slots, 1);
+  assert.equal(report.totals.pinned, 1);
+  assert.match(report.pinned_context_block, /Always run checkout retry tests/);
+
+  const result = recall(project, "change retry code");
+  assert.match(result.context_block, /Pinned Repo Context/);
+  assert.match(result.context_block, /project_context/);
+  assert.match(result.context_block, /Always run checkout retry tests/);
+
+  const deleted = deleteContextSlot(project, "project_context");
+  assert.equal(deleted.ok, true);
+  assert.equal(kageContextSlots(project).totals.slots, 0);
 });
 
 test("recall reuses current graph artifacts without rewriting them", () => {
@@ -257,6 +310,539 @@ test("recall uses BM25 lexical ranking for repeated body evidence", () => {
   assert.equal((result.results[0]?.score_breakdown?.bm25 ?? 0) > 0, true);
 });
 
+test("recall tokenizes multilingual memory without requiring spaces", () => {
+  const project = tempProject();
+  capture({
+    projectDir: project,
+    title: "A unrelated deployment note",
+    summary: "Operational note",
+    body: "Deployment assets are uploaded after npm run build.",
+    type: "reference",
+  });
+  capture({
+    projectDir: project,
+    title: "Z multilingual checkout note",
+    summary: "支付重试说明",
+    body: "支付重试逻辑必须保留幂等键检查。Verified by checkout retry tests.",
+    type: "reference",
+  });
+
+  const result = recall(project, "支付重试", 2, true);
+  assert.equal(result.results[0]?.packet.title, "Z multilingual checkout note");
+  assert.equal((result.results[0]?.score_breakdown?.bm25 ?? 0) > 0, true);
+});
+
+test("recall records local access without mutating shareable packet files", () => {
+  const project = tempProject();
+  capture({
+    projectDir: project,
+    title: "Webhook retry gotcha",
+    body: "Webhook retries use idempotency keys. Run webhook retry tests before changing this flow.",
+    type: "gotcha",
+    tags: ["webhook", "retry"],
+    paths: ["src/webhook.ts"],
+  });
+  const packet = loadApprovedPackets(project).find((item) => item.title === "Webhook retry gotcha");
+  assert.ok(packet);
+  const fileName = readdirSync(packetsDir(project)).find((name) => name.includes("webhook-retry-gotcha"));
+  assert.ok(fileName);
+  const packetPath = join(packetsDir(project), fileName);
+  const before = readFileSync(packetPath, "utf8");
+
+  const first = recall(project, "webhook retry idempotency", 2, true);
+  assert.equal(first.results[0]?.packet.id, packet.id);
+  assert.equal(readFileSync(packetPath, "utf8"), before);
+
+  const access = kageMemoryAccess(project);
+  const entry = access.entries.find((item) => item.packet_id === packet.id);
+  assert.ok(entry);
+  assert.equal(entry.total_uses, 1);
+  assert.equal(entry.uses_30d, 1);
+  assert.equal(access.totals.tracked_packets, 1);
+
+  const second = recall(project, "webhook retry idempotency", 2, true);
+  assert.equal((second.results[0]?.score_breakdown?.usage ?? 0) > 0, true);
+  assert.equal(second.results[0]?.why_matched.some((item) => item.startsWith("usage:")), true);
+});
+
+test("memory access report recommends hot promotion and cold review actions", () => {
+  const project = tempProject();
+  capture({
+    projectDir: project,
+    title: "Webhook retry gotcha",
+    body: "Webhook retries use idempotency keys. Run webhook retry tests before changing this flow.",
+    type: "gotcha",
+    tags: ["webhook", "retry"],
+    paths: ["src/webhook.ts"],
+  });
+  capture({
+    projectDir: project,
+    title: "Old setup note",
+    body: "Legacy setup note that has not been recalled by an agent yet.",
+    type: "reference",
+    tags: ["setup"],
+    paths: [],
+  });
+
+  for (let index = 0; index < 3; index += 1) {
+    recall(project, "webhook retry idempotency", 1, true);
+  }
+
+  const access = kageMemoryAccess(project);
+  assert.equal(access.totals.hot_packets, 1);
+  assert.equal(access.totals.cold_packets >= 1, true);
+  assert.ok(access.recommendations.some((item) => item.kind === "promote_hot" && item.title === "Webhook retry gotcha"));
+  assert.ok(access.recommendations.some((item) => item.kind === "review_cold" && item.title === "Old setup note"));
+  assert.ok(access.recommendations.some((item) => item.kind === "connect_paths" && item.title === "Old setup note"));
+});
+
+test("memory access report asks users to build telemetry when no recall usage exists", () => {
+  const project = tempProject();
+  capture({
+    projectDir: project,
+    title: "Checkout runbook",
+    body: "Run checkout tests before changing checkout state transitions.",
+    type: "runbook",
+    tags: ["checkout"],
+    paths: ["src/checkout.ts"],
+  });
+
+  const access = kageMemoryAccess(project);
+  assert.equal(access.totals.tracked_packets, 0);
+  assert.ok(access.recommendations.some((item) => item.kind === "seed_usage"));
+});
+
+test("memory lifecycle report turns packet state into review actions", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "checkout.ts"), "export const checkout = true;\n", "utf8");
+  writeFileSync(join(project, "src", "webhook.ts"), "export const webhook = true;\n", "utf8");
+
+  const hot = capture({
+    projectDir: project,
+    title: "Checkout retry runbook",
+    body: "Checkout retries use session state. Run checkout retry tests before changing this flow.",
+    type: "runbook",
+    tags: ["checkout", "retry"],
+    paths: ["src/checkout.ts"],
+  });
+  const stale = capture({
+    projectDir: project,
+    title: "Webhook callback gotcha",
+    body: "Webhook callbacks use idempotency keys. Verify callback retry tests before changing this flow.",
+    type: "gotcha",
+    tags: ["webhook", "retry"],
+    paths: ["src/webhook.ts"],
+  });
+  const ungrounded = capture({
+    projectDir: project,
+    title: "Broad architecture note",
+    body: "A broad note with no direct path grounding yet.",
+    type: "reference",
+    tags: ["architecture"],
+    paths: [],
+  });
+  assert.ok(hot.packet);
+  assert.ok(stale.packet);
+  assert.ok(ungrounded.packet);
+
+  for (let index = 0; index < 3; index += 1) recall(project, "checkout retry session state", 1, true);
+  recordFeedback(project, stale.packet.id, "stale");
+
+  const staleFile = readFileSync(stale.path!, "utf8");
+  const stalePacket = JSON.parse(staleFile);
+  stalePacket.freshness.ttl_days = 1;
+  stalePacket.freshness.last_verified_at = "2024-01-01T00:00:00.000Z";
+  writeFileSync(stale.path!, `${JSON.stringify(stalePacket, null, 2)}\n`, "utf8");
+
+  const lifecycle = kageMemoryLifecycle(project);
+  assert.equal(lifecycle.totals.approved >= 3, true);
+  assert.equal(lifecycle.totals.hot, 1);
+  assert.equal(lifecycle.totals.stale, 1);
+  assert.equal(lifecycle.totals.ungrounded, 1);
+  assert.equal(lifecycle.totals.disputed, 1);
+  assert.ok(lifecycle.items.some((item) => item.packet_id === hot.packet!.id && item.health === "hot" && item.recommended_action === "promote_hot"));
+  assert.ok(lifecycle.items.some((item) => item.packet_id === stale.packet!.id && item.health === "disputed" && item.recommended_action === "resolve_feedback"));
+  assert.ok(lifecycle.items.some((item) => item.packet_id === ungrounded.packet!.id && item.recommended_action === "add_grounding"));
+  assert.ok(lifecycle.recommendations.some((item) => item.kind === "resolve_feedback"));
+  assert.ok(lifecycle.recommendations.some((item) => item.kind === "promote_hot"));
+});
+
+test("memory timeline report shows recent collaborative memory activity", () => {
+  const project = tempProject();
+  const added = capture({
+    projectDir: project,
+    title: "Checkout retry decision",
+    body: "Checkout retries keep session state separate from callback retries.",
+    type: "decision",
+    tags: ["checkout", "retry"],
+    paths: ["src/checkout.ts"],
+  });
+  const updated = capture({
+    projectDir: project,
+    title: "Webhook callback runbook",
+    body: "Run callback retry tests after touching webhook callbacks.",
+    type: "runbook",
+    tags: ["webhook"],
+    paths: ["src/webhook.ts"],
+  });
+  assert.ok(added.packet);
+  assert.ok(updated.packet);
+
+  const updatedPacket = JSON.parse(readFileSync(updated.path!, "utf8"));
+  updatedPacket.created_at = "2024-01-01T00:00:00.000Z";
+  updatedPacket.updated_at = new Date().toISOString();
+  writeFileSync(updated.path!, `${JSON.stringify(updatedPacket, null, 2)}\n`, "utf8");
+
+  const timeline = kageMemoryTimeline(project, 7);
+  assert.equal(timeline.schema_version, 1);
+  assert.equal(timeline.totals.added >= 1, true);
+  assert.equal(timeline.totals.updated >= 1, true);
+  assert.ok(timeline.entries.some((entry) => entry.kind === "added" && entry.packet_id === added.packet!.id));
+  assert.ok(timeline.entries.some((entry) => entry.kind === "updated" && entry.packet_id === updated.packet!.id));
+  assert.equal(timeline.entries[0].date >= timeline.entries.at(-1)!.date, true);
+  assert.ok(timeline.recommendations.some((item) => item.includes("Review recent memory changes")));
+});
+
+test("memory supersession records lineage and removes old packet from active recall", () => {
+  const project = tempProject();
+  const oldPacket = capture({
+    projectDir: project,
+    title: "Old checkout retry note",
+    body: "Old note says checkout retry logic can be merged.",
+    type: "decision",
+    tags: ["checkout", "retry"],
+    paths: ["src/checkout.ts"],
+  });
+  const replacement = capture({
+    projectDir: project,
+    title: "Checkout retry split decision",
+    body: "Callback retries use idempotency keys, while checkout retries use session state. Do not merge these paths.",
+    type: "decision",
+    tags: ["checkout", "retry"],
+    paths: ["src/checkout.ts"],
+  });
+  assert.ok(oldPacket.packet);
+  assert.ok(replacement.packet);
+
+  const result = supersedeMemory(project, oldPacket.packet.id, replacement.packet.id, "Newer debugging proved the retry paths must stay separate.");
+  assert.equal(result.ok, true);
+  assert.ok(result.old_packet);
+  assert.ok(result.replacement_packet);
+  assert.equal(result.old_packet.status, "superseded");
+  assert.equal(result.replacement_packet.status, "approved");
+  assert.equal(result.old_packet.quality.superseded_by, replacement.packet.id);
+  assert.equal(result.replacement_packet.edges.some((edge) => edge.relation === "supersedes" && edge.to === oldPacket.packet!.id), true);
+
+  const active = loadApprovedPackets(project);
+  assert.equal(active.some((packet) => packet.id === oldPacket.packet!.id), false);
+  assert.equal(active.some((packet) => packet.id === replacement.packet!.id), true);
+
+  const lineage = kageMemoryLineage(project);
+  assert.equal(lineage.totals.superseded, 1);
+  assert.equal(lineage.totals.chains, 1);
+  assert.ok(lineage.chains.some((chain) => chain.current_packet_id === replacement.packet!.id && chain.superseded_packet_ids.includes(oldPacket.packet!.id)));
+  assert.ok(lineage.recommendations.some((item) => item.includes("current replacement")));
+});
+
+test("memory lineage report flags superseded packets without replacement links", () => {
+  const project = tempProject();
+  const packet = capture({
+    projectDir: project,
+    title: "Retired setup note",
+    body: "Old setup note that should no longer be used.",
+    type: "runbook",
+    tags: ["setup"],
+    paths: ["README.md"],
+  });
+  assert.ok(packet.packet);
+  const raw = JSON.parse(readFileSync(packet.path!, "utf8"));
+  raw.status = "superseded";
+  raw.updated_at = new Date().toISOString();
+  writeFileSync(packet.path!, `${JSON.stringify(raw, null, 2)}\n`, "utf8");
+
+  const lineage = kageMemoryLineage(project);
+  assert.equal(lineage.totals.orphans, 1);
+  assert.ok(lineage.orphans.some((item) => item.packet_id === packet.packet!.id));
+  assert.ok(lineage.recommendations.some((item) => item.includes("replacement link")));
+});
+
+test("memory audit report records explicit memory mutations", () => {
+  const project = tempProject();
+  const first = capture({
+    projectDir: project,
+    title: "Checkout retry note",
+    body: "Checkout retries use session state and should be tested after checkout changes.",
+    type: "decision",
+    paths: ["src/checkout.ts"],
+  });
+  const replacement = capture({
+    projectDir: project,
+    title: "Checkout retry split",
+    body: "Callback retries use idempotency keys while checkout retries use session state.",
+    type: "decision",
+    paths: ["src/checkout.ts"],
+  });
+  assert.ok(first.packet);
+  assert.ok(replacement.packet);
+
+  const feedback = recordFeedback(project, first.packet.id, "helpful");
+  assert.equal(feedback.ok, true);
+  const superseded = supersedeMemory(project, first.packet.id, replacement.packet.id, "Replacement has the verified retry split.");
+  assert.equal(superseded.ok, true);
+
+  const report = kageMemoryAudit(project);
+  assert.equal(report.schema_version, 1);
+  assert.equal(report.totals.capture, 2);
+  assert.equal(report.totals.feedback, 1);
+  assert.equal(report.totals.supersede, 1);
+  assert.ok(report.entries.some((entry) => entry.operation === "capture" && entry.packet_ids.includes(first.packet!.id)));
+  assert.ok(report.entries.some((entry) => entry.operation === "feedback" && entry.details.feedback === "helpful"));
+  assert.ok(report.entries.some((entry) => entry.operation === "supersede" && entry.packet_ids.includes(replacement.packet!.id)));
+  assert.ok(report.recommendations.some((item) => item.includes("audit")));
+});
+
+test("memory audit report records pending review actions", () => {
+  const project = tempProject();
+  const approved = capture({
+    projectDir: project,
+    title: "Pending review packet",
+    body: "Review this packet before sharing it with future agents.",
+    type: "runbook",
+    paths: ["README.md"],
+  });
+  const rejected = capture({
+    projectDir: project,
+    title: "Rejected review packet",
+    body: "Reject this packet because it is not durable enough.",
+    type: "reference",
+    paths: ["README.md"],
+  });
+  assert.ok(approved.packet);
+  assert.ok(rejected.packet);
+  mkdirSync(pendingDir(project), { recursive: true });
+  writeFileSync(join(pendingDir(project), "approve-me.json"), `${JSON.stringify({ ...approved.packet, status: "pending" }, null, 2)}\n`, "utf8");
+  writeFileSync(join(pendingDir(project), "reject-me.json"), `${JSON.stringify({ ...rejected.packet, status: "pending" }, null, 2)}\n`, "utf8");
+
+  approvePending(project, approved.packet.id);
+  rejectPending(project, rejected.packet.id);
+
+  const report = kageMemoryAudit(project);
+  assert.equal(report.totals.approve, 1);
+  assert.equal(report.totals.reject, 1);
+  assert.ok(report.entries.some((entry) => entry.operation === "approve" && entry.packet_ids.includes(approved.packet!.id)));
+  assert.ok(report.entries.some((entry) => entry.operation === "reject" && entry.packet_ids.includes(rejected.packet!.id)));
+});
+
+test("memory handoff combines review blockers and recent memory mutations", () => {
+  const project = tempProject();
+  const packet = capture({
+    projectDir: project,
+    title: "Ungrounded checkout memory",
+    body: "Checkout retry behavior is important but this memory still needs path grounding.",
+    type: "decision",
+  });
+  assert.ok(packet.packet);
+  mkdirSync(pendingDir(project), { recursive: true });
+  writeFileSync(join(pendingDir(project), "pending-review.json"), `${JSON.stringify({ ...packet.packet, id: `${packet.packet.id}-pending`, status: "pending" }, null, 2)}\n`, "utf8");
+
+  const handoff = kageMemoryHandoff(project);
+  assert.equal(handoff.schema_version, 1);
+  assert.equal(handoff.ok, false);
+  assert.equal(handoff.totals.open_items > 0, true);
+  assert.equal(handoff.totals.recent_mutations >= 1, true);
+  assert.equal(handoff.primary_action.target, "review");
+  assert.equal(handoff.primary_action.severity, "warning");
+  assert.ok(handoff.primary_action.label.includes("Resolve"));
+  assert.ok(handoff.items.some((item) => item.kind === "inbox" && item.action.includes("Approve")));
+  assert.ok(handoff.items.some((item) => item.kind === "lifecycle" && item.action.includes("paths")));
+  assert.ok(handoff.items.some((item) => item.kind === "audit" && item.summary.includes("capture")));
+});
+
+test("memory handoff warns when observed sessions still have distillable learnings", () => {
+  const project = tempProject();
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
+  assert.equal(observe(project, {
+    type: "command_result",
+    session_id: "handoff-session",
+    agent: "codex",
+    command: "npm test -- checkout",
+    exit_code: 0,
+    summary: "Use this command after changing checkout retry behavior.",
+    timestamp: "2026-05-17T10:01:00.000Z",
+  }).ok, true);
+
+  const handoff = kageMemoryHandoff(project);
+
+  assert.equal(handoff.ok, false);
+  assert.equal(handoff.totals.distillable_sessions, 1);
+  assert.equal(handoff.totals.durable_observations, 1);
+  assert.ok(handoff.items.some((item) => item.kind === "session" && item.title === "handoff-session" && item.action.includes("kage distill")));
+  assert.equal(handoff.primary_action.target, "memory");
+});
+
+test("recall keeps reference packets text-led instead of graph-led", () => {
+  const project = tempProject();
+  capture({
+    projectDir: project,
+    title: "A broad reference index",
+    summary: "Session note",
+    body: "Retry behavior appears once. Verified by: npm test.",
+    type: "reference",
+    tags: ["retry", "architecture", "reference"],
+    paths: ["docs/retry.md"],
+  });
+  capture({
+    projectDir: project,
+    title: "Z exact reference evidence",
+    summary: "Session note",
+    body: "Retry behavior retry behavior retry behavior retry behavior retry behavior. Verified by: npm test.",
+    type: "reference",
+  });
+
+  const result = recall(project, "retry behavior", 2, true);
+  assert.equal(result.results[0]?.packet.title, "Z exact reference evidence");
+  assert.equal((result.results[0]?.score_breakdown?.bm25 ?? 0) > (result.results[1]?.score_breakdown?.bm25 ?? 0), true);
+});
+
+test("recall expands relative temporal queries when a question date is supplied", () => {
+  const project = tempProject();
+  capture({
+    projectDir: project,
+    title: "A nearby but wrong session",
+    summary: "Temporal note",
+    body: "Session date: 2023/03/20\nI mentioned an ordinary planning update.",
+    type: "reference",
+  });
+  capture({
+    projectDir: project,
+    title: "Z target-dated session",
+    summary: "Temporal note",
+    body: "Session date: 2023/02/28\nI signed a contract with my first client.",
+    type: "reference",
+  });
+
+  const result = recall(project, "What was the significant business milestone I mentioned four weeks ago?\nQuestion date: 2023/03/28 (Tue)", 2, true);
+  assert.equal(result.results[0]?.packet.title, "Z target-dated session");
+  assert.equal((result.results[0]?.score_breakdown?.temporal ?? 0) > 0, true);
+});
+
+test("recall expands common memory concepts without requiring exact wording", () => {
+  const project = tempProject();
+  capture({
+    projectDir: project,
+    title: "A generic dinner note",
+    summary: "Food note",
+    body: "We discussed dinner plans and a restaurant reservation.",
+    type: "reference",
+  });
+  capture({
+    projectDir: project,
+    title: "Z garden produce note",
+    summary: "Food note",
+    body: "The user harvested tomatoes and herbs from the garden and wanted recipes using that produce.",
+    type: "reference",
+  });
+
+  const result = recall(project, "What should I serve for dinner with homegrown ingredients?", 2, true);
+  assert.equal(result.results[0]?.packet.title, "Z garden produce note");
+  assert.equal((result.results[0]?.score_breakdown?.bm25 ?? 0) > 0, true);
+  assert.equal((result.results[0]?.score_breakdown?.semantic ?? 0) > 0, true);
+  assert.equal((result.results[0]?.score_breakdown?.vector ?? 0) > 0, true);
+  assert.equal(result.results[0]?.why_matched.some((why) => why === "semantic-concept:garden-produce"), true);
+});
+
+test("recall can disable semantic concept expansion for strict external benchmarks", () => {
+  const project = tempProject();
+  capture({
+    projectDir: project,
+    title: "A generic dinner note",
+    summary: "Food note",
+    body: "We discussed dinner plans and a restaurant reservation.",
+    type: "reference",
+  });
+  capture({
+    projectDir: project,
+    title: "Z garden produce note",
+    summary: "Food note",
+    body: "The user harvested tomatoes and herbs from the garden and wanted recipes using that produce.",
+    type: "reference",
+  });
+
+  const strict = recall(project, "What should I serve for dinner with homegrown ingredients?", 2, true, {
+    semanticExpansion: false,
+  });
+
+  assert.equal(strict.results.some((entry) => (entry.score_breakdown?.semantic ?? 0) > 0), false);
+  assert.equal(strict.results.some((entry) => entry.why_matched.some((why) => why.startsWith("semantic-concept:"))), false);
+});
+
+test("recall reuses persisted sparse vector index when current", () => {
+  const project = tempProject();
+  capture({
+    projectDir: project,
+    title: "A generic dinner note",
+    summary: "Food note",
+    body: "We discussed dinner plans and a restaurant reservation.",
+    type: "reference",
+  });
+  capture({
+    projectDir: project,
+    title: "Z garden produce note",
+    summary: "Food note",
+    body: "The user harvested tomatoes and herbs from the garden and wanted recipes using that produce.",
+    type: "reference",
+  });
+  buildIndexes(project);
+
+  const result = recall(project, "What should I serve for dinner with homegrown ingredients?", 2, true);
+  assert.equal(result.results[0]?.packet.title, "Z garden produce note");
+  assert.equal((result.results[0]?.score_breakdown?.vector ?? 0) > 0, true);
+  assert.equal(result.results[0]?.why_matched.some((why) => why.startsWith("vector-local-index:")), true);
+});
+
+test("embedding recall uses optional dense embedding artifact", async () => {
+  const project = tempProject();
+  capture({
+    projectDir: project,
+    title: "A unrelated deployment note",
+    summary: "Deploy note",
+    body: "The release job uploads static assets.",
+    type: "reference",
+  });
+  capture({
+    projectDir: project,
+    title: "Z latent checkout note",
+    summary: "Checkout behavior",
+    body: "The idempotency callback path must stay separate from session retry logic.",
+    type: "reference",
+  });
+  const provider = {
+    name: "test",
+    model: "deterministic",
+    dimensions: 2,
+    async embedBatch(texts: string[]) {
+      return texts.map((text) => /idempotency|checkout|duplicate charge/i.test(text) ? [1, 0] : [0, 1]);
+    },
+  };
+
+  const built = await buildEmbeddingIndex(project, { provider });
+  assert.equal(built.ok, true);
+  assert.equal(existsSync(join(project, ".agent_memory", "indexes", "embeddings-local.json")), true);
+
+  const result = await recallWithEmbeddings(project, "avoid duplicate charge", 2, true, { provider });
+  assert.equal(result.results[0]?.packet.title, "Z latent checkout note");
+  assert.equal((result.results[0]?.score_breakdown?.vector ?? 0) > 0, true);
+  assert.equal(result.results[0]?.why_matched.some((why) => why.startsWith("vector-external:test:deterministic")), true);
+});
+
+test("dense embedding provider factory is reusable and lazy", async () => {
+  const provider = await createDenseEmbeddingProvider("Xenova/test-model");
+  assert.equal(provider.name, "xenova");
+  assert.equal(provider.model, "Xenova/test-model");
+  assert.equal(provider.dimensions, 384);
+});
+
 test("recall prioritizes runbooks for command-intent queries", () => {
   const project = tempProject();
   capture({
@@ -306,6 +892,40 @@ test("recall applies type intent for gotcha queries", () => {
   const result = recall(project, "what gotchas exist", 2, true);
   assert.equal(result.results[0]?.packet.title, "Z config gotcha");
   assert.equal((result.results[0]?.score_breakdown?.intent ?? 0) > 0, true);
+});
+
+test("recall diversifies results across observed session sources", () => {
+  const project = tempProject();
+  const writeSessionPacket = (title: string, sessionId: string) => {
+    const result = capture({
+      projectDir: project,
+      title,
+      summary: "Checkout retry memory",
+      body: "Checkout retry idempotency behavior must stay split between callback retries and user checkout retries.",
+      type: "bug_fix",
+      tags: ["checkout", "retry"],
+    });
+    assert.ok(result.packet);
+    assert.ok(result.path);
+    const packet = JSON.parse(readFileSync(result.path, "utf8"));
+    packet.source_refs = [{ kind: "observation_session", session_id: sessionId }];
+    writeFileSync(result.path, `${JSON.stringify(packet, null, 2)}\n`, "utf8");
+  };
+
+  writeSessionPacket("A checkout retry session note", "noisy-session");
+  writeSessionPacket("B checkout retry session note", "noisy-session");
+  writeSessionPacket("C checkout retry session note", "noisy-session");
+  writeSessionPacket("D checkout retry session note", "noisy-session");
+  writeSessionPacket("Z checkout retry independent note", "independent-session");
+
+  const result = recall(project, "checkout retry idempotency", 4);
+
+  assert.deepEqual(result.results.map((entry) => entry.packet.title), [
+    "A checkout retry session note",
+    "B checkout retry session note",
+    "C checkout retry session note",
+    "Z checkout retry independent note",
+  ]);
 });
 
 test("builds an evidence-backed local knowledge graph", () => {
@@ -512,6 +1132,76 @@ test("contributor profiles summarize local git activity ownership and modules", 
   assert.equal(alice.primary_owned_files >= 1, true);
   assert.equal(alice.silo_files.some((file) => file.path === "src/api/core.js"), true);
   assert.equal(alice.commit_categories.fix >= 5, true);
+});
+
+test("project profile summarizes repo concepts key files and memory focus", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ scripts: { test: "node --test", build: "tsc" } }), "utf8");
+  writeFileSync(join(project, "src", "auth.js"), "export function verifyToken(token) { return token.length > 0; }\n", "utf8");
+  writeFileSync(join(project, "src", "api.js"), "import { verifyToken } from './auth.js';\nexport function handler(req) { return verifyToken(req.token); }\n", "utf8");
+  const captured = capture({
+    projectDir: project,
+    title: "Auth token invariant",
+    body: "When editing src/auth.js, keep token verification side-effect free because API handlers retry requests.",
+    type: "decision",
+    paths: ["src/auth.js"],
+    tags: ["auth", "api"],
+  });
+  assert.equal(captured.ok, true);
+  buildStructuralIndex(project);
+  buildCodeGraph(project, { force: true });
+
+  const profile = kageProjectProfile(project);
+
+  assert.equal(profile.totals.approved_memory, 1);
+  assert.equal(profile.totals.decision_memory, 1);
+  assert.equal(profile.run_commands.some((command) => command.name === "test" && command.command === "node --test"), true);
+  assert.equal(profile.top_concepts.some((item) => item.concept === "auth" && item.sources.includes("memory")), true);
+  assert.equal(profile.key_files.some((file) => file.path === "src/auth.js" && file.memory_packets === 1), true);
+  assert.equal(profile.memory_focus.high_value_packets[0].title, "Auth token invariant");
+  assert.match(profile.summary, /memory packet/);
+});
+
+test("capability audit maps memory benchmark dashboard and viewer readiness to evidence", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
+  writeFileSync(join(project, "src", "retry.ts"), "export function retry() { return true; }\n", "utf8");
+  indexProject(project);
+  const captured = capture({
+    projectDir: project,
+    title: "Retry flow gotcha",
+    body: "When editing src/retry.ts, keep callback retry tests paired with checkout retry tests because the flows retry different state.",
+    type: "gotcha",
+    paths: ["src/retry.ts"],
+    tags: ["retry", "tests"],
+  });
+  assert.equal(captured.ok, true);
+  assert.equal(setContextSlot(project, {
+    label: "project_context",
+    content: "Always run retry tests after changing src/retry.ts.",
+    paths: ["src/retry.ts"],
+    tags: ["retry"],
+  }).ok, true);
+  assert.equal(observe(project, {
+    type: "file_change",
+    session_id: "capability-session",
+    agent: "codex",
+    path: "src/retry.ts",
+    summary: "src/retry.ts must keep retry tests paired with callback changes.",
+  }).ok, true);
+
+  const report = kageCapabilityAudit(project);
+
+  assert.equal(report.schema_version, 1);
+  assert.equal(report.pillars.length, 4);
+  assert.ok(report.overall_score > 0);
+  assert.ok(report.checklist.some((item) => item.requirement === "reviewable repo memory" && item.pass));
+  assert.ok(report.checklist.some((item) => item.requirement === "privacy-preserving session proof" && item.pass));
+  assert.ok(report.pillars.find((pillar) => pillar.id === "memory")?.evidence.some((item) => item.label === "Approved memory"));
+  assert.ok(report.pillars.find((pillar) => pillar.id === "dashboard_viewer")?.evidence.some((item) => item.label === "Viewer app"));
+  assert.ok(report.next_actions.length);
 });
 
 test("decision intelligence surfaces why-memory coverage and gaps", () => {
@@ -1225,13 +1915,57 @@ test("setup generates all-agent MCP configuration and writes Codex config idempo
   assert.equal(claudeConfig.mcpServers.kage.alwaysLoad, true);
   const claudeSettings = JSON.parse(readFileSync(join(home, ".claude", "settings.json"), "utf8"));
   assert.equal(Array.isArray(claudeSettings.hooks.SessionStart), true);
+  assert.equal(Array.isArray(claudeSettings.hooks.UserPromptSubmit), true);
+  assert.equal(Array.isArray(claudeSettings.hooks.PostToolUse), true);
+  assert.equal(Array.isArray(claudeSettings.hooks.PostToolUseFailure), true);
+  assert.equal(Array.isArray(claudeSettings.hooks.PreCompact), true);
   assert.equal(Array.isArray(claudeSettings.hooks.Stop), true);
+  assert.equal(Array.isArray(claudeSettings.hooks.SessionEnd), true);
   assert.match(readFileSync(join(home, ".claude", "kage", "hooks", "session-start.sh"), "utf8"), /KAGE_MEMORY_POLICY_V1/);
+  const observeHook = readFileSync(join(home, ".claude", "kage", "hooks", "observe.sh"), "utf8");
+  assert.match(observeHook, /kage observe/);
+  assert.match(observeHook, /additionalContext/);
+  assert.match(observeHook, /kage distill/);
+  execFileSync("bash", ["-n", join(home, ".claude", "kage", "hooks", "session-start.sh")]);
+  const observeHookPath = join(home, ".claude", "kage", "hooks", "observe.sh");
+  execFileSync("bash", ["-n", observeHookPath]);
+  execFileSync("bash", ["-n", join(home, ".claude", "kage", "hooks", "stop.sh")]);
+  const fakeBin = join(home, "bin");
+  mkdirSync(fakeBin, { recursive: true });
+  const fakeLog = join(home, "kage.log");
+  const fakeKage = join(fakeBin, "kage");
+  writeFileSync(fakeKage, `#!/usr/bin/env bash
+echo "$@" >> "$KAGE_FAKE_LOG"
+case "$*" in
+  recall*) printf '%s' '{"results":[{"packet":{"title":"Auth runbook"}}],"context_block":"# Kage Context\\nRemember auth tests."}' ;;
+  *) exit 0 ;;
+esac
+`, "utf8");
+  chmodSync(fakeKage, 0o755);
+  const hookEnv = { ...process.env, PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}`, KAGE_FAKE_LOG: fakeLog };
+  const promptOutput = execFileSync("bash", [observeHookPath], {
+    input: JSON.stringify({ hook_event_name: "UserPromptSubmit", cwd: project, session_id: "session-a", prompt: "auth tests" }),
+    env: hookEnv,
+  }).toString();
+  assert.match(promptOutput, /additionalContext/);
+  execFileSync("bash", [observeHookPath], {
+    input: JSON.stringify({ hook_event_name: "PreCompact", cwd: project, session_id: "session-a" }),
+    env: hookEnv,
+  });
+  const fakeCalls = readFileSync(fakeLog, "utf8");
+  assert.match(fakeCalls, /observe/);
+  assert.match(fakeCalls, /recall/);
+  assert.match(fakeCalls, /distill/);
   assert.match(readFileSync(join(home, ".claude", "kage", "hooks", "stop.sh"), "utf8"), /kage refresh/);
   assert.match(readFileSync(join(home, ".claude", "kage", "hooks", "stop.sh"), "utf8"), /kage pr summarize/);
+  assert.match(readFileSync(join(home, ".claude", "kage", "hooks", "stop.sh"), "utf8"), /kage reconcile/);
+  assert.match(readFileSync(join(home, ".claude", "kage", "hooks", "stop.sh"), "utf8"), /exit 2/);
 
-  const doctor = setupDoctor(project);
+  const doctor = setupDoctor(project, { homeDir: home });
   assert.equal(doctor.length, SETUP_AGENTS.length);
+  const claudeDoctor = doctor.find((item) => item.agent === "claude-code");
+  assert.equal(claudeDoctor?.configured, true);
+  assert.equal(claudeDoctor?.hook_summary?.ready, true);
 
   writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
   const cliVerify = verifyAgentActivation("codex", project, { homeDir: home });
@@ -1239,6 +1973,21 @@ test("setup generates all-agent MCP configuration and writes Codex config idempo
   assert.equal(cliVerify.checks.config_mentions_kage, true);
   assert.equal(cliVerify.checks.policy_installed, true);
   assert.equal(cliVerify.checks.recall_works, true);
+  const claudeVerify = verifyAgentActivation("claude-code", project, { homeDir: home });
+  assert.equal(claudeVerify.checks.ambient_hooks_present, true);
+  assert.equal(claudeVerify.hook_summary?.missing.length, 0);
+
+  const brokenClaudeHome = mkdtempSync(join(tmpdir(), "kage-broken-claude-home-"));
+  mkdirSync(brokenClaudeHome, { recursive: true });
+  writeFileSync(join(brokenClaudeHome, ".claude.json"), JSON.stringify({ mcpServers: { kage: { type: "stdio", command: "node", args: ["/tmp/kage/dist/index.js"] } } }), "utf8");
+  const brokenClaudeVerify = verifyAgentActivation("claude-code", project, { homeDir: brokenClaudeHome });
+  assert.equal(brokenClaudeVerify.status, "needs_setup");
+  assert.equal(brokenClaudeVerify.checks.ambient_hooks_present, false);
+  assert.equal(brokenClaudeVerify.hook_summary?.missing.includes("UserPromptSubmit"), true);
+  const brokenDoctor = setupDoctor(project, { homeDir: brokenClaudeHome });
+  const brokenClaudeDoctor = brokenDoctor.find((item) => item.agent === "claude-code");
+  assert.equal(brokenClaudeDoctor?.configured, false);
+  assert.equal(brokenClaudeDoctor?.hook_summary?.missing.includes("observe.sh"), true);
   assert.equal(cliVerify.checks.code_graph_works, true);
   assert.equal(cliVerify.checks.mcp_tool_reachable, false);
   assert.equal(cliVerify.next_steps.some((step) => step.includes("kage_verify_agent")), true);
@@ -1408,6 +2157,91 @@ test("distillation keeps ordinary prompts episodic and admits durable prompt lea
   assert.match(issue?.body ?? "", /Hypothesis/);
 });
 
+test("session capture report shows distillable observations without raw replay", () => {
+  const project = tempProject();
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
+  assert.equal(observe(project, {
+    type: "session_start",
+    session_id: "session-report",
+    agent: "codex",
+    timestamp: "2026-05-17T10:00:00.000Z",
+  }).ok, true);
+  assert.equal(observe(project, {
+    type: "command_result",
+    session_id: "session-report",
+    agent: "codex",
+    command: "npm test -- webhooks",
+    exit_code: 0,
+    summary: "Use this command after changing webhook signature verification.",
+    timestamp: "2026-05-17T10:01:00.000Z",
+  }).ok, true);
+
+  const report = kageSessionCaptureReport(project);
+  assert.equal(report.totals.sessions, 1);
+  assert.equal(report.totals.observations, 2);
+  assert.equal(report.totals.sessions_with_candidates, 1);
+  assert.equal(report.sessions[0]?.session_id, "session-report");
+  assert.equal(report.sessions[0]?.durable_observations, 1);
+  assert.deepEqual(report.sessions[0]?.candidate_types, ["runbook"]);
+  assert.match(report.sessions[0]?.next_action ?? "", /kage distill/);
+  assert.match(report.privacy_model, /raw transcript replay is not the product surface/);
+});
+
+test("session replay digest shows a privacy-preserving timeline without raw transcript text", () => {
+  const project = tempProject();
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
+
+  assert.equal(observe(project, {
+    type: "session_start",
+    session_id: "replay-session",
+    agent: "codex",
+    summary: "Started retry cleanup investigation.",
+    timestamp: "2026-05-18T00:00:00.000Z",
+  }).ok, true);
+  assert.equal(observe(project, {
+    type: "user_prompt",
+    session_id: "replay-session",
+    agent: "codex",
+    text: "Private prompt body. Internal raw prompt omitted from replay.",
+    summary: "Asked agent to inspect retry flow.",
+    timestamp: "2026-05-18T00:00:01.000Z",
+  }).ok, true);
+  assert.equal(observe(project, {
+    type: "file_change",
+    session_id: "replay-session",
+    agent: "codex",
+    path: "src/retry.ts",
+    summary: "src/retry.ts must keep callback retries separate because idempotency keys differ.",
+    timestamp: "2026-05-18T00:00:03.000Z",
+  }).ok, true);
+  assert.equal(observe(project, {
+    type: "command_result",
+    session_id: "replay-session",
+    agent: "codex",
+    command: "npm test -- retry",
+    exit_code: 0,
+    summary: "Run after changing retry code because it covers callback and checkout paths.",
+    timestamp: "2026-05-18T00:00:05.000Z",
+  }).ok, true);
+
+  const replay = kageSessionReplay(project, { sessionId: "replay-session", limit: 10 });
+
+  assert.equal(replay.totals.sessions, 1);
+  assert.equal(replay.totals.events, 4);
+  assert.equal(replay.sessions[0]?.session_id, "replay-session");
+  assert.equal(replay.sessions[0]?.durable_candidates, 2);
+  assert.deepEqual(replay.sessions[0]?.commands, ["npm test -- retry"]);
+  assert.deepEqual(replay.sessions[0]?.paths, ["src/retry.ts"]);
+  assert.match(replay.sessions[0]?.distill_command ?? "", /kage distill --project \. --session replay-session/);
+  assert.equal(replay.events.length, 4);
+  assert.equal(replay.events[1]?.raw_text_included, false);
+  assert.equal(replay.events[1]?.summary.includes("Internal raw prompt"), false);
+  assert.equal(replay.events[2]?.durable_candidate, true);
+  assert.equal(replay.events[2]?.candidate_type, "workflow");
+  assert.equal(replay.events[3]?.candidate_type, "runbook");
+  assert.match(replay.privacy_model, /raw transcript text is not included/i);
+});
+
 test("memory admission rejects session bookkeeping and accepts durable repo knowledge", () => {
   const project = tempProject();
   const bad = capture({
@@ -1461,6 +2295,35 @@ test("recall explanations, quality, and benchmark expose proof metrics", () => {
   assert.equal(comparison.with_kage.context_tokens > 0, true);
   assert.equal(typeof comparison.delta.context_reduction_percent, "number");
   assert.equal(comparison.evidence.kage_memory.length > 0, true);
+});
+
+test("coding memory quality benchmark is package-callable", () => {
+  const report = benchmarkCodingMemoryQuality({ packetsPerTopic: 2, distractorsPerTopic: 1, topK: 5 });
+
+  assert.equal(report.benchmark, "Kage coding memory quality");
+  assert.equal(report.summary.retrieval_mode, "kage-recall-default");
+  assert.equal(report.dataset.queries, 20);
+  assert.equal(report.dataset.observations, 60);
+  assert.equal(report.summary.recall_at_5_percent, 100);
+  assert.equal(report.summary.ndcg_at_10, 1);
+  assert.equal(report.summary.context_reduction_percent > 0, true);
+  assert.equal(report.summary.source_diversity_pass, true);
+  assert.equal(report.source_diversity.pass, true);
+  assert.equal(report.source_diversity.independent_source_rank, 4);
+  assert.equal(report.source_diversity.max_results_from_one_source, 3);
+  assert.equal(report.workdir, null);
+});
+
+test("memory scale benchmark is package-callable", () => {
+  const report = benchmarkMemoryScale({ sizes: [24, 60], topK: 5 });
+
+  assert.equal(report.benchmark, "Kage synthetic memory scale");
+  assert.deepEqual(report.sizes, [24, 60]);
+  assert.equal(report.results.length, 2);
+  assert.equal(report.summary.largest_packets, 60);
+  assert.equal(report.summary.largest_hit_rate_percent, 100);
+  assert.equal(report.summary.largest_context_reduction_percent > 0, true);
+  assert.equal(report.workdir, null);
 });
 
 test("capture extracts structured engineering memory context", () => {
@@ -2311,6 +3174,40 @@ test("refresh rebuilds graphs and marks path-drifted memory stale", () => {
   assert.match((packet.quality.stale_reasons as string[]).join(" "), /missing/);
 });
 
+test("refresh marks memory stale when linked source content changes", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "retry.ts"), "export const retryMode = 'callback-idempotency';\n", "utf8");
+
+  const result = capture({
+    projectDir: project,
+    title: "Retry paths stay split",
+    body: "The callback retry path intentionally uses idempotency keys while checkout retries use session state. Do not merge them. Verified by retry tests.",
+    type: "gotcha",
+    paths: ["src/retry.ts"],
+    tags: ["retry"],
+  });
+  assert.equal(result.ok, true);
+
+  let packet = loadApprovedPackets(project).find((candidate) => candidate.id === result.packet!.id);
+  assert.ok(packet);
+  assert.equal(Array.isArray(packet.freshness.path_fingerprints), true);
+
+  const baseline = refreshProject(project);
+  assert.equal(baseline.stale_packets.some((candidate) => candidate.id === result.packet!.id), false);
+
+  writeFileSync(join(project, "src", "retry.ts"), "export const retryMode = 'session-state';\n", "utf8");
+
+  const refresh = refreshProject(project);
+  assert.equal(refresh.stale_packets.some((candidate) => candidate.id === result.packet!.id), true);
+  packet = loadApprovedPackets(project).find((candidate) => candidate.id === result.packet!.id);
+  assert.ok(packet);
+  assert.equal(packet.quality.stale, true);
+  assert.match((packet.quality.stale_reasons as string[]).join(" "), /linked path changed/);
+  assert.equal(packet.quality.suggested_action, "update");
+});
+
 test("refresh uses lightweight metrics and leaves benchmarks to metrics command", () => {
   const project = tempProject();
   execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
@@ -2327,6 +3224,26 @@ test("refresh uses lightweight metrics and leaves benchmarks to metrics command"
   const metrics = kageMetrics(project);
   assert.ok(metrics.pain);
   assert.ok(metrics.quality);
+});
+
+test("refresh writes current memory handoff report for the viewer dashboard", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  capture({
+    projectDir: project,
+    title: "Checkout retry handoff",
+    body: "Checkout retry behavior should be reviewed before changing retry code.",
+    type: "decision",
+  });
+
+  const refresh = refreshProject(project);
+  assert.equal(refresh.ok, true);
+  const reportPath = join(project, ".agent_memory", "reports", "handoff.json");
+  assert.equal(existsSync(reportPath), true);
+  const report = JSON.parse(readFileSync(reportPath, "utf8"));
+  assert.equal(report.schema_version, 1);
+  assert.equal(typeof report.primary_action.label, "string");
+  assert.equal(report.totals.open_items > 0, true);
 });
 
 test("gc deprecates stale packets by exact packet file path", () => {
@@ -2411,4 +3328,90 @@ test("pr check marks graphs stale when source content changes after refresh", ()
   assert.equal(check.memory_graph_current, false);
   assert.equal(check.ok, false);
   assert.match(check.errors.join("\n"), /graph artifacts/);
+});
+
+test("memory reconciliation makes changed linked memory an agent responsibility", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "retry.js"), "export const retryMode = 'callback';\n", "utf8");
+  const captured = capture({
+    projectDir: project,
+    title: "Retry mode is callback-aware",
+    body: "The retry module intentionally keeps callback retry state separate from session retry state.",
+    type: "code_explanation",
+    paths: ["src/retry.js"],
+  });
+  assert.equal(captured.ok, true);
+
+  assert.equal(observe(project, {
+    type: "file_change",
+    session_id: "agent-session",
+    agent: "codex",
+    path: "src/retry.js",
+    summary: "Changed retry mode behavior while fixing callback handling.",
+  }).ok, true);
+  writeFileSync(join(project, "src", "retry.js"), "export const retryMode = 'session';\n", "utf8");
+
+  const report = kageMemoryReconciliation(project, { sessionId: "agent-session" });
+  assert.equal(report.ok, false);
+  assert.equal(report.unresolved_count, 1);
+  assert.equal(report.items[0]?.packet_id, captured.packet?.id);
+  assert.deepEqual(report.items[0]?.changed_paths, ["src/retry.js"]);
+  assert.match(report.agent_instruction, /kage_learn|kage_supersede/);
+  assert.doesNotMatch(report.agent_instruction, /ask the user/i);
+});
+
+test("pr check blocks unresolved memory reconciliation", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "retry.js"), "export const retryMode = 'callback';\n", "utf8");
+  assert.equal(capture({
+    projectDir: project,
+    title: "Retry mode is callback-aware",
+    body: "The retry module intentionally keeps callback retry state separate from session retry state.",
+    type: "code_explanation",
+    paths: ["src/retry.js"],
+  }).ok, true);
+  commitAll(project, "initial");
+
+  writeFileSync(join(project, "src", "retry.js"), "export const retryMode = 'session';\n", "utf8");
+  assert.equal(observe(project, {
+    type: "file_change",
+    session_id: "agent-session",
+    agent: "codex",
+    path: "src/retry.js",
+    summary: "Changed retry mode behavior while fixing callback handling.",
+  }).ok, true);
+  const refresh = refreshProject(project);
+  assert.equal(refresh.stale_packets.length, 1);
+
+  const check = prCheck(project);
+  assert.equal(check.ok, false);
+  assert.match(check.errors.join("\n"), /memory reconciliation/i);
+  assert.ok(check.required_actions.some((action) => action.includes("kage learn") || action.includes("kage supersede")));
+});
+
+test("pr check blocks when observed session learnings still need distillation", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
+  assert.equal(observe(project, {
+    type: "command_result",
+    session_id: "pr-session",
+    agent: "codex",
+    command: "npm test -- checkout",
+    exit_code: 0,
+    summary: "Use this command after changing checkout retry behavior.",
+    timestamp: "2026-05-17T10:01:00.000Z",
+  }).ok, true);
+
+  const refresh = refreshProject(project);
+  assert.equal(refresh.ok, true);
+  const check = prCheck(project);
+
+  assert.equal(check.ok, false);
+  assert.match(check.errors.join("\n"), /distillable session/);
+  assert.ok(check.required_actions.some((action) => action.includes("kage distill --project . --session pr-session")));
 });

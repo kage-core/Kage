@@ -1,0 +1,70 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:session-replay-digest-proves-observed-agent-learning-without-raw-transcripts-177",
+  "title": "Session replay digest proves observed agent learning without raw transcripts",
+  "summary": "Kage now exposes a privacy preserving session replay digest through kage replay, kage session replay, GET /kage/replay, and the viewer dashboard/memory page. It summarizes observed session timelines, paths, commands, dur",
+  "body": "Kage now exposes a privacy-preserving session replay digest through kage replay, kage_session_replay, GET /kage/replay, and the viewer dashboard/memory page. It summarizes observed session timelines, paths, commands, durable candidates, and distill commands while setting raw_text_included=false and avoiding raw transcript text in the replay surface. This closes an AgentMemory-style replay proof gap while preserving Kage's reviewable memory packet model.\nEvidence: Implemented in mcp/kernel.ts, mcp/cli.ts, mcp/index.ts, mcp/daemon.ts, mcp/viewer/app.js, docs/viewer/app.js, README.md, mcp/README.md, docs/guide.html with tests in mcp/kernel.test.ts, mcp/mcp.test.ts, mcp/daemon.test.ts.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'session replay digest'; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; CLI smoke: kage observe then kage replay returned raw_text_included=false",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "agentmemory-comparison",
+    "viewer",
+    "privacy"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/cli.ts",
+    "mcp/index.ts",
+    "mcp/daemon.ts",
+    "mcp/viewer/app.js",
+    "docs/viewer/app.js",
+    "README.md",
+    "mcp/README.md",
+    "docs/guide.html"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-18T03:55:58.074Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage now exposes a privacy-preserving session replay digest through kage replay, kage_session_replay, GET /kage/replay, and the viewer dashboard/memory page. It summarizes observed session timelines, paths, commands, durable candidates, and distill commands while setting raw_text_included=false and avoiding raw transcript text in the replay surface. This closes an AgentMemory-style replay proof gap while preserving Kage's reviewable memory packet model.\nEvidence: Implemented in mcp/kernel.ts, mcp/cli.ts, mcp/index.ts, mcp/daemon.ts, mcp/viewer/app.js, docs/viewer/app.js, README.md, mcp/README.md, docs/guide.html with tests in mcp/kernel.test.ts, mcp/mcp.test.ts, mcp/daemon.test.ts.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'session replay digest'; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; CLI smoke: kage observe then kage replay returned raw_text_included=false",
+    "verification": "Implemented in mcp/kernel.ts, mcp/cli.ts, mcp/index.ts, mcp/daemon.ts, mcp/viewer/app.js, docs/viewer/app.js, README.md, mcp/README.md, docs/guide.html with tests in mcp/kernel.test.ts, mcp/mcp.test.ts, mcp/daemon.test.ts."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-18T03:55:58.074Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 228
+  },
+  "created_at": "2026-05-18T03:55:58.074Z",
+  "updated_at": "2026-05-19T04:53:22.459Z"
+}

@@ -1,0 +1,67 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:bug_fix:local-viewer-responses-include-browser-security-headers-1779050518395",
+  "title": "Local viewer responses include browser security headers",
+  "summary": "Kage's local viewer now serves static files with conservative browser security headers: CSP blocks inline scripts and script attributes, nosniff prevents MIME sniffing, referrer policy is no referrer, COOP is same origin",
+  "body": "Kage's local viewer now serves static files with conservative browser security headers: CSP blocks inline scripts and script attributes, nosniff prevents MIME sniffing, referrer-policy is no-referrer, COOP is same-origin, and frame-ancestors is none. This follows the AgentMemory viewer-security lesson without adding nonce complexity because Kage loads app.js as an external script.\nEvidence: Implemented viewerStaticHeaders in mcp/daemon.ts, added daemon regression coverage in mcp/daemon.test.ts, and documented the local viewer hardening in README.md and mcp/README.md.\nVerified by: npm test --prefix mcp; curl -I http://127.0.0.1:8767/viewer/index.html",
+  "type": "bug_fix",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "agentmemory-comparison",
+    "viewer",
+    "security",
+    "csp",
+    "daemon"
+  ],
+  "paths": [
+    "mcp/daemon.ts",
+    "mcp/daemon.test.ts",
+    "README.md",
+    "mcp/README.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-17T20:41:58.395Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage's local viewer now serves static files with conservative browser security headers: CSP blocks inline scripts and script attributes, nosniff prevents MIME sniffing, referrer-policy is no-referrer, COOP is same-origin, and frame-ancestors is none. This follows the AgentMemory viewer-security lesson without adding nonce complexity because Kage loads app.js as an external script.\nEvidence: Implemented viewerStaticHeaders in mcp/daemon.ts, added daemon regression coverage in mcp/daemon.test.ts, and documented the local viewer hardening in README.md and mcp/README.md.\nVerified by: npm test --prefix mcp; curl -I http://127.0.0.1:8767/viewer/index.html",
+    "verification": "Implemented viewerStaticHeaders in mcp/daemon.ts, added daemon regression coverage in mcp/daemon.test.ts, and documented the local viewer hardening in README.md and mcp/README.md."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-17T20:41:58.395Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 165
+  },
+  "created_at": "2026-05-17T20:41:58.395Z",
+  "updated_at": "2026-05-19T04:50:14.876Z"
+}

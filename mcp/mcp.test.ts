@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { callTool, listTools } from "./index.js";
@@ -30,6 +30,11 @@ test("MCP lists repo-local memory tools", () => {
   assert.equal(names.includes("kage_cleanup_candidates"), true);
   assert.equal(names.includes("kage_reviewers"), true);
   assert.equal(names.includes("kage_contributors"), true);
+  assert.equal(names.includes("kage_profile"), true);
+  assert.equal(names.includes("kage_capabilities"), true);
+  assert.equal(names.includes("kage_context_slots"), true);
+  assert.equal(names.includes("kage_context_slot_set"), true);
+  assert.equal(names.includes("kage_context_slot_delete"), true);
   assert.equal(names.includes("kage_decisions"), true);
   assert.equal(names.includes("kage_code_index"), true);
   assert.equal(names.includes("kage_metrics"), true);
@@ -45,13 +50,21 @@ test("MCP lists repo-local memory tools", () => {
   assert.equal(names.includes("kage_audit"), true);
   assert.equal(names.includes("kage_benchmark"), true);
   assert.equal(names.includes("kage_benchmark_compare"), true);
+  assert.equal(names.includes("kage_memory_lifecycle"), true);
+  assert.equal(names.includes("kage_memory_timeline"), true);
+  assert.equal(names.includes("kage_memory_lineage"), true);
+  assert.equal(names.includes("kage_memory_audit"), true);
+  assert.equal(names.includes("kage_memory_handoff"), true);
+  assert.equal(names.includes("kage_supersede"), true);
   assert.equal(names.includes("kage_setup_agent"), true);
+  assert.equal(names.includes("kage_setup_doctor"), true);
   assert.equal(names.includes("kage_verify_agent"), true);
   assert.equal(names.includes("kage_graph_visual"), true);
   assert.equal(names.includes("kage_learn"), true);
   assert.equal(names.includes("kage_capture"), true);
   assert.equal(names.includes("kage_observe"), true);
   assert.equal(names.includes("kage_distill"), true);
+  assert.equal(names.includes("kage_session_replay"), true);
   assert.equal(names.includes("kage_feedback"), true);
   assert.equal(names.includes("kage_install_policy"), true);
   assert.equal(names.includes("kage_branch_overlay"), true);
@@ -132,6 +145,46 @@ test("MCP kage_capture creates repo-local memory and blocks sensitive input", as
   });
   assert.equal(blocked.isError, true);
   assert.match(textContent(blocked), /Capture blocked/);
+});
+
+test("MCP kage_supersede writes memory lineage", async () => {
+  const project = tempProject();
+  await callTool("kage_capture", {
+    project_dir: project,
+    title: "Old retry note",
+    body: "Old retry note says duplicated checkout retry paths can be merged.",
+    type: "decision",
+    paths: ["src/checkout.ts"],
+  });
+  await callTool("kage_capture", {
+    project_dir: project,
+    title: "Checkout retry split",
+    body: "Callback retries use idempotency keys while checkout retries use session state, so keep the paths separate.",
+    type: "decision",
+    paths: ["src/checkout.ts"],
+  });
+  const packets = readdirSync(join(project, ".agent_memory", "packets"))
+    .filter((name) => name.endsWith(".json"))
+    .map((name) => JSON.parse(readFileSync(join(project, ".agent_memory", "packets", name), "utf8")));
+  const oldPacket = packets.find((packet) => packet.title === "Old retry note");
+  const replacement = packets.find((packet) => packet.title === "Checkout retry split");
+  assert.ok(oldPacket);
+  assert.ok(replacement);
+
+  const superseded = await callTool("kage_supersede", {
+    project_dir: project,
+    packet_id: oldPacket.id,
+    replacement_packet_id: replacement.id,
+    reason: "Newer debugging proved the retry paths are intentionally different.",
+  });
+  const result = JSON.parse(textContent(superseded));
+  assert.equal(result.ok, true);
+  assert.equal(result.old_packet.status, "superseded");
+
+  const lineage = await callTool("kage_memory_lineage", { project_dir: project });
+  const lineageJson = JSON.parse(textContent(lineage));
+  assert.equal(lineageJson.totals.chains, 1);
+  assert.equal(lineageJson.chains[0].current_packet_id, replacement.id);
 });
 
 test("MCP kage_graph returns evidence-backed graph facts", async () => {
@@ -244,6 +297,76 @@ test("MCP kage_contributors returns local git contributor profiles", async () =>
   const result = await callTool("kage_contributors", { project_dir: project });
   const body = JSON.parse(textContent(result));
   assert.equal(body.contributors.some((profile: { contributor: string }) => profile.contributor === "Alice <alice@example.com>"), true);
+});
+
+test("MCP kage_profile returns project orientation profile", async () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ scripts: { test: "node --test" } }), "utf8");
+  writeFileSync(join(project, "src", "core.js"), "export function core() { return 1; }\n", "utf8");
+  mkdirSync(join(project, ".agent_memory", "packets"), { recursive: true });
+  writeFileSync(join(project, ".agent_memory", "packets", "decision-core.json"), JSON.stringify({
+    schema_version: 2,
+    id: "repo:test:decision:core",
+    title: "Core path stays small",
+    summary: "Core stays small for testability.",
+    body: "Keep src/core.js small because downstream tests import it directly.",
+    type: "decision",
+    scope: "repo",
+    visibility: "team",
+    sensitivity: "internal",
+    status: "approved",
+    confidence: 0.7,
+    tags: ["core"],
+    paths: ["src/core.js"],
+    stack: [],
+    source_refs: [{ kind: "explicit_capture" }],
+    freshness: { ttl_days: 365 },
+    edges: [],
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+  }), "utf8");
+
+  const result = await callTool("kage_profile", { project_dir: project });
+  const body = JSON.parse(textContent(result));
+  assert.equal(body.totals.approved_memory, 1);
+  assert.equal(body.run_commands.some((command: { name: string }) => command.name === "test"), true);
+  assert.equal(body.key_files.some((file: { path: string; memory_packets: number }) => file.path === "src/core.js" && file.memory_packets === 1), true);
+});
+
+test("MCP kage_capabilities returns memory system readiness evidence", async () => {
+  const project = tempProject();
+  writeFileSync(join(project, "package.json"), JSON.stringify({ scripts: { test: "node --test" } }), "utf8");
+  const result = await callTool("kage_capabilities", { project_dir: project });
+  const body = JSON.parse(textContent(result));
+
+  assert.equal(body.schema_version, 1);
+  assert.equal(Array.isArray(body.pillars), true);
+  assert.equal(body.pillars.some((pillar: { id: string }) => pillar.id === "benchmark"), true);
+  assert.equal(body.checklist.some((item: { requirement: string }) => item.requirement === "viewer proof surface"), true);
+});
+
+test("MCP context slot tools create list and delete pinned context", async () => {
+  const project = tempProject();
+  const saved = await callTool("kage_context_slot_set", {
+    project_dir: project,
+    label: "project_context",
+    content: "Always run npm test after editing the CLI.",
+    description: "Pinned agent guidance",
+    paths: ["mcp/cli.ts"],
+    tags: ["tests"],
+  });
+  const savedBody = JSON.parse(textContent(saved));
+  assert.equal(savedBody.ok, true);
+
+  const listed = await callTool("kage_context_slots", { project_dir: project });
+  const listedBody = JSON.parse(textContent(listed));
+  assert.equal(listedBody.totals.pinned, 1);
+  assert.match(listedBody.pinned_context_block, /Always run npm test/);
+
+  const deleted = await callTool("kage_context_slot_delete", { project_dir: project, label: "project_context" });
+  const deletedBody = JSON.parse(textContent(deleted));
+  assert.equal(deletedBody.ok, true);
 });
 
 test("MCP kage_decisions returns why-memory coverage", async () => {
@@ -428,6 +551,9 @@ test("MCP setup, quality, benchmark, observe, and distill tools work", async () 
   const setup = await callTool("kage_setup_agent", { project_dir: project, agent: "generic-mcp" });
   assert.match(textContent(setup), /mcpServers/);
 
+  const doctor = await callTool("kage_setup_doctor", { project_dir: project });
+  assert.equal(Array.isArray(JSON.parse(textContent(doctor))), true);
+
   const verify = await callTool("kage_verify_agent", { project_dir: project, agent: "generic-mcp" });
   assert.equal(JSON.parse(textContent(verify)).checks.mcp_tool_reachable, true);
 
@@ -450,6 +576,38 @@ test("MCP setup, quality, benchmark, observe, and distill tools work", async () 
   const benchmark = await callTool("kage_benchmark", { project_dir: project });
   assert.equal(typeof JSON.parse(textContent(benchmark)).pain_metrics.estimated_tokens_saved, "number");
 
+  const memoryQualityBenchmark = await callTool("kage_benchmark", { project_dir: project, mode: "memory_quality" });
+  assert.equal(JSON.parse(textContent(memoryQualityBenchmark)).summary.recall_at_5_percent, 100);
+
+  const memoryScaleBenchmark = await callTool("kage_benchmark", { project_dir: project, mode: "memory_scale", sizes: [24] });
+  assert.equal(JSON.parse(textContent(memoryScaleBenchmark)).summary.largest_packets, 24);
+
+  const lifecycle = await callTool("kage_memory_lifecycle", { project_dir: project });
+  const lifecycleJson = JSON.parse(textContent(lifecycle));
+  assert.equal(lifecycleJson.schema_version, 1);
+  assert.equal(typeof lifecycleJson.totals.approved, "number");
+
+  const timeline = await callTool("kage_memory_timeline", { project_dir: project, days: 7 });
+  const timelineJson = JSON.parse(textContent(timeline));
+  assert.equal(timelineJson.schema_version, 1);
+  assert.equal(Array.isArray(timelineJson.entries), true);
+
+  const lineage = await callTool("kage_memory_lineage", { project_dir: project });
+  const lineageJson = JSON.parse(textContent(lineage));
+  assert.equal(lineageJson.schema_version, 1);
+  assert.equal(Array.isArray(lineageJson.chains), true);
+
+  const audit = await callTool("kage_memory_audit", { project_dir: project, limit: 10 });
+  const auditJson = JSON.parse(textContent(audit));
+  assert.equal(auditJson.schema_version, 1);
+  assert.equal(Array.isArray(auditJson.entries), true);
+
+  const handoff = await callTool("kage_memory_handoff", { project_dir: project });
+  const handoffJson = JSON.parse(textContent(handoff));
+  assert.equal(handoffJson.schema_version, 1);
+  assert.equal(typeof handoffJson.primary_action.label, "string");
+  assert.equal(Array.isArray(handoffJson.items), true);
+
   const comparison = await callTool("kage_benchmark_compare", { project_dir: project, task: "how do I run tests" });
   assert.equal(typeof JSON.parse(textContent(comparison)).delta.estimated_tokens_saved, "number");
 });
@@ -467,6 +625,35 @@ test("MCP kage_learn captures actual session learning", async () => {
 
   assert.equal(result.isError, false);
   assert.match(textContent(result), /Captured session learning/);
+});
+
+test("MCP kage_session_replay returns a privacy-preserving session timeline", async () => {
+  const project = tempProject();
+  const observed = await callTool("kage_observe", {
+    project_dir: project,
+    type: "file_change",
+    session_id: "mcp-replay",
+    agent: "claude",
+    path: "src/cache.ts",
+    text: "Raw implementation note should not be replayed.",
+    summary: "src/cache.ts must keep cache invalidation after writes because readers depend on fresh state.",
+    timestamp: "2026-05-18T01:00:00.000Z",
+  });
+  assert.equal(observed.isError, false);
+
+  const result = await callTool("kage_session_replay", {
+    project_dir: project,
+    session_id: "mcp-replay",
+    limit: 5,
+  });
+  const report = JSON.parse(textContent(result));
+
+  assert.equal(report.totals.sessions, 1);
+  assert.equal(report.events.length, 1);
+  assert.equal(report.events[0].path, "src/cache.ts");
+  assert.equal(report.events[0].durable_candidate, true);
+  assert.equal(report.events[0].raw_text_included, false);
+  assert.equal(report.events[0].summary.includes("Raw implementation note"), false);
 });
 
 test("MCP kage_graph_visual returns Mermaid", async () => {

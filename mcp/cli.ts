@@ -7,6 +7,9 @@ import {
   SETUP_AGENTS,
   auditProject,
   benchmarkTaskComparison,
+  benchmarkCodingMemoryQuality,
+  benchmarkMemoryScale,
+  buildEmbeddingIndex,
   approvePending,
   benchmarkProject,
   buildGlobalCdnBundle,
@@ -27,19 +30,32 @@ import {
   indexProject,
   installAgentPolicy,
   kageCleanupCandidates,
+  kageCapabilityAudit,
   kageContributors,
+  kageContextSlots,
   kageDecisionIntelligence,
+  deleteContextSlot,
   kageDependencyPath,
   kageGraphInsights,
   kageHookInstall,
   kageHookStatus,
   kageHookUninstall,
   kageRisk,
+  kageMemoryAccess,
+  kageMemoryAudit,
+  kageMemoryHandoff,
+  kageMemoryLifecycle,
+  kageMemoryLineage,
+  kageMemoryReconciliation,
+  kageMemoryTimeline,
   kageMetrics,
   kageModuleHealth,
+  kageProjectProfile,
   kageWorkspace,
   kageWorkspaceRecall,
   kageReviewerSuggestions,
+  kageSessionCaptureReport,
+  kageSessionReplay,
   learn,
   memoryInbox,
   loadPendingPackets,
@@ -58,6 +74,7 @@ import {
   queryCodeGraph,
   queryGraph,
   recall,
+  recallWithEmbeddings,
   recordFeedback,
   gcProject,
   refreshProject,
@@ -65,6 +82,8 @@ import {
   registryRecommendations,
   setupAgent,
   setupDoctor,
+  setContextSlot,
+  supersedeMemory,
   validateProject,
   verifyAgentActivation,
   writeCodeIndex,
@@ -102,7 +121,20 @@ Usage:
   kage upgrade [--dry-run]
   kage branch --project <dir> [--json]
   kage metrics --project <dir> [--json]
+  kage memory-access --project <dir> [--json]
+  kage memory-audit --project <dir> [--limit <n>] [--json]
+  kage slots --project <dir> [--json]
+  kage slots set --project <dir> --label <label> --content <text> [--description <text>] [--paths a,b] [--tags a,b] [--size-limit <n>] [--unpinned] [--json]
+  kage slots delete --project <dir> --label <label> [--json]
+  kage handoff --project <dir> [--json]
+  kage lifecycle --project <dir> [--json]
+  kage reconcile --project <dir> [--session <id>] [--json]
+  kage timeline --project <dir> [--days <n>] [--json]
+  kage lineage --project <dir> [--json]
+  kage supersede --project <dir> --packet <old-id> --replacement <new-id> [--reason <text>] [--json]
   kage contributors --project <dir> [--json]
+  kage profile --project <dir> [--json]
+  kage capabilities --project <dir> [--json]
   kage decisions --project <dir> [--json]
   kage module-health --project <dir> [--json]
   kage graph-insights --project <dir> [--json]
@@ -112,6 +144,8 @@ Usage:
   kage inbox --project <dir> [--json]
   kage quality --project <dir> [--json]
   kage benchmark --project <dir> [--json]
+  kage benchmark --memory-quality [--json]
+  kage benchmark --scale [--sizes 240,1000,5000] [--json]
   kage benchmark --project <dir> --compare --task <task> [--json]
   kage code-graph --project <dir> [--json]
   kage code-graph "<query>" --project <dir> [--json]
@@ -125,8 +159,11 @@ Usage:
   kage graph --project <dir> --mermaid
   kage graph "<query>" --project <dir> [--json]
   kage graph-registry --project <dir> [--json]
-  kage recall "<query>" --project <dir> [--json] [--explain]
+  kage embeddings build --project <dir> [--model Xenova/all-MiniLM-L6-v2] [--json]
+  kage recall "<query>" --project <dir> [--json] [--explain] [--embeddings]
   kage observe --project <dir> --event <json>
+  kage sessions --project <dir> [--json]
+  kage replay --project <dir> [--session <id>] [--limit <n>] [--json]
   kage distill --project <dir> --session <id>
   kage learn --project <dir> --learning <text> [--title <title>] [--type <type>] [--evidence <text>] [--verified-by <text>] [--tags a,b] [--paths a,b]
   kage feedback --project <dir> --packet <packet-id> --kind helpful|wrong|stale
@@ -287,7 +324,10 @@ async function main(): Promise<void> {
       }
       console.log("Kage setup doctor");
       for (const item of result) {
-        console.log(`- ${item.agent}: ${item.configured ? "configured" : "not detected"}${item.config_path ? ` (${item.config_path})` : ""}`);
+        const hookStatus = item.hook_summary
+          ? item.hook_summary.ready ? " hooks: installed" : ` hooks: missing ${item.hook_summary.missing.join(", ")}`
+          : "";
+        console.log(`- ${item.agent}: ${item.configured ? "configured" : "not detected"}${hookStatus}${item.config_path ? ` (${item.config_path})` : ""}`);
       }
       return;
     }
@@ -306,6 +346,9 @@ async function main(): Promise<void> {
       console.log(`Indexes: ${result.checks.indexes_present ? "present" : "missing"}`);
       console.log(`Recall: ${result.checks.recall_works ? "ok" : "failed"} (${result.recall_preview})`);
       console.log(`Code graph: ${result.checks.code_graph_works ? "ok" : "failed"} (${result.code_graph_summary})`);
+      if (result.hook_summary) {
+        console.log(`Ambient hooks: ${result.checks.ambient_hooks_present ? "installed" : `missing ${result.hook_summary.missing.join(", ")}`}`);
+      }
       console.log(`Active MCP tool: ${result.checks.mcp_tool_reachable ? "reachable" : "not verified from CLI"}`);
       if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
       if (result.next_steps.length) console.log(`Next steps:\n${result.next_steps.map((step) => `  - ${step}`).join("\n")}`);
@@ -666,6 +709,29 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "profile") {
+    const result = kageProjectProfile(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage project profile: ${result.summary}`);
+    console.log(`Files: ${result.totals.files} (${result.totals.source_files} source, ${result.totals.test_files} test), symbols: ${result.totals.symbols}`);
+    console.log(`Memory: ${result.totals.approved_memory} packets, ${result.totals.memory_code_coverage_percent}% memory-code coverage`);
+    if (result.top_concepts.length) console.log(`Top concepts: ${result.top_concepts.slice(0, 6).map((item) => `${item.concept} (${item.count})`).join(", ")}`);
+    if (result.key_files.length) {
+      console.log("Key files:");
+      for (const file of result.key_files.slice(0, 8)) console.log(`- ${file.path}: ${file.why.slice(0, 3).join("; ")}`);
+    }
+    if (result.run_commands.length) {
+      console.log("Commands:");
+      for (const commandItem of result.run_commands.slice(0, 6)) console.log(`- ${commandItem.name}: ${commandItem.command}`);
+    }
+    if (result.next_actions.length) console.log(`Next: ${result.next_actions[0]}`);
+    if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
+    return;
+  }
+
   if (command === "decisions") {
     const result = kageDecisionIntelligence(projectArg(args));
     if (args.includes("--json")) {
@@ -797,6 +863,247 @@ async function main(): Promise<void> {
       console.log(`  Estimated tokens saved: ${result.pain.estimated_tokens_saved}`);
       console.log(`  Time to first use: ${result.pain.time_to_first_use_seconds}s`);
     }
+    if (result.memory_access) {
+      console.log("\nMemory access:");
+      console.log(`  Tracked packets: ${result.memory_access.tracked_packets}`);
+      console.log(`  Uses in 30d: ${result.memory_access.uses_30d}`);
+      console.log(`  Hot / cold packets: ${result.memory_access.hot_packets} / ${result.memory_access.cold_packets}`);
+    }
+    return;
+  }
+
+  if (command === "memory-access") {
+    const result = kageMemoryAccess(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage memory access: ${result.totals.tracked_packets} tracked packet${result.totals.tracked_packets === 1 ? "" : "s"}`);
+    console.log(`Recent uses: ${result.totals.uses_30d} in ${result.window_days} days`);
+    console.log(`Hot / cold: ${result.totals.hot_packets} / ${result.totals.cold_packets}`);
+    if (result.recommendations.length) {
+      console.log("\nRecommended review:");
+      for (const item of result.recommendations.slice(0, 5)) {
+        console.log(`- ${item.summary}`);
+        console.log(`  ${item.action}`);
+      }
+    }
+    console.log("\nTop recalled packets:");
+    for (const entry of result.entries.filter((item) => !(item.tags.includes("change-memory") && item.tags.includes("diff-proposal"))).slice(0, 10)) {
+      if (!entry.total_uses) continue;
+      console.log(`- ${entry.title}: ${entry.uses_30d} recent, ${entry.total_uses} total${entry.best_rank ? `, best rank ${entry.best_rank}` : ""}`);
+    }
+    return;
+  }
+
+  if (command === "lifecycle" || command === "memory-lifecycle") {
+    const result = kageMemoryLifecycle(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage memory lifecycle: ${result.totals.approved} approved, ${result.totals.pending} pending`);
+    console.log(`Healthy / hot / stale: ${result.totals.healthy} / ${result.totals.hot} / ${result.totals.stale}`);
+    console.log(`Ungrounded / disputed / generated: ${result.totals.ungrounded} / ${result.totals.disputed} / ${result.totals.generated}`);
+    if (result.recommendations.length) {
+      console.log("\nRecommended actions:");
+      for (const item of result.recommendations.slice(0, 6)) {
+        console.log(`- ${item.title ? `${item.title}: ` : ""}${item.summary}`);
+        console.log(`  ${item.action}`);
+      }
+    }
+    return;
+  }
+
+  if (command === "reconcile" || command === "memory-reconcile" || command === "memory-reconciliation") {
+    const result = kageMemoryReconciliation(projectArg(args), {
+      sessionId: takeArg(args, "--session"),
+      limit: numberArg(args, "--limit", 25),
+    });
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      console.log(result.agent_instruction);
+      if (result.items.length) {
+        console.log("\nItems:");
+        for (const item of result.items) {
+          console.log(`- ${item.packet_id}: ${item.title}`);
+          console.log(`  Paths: ${item.changed_paths.join(", ") || item.paths.join(", ")}`);
+          console.log(`  Action: ${item.next_action}`);
+        }
+      }
+    }
+    if (!result.ok) process.exitCode = 2;
+    return;
+  }
+
+  if (command === "memory-audit" || command === "audit-log") {
+    const result = kageMemoryAudit(projectArg(args), numberArg(args, "--limit", 100));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage memory audit: ${result.totals.total} mutation${result.totals.total === 1 ? "" : "s"}`);
+    console.log(`Capture / feedback / supersede: ${result.totals.capture} / ${result.totals.feedback} / ${result.totals.supersede}`);
+    for (const entry of result.entries.slice(0, 12)) {
+      console.log(`- ${entry.operation}: ${entry.packet_titles.join(", ") || entry.packet_ids.join(", ")} (${entry.timestamp.slice(0, 19)})`);
+    }
+    if (!result.entries.length) console.log("No memory mutations have been audited yet.");
+    return;
+  }
+
+  if (command === "capabilities" || command === "capability-audit" || command === "readiness") {
+    const result = kageCapabilityAudit(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage capability audit: ${result.overall_score}/100 (${result.status})`);
+    console.log(result.summary);
+    for (const pillar of result.pillars) {
+      console.log(`\n${pillar.label}: ${pillar.score}/100 (${pillar.status})`);
+      for (const item of pillar.evidence.slice(0, 4)) console.log(`  - ${item.label}: ${item.value}`);
+      if (pillar.gaps.length) console.log(`  Gap: ${pillar.gaps[0]}`);
+      if (pillar.actions.length) console.log(`  Action: ${pillar.actions[0]}`);
+    }
+    return;
+  }
+
+  if (command === "slots" || command === "context-slots") {
+    const action = args[1] && !args[1].startsWith("--") ? args[1] : undefined;
+    if (!action || action === "list") {
+      const result = kageContextSlots(projectArg(args));
+      if (args.includes("--json")) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+      console.log(`Kage pinned context slots: ${result.summary}`);
+      for (const slot of result.slots) {
+        console.log(`- ${slot.label}${slot.pinned ? " [pinned]" : ""}: ${slot.description || "(no description)"}`);
+        console.log(`  ${slot.content.slice(0, 160)}${slot.content.length > 160 ? "..." : ""}`);
+      }
+      if (!result.slots.length) console.log("No slots yet. Add one with `kage slots set --label project_context --content \"...\" --project .`.");
+      if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
+      return;
+    }
+    if (action === "set") {
+      const label = takeArg(args, "--label");
+      const content = takeArg(args, "--content");
+      if (!label || !content) usage();
+      const result = setContextSlot(projectArg(args), {
+        label,
+        content,
+        description: takeArg(args, "--description"),
+        pinned: !args.includes("--unpinned"),
+        size_limit: numberArg(args, "--size-limit", 2000),
+        paths: listArg(takeArg(args, "--paths")),
+        tags: listArg(takeArg(args, "--tags")),
+      });
+      if (args.includes("--json")) {
+        console.log(JSON.stringify(result, null, 2));
+        if (!result.ok) process.exit(2);
+        return;
+      }
+      if (!result.ok) {
+        console.error(`Context slot not saved:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);
+        process.exit(2);
+      }
+      console.log(`Saved context slot: ${result.slot?.label}`);
+      return;
+    }
+    if (action === "delete") {
+      const label = takeArg(args, "--label");
+      if (!label) usage();
+      const result = deleteContextSlot(projectArg(args), label);
+      if (args.includes("--json")) {
+        console.log(JSON.stringify(result, null, 2));
+        if (!result.ok) process.exit(2);
+        return;
+      }
+      if (!result.ok) {
+        console.error(`Context slot not deleted:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);
+        process.exit(2);
+      }
+      console.log(`Deleted context slot: ${result.deleted?.label}`);
+      return;
+    }
+    usage();
+  }
+
+  if (command === "handoff" || command === "memory-handoff") {
+    const result = kageMemoryHandoff(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage memory handoff: ${result.totals.open_items} open item${result.totals.open_items === 1 ? "" : "s"}, ${result.totals.distillable_sessions} distillable session${result.totals.distillable_sessions === 1 ? "" : "s"}, ${result.totals.recent_mutations} recent mutation${result.totals.recent_mutations === 1 ? "" : "s"}`);
+    console.log(result.summary);
+    console.log(`Primary action: ${result.primary_action.label} — ${result.primary_action.action}`);
+    if (result.items.length) {
+      console.log("\nNext actions:");
+      for (const item of result.items.slice(0, 10)) {
+        console.log(`- [${item.severity}] ${item.title}: ${item.summary}`);
+        console.log(`  ${item.action}`);
+      }
+    }
+    if (result.recommendations.length) {
+      console.log("\nRecommendations:");
+      for (const item of result.recommendations.slice(0, 5)) console.log(`- ${item}`);
+    }
+    return;
+  }
+
+  if (command === "timeline" || command === "memory-timeline") {
+    const result = kageMemoryTimeline(projectArg(args), numberArg(args, "--days", 14));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage memory timeline: last ${result.days} day${result.days === 1 ? "" : "s"} — ${result.totals.total} event${result.totals.total === 1 ? "" : "s"}`);
+    console.log(`Added / updated / pending / deprecated: ${result.totals.added} / ${result.totals.updated} / ${result.totals.pending} / ${result.totals.deprecated}`);
+    for (const entry of result.entries.slice(0, 12)) {
+      const prefix = entry.kind === "added" ? "+" : entry.kind === "updated" ? "~" : entry.kind === "pending" ? "?" : "-";
+      console.log(`  ${prefix} [${entry.type}] ${entry.title} (${entry.date.slice(0, 10)})`);
+    }
+    if (!result.entries.length) console.log("No memory activity in this period.");
+    return;
+  }
+
+  if (command === "lineage" || command === "memory-lineage") {
+    const result = kageMemoryLineage(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage memory lineage: ${result.totals.chains} replacement chain${result.totals.chains === 1 ? "" : "s"}, ${result.totals.orphans} orphan${result.totals.orphans === 1 ? "" : "s"}`);
+    for (const chain of result.chains.slice(0, 10)) {
+      console.log(`- ${chain.current_title}: replaces ${chain.superseded_packet_ids.length} packet${chain.superseded_packet_ids.length === 1 ? "" : "s"}`);
+      console.log(`  ${chain.action}`);
+    }
+    if (result.orphans.length) {
+      console.log("\nNeeds repair:");
+      for (const orphan of result.orphans.slice(0, 10)) console.log(`- ${orphan.title}: ${orphan.action}`);
+    }
+    if (!result.chains.length && !result.orphans.length) console.log("No superseded memory chains yet.");
+    return;
+  }
+
+  if (command === "supersede") {
+    const oldId = takeArg(args, "--packet");
+    const replacementId = takeArg(args, "--replacement");
+    if (!oldId || !replacementId) usage();
+    const result = supersedeMemory(projectArg(args), oldId, replacementId, takeArg(args, "--reason") ?? "");
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    if (!result.ok) {
+      console.error(`Failed to supersede memory: ${result.errors.join("; ")}`);
+      process.exit(1);
+    }
+    console.log(`Superseded memory: ${result.old_packet_id}`);
+    console.log(`Replacement: ${result.replacement_packet_id}`);
+    if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
     return;
   }
 
@@ -952,6 +1259,55 @@ async function main(): Promise<void> {
   }
 
   if (command === "benchmark") {
+    if (args.includes("--memory-quality")) {
+      const result = benchmarkCodingMemoryQuality({
+        topK: Number(takeArg(args, "--top-k") ?? 10),
+        packetsPerTopic: Number(takeArg(args, "--packets-per-topic") ?? 5),
+        distractorsPerTopic: Number(takeArg(args, "--distractors-per-topic") ?? 7),
+        keep: args.includes("--keep"),
+      });
+      if (args.includes("--json")) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+      console.log("Kage Coding Memory Quality Benchmark");
+      console.log(`Packets: ${result.summary.packets}`);
+      console.log(`Queries: ${result.summary.queries}`);
+      console.log(`Refresh/index: ${result.summary.refresh_ms}ms`);
+      console.log(`R@5: ${result.summary.recall_at_5_percent ?? "n/a"}%`);
+      console.log(`R@10: ${result.summary.recall_at_10_percent ?? "n/a"}%`);
+      console.log(`NDCG@10: ${result.summary.ndcg_at_10}`);
+      console.log(`MRR: ${result.summary.mrr}`);
+      console.log(`Median recall: ${result.summary.median_latency_ms}ms`);
+      console.log(`Context reduction: ${result.summary.context_reduction_percent}%`);
+      return;
+    }
+    if (args.includes("--scale")) {
+      const sizes = String(takeArg(args, "--sizes") ?? "240,1000,5000")
+        .split(",")
+        .map((value) => Number(value.trim()))
+        .filter((value) => Number.isFinite(value) && value > 0);
+      const result = benchmarkMemoryScale({
+        sizes,
+        topK: Number(takeArg(args, "--top-k") ?? 10),
+        keep: args.includes("--keep"),
+      });
+      if (args.includes("--json")) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+      console.log("Kage Memory Scale Benchmark");
+      console.log(`Sizes: ${result.sizes.join(", ")}`);
+      console.log(`Top K: ${result.top_k}`);
+      console.log(`Largest corpus: ${result.summary.largest_packets} packets`);
+      console.log(`Hit rate: ${result.summary.largest_hit_rate_percent}%`);
+      console.log(`Median recall: ${result.summary.largest_median_recall_latency_ms}ms`);
+      console.log(`Context reduction: ${result.summary.largest_context_reduction_percent}%`);
+      for (const row of result.results) {
+        console.log(`- ${row.packets} packets: ${row.recall_hit_rate_percent}% hit, ${row.median_recall_latency_ms}ms median, ${row.context_reduction_percent}% context reduction`);
+      }
+      return;
+    }
     if (args.includes("--compare")) {
       const result = benchmarkTaskComparison(projectArg(args), takeArg(args, "--task") ?? firstPositional(args) ?? "how do I run tests");
       if (args.includes("--json")) {
@@ -1199,9 +1555,31 @@ async function main(): Promise<void> {
   if (command === "recall") {
     const query = firstPositional(args);
     if (!query) usage();
-    const result = recall(projectArg(args), query, 5, args.includes("--explain"));
+    const result = args.includes("--embeddings")
+      ? await recallWithEmbeddings(projectArg(args), query, 5, args.includes("--explain"))
+      : recall(projectArg(args), query, 5, args.includes("--explain"));
     if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
     else console.log(result.context_block);
+    return;
+  }
+
+  if (command === "embeddings") {
+    const action = firstPositional(args);
+    if (action !== "build") usage();
+    const result = await buildEmbeddingIndex(projectArg(args), { model: takeArg(args, "--model") });
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      if (!result.ok) process.exitCode = 2;
+      return;
+    }
+    if (!result.ok) {
+      console.error(`Embedding index failed:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);
+      process.exit(2);
+    }
+    console.log(`Embedding index: ${result.path}`);
+    console.log(`Provider: ${result.provider}`);
+    console.log(`Model: ${result.model}`);
+    console.log(`Packets: ${result.packet_count}`);
     return;
   }
 
@@ -1215,6 +1593,55 @@ async function main(): Promise<void> {
     else {
       console.error(`Observation blocked:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);
       process.exit(2);
+    }
+    return;
+  }
+
+  if (command === "sessions") {
+    const result = kageSessionCaptureReport(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Sessions: ${result.totals.sessions}`);
+    console.log(`Observations: ${result.totals.observations}`);
+    console.log(`Distillable observations: ${result.totals.durable_observations}`);
+    for (const session of result.sessions.slice(0, 10)) {
+      console.log(`\n${session.session_id} — ${session.observations} observation${session.observations === 1 ? "" : "s"}, ${session.durable_observations} distillable`);
+      console.log(`  ${session.first_at || "unknown"} → ${session.last_at || "unknown"}`);
+      if (session.candidate_types.length) console.log(`  Candidates: ${session.candidate_types.join(", ")}`);
+      console.log(`  Next: ${session.next_action}`);
+    }
+    if (!result.sessions.length) console.log("No local observation sessions recorded yet.");
+    return;
+  }
+
+  if (command === "replay" || command === "session-replay") {
+    const result = kageSessionReplay(projectArg(args), {
+      sessionId: takeArg(args, "--session"),
+      limit: Number(takeArg(args, "--limit") ?? 200),
+    });
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Session replay digest: ${result.totals.sessions} session${result.totals.sessions === 1 ? "" : "s"}, ${result.totals.events} event${result.totals.events === 1 ? "" : "s"}`);
+    console.log(`Durable candidates: ${result.totals.durable_candidates}`);
+    for (const session of result.sessions.slice(0, 8)) {
+      console.log(`\n${session.session_id} — ${session.events} event${session.events === 1 ? "" : "s"}, ${session.durable_candidates} durable candidate${session.durable_candidates === 1 ? "" : "s"}`);
+      console.log(`  ${session.first_at || "unknown"} → ${session.last_at || "unknown"}`);
+      if (session.paths.length) console.log(`  Paths: ${session.paths.slice(0, 4).join(", ")}`);
+      if (session.commands.length) console.log(`  Commands: ${session.commands.slice(0, 3).join(", ")}`);
+      if (session.durable_candidates) console.log(`  Next: ${session.distill_command}`);
+    }
+    if (result.events.length) {
+      console.log("\nTimeline:");
+      for (const event of result.events.slice(0, 20)) {
+        const durable = event.durable_candidate ? ` [${event.candidate_type ?? "durable"}]` : "";
+        console.log(`  ${event.timestamp} ${event.label}${durable}: ${event.summary}`);
+      }
+    } else {
+      console.log("No local observation events recorded yet.");
     }
     return;
   }

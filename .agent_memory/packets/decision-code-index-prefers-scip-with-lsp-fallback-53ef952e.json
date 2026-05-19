@@ -13,7 +13,13 @@
   "tags": [
     "session-learning"
   ],
-  "paths": [],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/cli.ts",
+    "mcp/index.ts",
+    "mcp/kernel.test.ts",
+    "mcp/mcp.test.ts"
+  ],
   "stack": [],
   "source_refs": [
     {
@@ -39,20 +45,19 @@
     "reports_stale": 0,
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true,
-    "score": 84,
+    "score": 94,
     "reasons": [
       "high-value memory type",
       "has source evidence",
+      "grounded to repo paths",
       "tagged",
       "concise but substantive",
       "actionable rationale or verification"
     ],
-    "risks": [
-      "not grounded to paths"
-    ],
+    "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 103
   },
   "created_at": "2026-05-08T18:38:30.094Z",
-  "updated_at": "2026-05-08T18:38:35.043Z"
+  "updated_at": "2026-05-19T04:53:22.453Z"
 }

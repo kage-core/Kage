@@ -1,0 +1,67 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:recall-uses-low-weight-local-sparse-vector-scoring-1779027595016",
+  "title": "Recall uses low-weight local sparse vector scoring",
+  "summary": "Kage recall now computes a local sparse vector cosine score over packet title, summary, tags, paths, type, and body. The score is low weighted so it is inspectable in score breakdown.vector without overpowering BM25, tem",
+  "body": "Kage recall now computes a local sparse-vector cosine score over packet title, summary, tags, paths, type, and body. The score is low-weighted so it is inspectable in score_breakdown.vector without overpowering BM25, temporal expansion, semantic concept expansion, graph, freshness, or quality. A higher vector weight regressed LongMemEval-S R@10 to 99.79%, so the weight is intentionally conservative.\nEvidence: Implemented scorePacketsVector in mcp/kernel.ts and added vector assertions to recall concept expansion tests in mcp/kernel.test.ts. Updated benchmark docs to describe local sparse-vector scoring.\nVerified by: npm test --prefix mcp; node benchmarks/longmemeval-kage-retrieval.mjs --data /private/tmp/kage-external-bench/longmemeval_s_cleaned.json --limit 470 --top-k 10 --out /private/tmp/kage-external-bench/longmemeval-kage-full-vector-local-lowweight.json",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "recall",
+    "vector-local",
+    "benchmark",
+    "longmemeval",
+    "agentmemory-comparison"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts",
+    "benchmarks/LONGMEMEVAL.md",
+    "benchmarks/longmemeval-kage-retrieval.mjs"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-17T14:19:55.016Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage recall now computes a local sparse-vector cosine score over packet title, summary, tags, paths, type, and body. The score is low-weighted so it is inspectable in score_breakdown.vector without overpowering BM25, temporal expansion, semantic concept expansion, graph, freshness, or quality. A higher vector weight regressed LongMemEval-S R@10 to 99.79%, so the weight is intentionally conservative.\nEvidence: Implemented scorePacketsVector in mcp/kernel.ts and added vector assertions to recall concept expansion tests in mcp/kernel.test.ts. Updated benchmark docs to describe local sparse-vector scoring.\nVerified by: npm test --prefix mcp; node benchmarks/longmemeval-kage-retrieval.mjs --data /private/tmp/kage-external-bench/longmemeval_s_cleaned.json --limit 470 --top-k 10 --out /private/tmp/kage-external-bench/longmemeval-kage-full-vector-local-lowweight.json",
+    "verification": "Implemented scorePacketsVector in mcp/kernel.ts and added vector assertions to recall concept expansion tests in mcp/kernel.test.ts. Updated benchmark docs to describe local sparse-vector scoring."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-17T14:19:55.016Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 218
+  },
+  "created_at": "2026-05-17T14:19:55.016Z",
+  "updated_at": "2026-05-19T04:53:22.458Z"
+}

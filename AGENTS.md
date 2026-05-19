@@ -47,6 +47,13 @@ git commit changed without graph inputs changing.
 Before finishing a task that changed files, call `kage_pr_summarize` or
 `kage_propose_from_diff`, then call `kage_pr_check`.
 
+`kage_context`, Stop hooks, and `kage_pr_check` may report memory
+reconciliation items when files linked to existing memory changed. Resolve these
+as agent work before the final response: write updated memory with
+`kage_learn`, supersede replaced packets with `kage_supersede`, or mark stale
+only when the memory can no longer be trusted. Do not hand this off as a user
+inbox chore.
+
 `kage_pr_summarize` writes a branch review summary and a repo-local
 change-memory packet. `kage_pr_check` verifies validation, graph freshness,
 stale packets, and whether repo memory changed with the branch. If the check

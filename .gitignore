@@ -21,3 +21,4 @@ docs/assets/*.webm
 docs/assets/*.typescript
 *.mov
 *.tgz
+.openai-bench.env

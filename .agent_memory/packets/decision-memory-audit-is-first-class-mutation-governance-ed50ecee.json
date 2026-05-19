@@ -1,0 +1,66 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:memory-audit-is-first-class-mutation-governance-1779055805538",
+  "title": "Memory audit is first-class mutation governance",
+  "summary": "Kage now writes a repo local memory audit trail for explicit memory mutations. Captures, feedback, pending approve/reject, supersede, GC deprecate, and GC delete actions append JSONL entries under .agent memory/audit/eve",
+  "body": "Kage now writes a repo-local memory audit trail for explicit memory mutations. Captures, feedback, pending approve/reject, supersede, GC deprecate, and GC delete actions append JSONL entries under .agent_memory/audit/events.jsonl with packet ids, titles, actor, branch, head, timestamp, and details. Use kage memory-audit or the viewer Memory audit section to review what changed before handoff.",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "agentmemory",
+    "audit",
+    "memory-governance",
+    "collaboration"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/cli.ts",
+    "mcp/index.ts",
+    "mcp/daemon.ts",
+    "mcp/viewer/app.js",
+    "mcp/viewer/memory.html"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-17T22:10:05.538Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage now writes a repo-local memory audit trail for explicit memory mutations. Captures, feedback, pending approve/reject, supersede, GC deprecate, and GC delete actions append JSONL entries under .agent_memory/audit/events.jsonl with packet ids, titles, actor, branch, head, timestamp, and details. Use kage memory-audit or the viewer Memory audit section to review what changed before handoff."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-17T22:10:05.538Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 96,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 99
+  },
+  "created_at": "2026-05-17T22:10:05.538Z",
+  "updated_at": "2026-05-19T04:53:22.456Z"
+}

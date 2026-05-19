@@ -1,0 +1,66 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:recall-explanations-expose-temporal-and-semantic-contributions-1779027221668",
+  "title": "Recall explanations expose temporal and semantic contributions",
+  "summary": "Kage recall explanations now split expanded retrieval signals into temporal and semantic score fields. Temporal expansion comes from explicit query date metadata; semantic expansion comes from built in concept groups. wh",
+  "body": "Kage recall explanations now split expanded retrieval signals into temporal and semantic score fields. Temporal expansion comes from explicit query date metadata; semantic expansion comes from built-in concept groups. why_matched only includes semantic-concept labels when the packet actually received semantic score. This makes LongMemEval and normal recall results auditable instead of hiding expanded matches inside a single BM25 number.\nEvidence: Implemented RecallQueryExpansion and added temporal/semantic to RecallScoreBreakdown in mcp/kernel.ts; added tests for temporal and semantic score fields in mcp/kernel.test.ts; documented explainable expansion in benchmarks/LONGMEMEVAL.md.\nVerified by: npm test --prefix mcp; node benchmarks/longmemeval-kage-retrieval.mjs --data /private/tmp/kage-external-bench/longmemeval_s_cleaned.json --limit 470 --top-k 10 --out /private/tmp/kage-external-bench/longmemeval-kage-full-explainable-semantic.json",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "recall",
+    "explainability",
+    "semantic-expansion",
+    "temporal",
+    "benchmark"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts",
+    "benchmarks/LONGMEMEVAL.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-17T14:13:41.668Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage recall explanations now split expanded retrieval signals into temporal and semantic score fields. Temporal expansion comes from explicit query date metadata; semantic expansion comes from built-in concept groups. why_matched only includes semantic-concept labels when the packet actually received semantic score. This makes LongMemEval and normal recall results auditable instead of hiding expanded matches inside a single BM25 number.\nEvidence: Implemented RecallQueryExpansion and added temporal/semantic to RecallScoreBreakdown in mcp/kernel.ts; added tests for temporal and semantic score fields in mcp/kernel.test.ts; documented explainable expansion in benchmarks/LONGMEMEVAL.md.\nVerified by: npm test --prefix mcp; node benchmarks/longmemeval-kage-retrieval.mjs --data /private/tmp/kage-external-bench/longmemeval_s_cleaned.json --limit 470 --top-k 10 --out /private/tmp/kage-external-bench/longmemeval-kage-full-explainable-semantic.json",
+    "verification": "Implemented RecallQueryExpansion and added temporal/semantic to RecallScoreBreakdown in mcp/kernel.ts; added tests for temporal and semantic score fields in mcp/kernel.test.ts; documented explainable expansion in benchmarks/LONGMEMEVAL.md."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-17T14:13:41.668Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 238
+  },
+  "created_at": "2026-05-17T14:13:41.668Z",
+  "updated_at": "2026-05-19T04:53:22.457Z"
+}

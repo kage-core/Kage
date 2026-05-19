@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:memory-lineage-is-first-class-repo-knowledge-governance-1779055065482",
+  "title": "Memory lineage is first-class repo knowledge governance",
+  "summary": "Kage now has first class memory supersession and lineage. Use kage supersede packet <old id replacement <new id reason <why when a newer packet replaces old repo knowledge; the old packet becomes superseded, recall ignor",
+  "body": "Kage now has first-class memory supersession and lineage. Use kage supersede --packet <old-id> --replacement <new-id> --reason <why> when a newer packet replaces old repo knowledge; the old packet becomes superseded, recall ignores it, bidirectional lineage edges are written, and kage lineage plus the viewer Memory page show current replacements and orphaned retired packets.",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "agentmemory",
+    "lineage",
+    "memory-governance"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/cli.ts",
+    "mcp/index.ts",
+    "mcp/daemon.ts",
+    "mcp/viewer/app.js",
+    "mcp/viewer/memory.html"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-17T21:57:45.482Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage now has first-class memory supersession and lineage. Use kage supersede --packet <old-id> --replacement <new-id> --reason <why> when a newer packet replaces old repo knowledge; the old packet becomes superseded, recall ignores it, bidirectional lineage edges are written, and kage lineage plus the viewer Memory page show current replacements and orphaned retired packets."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-17T21:57:45.482Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 96,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 95
+  },
+  "created_at": "2026-05-17T21:57:45.482Z",
+  "updated_at": "2026-05-19T04:53:22.456Z"
+}

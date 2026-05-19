@@ -1,0 +1,67 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:memory-timeline-is-now-a-first-class-handoff-report-1779054299305",
+  "title": "Memory timeline is now a first-class handoff report",
+  "summary": "Kage now exposes kageMemoryTimeline, CLI kage timeline, MCP kage memory timeline, daemon /kage/timeline, local viewer reports/timeline.json, and dashboard/Memory timeline cards. It shows recently added, updated, pending,",
+  "body": "Kage now exposes kageMemoryTimeline, CLI kage timeline, MCP kage_memory_timeline, daemon /kage/timeline, local viewer reports/timeline.json, and dashboard/Memory timeline cards. It shows recently added, updated, pending, and retired repo-memory packets so teammates can see what agents learned before handoff.",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/cli.ts",
+    "mcp/index.ts",
+    "mcp/daemon.ts",
+    "mcp/viewer/app.js",
+    "mcp/viewer/memory.html",
+    "docs/viewer/app.js",
+    "docs/viewer/memory.html",
+    "README.md",
+    "mcp/README.md",
+    "docs/guide.html"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-17T21:44:59.305Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage now exposes kageMemoryTimeline, CLI kage timeline, MCP kage_memory_timeline, daemon /kage/timeline, local viewer reports/timeline.json, and dashboard/Memory timeline cards. It shows recently added, updated, pending, and retired repo-memory packets so teammates can see what agents learned before handoff."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-17T21:44:59.305Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 2,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 96,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 78
+  },
+  "created_at": "2026-05-17T21:44:59.305Z",
+  "updated_at": "2026-05-19T04:53:22.456Z"
+}

@@ -1,0 +1,66 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:reference-recall-should-stay-text-led-for-external-memory-benchmarks-17790244417",
+  "title": "Reference recall should stay text-led for external memory benchmarks",
+  "summary": "Reference memory packets should not let graph, path, and tag boosts swamp direct lexical evidence. LongMemEval S showed reference packets rank best when BM25/text evidence leads and graph/path boosts are capped for refer",
+  "body": "Reference memory packets should not let graph, path, and tag boosts swamp direct lexical evidence. LongMemEval-S showed reference packets rank best when BM25/text evidence leads, graph/path boosts are disabled for reference packets, and a body-only BM25 fallback is used for raw transcript-style references. Current full LongMemEval-S retrieval after the tuning: R@5 96.17%, R@10 98.30%, R@20 99.79%, MRR 0.9110, NDCG@10 0.9279 over 470 non-abstention questions.\nEvidence: Implemented reference-specific graph/path boost caps plus body-only BM25 fallback in mcp/kernel.ts, added regression coverage in mcp/kernel.test.ts, and documented benchmark results in benchmarks/LONGMEMEVAL.md.\nVerified by: npm test --prefix mcp; node benchmarks/longmemeval-kage-retrieval.mjs --data /private/tmp/kage-external-bench/longmemeval_s_cleaned.json --limit 470 --top-k 10",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "retrieval",
+    "benchmark",
+    "longmemeval",
+    "agentmemory-comparison"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts",
+    "benchmarks/longmemeval-kage-retrieval.mjs",
+    "benchmarks/LONGMEMEVAL.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-17T13:27:21.786Z"
+    }
+  ],
+  "context": {
+    "fact": "Reference memory packets should not let graph, path, and tag boosts swamp direct lexical evidence. LongMemEval-S showed reference packets rank best when BM25/text evidence leads, graph/path boosts are disabled for reference packets, and a body-only BM25 fallback is used for raw transcript-style references. Current full LongMemEval-S retrieval after the tuning: R@5 96.17%, R@10 98.30%, R@20 99.79%, MRR 0.9110, NDCG@10 0.9279 over 470 non-abstention questions.\nEvidence: Implemented reference-specific graph/path boost caps plus body-only BM25 fallback in mcp/kernel.ts, added regression coverage in mcp/kernel.test.ts, and documented benchmark results in benchmarks/LONGMEMEVAL.md.\nVerified by: npm test --prefix mcp; node benchmarks/longmemeval-kage-retrieval.mjs --data /private/tmp/kage-external-bench/longmemeval_s_cleaned.json --limit 470 --top-k 10",
+    "verification": "Implemented reference-specific graph/path boost caps plus body-only BM25 fallback in mcp/kernel.ts, added regression coverage in mcp/kernel.test.ts, and documented benchmark results in benchmarks/LONGMEMEVAL.md."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-17T13:27:21.786Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 190
+  },
+  "created_at": "2026-05-17T13:27:21.786Z",
+  "updated_at": "2026-05-19T04:53:22.458Z"
+}

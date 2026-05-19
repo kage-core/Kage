@@ -13,6 +13,7 @@
     visibleEntityIds: new Set(),
     visibleEdgeIds: new Set(),
     selected: null,
+    revealSelection: false,
     viewerPage: "overview",
     viewerSection: "overview",
     viewerAction: null,
@@ -29,11 +30,23 @@
       quality: null,
       benchmark: null,
       contributors: null,
+      profile: null,
+      capabilities: null,
+      slots: null,
       decisions: null,
       risk: null,
       moduleHealth: null,
       graphInsights: null,
-      workspace: null
+      workspace: null,
+      sessions: null,
+      replay: null,
+      memoryAccess: null,
+      memoryAudit: null,
+      handoff: null,
+      lifecycle: null,
+      timeline: null,
+      lineage: null,
+      setup: null
     },
     pendingPackets: [],
     reviewText: "",
@@ -173,6 +186,23 @@
     memoryStatus: document.getElementById("memoryStatus"),
     memoryStats: document.getElementById("memoryStats"),
     memoryOverview: document.getElementById("memoryOverview"),
+    lifecycleStatus: document.getElementById("lifecycleStatus"),
+    lifecycleSummary: document.getElementById("lifecycleSummary"),
+    lifecycleList: document.getElementById("lifecycleList"),
+    memoryReviewStatus: document.getElementById("memoryReviewStatus"),
+    memoryReviewActions: document.getElementById("memoryReviewActions"),
+    memoryTimelineStatus: document.getElementById("memoryTimelineStatus"),
+    memoryTimelineSummary: document.getElementById("memoryTimelineSummary"),
+    memoryTimelineList: document.getElementById("memoryTimelineList"),
+    memoryAuditStatus: document.getElementById("memoryAuditStatus"),
+    memoryAuditSummary: document.getElementById("memoryAuditSummary"),
+    memoryAuditList: document.getElementById("memoryAuditList"),
+    memoryLineageStatus: document.getElementById("memoryLineageStatus"),
+    memoryLineageSummary: document.getElementById("memoryLineageSummary"),
+    memoryLineageList: document.getElementById("memoryLineageList"),
+    sessionCaptureStatus: document.getElementById("sessionCaptureStatus"),
+    sessionCaptureSummary: document.getElementById("sessionCaptureSummary"),
+    sessionCaptureList: document.getElementById("sessionCaptureList"),
     memorySearch: document.getElementById("memorySearch"),
     memoryFilter: document.getElementById("memoryFilter"),
     memoryList: document.getElementById("memoryList"),
@@ -180,6 +210,9 @@
     ownersSummary: document.getElementById("ownersSummary"),
     ownersList: document.getElementById("ownersList"),
     reviewOverview: document.getElementById("reviewOverview"),
+    handoffStatus: document.getElementById("handoffStatus"),
+    handoffSummary: document.getElementById("handoffSummary"),
+    handoffList: document.getElementById("handoffList"),
     reviewList: document.getElementById("reviewList"),
     proofOverview: document.getElementById("proofOverview"),
     proofStatus: document.getElementById("proofStatus"),
@@ -256,10 +289,12 @@
   els.pathFromInput.addEventListener("keydown", function (event) { if (event.key === "Enter") findDependencyPath(); });
   els.pathToInput.addEventListener("keydown", function (event) { if (event.key === "Enter") findDependencyPath(); });
   els.viewMode.addEventListener("change", function () { clearGraphActionFilter(); render(); });
-  els.renderMode.addEventListener("change", function () {
-    state.lastVisibleSignature = "";
-    render();
-  });
+  if (els.renderMode) {
+    els.renderMode.addEventListener("change", function () {
+      state.lastVisibleSignature = "";
+      render();
+    });
+  }
   els.typeFilter.addEventListener("change", function () { clearGraphActionFilter(); render(); });
   els.relationFilter.addEventListener("change", function () { clearGraphActionFilter(); render(); });
   els.scopeFilter.addEventListener("change", render);
@@ -298,7 +333,7 @@
   function resetGraphView() {
     els.searchInput.value = "";
     els.viewMode.value = "combined";
-    els.renderMode.value = "2d";
+    if (els.renderMode) els.renderMode.value = "2d";
     els.typeFilter.value = "";
     els.relationFilter.value = "";
     els.scopeFilter.value = "signal";
@@ -466,10 +501,12 @@
 
   function selectEntity(id, openInspector) {
     state.selected = { kind: "entity", id: id };
+    state.revealSelection = Boolean(openInspector);
   }
 
   function selectEdge(id, openInspector) {
     state.selected = { kind: "edge", id: id };
+    state.revealSelection = Boolean(openInspector);
   }
 
   function handleFile(event) {
@@ -562,11 +599,23 @@
     var qualityPath = params.get("quality");
     var benchmarkPath = params.get("benchmark");
     var contributorsPath = params.get("contributors");
+    var profilePath = params.get("profile") || params.get("projectProfile") || params.get("project-profile");
+    var capabilitiesPath = params.get("capabilities") || params.get("capabilityAudit") || params.get("capability-audit");
+    var slotsPath = params.get("slots") || params.get("contextSlots") || params.get("context-slots");
     var decisionsPath = params.get("decisions");
     var riskPath = params.get("risk");
     var moduleHealthPath = params.get("moduleHealth") || params.get("module-health");
     var graphInsightsPath = params.get("graphInsights") || params.get("graph-insights");
     var workspacePath = params.get("workspace");
+    var sessionsPath = params.get("sessions");
+    var replayPath = params.get("replay") || params.get("sessionReplay") || params.get("session-replay");
+    var memoryAccessPath = params.get("memoryAccess") || params.get("memory-access");
+    var memoryAuditPath = params.get("memoryAudit") || params.get("memory-audit") || params.get("auditLog") || params.get("audit-log");
+    var handoffPath = params.get("handoff") || params.get("memoryHandoff") || params.get("memory-handoff");
+    var lifecyclePath = params.get("lifecycle") || params.get("memoryLifecycle") || params.get("memory-lifecycle");
+    var timelinePath = params.get("timeline") || params.get("memoryTimeline") || params.get("memory-timeline");
+    var lineagePath = params.get("lineage") || params.get("memoryLineage") || params.get("memory-lineage");
+    var setupPath = params.get("setup") || params.get("setupDoctor") || params.get("setup-doctor");
     var inferredRoot = inferMemoryRoot(graphPaths[0] || "");
     if (!inboxPath && inferredRoot) inboxPath = inferredRoot + "/inbox.json";
     if (!reviewPath && inferredRoot) reviewPath = inferredRoot + "/review/memory-review.md";
@@ -575,11 +624,23 @@
       if (!qualityPath) qualityPath = inferredRoot + "/reports/quality.json";
       if (!benchmarkPath) benchmarkPath = inferredRoot + "/reports/benchmark.json";
       if (!contributorsPath) contributorsPath = inferredRoot + "/reports/contributors.json";
+      if (!profilePath) profilePath = inferredRoot + "/reports/profile.json";
+      if (!capabilitiesPath) capabilitiesPath = inferredRoot + "/reports/capabilities.json";
+      if (!slotsPath) slotsPath = inferredRoot + "/reports/context-slots.json";
       if (!decisionsPath) decisionsPath = inferredRoot + "/reports/decisions.json";
       if (!riskPath) riskPath = inferredRoot + "/reports/risk.json";
       if (!moduleHealthPath) moduleHealthPath = inferredRoot + "/reports/module-health.json";
       if (!graphInsightsPath) graphInsightsPath = inferredRoot + "/reports/graph-insights.json";
       if (!workspacePath) workspacePath = inferredRoot + "/reports/workspace.json";
+      if (!sessionsPath) sessionsPath = inferredRoot + "/reports/sessions.json";
+      if (!replayPath) replayPath = inferredRoot + "/reports/replay.json";
+      if (!memoryAccessPath) memoryAccessPath = inferredRoot + "/reports/memory-access.json";
+      if (!memoryAuditPath) memoryAuditPath = inferredRoot + "/reports/memory-audit.json";
+      if (!handoffPath) handoffPath = inferredRoot + "/reports/handoff.json";
+      if (!lifecyclePath) lifecyclePath = inferredRoot + "/reports/lifecycle.json";
+      if (!timelinePath) timelinePath = inferredRoot + "/reports/timeline.json";
+      if (!lineagePath) lineagePath = inferredRoot + "/reports/lineage.json";
+      if (!setupPath) setupPath = inferredRoot + "/reports/setup.json";
     }
     var jobs = [];
     if (metricsPath) jobs.push(fetchJson(metricsPath).then(function (metrics) { state.metrics = metrics; }));
@@ -589,11 +650,23 @@
     if (qualityPath) jobs.push(fetchJson(qualityPath).then(function (report) { state.reports.quality = report; }).catch(function () { state.reports.quality = null; }));
     if (benchmarkPath) jobs.push(fetchJson(benchmarkPath).then(function (report) { state.reports.benchmark = report; }).catch(function () { state.reports.benchmark = null; }));
     if (contributorsPath) jobs.push(fetchJson(contributorsPath).then(function (report) { state.reports.contributors = report; }).catch(function () { state.reports.contributors = null; }));
+    if (profilePath) jobs.push(fetchJson(profilePath).then(function (report) { state.reports.profile = report; }).catch(function () { state.reports.profile = null; }));
+    if (capabilitiesPath) jobs.push(fetchJson(capabilitiesPath).then(function (report) { state.reports.capabilities = report; }).catch(function () { state.reports.capabilities = null; }));
+    if (slotsPath) jobs.push(fetchJson(slotsPath).then(function (report) { state.reports.slots = report; }).catch(function () { state.reports.slots = null; }));
     if (decisionsPath) jobs.push(fetchJson(decisionsPath).then(function (report) { state.reports.decisions = report; }).catch(function () { state.reports.decisions = null; }));
     if (riskPath) jobs.push(fetchJson(riskPath).then(function (report) { state.reports.risk = report; }).catch(function () { state.reports.risk = null; }));
     if (moduleHealthPath) jobs.push(fetchJson(moduleHealthPath).then(function (report) { state.reports.moduleHealth = report; }).catch(function () { state.reports.moduleHealth = null; }));
     if (graphInsightsPath) jobs.push(fetchJson(graphInsightsPath).then(function (report) { state.reports.graphInsights = report; }).catch(function () { state.reports.graphInsights = null; }));
     if (workspacePath) jobs.push(fetchJson(workspacePath).then(function (report) { state.reports.workspace = report; }).catch(function () { state.reports.workspace = null; }));
+    if (sessionsPath) jobs.push(fetchJson(sessionsPath).then(function (report) { state.reports.sessions = report; }).catch(function () { state.reports.sessions = null; }));
+    if (replayPath) jobs.push(fetchJson(replayPath).then(function (report) { state.reports.replay = report; }).catch(function () { state.reports.replay = null; }));
+    if (memoryAccessPath) jobs.push(fetchJson(memoryAccessPath).then(function (report) { state.reports.memoryAccess = report; }).catch(function () { state.reports.memoryAccess = null; }));
+    if (memoryAuditPath) jobs.push(fetchJson(memoryAuditPath).then(function (report) { state.reports.memoryAudit = report; }).catch(function () { state.reports.memoryAudit = null; }));
+    if (handoffPath) jobs.push(fetchJson(handoffPath).then(function (report) { state.reports.handoff = report; }).catch(function () { state.reports.handoff = null; }));
+    if (lifecyclePath) jobs.push(fetchJson(lifecyclePath).then(function (report) { state.reports.lifecycle = report; }).catch(function () { state.reports.lifecycle = null; }));
+    if (timelinePath) jobs.push(fetchJson(timelinePath).then(function (report) { state.reports.timeline = report; }).catch(function () { state.reports.timeline = null; }));
+    if (lineagePath) jobs.push(fetchJson(lineagePath).then(function (report) { state.reports.lineage = report; }).catch(function () { state.reports.lineage = null; }));
+    if (setupPath) jobs.push(fetchJson(setupPath).then(function (report) { state.reports.setup = report; }).catch(function () { state.reports.setup = null; }));
     if (!graphPaths.length && !jobs.length) {
       loadHostedDefault();
       return;
@@ -626,20 +699,44 @@
       fetchJson("./data/kage/inbox.json").catch(function () { return null; }),
       fetchJson("./data/kage/reports/risk.json").catch(function () { return null; }),
       fetchJson("./data/kage/reports/contributors.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/profile.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/capabilities.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/context-slots.json").catch(function () { return null; }),
       fetchJson("./data/kage/reports/decisions.json").catch(function () { return null; }),
       fetchJson("./data/kage/reports/module-health.json").catch(function () { return null; }),
       fetchJson("./data/kage/reports/graph-insights.json").catch(function () { return null; }),
-      fetchJson("./data/kage/reports/workspace.json").catch(function () { return null; })
+      fetchJson("./data/kage/reports/workspace.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/sessions.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/replay.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/memory-access.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/memory-audit.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/handoff.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/lifecycle.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/timeline.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/lineage.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/setup.json").catch(function () { return null; })
     ]).then(function (items) {
       var merged = mergeNormalizedGraphs([normalizeGraph(items[0]), normalizeGraph(items[1])]);
       state.metrics = items[2];
       state.inbox = items[3];
       state.reports.risk = items[4];
       state.reports.contributors = items[5];
-      state.reports.decisions = items[6];
-      state.reports.moduleHealth = items[7];
-      state.reports.graphInsights = items[8];
-      state.reports.workspace = items[9];
+      state.reports.profile = items[6];
+      state.reports.capabilities = items[7];
+      state.reports.slots = items[8];
+      state.reports.decisions = items[9];
+      state.reports.moduleHealth = items[10];
+      state.reports.graphInsights = items[11];
+      state.reports.workspace = items[12];
+      state.reports.sessions = items[13];
+      state.reports.replay = items[14];
+      state.reports.memoryAccess = items[15];
+      state.reports.memoryAudit = items[16];
+      state.reports.handoff = items[17];
+      state.reports.lifecycle = items[18];
+      state.reports.timeline = items[19];
+      state.reports.lineage = items[20];
+      state.reports.setup = items[21];
       loadNormalizedGraph(merged, "Kage repo graph");
       setAutoLoad("Kage repo graph loaded", true);
     }).catch(function () {
@@ -1383,6 +1480,7 @@
 
     renderActiveGraph(graphChanged);
     renderPagePanels();
+    revealSelectionIfRequested();
   }
 
   function scheduleRender() {
@@ -2438,6 +2536,18 @@
     document.body.classList.toggle("has-code-selection", Boolean(entity && entity.graph_kind === "code"));
   }
 
+  function revealSelectionIfRequested() {
+    if (!state.revealSelection) return;
+    state.revealSelection = false;
+    window.requestAnimationFrame(function () {
+      var panel = document.querySelector(".details-panel");
+      if (!panel || window.getComputedStyle(panel).display === "none") return;
+      panel.scrollIntoView({ block: "nearest", inline: "nearest" });
+      var selectedRow = document.querySelector("[aria-selected=\"true\"], .node.selected");
+      if (selectedRow && selectedRow.scrollIntoView) selectedRow.scrollIntoView({ block: "nearest", inline: "nearest" });
+    });
+  }
+
   function prefillPathFromSelection(silent) {
     if (!state.selected || state.selected.kind !== "entity") {
       if (!silent) setPathStatus("Select a code node first. Path tracing is for files, symbols, routes, tests, and scripts.", "warn");
@@ -2879,20 +2989,20 @@
     var risk = reports.risk || {};
     var riskTargets = Array.isArray(risk.targets) ? risk.targets : Object.keys(risk.targets || {});
     var inboxCounts = state.inbox && state.inbox.counts ? state.inbox.counts : {};
+    var handoff = memoryHandoffSummary(reports.handoff);
     var pendingReview = Number(firstNumber(inboxCounts.pending, memoryGraph.pending_packets, (state.pendingPackets || []).length, 0));
     var staleFlags = Number(firstNumber(inboxCounts.stale, 0));
     var duplicateFlags = Number(firstNumber(inboxCounts.duplicates, memoryGraph.duplicate_candidate_pairs, 0));
     var missingContext = Number(firstNumber(inboxCounts.missing_context, 0));
     var ownerSilos = Array.isArray(risk.ownership_silos) ? risk.ownership_silos.length : 0;
     var hotspots = Array.isArray(risk.global_hotspots) ? risk.global_hotspots.length : 0;
-    var readiness = dashboardReadiness(metrics, pendingReview, staleFlags, duplicateFlags, missingContext);
+    var readiness = handoff || dashboardReadiness(metrics, pendingReview, staleFlags, duplicateFlags, missingContext);
     var memoryCoverage = dashboardMemoryCoverage(reports, memoryCodeEdges, memoryGraph, memoryNodes);
     var riskHealth = riskTargets.length || hotspots ? (riskTargets.length + hotspots) + " signals" : "No flags";
     var statRows = [
       ["Handoff", readiness.label, readiness.detail, readiness.status],
       ["Memory", memoryCoverage.label, memoryCoverage.detail, memoryCoverage.status],
-      ["Risk", riskHealth, riskTargets.length + " targets, " + ownerSilos + " ownership silos", riskTargets.length || ownerSilos || hotspots ? "warn" : "ok"],
-      ["Code map", firstNumber(codeGraph.files, structural.files, countEntitiesByType("file")) + " files", firstNumber(codeGraph.symbols, structural.symbols, codeNodes) + " symbols indexed", "code"]
+      ["Risk", riskHealth, riskTargets.length + " targets, " + ownerSilos + " ownership silos", riskTargets.length || ownerSilos || hotspots ? "warn" : "ok"]
     ];
     els.dashboardStats.textContent = "";
     statRows.forEach(function (row) {
@@ -2920,7 +3030,13 @@
       ["Ownership silos", ownerSilos || "none"],
       ["Decision coverage", reports.decisions && reports.decisions.coverage_percent != null ? reports.decisions.coverage_percent + "%" : "not loaded"]
     ]);
-    setDashboardRows("dashboardReview", [
+    setDashboardRows("dashboardReview", handoff ? [
+      ["Next", handoff.actionLabel],
+      ["Open", handoff.openItems ? handoff.openItems + " item" + (handoff.openItems === 1 ? "" : "s") : "none"],
+      ["Distill", handoff.distillableSessions ? handoff.distillableSessions + " session" + (handoff.distillableSessions === 1 ? "" : "s") : "none"],
+      ["Recent", handoff.recentChanges + " changes"],
+      ["Mutations", handoff.recentMutations || "none"]
+    ] : [
       ["Handoff", readiness.label],
       ["Pending", pendingReview || "none"],
       ["Stale / duplicate", staleFlags + " / " + duplicateFlags],
@@ -2940,7 +3056,8 @@
       missingContext: missingContext,
       riskTargets: riskTargets,
       ownerSilos: ownerSilos,
-      hotspots: hotspots
+      hotspots: hotspots,
+      handoff: handoff
     });
   }
 
@@ -2956,24 +3073,315 @@
     });
     var memoryGrounding = approvedPackets ? Math.round(linkedPacketIds.size / approvedPackets * 100) : 0;
     var sourceCoverage = Number(firstNumber(data.codeGraph.indexer_coverage_percent, 0));
-    var blockers = data.pendingReview + data.staleFlags + data.duplicateFlags + data.missingContext;
+    var blockers = data.handoff ? data.handoff.openItems : data.pendingReview + data.staleFlags + data.duplicateFlags + data.missingContext;
     var riskSignals = data.riskTargets.length + data.ownerSilos + data.hotspots;
-    els.dashboardCharts.textContent = "";
-    [
+    var retrieval = benchmarkRetrievalSummary(data.reports && data.reports.benchmark);
+    var scale = benchmarkScaleSummary(data.reports && data.reports.benchmark);
+    var access = memoryAccessSummary(data.reports && data.reports.memoryAccess, approvedPackets);
+    var audit = memoryAuditSummary(data.reports && data.reports.memoryAudit);
+    var lifecycle = memoryLifecycleSummary(data.reports && data.reports.lifecycle);
+    var timeline = memoryTimelineSummary(data.reports && data.reports.timeline);
+    var lineage = memoryLineageSummary(data.reports && data.reports.lineage);
+    var setup = setupDoctorSummary(data.reports && data.reports.setup);
+    var profile = projectProfileSummary(data.reports && data.reports.profile);
+    var capabilities = capabilityAuditSummary(data.reports && data.reports.capabilities);
+    var slots = contextSlotsSummary(data.reports && data.reports.slots);
+    var replay = sessionReplaySummary(data.reports && data.reports.replay);
+    var cards = [
       metricDonut("Memory grounding", memoryGrounding, linkedPacketIds.size + " of " + approvedPackets + " packets linked to code", "Open Memory and fix Needs paths first.", memoryGrounding >= 70 ? "ok" : "warn"),
-      metricDonut("Source map", sourceCoverage, firstNumber(data.codeGraph.files, data.structural.files, 0) + " files indexed for graph recall", "If this drops, refresh indexing before relying on graph answers.", sourceCoverage >= 90 ? "ok" : "warn"),
-      metricBars("Handoff blockers", blockers ? blockers + " open" : "clear", [
+      metricDonut("Source map", sourceCoverage, firstNumber(data.codeGraph.files, data.structural.files, 0) + " files indexed for graph recall", "If this drops, refresh indexing before relying on graph answers.", sourceCoverage >= 90 ? "ok" : "warn")
+    ];
+    if (capabilities) {
+      cards.push(metricBars("Capability audit", capabilities.label, capabilities.rows, capabilities.action, capabilities.status));
+    }
+    if (profile) {
+      cards.push(metricBars("Project profile", profile.label, [
+        { label: "Concepts", value: profile.concepts, score: Math.min(100, profile.concepts * 10), status: profile.concepts ? "ok" : "warn" },
+        { label: "Key files", value: profile.keyFiles, score: Math.min(100, profile.keyFiles * 8), status: profile.keyFiles ? "ok" : "warn" },
+        { label: "Commands", value: profile.commands, score: Math.min(100, profile.commands * 16), status: profile.commands ? "ok" : "warn" }
+      ], profile.action, profile.status));
+    }
+    if (slots) {
+      cards.push(metricBars("Pinned context", slots.label, [
+        { label: "Pinned", value: slots.pinned, score: Math.min(100, slots.pinned * 30), status: slots.pinned ? "ok" : "warn" },
+        { label: "Slots", value: slots.total, score: Math.min(100, slots.total * 20), status: slots.total ? "ok" : "warn" },
+        { label: "Chars", value: slots.chars, score: slots.chars ? Math.min(100, Math.round(slots.chars / 60)) : 0, status: slots.chars ? "ok" : "warn" }
+      ], slots.action, slots.status));
+    }
+    if (replay) {
+      cards.push(metricBars("Session replay", replay.label, [
+        { label: "Events", value: replay.events, score: Math.min(100, replay.events * 8), status: replay.events ? "ok" : "warn" },
+        { label: "Candidates", value: replay.candidates, score: Math.min(100, replay.candidates * 24), status: replay.candidates ? "warn" : "ok" },
+        { label: "Sessions", value: replay.sessions, score: Math.min(100, replay.sessions * 24), status: replay.sessions ? "ok" : "warn" }
+      ], replay.action, replay.status));
+    }
+    if (setup) {
+      cards.push(metricBars("Agent setup", setup.label, [
+        { label: "Configured", value: setup.configured + "/" + setup.total, score: setup.total ? Math.round(setup.configured / setup.total * 100) : 0, status: setup.configured ? "ok" : "warn" },
+        { label: "Claude hooks", value: setup.claudeHookReady ? "ready" : "missing", score: setup.claudeHookReady ? 100 : 0, status: setup.claudeHookReady ? "ok" : "warn" },
+        { label: "Missing", value: setup.missingCount, score: setup.missingCount ? Math.min(100, setup.missingCount * 18) : 0, status: setup.missingCount ? "warn" : "ok" }
+      ], setup.action, setup.status));
+    }
+    if (access) {
+      cards.push(metricBars("Memory reuse", access.uses30d + " recalls", [
+        { label: "Hot", value: access.hot, score: Math.min(100, access.hot * 24), status: access.hot ? "ok" : "warn" },
+        { label: "Cold", value: access.cold, score: approvedPackets ? Math.round(access.cold / approvedPackets * 100) : 0, status: access.cold ? "warn" : "ok" },
+        { label: "Tracked", value: access.tracked, score: approvedPackets ? Math.round(access.tracked / approvedPackets * 100) : 0, status: access.tracked ? "ok" : "warn" }
+      ], access.tracked ? "Cold packets may be stale, too broad, or never needed by agents." : "Recall a task to start measuring which memories actually help.", access.cold ? "warn" : "ok"));
+    }
+    if (audit) {
+      cards.push(metricBars("Memory audit", audit.total + " mutations", [
+        { label: "Capture", value: audit.capture, score: Math.min(100, audit.capture * 12), status: audit.capture ? "ok" : "warn" },
+        { label: "Review", value: audit.review, score: Math.min(100, audit.review * 20), status: audit.review ? "ok" : "warn" },
+        { label: "Supersede", value: audit.supersede, score: Math.min(100, audit.supersede * 24), status: audit.supersede ? "ok" : "warn" }
+      ], audit.total ? "Memory changes are auditable for team handoff." : "No explicit memory mutations audited yet.", audit.total ? "ok" : "warn"));
+    }
+    if (data.handoff) {
+      cards.push(metricBars("Memory handoff", data.handoff.label, [
+        { label: "Open", value: data.handoff.openItems, score: Math.min(100, data.handoff.openItems * 24), status: data.handoff.openItems ? "warn" : "ok" },
+        { label: "Distill", value: data.handoff.distillableSessions, score: Math.min(100, data.handoff.distillableSessions * 30), status: data.handoff.distillableSessions ? "warn" : "ok" },
+        { label: "Recent", value: data.handoff.recentChanges, score: Math.min(100, data.handoff.recentChanges * 8), status: data.handoff.recentChanges ? "ok" : "warn" },
+        { label: "Mutations", value: data.handoff.recentMutations, score: Math.min(100, data.handoff.recentMutations * 18), status: data.handoff.recentMutations ? "ok" : "warn" }
+      ], data.handoff.action, data.handoff.status));
+    }
+    if (lifecycle) {
+      cards.push(metricBars("Memory lifecycle", lifecycle.needsReview ? lifecycle.needsReview + " need review" : "healthy", [
+        { label: "Hot/healthy", value: lifecycle.ready, score: approvedPackets ? Math.round(lifecycle.ready / approvedPackets * 100) : 0, status: lifecycle.ready ? "ok" : "warn" },
+        { label: "Ungrounded", value: lifecycle.ungrounded, score: approvedPackets ? Math.round(lifecycle.ungrounded / approvedPackets * 100) : 0, status: lifecycle.ungrounded ? "warn" : "ok" },
+        { label: "Stale/disputed", value: lifecycle.stale, score: approvedPackets ? Math.round(lifecycle.stale / approvedPackets * 100) : 0, status: lifecycle.stale ? "danger" : "ok" }
+      ], lifecycle.needsReview ? "Open Memory and resolve lifecycle actions before handoff." : "Repo memory is ready for agent handoff.", lifecycle.needsReview ? "warn" : "ok"));
+    }
+    if (timeline) {
+      cards.push(metricBars("Memory timeline", timeline.total + " recent", [
+        { label: "Added", value: timeline.added, score: Math.min(100, timeline.added * 16), status: timeline.added ? "ok" : "warn" },
+        { label: "Updated", value: timeline.updated, score: Math.min(100, timeline.updated * 16), status: timeline.updated ? "ok" : "warn" },
+        { label: "Pending", value: timeline.pending, score: Math.min(100, timeline.pending * 24), status: timeline.pending ? "warn" : "ok" }
+      ], timeline.total ? "Review recent memory changes before teammate handoff." : "No recent memory activity loaded.", timeline.pending ? "warn" : "ok"));
+    }
+    if (lineage) {
+      cards.push(metricBars("Memory lineage", lineage.chains + " chains", [
+        { label: "Replaced", value: lineage.superseded, score: Math.min(100, lineage.superseded * 18), status: lineage.superseded ? "ok" : "warn" },
+        { label: "Chains", value: lineage.chains, score: Math.min(100, lineage.chains * 24), status: lineage.chains ? "ok" : "warn" },
+        { label: "Needs repair", value: lineage.orphans, score: Math.min(100, lineage.orphans * 32), status: lineage.orphans ? "danger" : "ok" }
+      ], lineage.orphans ? "Fix superseded memory without replacement links." : "Retired memory points at current replacements.", lineage.orphans ? "danger" : "ok"));
+    }
+    if (retrieval) {
+      cards.push(metricBars("Retrieval proof", retrieval.r10 + "% R@10", [
+        { label: "R@5", value: retrieval.r5 != null ? retrieval.r5 + "%" : "n/a", score: retrieval.r5 || 0, status: retrieval.r5 >= 95 ? "ok" : "warn" },
+        { label: "R@10", value: retrieval.r10 + "%", score: retrieval.r10, status: retrieval.r10 >= 95 ? "ok" : "warn" },
+        { label: "MRR", value: retrieval.mrr != null ? retrieval.mrr : "n/a", score: retrieval.mrr != null ? retrieval.mrr * 100 : 0, status: retrieval.mrr >= 0.85 ? "ok" : "warn" }
+      ], retrieval.label + ". Measures memory retrieval proof, not answer accuracy.", retrieval.r10 >= 95 ? "ok" : "warn"));
+    }
+    if (scale) {
+      cards.push(metricBars("Scale proof", scale.hitRate + "% hit", [
+        { label: "Packets", value: scale.packets, score: Math.min(100, scale.packets / 10), status: scale.packets >= 240 ? "ok" : "warn" },
+        { label: "Median", value: scale.medianLatency + "ms", score: Math.max(0, 100 - scale.medianLatency), status: scale.medianLatency <= 50 ? "ok" : "warn" },
+        { label: "Context cut", value: scale.contextReduction + "%", score: scale.contextReduction, status: scale.contextReduction >= 80 ? "ok" : "warn" }
+      ], "Large memory corpus stays searchable without loading every packet.", scale.hitRate >= 95 ? "ok" : "warn"));
+    }
+    els.dashboardCharts.textContent = "";
+    var tailCards = [];
+    if (!data.handoff) {
+      tailCards.push(metricBars("Handoff blockers", blockers ? blockers + " open" : "clear", [
         { label: "Pending", value: data.pendingReview, score: Math.min(100, data.pendingReview * 24), status: data.pendingReview ? "warn" : "ok" },
         { label: "Stale", value: data.staleFlags, score: Math.min(100, data.staleFlags * 24), status: data.staleFlags ? "warn" : "ok" },
         { label: "Duplicate", value: data.duplicateFlags, score: Math.min(100, data.duplicateFlags * 24), status: data.duplicateFlags ? "warn" : "ok" },
         { label: "Missing context", value: data.missingContext, score: Math.min(100, data.missingContext * 18), status: data.missingContext ? "warn" : "ok" }
-      ], blockers ? "Resolve Review before handing work to another agent." : "Memory is clean for handoff.", blockers ? "warn" : "ok"),
+      ], blockers ? "Resolve Review before handing work to another agent." : "Memory is clean for handoff.", blockers ? "warn" : "ok"));
+    }
+    tailCards.push(
       metricBars("Change risk", riskSignals ? riskSignals + " signals" : "none", [
         { label: "Targets", value: data.riskTargets.length, score: Math.min(100, data.riskTargets.length * 18), status: data.riskTargets.length ? "warn" : "ok" },
         { label: "Silos", value: data.ownerSilos, score: Math.min(100, data.ownerSilos * 18), status: data.ownerSilos ? "warn" : "ok" },
         { label: "Hotspots", value: data.hotspots, score: Math.min(100, data.hotspots * 18), status: data.hotspots ? "danger" : "ok" }
       ], riskSignals ? "Open Intel or Owners before editing risky files." : "No loaded risk flags.", riskSignals ? "warn" : "ok")
-    ].forEach(function (card) { els.dashboardCharts.appendChild(card); });
+    );
+    cards.concat(tailCards).slice(0, 3).forEach(function (card) { els.dashboardCharts.appendChild(card); });
+  }
+
+  function projectProfileSummary(report) {
+    if (!report || !report.totals) return null;
+    var concepts = Array.isArray(report.top_concepts) ? report.top_concepts.length : 0;
+    var keyFiles = Array.isArray(report.key_files) ? report.key_files.length : 0;
+    var commands = Array.isArray(report.run_commands) ? report.run_commands.length : 0;
+    var coverage = Number(report.totals.memory_code_coverage_percent || 0);
+    var topConcept = concepts ? report.top_concepts[0].concept : "no concepts";
+    var actions = Array.isArray(report.next_actions) ? report.next_actions : [];
+    return {
+      concepts: concepts,
+      keyFiles: keyFiles,
+      commands: commands,
+      label: topConcept,
+      action: actions[0] || report.summary || "Use this as the first orientation packet for agents.",
+      status: coverage >= 60 && keyFiles ? "ok" : "warn"
+    };
+  }
+
+  function capabilityAuditSummary(report) {
+    if (!report || !Array.isArray(report.pillars)) return null;
+    var rows = report.pillars.slice(0, 4).map(function (pillar) {
+      return {
+        label: pillar.label || pillar.id || "pillar",
+        value: Number(pillar.score || 0) + "%",
+        score: Number(pillar.score || 0),
+        status: pillar.status === "ready" ? "ok" : (pillar.status === "gap" ? "danger" : "warn")
+      };
+    });
+    var open = report.pillars.filter(function (pillar) { return pillar.status !== "ready"; }).length;
+    return {
+      label: Number(report.overall_score || 0) + "/100",
+      rows: rows,
+      action: open
+        ? (Array.isArray(report.next_actions) && report.next_actions[0] ? report.next_actions[0] : "Review capability gaps before publishing claims.")
+        : "Memory, benchmark, collaboration, and viewer proof surfaces are ready.",
+      status: report.status === "ready" ? "ok" : (report.status === "gap" ? "danger" : "warn")
+    };
+  }
+
+  function contextSlotsSummary(report) {
+    if (!report || !report.totals) return null;
+    var slots = Array.isArray(report.slots) ? report.slots : [];
+    var pinned = Number(report.totals.pinned || 0);
+    var total = Number(report.totals.slots || slots.length || 0);
+    var chars = Number(report.totals.context_chars || 0);
+    var firstPinned = slots.find(function (slot) { return slot && slot.pinned && slot.content; });
+    return {
+      pinned: pinned,
+      total: total,
+      chars: chars,
+      label: firstPinned ? firstPinned.label : (pinned ? String(pinned) + " pinned" : "none"),
+      action: pinned
+        ? "Pinned slots are included before task-specific recall for stable repo guidance."
+        : "Add a slot for tiny always-relevant repo context instead of repeating it every session.",
+      status: pinned ? "ok" : "warn"
+    };
+  }
+
+  function sessionReplaySummary(report) {
+    if (!report || !report.totals) return null;
+    var events = Number(report.totals.events || 0);
+    var candidates = Number(report.totals.durable_candidates || 0);
+    var sessions = Number(report.totals.sessions || 0);
+    return {
+      events: events,
+      candidates: candidates,
+      sessions: sessions,
+      label: candidates ? candidates + " distillable" : (events ? events + " observed" : "none"),
+      action: candidates
+        ? "Open Memory and distill durable session observations into reviewable packets."
+        : "Replay digest proves what agents observed without exposing raw transcripts.",
+      status: candidates ? "warn" : (events ? "ok" : "warn")
+    };
+  }
+
+  function setupDoctorSummary(report) {
+    if (!Array.isArray(report) || !report.length) return null;
+    var configured = report.filter(function (item) { return item && item.configured; }).length;
+    var claude = report.find(function (item) { return item && item.agent === "claude-code"; });
+    var hookSummary = claude && claude.hook_summary;
+    var missing = hookSummary && Array.isArray(hookSummary.missing) ? hookSummary.missing : [];
+    var claudeHookReady = Boolean(hookSummary && hookSummary.ready);
+    var missingCount = missing.length;
+    var action = "";
+    if (missingCount) {
+      action = "Run kage setup claude-code --project . --write before relying on automatic memory.";
+    } else if (configured) {
+      action = "Automatic memory setup is visible for teammate handoff.";
+    } else {
+      action = "Run kage setup doctor to choose the next agent setup step.";
+    }
+    return {
+      total: report.length,
+      configured: configured,
+      claudeHookReady: claudeHookReady,
+      missingCount: missingCount,
+      label: missingCount ? missingCount + " missing" : configured + "/" + report.length + " ready",
+      action: action,
+      status: missingCount || !configured ? "warn" : "ok"
+    };
+  }
+
+  function memoryAccessSummary(report, approvedPackets) {
+    var totals = report && report.totals;
+    if (!totals) return null;
+    return {
+      tracked: Number(totals.tracked_packets || 0),
+      uses30d: Number(totals.uses_30d || 0),
+      hot: Number(totals.hot_packets || 0),
+      cold: Number(totals.cold_packets == null ? Math.max(0, approvedPackets) : totals.cold_packets)
+    };
+  }
+
+  function memoryAuditSummary(report) {
+    var totals = report && report.totals;
+    if (!totals) return null;
+    return {
+      total: Number(totals.total || 0),
+      capture: Number(totals.capture || 0),
+      review: Number(totals.approve || 0) + Number(totals.reject || 0),
+      supersede: Number(totals.supersede || 0)
+    };
+  }
+
+  function memoryHandoffSummary(report) {
+    var totals = report && report.totals;
+    if (!totals) return null;
+    var primary = report.primary_action || {};
+    var openItems = Number(firstNumber(totals.open_items, 0));
+    var severity = primary.severity || (openItems ? "warning" : "ok");
+    var status = severity === "blocker" ? "danger" : severity === "warning" ? "warn" : severity === "ok" ? "ok" : "memory";
+    var label = primary.label || (openItems ? "Resolve handoff" : "Ready for handoff");
+    return {
+      label: label,
+      actionLabel: label.indexOf("Resolve") === 0 ? "Resolve" : label.indexOf("Ready") === 0 ? "Ready" : label.indexOf("Review") === 0 ? "Review" : label,
+      detail: primary.summary || report.summary || "",
+      action: primary.action || report.summary || "Open Review before handing work to another agent.",
+      status: status,
+      openItems: openItems,
+      blockers: Number(firstNumber(totals.blockers, 0)),
+      warnings: Number(firstNumber(totals.warnings, 0)),
+      recentChanges: Number(firstNumber(totals.recent_changes, 0)),
+      recentMutations: Number(firstNumber(totals.recent_mutations, 0)),
+      distillableSessions: Number(firstNumber(totals.distillable_sessions, 0)),
+      durableObservations: Number(firstNumber(totals.durable_observations, 0))
+    };
+  }
+
+  function memoryLifecycleSummary(report) {
+    var totals = report && report.totals;
+    if (!totals) return null;
+    var stale = Number(totals.stale || 0) + Number(totals.disputed || 0);
+    var ungrounded = Number(totals.ungrounded || 0);
+    var pending = Number(totals.pending || 0);
+    return {
+      ready: Number(totals.hot || 0) + Number(totals.healthy || 0),
+      ungrounded: ungrounded,
+      stale: stale,
+      needsReview: stale + ungrounded + pending
+    };
+  }
+
+  function memoryTimelineSummary(report) {
+    var totals = report && report.totals;
+    if (!totals) return null;
+    return {
+      total: Number(totals.total || 0),
+      added: Number(totals.added || 0),
+      updated: Number(totals.updated || 0),
+      pending: Number(totals.pending || 0),
+      deprecated: Number(totals.deprecated || 0)
+    };
+  }
+
+  function memoryLineageSummary(report) {
+    var totals = report && report.totals;
+    if (!totals) return null;
+    return {
+      superseded: Number(totals.superseded || 0),
+      chains: Number(totals.chains || 0),
+      orphans: Number(totals.orphans || 0),
+      replacementsMissing: Number(totals.replacements_missing || 0)
+    };
   }
 
   function metricDonut(title, percent, detail, action, status) {
@@ -3104,6 +3512,7 @@
       }
     });
     var linkedCount = memoryEntities.filter(function (entity) { return (memoryLinkCounts.get(entity.id) || 0) > 0; }).length;
+    var accessTotals = state.reports.memoryAccess && state.reports.memoryAccess.totals;
     var query = parseSearchQuery(els.memorySearch ? els.memorySearch.value : "");
     var filter = els.memoryFilter ? els.memoryFilter.value : "all";
     var filtered = memoryEntities.filter(function (entity) {
@@ -3118,10 +3527,17 @@
       els.memoryStats.innerHTML = [
         memoryStat("Reusable", memoryEntities.length),
         memoryStat("Code-linked", linkedCount),
+        memoryStat("Reused 30d", accessTotals ? Number(accessTotals.uses_30d || 0) : "n/a"),
         memoryStat("Needs paths", memoryEntities.length - linkedCount)
       ].join("");
     }
     if (els.memoryOverview) renderMemoryOverview(memoryEntities, linkedCount);
+    if (els.lifecycleList) renderMemoryLifecycle(memoryEntities, memoryLinkCounts);
+    if (els.memoryReviewActions) renderMemoryReviewActions();
+    if (els.memoryTimelineList) renderMemoryTimeline();
+    if (els.memoryAuditList) renderMemoryAudit();
+    if (els.memoryLineageList) renderMemoryLineage();
+    if (els.sessionCaptureList) renderSessionCapture();
     els.memoryList.textContent = "";
     if (!memoryEntities.length) {
       els.memoryList.className = "memory-list details-empty";
@@ -3142,6 +3558,7 @@
     filtered.slice(0, 60).forEach(function (entity) {
       var links = memoryCodeLinksForEntity(entity.id);
       var firstCodeTarget = primaryCodeTargetForMemory(entity.id, links);
+      var access = memoryAccessForEntity(entity);
       var item = document.createElement("button");
       item.type = "button";
       var selected = state.selected && state.selected.kind === "entity" && state.selected.id === entity.id;
@@ -3158,6 +3575,9 @@
       item.querySelector(".memory-row-target").textContent = links.length
         ? links.length + " code link" + (links.length === 1 ? "" : "s") + (firstCodeTarget ? " | " + trimIntelText(codeTargetLabel(firstCodeTarget), 64) : "")
         : "needs code paths";
+      if (access && access.total_uses) {
+        item.querySelector(".memory-row-target").textContent += " | reused " + Number(access.uses_30d || 0) + "x in 30d";
+      }
       item.addEventListener("click", function () {
         selectEntity(entity.id, true);
         render();
@@ -3169,6 +3589,13 @@
 
   function memoryStat(label, value) {
     return "<div><strong>" + escapeHtml(String(value)) + "</strong><span>" + escapeHtml(label) + "</span></div>";
+  }
+
+  function memoryAccessForEntity(entity) {
+    var report = state.reports && state.reports.memoryAccess;
+    if (!report || !Array.isArray(report.entries)) return null;
+    var ids = new Set([entity.id].concat(entity.aliases || []));
+    return report.entries.find(function (entry) { return ids.has(entry.packet_id); }) || null;
   }
 
   function renderMemoryOverview(memoryEntities, linkedCount) {
@@ -3196,6 +3623,592 @@
         status: row[0] === "memory" ? "" : "ok"
       };
     }), "A healthy repo has decisions, bug fixes, runbooks, gotchas, and code explanations.", "ok"));
+  }
+
+  function renderMemoryReviewActions() {
+    var lifecycle = state.reports && state.reports.lifecycle;
+    var access = state.reports && state.reports.memoryAccess;
+    var recommendations = lifecycle && Array.isArray(lifecycle.recommendations)
+      ? lifecycle.recommendations
+      : (access && Array.isArray(access.recommendations) ? access.recommendations : []);
+    if (els.memoryReviewStatus) {
+      els.memoryReviewStatus.textContent = recommendations.length ? recommendations.length + " action" + (recommendations.length === 1 ? "" : "s") : "clear";
+    }
+    els.memoryReviewActions.textContent = "";
+    if (!lifecycle && !access) {
+      els.memoryReviewActions.className = "memory-action-list details-empty";
+      els.memoryReviewActions.textContent = "No lifecycle report loaded. Run kage lifecycle or open the local viewer after refreshing memory.";
+      return;
+    }
+    if (!recommendations.length) {
+      els.memoryReviewActions.className = "memory-action-list details-empty";
+      els.memoryReviewActions.textContent = "No memory review actions. Recent recall usage does not show obvious hot or cold packets.";
+      return;
+    }
+    els.memoryReviewActions.className = "memory-action-list";
+    recommendations.slice(0, 6).forEach(function (item) {
+      var card = document.createElement("article");
+      card.className = classNames("memory-action", item.severity && "memory-action-" + item.severity);
+      card.innerHTML = [
+        "<div class=\"memory-action-head\"><span></span><strong></strong></div>",
+        "<p></p>",
+        "<em></em>"
+      ].join("");
+      card.querySelector(".memory-action-head span").textContent = memoryActionLabel(item.kind);
+      card.querySelector(".memory-action-head strong").textContent = item.summary || item.title || "Memory action";
+      card.querySelector("p").textContent = item.reason || "";
+      card.querySelector("em").textContent = item.action || "";
+      var entity = item.packet_id ? findMemoryEntityByPacketId(item.packet_id) : null;
+      if (entity) {
+        card.tabIndex = 0;
+        card.setAttribute("role", "button");
+        card.addEventListener("click", function () {
+          selectEntity(entity.id, true);
+          render();
+        });
+        card.addEventListener("keydown", function (event) {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          selectEntity(entity.id, true);
+          render();
+        });
+      }
+      els.memoryReviewActions.appendChild(card);
+    });
+  }
+
+  function renderMemoryTimeline() {
+    var report = state.reports && state.reports.timeline;
+    var entries = Array.isArray(report && report.entries) ? report.entries : [];
+    var totals = report && report.totals ? report.totals : {};
+    if (els.memoryTimelineStatus) {
+      els.memoryTimelineStatus.textContent = report ? String(Number(totals.total || entries.length)) + " recent" : "waiting";
+    }
+    if (els.memoryTimelineSummary) {
+      els.memoryTimelineSummary.textContent = "";
+      [
+        lifecycleSummaryStep("+", "Added", Number(totals.added || 0), "New repo memories captured for future agents."),
+        lifecycleSummaryStep("~", "Updated", Number(totals.updated || 0), "Packets with changed rationale, evidence, or paths."),
+        lifecycleSummaryStep("?", "Pending", Number(totals.pending || 0), "Memory waiting for teammate review.")
+      ].forEach(function (step) { els.memoryTimelineSummary.appendChild(step); });
+    }
+    els.memoryTimelineList.textContent = "";
+    if (!report) {
+      els.memoryTimelineList.className = "session-capture-list details-empty";
+      els.memoryTimelineList.textContent = "No memory timeline report loaded. Run kage timeline or open the local viewer after refresh.";
+      return;
+    }
+    if (!entries.length) {
+      els.memoryTimelineList.className = "session-capture-list details-empty";
+      els.memoryTimelineList.textContent = "No recent memory activity. Capture durable repo decisions, bugs, runbooks, or gotchas as work happens.";
+      return;
+    }
+    els.memoryTimelineList.className = "session-capture-list";
+    entries.slice(0, 8).forEach(function (entry) {
+      var card = document.createElement("article");
+      card.className = "session-capture-card";
+      card.innerHTML = [
+        "<div class=\"session-capture-head\"><div><strong></strong><span></span></div><em></em></div>",
+        "<p></p>",
+        "<div class=\"session-capture-meta\"></div>"
+      ].join("");
+      card.querySelector("strong").textContent = entry.title || "Memory packet";
+      card.querySelector("span").textContent = [entry.type, timelineDateLabel(entry.date), entry.source_kind].filter(Boolean).join(" | ");
+      card.querySelector("em").textContent = timelineKindLabel(entry.kind);
+      card.querySelector("p").textContent = entry.action || entry.summary || "Review this memory activity.";
+      var meta = card.querySelector(".session-capture-meta");
+      [
+        ["status", entry.status || "unknown"],
+        ["paths", Array.isArray(entry.paths) ? entry.paths.slice(0, 2).join(", ") || "none" : "none"],
+        ["tags", Array.isArray(entry.tags) ? entry.tags.slice(0, 3).join(", ") || "none" : "none"]
+      ].forEach(function (row) {
+        var chip = document.createElement("span");
+        chip.textContent = row[0] + ": " + row[1];
+        meta.appendChild(chip);
+      });
+      var entity = entry.packet_id ? findMemoryEntityByPacketId(entry.packet_id) : null;
+      if (entity) {
+        card.tabIndex = 0;
+        card.setAttribute("role", "button");
+        card.addEventListener("click", function () {
+          selectEntity(entity.id, true);
+          render();
+        });
+        card.addEventListener("keydown", function (event) {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          selectEntity(entity.id, true);
+          render();
+        });
+      }
+      els.memoryTimelineList.appendChild(card);
+    });
+  }
+
+  function renderMemoryAudit() {
+    var report = state.reports && state.reports.memoryAudit;
+    var entries = Array.isArray(report && report.entries) ? report.entries : [];
+    var totals = report && report.totals ? report.totals : {};
+    if (els.memoryAuditStatus) {
+      els.memoryAuditStatus.textContent = report ? String(Number(totals.total || entries.length)) + " mutations" : "waiting";
+    }
+    if (els.memoryAuditSummary) {
+      els.memoryAuditSummary.textContent = "";
+      [
+        lifecycleSummaryStep("1", "Captured", Number(totals.capture || 0), "New packets written to repo memory."),
+        lifecycleSummaryStep("2", "Reviewed", Number(totals.approve || 0) + Number(totals.reject || 0), "Pending packets approved or rejected."),
+        lifecycleSummaryStep("3", "Replaced", Number(totals.supersede || 0), "Old knowledge linked to current replacements.")
+      ].forEach(function (step) { els.memoryAuditSummary.appendChild(step); });
+    }
+    els.memoryAuditList.textContent = "";
+    if (!report) {
+      els.memoryAuditList.className = "session-capture-list details-empty";
+      els.memoryAuditList.textContent = "No memory audit report loaded. Run kage memory-audit or open the local viewer after refresh.";
+      return;
+    }
+    if (!entries.length) {
+      els.memoryAuditList.className = "session-capture-list details-empty";
+      els.memoryAuditList.textContent = "No audited memory mutations yet. Captures, feedback, reviews, and supersedes will appear here.";
+      return;
+    }
+    els.memoryAuditList.className = "session-capture-list";
+    entries.slice(0, 8).forEach(function (entry) {
+      var card = document.createElement("article");
+      card.className = "session-capture-card";
+      card.innerHTML = [
+        "<div class=\"session-capture-head\"><div><strong></strong><span></span></div><em></em></div>",
+        "<p></p>",
+        "<div class=\"session-capture-meta\"></div>"
+      ].join("");
+      card.querySelector("strong").textContent = (entry.packet_titles || []).join(", ") || (entry.packet_ids || []).join(", ") || "Memory mutation";
+      card.querySelector("span").textContent = [entry.actor, entry.branch, timelineDateLabel(entry.timestamp)].filter(Boolean).join(" | ");
+      card.querySelector("em").textContent = entry.operation || "audit";
+      card.querySelector("p").textContent = memoryAuditAction(entry);
+      var meta = card.querySelector(".session-capture-meta");
+      [
+        ["packets", Array.isArray(entry.packet_ids) ? String(entry.packet_ids.length) : "0"],
+        ["head", entry.head ? String(entry.head).slice(0, 8) : "none"],
+        ["details", auditDetailsLabel(entry.details)]
+      ].forEach(function (row) {
+        var chip = document.createElement("span");
+        chip.textContent = row[0] + ": " + row[1];
+        meta.appendChild(chip);
+      });
+      els.memoryAuditList.appendChild(card);
+    });
+  }
+
+  function memoryAuditAction(entry) {
+    if (!entry) return "Review this memory mutation before handoff.";
+    if (entry.operation === "capture") return "New repo knowledge was captured for future agents.";
+    if (entry.operation === "feedback") return "A recalled memory received explicit usefulness or stale feedback.";
+    if (entry.operation === "approve") return "A pending packet became shared repo memory.";
+    if (entry.operation === "reject") return "A pending packet was rejected instead of becoming shared memory.";
+    if (entry.operation === "supersede") return "Old repo knowledge now points at a current replacement packet.";
+    if (entry.operation === "deprecate") return "Stale memory was retired from active use.";
+    if (entry.operation === "delete") return "Memory was removed by an explicit cleanup action.";
+    return "Review this memory mutation before handoff.";
+  }
+
+  function auditDetailsLabel(details) {
+    if (!details || typeof details !== "object") return "none";
+    if (details.feedback) return "feedback " + details.feedback;
+    if (details.reason) return String(details.reason).slice(0, 80);
+    if (details.type) return "type " + details.type;
+    return Object.keys(details).slice(0, 3).join(", ") || "none";
+  }
+
+  function renderMemoryLineage() {
+    var report = state.reports && state.reports.lineage;
+    var chains = Array.isArray(report && report.chains) ? report.chains : [];
+    var orphans = Array.isArray(report && report.orphans) ? report.orphans : [];
+    var totals = report && report.totals ? report.totals : {};
+    if (els.memoryLineageStatus) {
+      els.memoryLineageStatus.textContent = report ? String(Number(totals.chains || chains.length)) + " chains" : "waiting";
+    }
+    if (els.memoryLineageSummary) {
+      els.memoryLineageSummary.textContent = "";
+      [
+        lifecycleSummaryStep("1", "Current", Number(totals.chains || chains.length), "Replacement packets future agents should trust."),
+        lifecycleSummaryStep("2", "Retired", Number(totals.superseded || 0), "Old packets kept as audit history, not active recall."),
+        lifecycleSummaryStep("3", "Repair", Number(totals.orphans || orphans.length), "Superseded packets missing a replacement link.")
+      ].forEach(function (step) { els.memoryLineageSummary.appendChild(step); });
+    }
+    els.memoryLineageList.textContent = "";
+    if (!report) {
+      els.memoryLineageList.className = "session-capture-list details-empty";
+      els.memoryLineageList.textContent = "No lineage report loaded. Run kage lineage or open the local viewer after refresh.";
+      return;
+    }
+    if (!chains.length && !orphans.length) {
+      els.memoryLineageList.className = "session-capture-list details-empty";
+      els.memoryLineageList.textContent = "No retired memory chains yet. Use kage supersede when a newer packet replaces old repo knowledge.";
+      return;
+    }
+    els.memoryLineageList.className = "session-capture-list";
+    chains.slice(0, 6).forEach(function (chain) {
+      var card = document.createElement("article");
+      card.className = "session-capture-card";
+      card.innerHTML = [
+        "<div class=\"session-capture-head\"><div><strong></strong><span></span></div><em>current</em></div>",
+        "<p></p>",
+        "<div class=\"session-capture-meta\"></div>"
+      ].join("");
+      card.querySelector("strong").textContent = chain.current_title || "Replacement memory";
+      card.querySelector("span").textContent = "replaces " + Number((chain.superseded_packet_ids || []).length) + " packet" + ((chain.superseded_packet_ids || []).length === 1 ? "" : "s");
+      card.querySelector("p").textContent = chain.action || "Use the current replacement packet in recall.";
+      var meta = card.querySelector(".session-capture-meta");
+      [
+        ["reason", chain.reason || "replacement linked"],
+        ["paths", Array.isArray(chain.paths) ? chain.paths.slice(0, 2).join(", ") || "none" : "none"],
+        ["updated", timelineDateLabel(chain.updated_at)]
+      ].forEach(function (row) {
+        var chip = document.createElement("span");
+        chip.textContent = row[0] + ": " + row[1];
+        meta.appendChild(chip);
+      });
+      var entity = chain.current_packet_id ? findMemoryEntityByPacketId(chain.current_packet_id) : null;
+      if (entity) {
+        card.tabIndex = 0;
+        card.setAttribute("role", "button");
+        card.addEventListener("click", function () {
+          selectEntity(entity.id, true);
+          render();
+        });
+      }
+      els.memoryLineageList.appendChild(card);
+    });
+    orphans.slice(0, 4).forEach(function (orphan) {
+      var card = document.createElement("article");
+      card.className = "session-capture-card memory-action-danger";
+      card.innerHTML = [
+        "<div class=\"session-capture-head\"><div><strong></strong><span></span></div><em>repair</em></div>",
+        "<p></p>"
+      ].join("");
+      card.querySelector("strong").textContent = orphan.title || "Superseded memory";
+      card.querySelector("span").textContent = timelineDateLabel(orphan.updated_at);
+      card.querySelector("p").textContent = orphan.action || "Add a replacement link before trusting this old context.";
+      els.memoryLineageList.appendChild(card);
+    });
+  }
+
+  function timelineKindLabel(kind) {
+    if (kind === "added") return "added";
+    if (kind === "updated") return "updated";
+    if (kind === "pending") return "pending";
+    if (kind === "deprecated") return "retired";
+    return "activity";
+  }
+
+  function timelineDateLabel(date) {
+    return date ? String(date).slice(0, 10) : "";
+  }
+
+  function memoryActionLabel(kind) {
+    if (kind === "promote_hot") return "Hot";
+    if (kind === "review_cold") return "Cold";
+    if (kind === "connect_paths") return "Ground";
+    if (kind === "add_grounding") return "Ground";
+    if (kind === "review_stale") return "Stale";
+    if (kind === "resolve_feedback") return "Feedback";
+    if (kind === "archive_generated") return "Archive";
+    if (kind === "review_pending") return "Pending";
+    if (kind === "keep_verified") return "Keep";
+    if (kind === "seed_usage") return "Start";
+    return "Review";
+  }
+
+  function findMemoryEntityByPacketId(packetId) {
+    return state.entities.find(function (entity) {
+      if (!isMemoryPacketEntity(entity)) return false;
+      if (entity.id === packetId || entity.packet_id === packetId) return true;
+      return Array.isArray(entity.aliases) && entity.aliases.indexOf(packetId) !== -1;
+    }) || null;
+  }
+
+  function renderMemoryLifecycle(memoryEntities, memoryLinkCounts) {
+    if (!els.lifecycleList) return;
+    var report = state.reports && state.reports.lifecycle;
+    if (report && Array.isArray(report.items)) {
+      renderMemoryLifecycleReport(report);
+      return;
+    }
+    var proofPackets = memoryEntities
+      .map(function (entity) {
+        var links = memoryCodeLinksForEntity(entity.id);
+        return {
+          entity: entity,
+          links: links,
+          score: lifecyclePacketScore(entity, links, memoryLinkCounts.get(entity.id) || 0)
+        };
+      })
+      .sort(function (a, b) {
+        return b.score - a.score ||
+          lifecycleTimestamp(b.entity).localeCompare(lifecycleTimestamp(a.entity)) ||
+          displayName(a.entity).localeCompare(displayName(b.entity));
+      });
+    var grounded = proofPackets.filter(function (item) { return item.links.length; }).length;
+    var recallReady = proofPackets.filter(function (item) {
+      return item.links.length && lifecycleEvidence(item.entity).length && lifecycleRecallQuery(item.entity);
+    }).length;
+    if (els.lifecycleStatus) {
+      els.lifecycleStatus.textContent = proofPackets.length ? recallReady + " recall-ready" : "empty";
+    }
+    if (els.lifecycleSummary) {
+      els.lifecycleSummary.textContent = "";
+      [
+        lifecycleSummaryStep("1", "Captured", proofPackets.length, "Reusable facts agents saved instead of rediscovering."),
+        lifecycleSummaryStep("2", "Grounded", grounded, "Packets linked to files, symbols, routes, or tests."),
+        lifecycleSummaryStep("3", "Recall-ready", recallReady, "Grounded packets with evidence and a likely future query.")
+      ].forEach(function (step) { els.lifecycleSummary.appendChild(step); });
+    }
+    els.lifecycleList.textContent = "";
+    if (!proofPackets.length) {
+      els.lifecycleList.className = "lifecycle-list details-empty";
+      els.lifecycleList.textContent = "No memory lifecycle to show yet. Capture reusable repo knowledge with kage learn or kage propose.";
+      return;
+    }
+    els.lifecycleList.className = "lifecycle-list";
+    proofPackets.slice(0, 5).forEach(function (item) {
+      els.lifecycleList.appendChild(renderLifecycleCard(item.entity, item.links));
+    });
+  }
+
+  function renderMemoryLifecycleReport(report) {
+    var totals = report.totals || {};
+    var needsReview = Number(totals.stale || 0) + Number(totals.ungrounded || 0) + Number(totals.disputed || 0) + Number(totals.pending || 0);
+    if (els.lifecycleStatus) {
+      els.lifecycleStatus.textContent = needsReview ? needsReview + " need review" : "healthy";
+    }
+    if (els.lifecycleSummary) {
+      els.lifecycleSummary.textContent = "";
+      [
+        lifecycleSummaryStep("1", "Approved", Number(totals.approved || 0), "Repo-local packets available to future agents."),
+        lifecycleSummaryStep("2", "Hot/healthy", Number(totals.hot || 0) + Number(totals.healthy || 0), "Memories that are grounded, fresh, or repeatedly recalled."),
+        lifecycleSummaryStep("3", "Needs action", needsReview, "Packets to verify, ground, review, or resolve before trusting.")
+      ].forEach(function (step) { els.lifecycleSummary.appendChild(step); });
+    }
+    els.lifecycleList.textContent = "";
+    var items = Array.isArray(report.items) ? report.items : [];
+    if (!items.length) {
+      els.lifecycleList.className = "lifecycle-list details-empty";
+      els.lifecycleList.textContent = "No memory lifecycle to show yet. Capture reusable repo knowledge with kage learn or kage propose.";
+      return;
+    }
+    els.lifecycleList.className = "lifecycle-list";
+    items.slice(0, 6).forEach(function (item) {
+      els.lifecycleList.appendChild(renderLifecycleReportCard(item));
+    });
+  }
+
+  function renderLifecycleReportCard(item) {
+    var card = document.createElement("article");
+    card.className = classNames("lifecycle-card", item.severity && "memory-action-" + item.severity);
+    card.innerHTML = [
+      "<div class=\"lifecycle-card-head\"><div><strong></strong><span></span></div><button type=\"button\">Inspect</button></div>",
+      "<p></p>",
+      "<div class=\"lifecycle-flow\"></div>"
+    ].join("");
+    card.querySelector("strong").textContent = item.title || "Memory packet";
+    card.querySelector(".lifecycle-card-head span").textContent = [
+      memoryActionLabel(item.recommended_action),
+      item.health,
+      item.type
+    ].filter(Boolean).join(" | ");
+    card.querySelector("p").textContent = item.reason || item.action || "Lifecycle action";
+    var entity = item.packet_id ? findMemoryEntityByPacketId(item.packet_id) : null;
+    var button = card.querySelector("button");
+    if (entity) {
+      button.addEventListener("click", function () {
+        selectEntity(entity.id, true);
+        render();
+      });
+    } else {
+      button.disabled = true;
+      button.textContent = "No node";
+    }
+    var flow = card.querySelector(".lifecycle-flow");
+    [
+      lifecycleFlowCell("Evidence", Number(item.source_refs || 0) + " source ref" + (Number(item.source_refs || 0) === 1 ? "" : "s")),
+      lifecycleFlowCell("Grounding", item.paths && item.paths.length ? trimIntelText(item.paths[0], 100) : "Needs code path or symbol link"),
+      lifecycleFlowCell("Recall", Number(item.uses_30d || 0) + " use" + (Number(item.uses_30d || 0) === 1 ? "" : "s") + " in 30d"),
+      lifecycleFlowCell("Action", item.action || "Keep verified")
+    ].forEach(function (cell) { flow.appendChild(cell); });
+    return card;
+  }
+
+  function lifecycleSummaryStep(number, label, value, detail) {
+    var item = document.createElement("article");
+    item.className = "lifecycle-step";
+    item.innerHTML = "<strong></strong><span></span><em></em><p></p>";
+    item.querySelector("strong").textContent = number;
+    item.querySelector("span").textContent = label;
+    item.querySelector("em").textContent = formatDashboardValue(value);
+    item.querySelector("p").textContent = detail;
+    return item;
+  }
+
+  function renderLifecycleCard(entity, links) {
+    var card = document.createElement("article");
+    card.className = "lifecycle-card";
+    var codeTargets = links.map(function (edge) {
+      return state.entityById.get(edge.from === entity.id ? edge.to : edge.from);
+    }).filter(Boolean).sort(function (a, b) {
+      return codeTargetScore(b) - codeTargetScore(a) || codeTargetLabel(a).localeCompare(codeTargetLabel(b));
+    });
+    var evidence = lifecycleEvidence(entity);
+    var query = lifecycleRecallQuery(entity);
+    card.innerHTML = [
+      "<div class=\"lifecycle-card-head\"><div><strong></strong><span></span></div><button type=\"button\">Inspect</button></div>",
+      "<p></p>",
+      "<div class=\"lifecycle-flow\"></div>"
+    ].join("");
+    card.querySelector("strong").textContent = displayName(entity);
+    card.querySelector(".lifecycle-card-head span").textContent = [
+      entity.type || "memory",
+      lifecycleTimestampLabel(entity)
+    ].filter(Boolean).join(" | ");
+    card.querySelector("p").textContent = trimIntelText(entity.summary || entity.description || entity.path || "No summary", 220);
+    card.querySelector("button").addEventListener("click", function () {
+      selectEntity(entity.id, true);
+      render();
+    });
+    var flow = card.querySelector(".lifecycle-flow");
+    [
+      lifecycleFlowCell("Captured", evidence.length ? trimIntelText(evidence[0], 100) : "No source evidence loaded"),
+      lifecycleFlowCell("Grounded", codeTargets.length ? trimIntelText(codeTargetLabel(codeTargets[0]), 100) : "Needs code path or symbol link"),
+      lifecycleFlowCell("Recall", query ? "\"" + query + "\"" : "Search by title, summary, tag, or path"),
+      lifecycleFlowCell("Handoff", lifecycleHandoffText(entity, codeTargets.length))
+    ].forEach(function (cell) { flow.appendChild(cell); });
+    return card;
+  }
+
+  function lifecycleFlowCell(label, value) {
+    var cell = document.createElement("div");
+    cell.className = "lifecycle-cell";
+    cell.innerHTML = "<span></span><strong></strong>";
+    cell.querySelector("span").textContent = label;
+    cell.querySelector("strong").textContent = value;
+    return cell;
+  }
+
+  function lifecyclePacketScore(entity, links, linkCount) {
+    var score = 0;
+    score += Math.min(80, (links.length || linkCount) * 24);
+    score += lifecycleEvidence(entity).length ? 35 : 0;
+    score += lifecycleRecallQuery(entity) ? 25 : 0;
+    score += ["decision", "bug_fix", "runbook", "gotcha", "code_explanation", "workflow"].indexOf(entity.type) !== -1 ? 20 : 0;
+    score += lifecycleTimestamp(entity) ? 8 : 0;
+    return score;
+  }
+
+  function lifecycleEvidence(entity) {
+    var evidence = [];
+    if (Array.isArray(entity.evidence)) evidence = evidence.concat(entity.evidence);
+    if (Array.isArray(entity.source_refs)) {
+      entity.source_refs.forEach(function (ref) {
+        evidence.push([ref.kind, ref.captured_at || ref.path || ref.source].filter(Boolean).join(" "));
+      });
+    }
+    if (entity.freshness && entity.freshness.verification) evidence.push(entity.freshness.verification);
+    return evidence.map(function (item) { return String(item || "").trim(); }).filter(Boolean);
+  }
+
+  function lifecycleTimestamp(entity) {
+    return String(entity.updated_at || entity.created_at || entity.last_seen_at || entity.first_seen_at || "");
+  }
+
+  function lifecycleTimestampLabel(entity) {
+    var value = lifecycleTimestamp(entity);
+    return value ? value.slice(0, 10) : "";
+  }
+
+  function lifecycleRecallQuery(entity) {
+    var text = String(entity.summary || entity.description || displayName(entity) || "").trim();
+    var path = Array.isArray(entity.paths) && entity.paths.length ? entity.paths[0] : entity.path;
+    if (entity.type === "runbook") return "how to run " + trimIntelText(displayName(entity), 54);
+    if (entity.type === "bug_fix") return "why did " + trimIntelText(displayName(entity), 54) + " break";
+    if (entity.type === "decision") return "why was " + trimIntelText(displayName(entity), 54) + " decided";
+    if (path) return "what should I know before changing " + path;
+    return text ? trimIntelText(text, 76) : "";
+  }
+
+  function lifecycleHandoffText(entity, linkedTargetCount) {
+    if (linkedTargetCount) return "Future agents touching this area can recall the reason before editing.";
+    if (entity.type === "reference") return "Useful context, but add code paths if it should guide edits.";
+    return "Add paths so teammates and agents can use it at change time.";
+  }
+
+  function renderSessionCapture() {
+    if (!els.sessionCaptureList) return;
+    var report = state.reports && state.reports.sessions;
+    var replay = state.reports && state.reports.replay;
+    var totals = report && report.totals ? report.totals : {};
+    var sessions = Array.isArray(report && report.sessions) ? report.sessions : [];
+    var replayEvents = Array.isArray(replay && replay.events) ? replay.events : [];
+    if (els.sessionCaptureStatus) {
+      els.sessionCaptureStatus.textContent = sessions.length ? String(totals.sessions || sessions.length) + " sessions" : "no sessions";
+    }
+    if (els.sessionCaptureSummary) {
+      els.sessionCaptureSummary.textContent = "";
+      [
+        lifecycleSummaryStep("1", "Observed", Number(totals.observations || 0), "Privacy-scanned local events from agent sessions."),
+        lifecycleSummaryStep("2", "Distillable", Number(totals.durable_observations || 0), "Reusable command, workflow, decision, or issue signals."),
+        lifecycleSummaryStep("3", "Needs review", Number(totals.sessions_with_candidates || 0), "Sessions ready for packet review with kage distill.")
+      ].forEach(function (step) { els.sessionCaptureSummary.appendChild(step); });
+    }
+    els.sessionCaptureList.textContent = "";
+    if (!sessions.length) {
+      els.sessionCaptureList.className = "session-capture-list details-empty";
+      els.sessionCaptureList.textContent = "No observed sessions yet. Agents can call kage_observe, then kage_distill turns durable observations into reviewable memory packets.";
+      return;
+    }
+    els.sessionCaptureList.className = "session-capture-list";
+    sessions.slice(0, 6).forEach(function (session) {
+      var card = document.createElement("article");
+      card.className = "session-capture-card";
+      var candidates = Array.isArray(session.candidate_types) && session.candidate_types.length ? session.candidate_types.join(", ") : "none";
+      var agents = Array.isArray(session.agents) && session.agents.length ? session.agents.join(", ") : "unknown agent";
+      card.innerHTML = [
+        "<div class=\"session-capture-head\"><div><strong></strong><span></span></div><em></em></div>",
+        "<p></p>",
+        "<div class=\"session-capture-meta\"></div>"
+      ].join("");
+      card.querySelector("strong").textContent = session.session_id || "default";
+      card.querySelector("span").textContent = [agents, session.last_at || session.first_at || ""].filter(Boolean).join(" · ");
+      card.querySelector("em").textContent = String(session.durable_observations || 0) + " distillable";
+      card.querySelector("p").textContent = session.next_action || "Review this session before saving durable memory.";
+      var meta = card.querySelector(".session-capture-meta");
+      [
+        ["events", session.observations || 0],
+        ["candidates", candidates],
+        ["commands", Array.isArray(session.commands) ? session.commands.slice(0, 2).join(", ") || "none" : "none"],
+        ["paths", Array.isArray(session.paths) ? session.paths.slice(0, 2).join(", ") || "none" : "none"]
+      ].forEach(function (item) {
+        var chip = document.createElement("span");
+        chip.textContent = item[0] + ": " + item[1];
+        meta.appendChild(chip);
+      });
+      els.sessionCaptureList.appendChild(card);
+    });
+    if (replayEvents.length) {
+      var replayCard = document.createElement("article");
+      replayCard.className = "session-capture-card";
+      replayCard.innerHTML = [
+        "<div class=\"session-capture-head\"><div><strong>Replay digest</strong><span>raw transcript text excluded</span></div><em></em></div>",
+        "<p></p>",
+        "<div class=\"session-capture-meta\"></div>"
+      ].join("");
+      replayCard.querySelector("em").textContent = String(replay && replay.totals ? replay.totals.durable_candidates || 0 : 0) + " candidates";
+      replayCard.querySelector("p").textContent = replay && replay.next_action ? replay.next_action : "Review the digest, then distill durable observations into memory packets.";
+      var replayMeta = replayCard.querySelector(".session-capture-meta");
+      replayEvents.slice(0, 6).forEach(function (event) {
+        var chip = document.createElement("span");
+        chip.textContent = (event.durable_candidate ? "candidate: " : "event: ") + (event.label || event.type || "observation") + " · " + trimIntelText(event.summary || "", 90);
+        replayMeta.appendChild(chip);
+      });
+      els.sessionCaptureList.appendChild(replayCard);
+    }
   }
 
   function memoryCodeLinksForEntity(entityId) {
@@ -3357,17 +4370,29 @@
     var packets = state.pendingPackets || [];
     var inbox = state.inbox;
     var inboxItems = inbox && Array.isArray(inbox.items) ? inbox.items : [];
+    var handoff = state.reports && state.reports.handoff;
+    var handoffItems = handoff && Array.isArray(handoff.items) ? handoff.items : [];
     var counts = inbox && inbox.counts ? inbox.counts : {};
     var openCount = reviewOpenCount(counts, packets, inboxItems);
+    if (handoff && handoff.totals) openCount = Number(firstNumber(handoff.totals.open_items, openCount));
     els.reviewCount.textContent = String(openCount);
     els.reviewList.textContent = "";
-    if (els.reviewOverview) renderReviewOverview(inbox, packets, inboxItems);
-    if (!packets.length && !inboxItems.length && !state.reviewText) {
+    if (els.reviewOverview) renderReviewOverview(inbox, packets, inboxItems, handoff);
+    renderMemoryHandoff(handoff, handoffItems);
+    if (!packets.length && !inboxItems.length && !handoffItems.length && !state.reviewText) {
       els.reviewList.className = "review-list details-empty";
       els.reviewList.textContent = "No pending packets loaded. Launch with `kage viewer --project <repo>` to load review context automatically.";
       return;
     }
     els.reviewList.className = "review-list";
+    handoffItems.slice(0, 10).forEach(function (entry) {
+      els.reviewList.appendChild(reviewCard({
+        title: entry.title || entry.summary || entry.kind,
+        meta: [entry.kind, entry.severity, entry.date && timelineDateLabel(entry.date)].filter(Boolean).join(" | "),
+        summary: entry.summary || "",
+        risk: entry.action || "Review before handoff"
+      }, "handoff"));
+    });
     if (inbox) {
       var summary = document.createElement("div");
       summary.className = "review-item";
@@ -3434,7 +4459,7 @@
     }
   }
 
-  function renderReviewOverview(inbox, packets, inboxItems) {
+  function renderReviewOverview(inbox, packets, inboxItems, handoff) {
     els.reviewOverview.textContent = "";
     var counts = inbox && inbox.counts ? inbox.counts : {};
     var pending = Number(firstNumber(counts.pending, packets.length, 0));
@@ -3442,19 +4467,74 @@
     var duplicates = Number(firstNumber(counts.duplicates, 0));
     var missingContext = Number(firstNumber(counts.missing_context, 0));
     var blockers = reviewOpenCount(counts, packets, inboxItems);
+    if (handoff && handoff.totals) blockers = Number(firstNumber(handoff.totals.open_items, blockers));
+    var mutations = handoff && handoff.totals ? Number(firstNumber(handoff.totals.recent_mutations, 0)) : 0;
     els.reviewOverview.appendChild(metricDonut(
       "Handoff readiness",
       blockers ? 0 : 100,
-      blockers ? blockers + " review blocker(s) need attention" : "No pending, stale, duplicate, or missing-context memory",
-      blockers ? "Resolve these before trusting branch memory." : "Ready to hand work to another agent or teammate.",
+      blockers ? blockers + " memory handoff item(s) need attention" : "No pending, stale, duplicate, or missing-context memory",
+      blockers ? "Resolve the handoff queue before trusting branch memory." : "Ready to hand work to another agent or teammate.",
       blockers ? "warn" : "ok"
     ));
-    els.reviewOverview.appendChild(metricBars("Inbox breakdown", blockers ? blockers + " open" : "clear", [
+    els.reviewOverview.appendChild(metricBars(handoff ? "Handoff queue" : "Inbox breakdown", blockers ? blockers + " open" : "clear", [
       { label: "Pending", value: pending, score: Math.min(100, pending * 24), status: pending ? "warn" : "ok" },
       { label: "Stale", value: stale, score: Math.min(100, stale * 24), status: stale ? "warn" : "ok" },
       { label: "Duplicates", value: duplicates, score: Math.min(100, duplicates * 24), status: duplicates ? "warn" : "ok" },
-      { label: "Missing context", value: missingContext, score: Math.min(100, missingContext * 24), status: missingContext ? "warn" : "ok" }
-    ], "These are the only review metrics that should block merge or handoff.", blockers ? "warn" : "ok"));
+      { label: "Mutations", value: mutations, score: Math.min(100, mutations * 16), status: mutations ? "ok" : "warn" }
+    ], handoff ? (handoff.summary || "Combined inbox, lifecycle, audit, timeline, and lineage.") : "These are the review metrics that should block merge or handoff.", blockers ? "warn" : "ok"));
+  }
+
+  function renderMemoryHandoff(handoff, items) {
+    if (!els.handoffList) return;
+    var totals = handoff && handoff.totals ? handoff.totals : {};
+    if (els.handoffStatus) {
+      els.handoffStatus.textContent = handoff ? (Number(totals.open_items || 0) ? Number(totals.open_items || 0) + " open" : "ready") : "waiting";
+    }
+    if (els.handoffSummary) {
+      els.handoffSummary.textContent = "";
+      [
+        lifecycleSummaryStep("1", "Open", Number(totals.open_items || 0), "Blockers and warnings to resolve before another agent trusts memory."),
+        lifecycleSummaryStep("2", "Distill", Number(totals.distillable_sessions || 0), "Observed sessions with reusable learnings that should become memory packets."),
+        lifecycleSummaryStep("3", "Mutations", Number(totals.recent_mutations || 0), "Memory captures, reviews, feedback, and supersedes since audit logging began."),
+        lifecycleSummaryStep("4", "Lineage", Number(totals.supersession_orphans || 0), "Retired packets missing a current replacement.")
+      ].forEach(function (step) { els.handoffSummary.appendChild(step); });
+    }
+    els.handoffList.textContent = "";
+    if (!handoff) {
+      els.handoffList.className = "session-capture-list details-empty";
+      els.handoffList.textContent = "No handoff report loaded. Run kage handoff or open the local viewer after refresh.";
+      return;
+    }
+    if (!items.length) {
+      els.handoffList.className = "session-capture-list details-empty";
+      els.handoffList.textContent = "No memory handoff actions are open.";
+      return;
+    }
+    els.handoffList.className = "session-capture-list";
+    items.slice(0, 8).forEach(function (entry) {
+      els.handoffList.appendChild(reviewCard({
+        title: entry.title || entry.summary || entry.kind,
+        meta: [entry.kind, entry.severity, entry.date && timelineDateLabel(entry.date)].filter(Boolean).join(" | "),
+        summary: entry.summary || "",
+        risk: entry.action || "Review before handoff"
+      }, "handoff"));
+    });
+  }
+
+  function reviewCard(entry, extraClass) {
+    var item = document.createElement("div");
+    item.className = "review-item" + (extraClass ? " " + extraClass : "");
+    item.innerHTML = [
+      "<div class=\"review-title\"></div>",
+      "<div class=\"review-meta\"></div>",
+      "<div class=\"review-summary\"></div>",
+      "<div class=\"review-risks\"></div>"
+    ].join("");
+    item.querySelector(".review-title").textContent = entry.title || "";
+    item.querySelector(".review-meta").textContent = entry.meta || "";
+    item.querySelector(".review-summary").textContent = entry.summary || "";
+    item.querySelector(".review-risks").textContent = entry.risk || "";
+    return item;
   }
 
   function reviewOpenCount(counts, packets, inboxItems) {
@@ -3481,6 +4561,7 @@
     els.proofStatus.textContent = "loaded";
     els.proofList.className = "proof-list";
     if (els.proofOverview) renderProofOverview(metrics, state.reports || {});
+    renderProofLedger(state.reports && state.reports.benchmark);
     var rows = [
       ["Validation", metrics.harness && metrics.harness.validation_ok ? "clean" : "check"],
       ["Evidence", metrics.memory_graph ? metrics.memory_graph.evidence_coverage_percent + "%" : "n/a"],
@@ -3497,15 +4578,58 @@
     });
   }
 
+  function renderProofLedger(benchmark) {
+    var ledger = benchmark && Array.isArray(benchmark.proof_ledger) ? benchmark.proof_ledger : [];
+    ledger.forEach(function (entry) {
+      var item = document.createElement("div");
+      item.className = "proof-item proof-ledger-item " + (entry.pass ? "is-ok" : "is-warn");
+      item.innerHTML = [
+        "<strong></strong>",
+        "<span></span>",
+        "<code></code>",
+        "<p></p>"
+      ].join("");
+      item.querySelector("strong").textContent = entry.metric || (entry.pass ? "passing" : "check");
+      item.querySelector("span").textContent = [entry.label, entry.target].filter(Boolean).join(" | ");
+      item.querySelector("code").textContent = entry.command || "";
+      item.querySelector("p").textContent = entry.next_action || "Review this proof before publishing benchmark claims.";
+      els.proofList.appendChild(item);
+    });
+  }
+
   function renderProofOverview(metrics, reports) {
     els.proofOverview.textContent = "";
     var quality = reports.quality || {};
     var benchmark = reports.benchmark || {};
     var gates = Array.isArray(benchmark.gates) ? benchmark.gates : [];
+    var retrieval = benchmarkRetrievalSummary(benchmark);
+    var sourceDiversity = benchmarkSourceDiversitySummary(benchmark);
+    var scale = benchmarkScaleSummary(benchmark);
     var passingGates = gates.filter(function (gate) { return gate.pass; }).length;
     var gatePercent = gates.length ? Math.round(passingGates / gates.length * 100) : (benchmark.ok ? 100 : 0);
     var evidence = Number(firstNumber(metrics.memory_graph && metrics.memory_graph.evidence_coverage_percent, quality.evidence_coverage_percent, 0));
     var pathGrounding = Number(firstNumber(quality.path_grounding_coverage_percent, 0));
+    if (retrieval) {
+      els.proofOverview.appendChild(metricBars("Retrieval proof", retrieval.r10 + "% R@10", [
+        { label: "R@5", value: retrieval.r5 != null ? retrieval.r5 + "%" : "n/a", score: retrieval.r5 || 0, status: retrieval.r5 >= 95 ? "ok" : "warn" },
+        { label: "R@10", value: retrieval.r10 + "%", score: retrieval.r10, status: retrieval.r10 >= 95 ? "ok" : "warn" },
+        { label: "NDCG@10", value: retrieval.ndcg10 != null ? retrieval.ndcg10 : "n/a", score: retrieval.ndcg10 != null ? retrieval.ndcg10 * 100 : 0, status: retrieval.ndcg10 >= 0.85 ? "ok" : "warn" }
+      ], retrieval.label + ". Measures memory retrieval proof, not answer accuracy.", retrieval.r10 >= 95 ? "ok" : "warn"));
+    }
+    if (sourceDiversity) {
+      els.proofOverview.appendChild(metricBars("Source diversity proof", sourceDiversity.uniqueSources + " sources", [
+        { label: "Sources", value: sourceDiversity.uniqueSources, score: Math.min(100, sourceDiversity.uniqueSources * 50), status: sourceDiversity.uniqueSources >= 2 ? "ok" : "warn" },
+        { label: "Max/session", value: sourceDiversity.maxFromOneSource, score: sourceDiversity.maxFromOneSource <= 3 ? 100 : 45, status: sourceDiversity.maxFromOneSource <= 3 ? "ok" : "warn" },
+        { label: "Independent rank", value: sourceDiversity.independentRank != null ? "#" + sourceDiversity.independentRank : "miss", score: sourceDiversity.independentRank != null && sourceDiversity.independentRank <= sourceDiversity.topK ? 100 : 35, status: sourceDiversity.pass ? "ok" : "warn" }
+      ], "Noisy observed sessions should not crowd out independent teammate memory.", sourceDiversity.pass ? "ok" : "warn"));
+    }
+    if (scale) {
+      els.proofOverview.appendChild(metricBars("Scale proof", scale.packets + " packets", [
+        { label: "Hit rate", value: scale.hitRate + "%", score: scale.hitRate, status: scale.hitRate >= 95 ? "ok" : "warn" },
+        { label: "Median", value: scale.medianLatency + "ms", score: Math.max(0, 100 - scale.medianLatency), status: scale.medianLatency <= 50 ? "ok" : "warn" },
+        { label: "Context cut", value: scale.contextReduction + "%", score: scale.contextReduction, status: scale.contextReduction >= 80 ? "ok" : "warn" }
+      ], "Scale benchmark checks large repo-memory retrieval cost.", scale.hitRate >= 95 ? "ok" : "warn"));
+    }
     els.proofOverview.appendChild(metricDonut(
       "Trust gate",
       gatePercent,
@@ -3520,6 +4644,70 @@
     ], "Trust memory only when it is evidence-backed and path-grounded.", evidence >= 80 ? "ok" : "warn"));
   }
 
+  function benchmarkRetrievalSummary(report) {
+    if (!report || !report.summary) return null;
+    var summary = report.summary;
+    var r10 = Number(summary.recall_at_10_percent);
+    if (!Number.isFinite(r10)) return null;
+    var mode = summary.retrieval_mode || report.retrieval_mode || "";
+    var embeddings = summary.embeddings || report.embeddings || null;
+    var modeLabel = mode === "kage-recall-with-dense-local-embeddings"
+      ? "dense local embeddings"
+      : mode === "kage-recall-default"
+        ? "default recall"
+        : mode;
+    var modelLabel = embeddings && embeddings.model ? " · " + embeddings.model : "";
+    return {
+      label: [summary.benchmark || report.benchmark || "Retrieval benchmark", modeLabel].filter(Boolean).join(" · "),
+      mode: modeLabel,
+      model: modelLabel ? modelLabel.slice(3) : "",
+      r5: numberOrNull(summary.recall_at_5_percent),
+      r10: r10,
+      r20: numberOrNull(summary.recall_at_20_percent),
+      mrr: numberOrNull(summary.mrr),
+      ndcg10: numberOrNull(summary.ndcg_at_10),
+      contextReduction: numberOrNull(summary.context_reduction_percent)
+    };
+  }
+
+  function benchmarkSourceDiversitySummary(report) {
+    var diversity = report && report.memory_quality && report.memory_quality.source_diversity
+      ? report.memory_quality.source_diversity
+      : report && report.source_diversity;
+    if (!diversity) return null;
+    var uniqueSources = numberOrNull(diversity.unique_sources);
+    var maxFromOneSource = numberOrNull(diversity.max_results_from_one_source);
+    var topK = numberOrNull(diversity.top_k) || 4;
+    if (uniqueSources == null || maxFromOneSource == null) return null;
+    return {
+      uniqueSources: uniqueSources,
+      maxFromOneSource: maxFromOneSource,
+      independentRank: numberOrNull(diversity.independent_source_rank),
+      topK: topK,
+      pass: Boolean(diversity.pass)
+    };
+  }
+
+  function benchmarkScaleSummary(report) {
+    var scale = report && report.memory_scale;
+    var summary = scale && scale.summary;
+    if (!summary) return null;
+    var hitRate = numberOrNull(summary.largest_hit_rate_percent);
+    var packets = numberOrNull(summary.largest_packets);
+    if (hitRate == null || packets == null) return null;
+    return {
+      packets: packets,
+      hitRate: hitRate,
+      medianLatency: numberOrNull(summary.largest_median_recall_latency_ms) || 0,
+      contextReduction: numberOrNull(summary.largest_context_reduction_percent) || 0
+    };
+  }
+
+  function numberOrNull(value) {
+    var number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+
   function renderIntelligence() {
     if (!els.intelligenceList) return;
     var reports = state.reports || {};
@@ -3532,7 +4720,11 @@
       return;
     }
     els.intelligenceList.className = "intelligence-list";
-    normalizeIntelCards(cards).slice(0, 6).forEach(function (card) {
+    var normalizedCards = normalizeIntelCards(cards);
+    var riskFirst = new Set(["Change Risk", "Module Health", "Decision Memory", "Graph Insights", "Memory Quality"]);
+    var primaryCards = normalizedCards.filter(function (card) { return riskFirst.has(card.title); }).slice(0, 3);
+    if (!primaryCards.length) primaryCards = normalizedCards.slice(0, 3);
+    primaryCards.forEach(function (card) {
       var item = document.createElement("article");
       item.className = "intel-card";
       item.innerHTML = [
@@ -3549,7 +4741,7 @@
       item.querySelector(".intel-highlight").textContent = card.highlight || card.summary || "";
       item.querySelector(".intel-action span").textContent = card.action || "Review this signal before changing related code.";
       var list = item.querySelector("ul");
-      card.rows.slice(0, 3).forEach(function (row) {
+      card.rows.slice(0, 2).forEach(function (row) {
         var li = document.createElement("li");
         li.innerHTML = "<strong></strong> <span></span>";
         li.querySelector("strong").textContent = row[0];
@@ -3558,14 +4750,18 @@
       });
       els.intelligenceList.appendChild(item);
     });
-    var sections = rankIntelligenceSections(buildIntelligenceSections(reports)).slice(0, 4);
+    var sections = rankIntelligenceSections(buildIntelligenceSections(reports)).slice(0, 2);
     if (sections.length) {
+      var details = document.createElement("details");
+      details.className = "intel-deep-drawer";
+      details.innerHTML = "<summary><span>More repo signals</span><em>cycles, owners, modules</em></summary>";
       var deepGrid = document.createElement("div");
       deepGrid.className = "intel-deep-grid";
       sections.forEach(function (section) {
         deepGrid.appendChild(renderIntelligenceSection(section));
       });
-      els.intelligenceList.appendChild(deepGrid);
+      details.appendChild(deepGrid);
+      els.intelligenceList.appendChild(details);
     }
   }
 
@@ -4020,13 +5216,26 @@
     var benchmark = reports.benchmark;
     if (benchmark) {
       var checks = Array.isArray(benchmark.checks) ? benchmark.checks : [];
+      var retrieval = benchmarkRetrievalSummary(benchmark);
+      var scale = benchmarkScaleSummary(benchmark);
       cards.push({
-        title: "Benchmark",
-        kicker: "local proof",
-        summary: benchmark.summary || "Local memory and graph benchmark signals.",
-        rows: checks.slice(0, 5).map(function (item) {
-          return [item.name || "check", (item.pass ? "pass" : "check") + " - " + item.actual + "/" + item.target];
-        })
+        title: retrieval ? "Retrieval Proof" : "Benchmark",
+        kicker: retrieval ? (retrieval.mode || "retrieval proof") : "local proof",
+        summary: retrieval
+          ? retrieval.label + (scale ? " plus " + scale.packets + "-packet scale proof." : "") + " Evidence retrieval only, not answer accuracy."
+          : benchmark.summary || "Local memory and graph benchmark signals.",
+        rows: retrieval
+          ? [
+              ["R@5", retrieval.r5 != null ? retrieval.r5 + "%" : "n/a"],
+              ["R@10", retrieval.r10 + "%"],
+              ["MRR", retrieval.mrr != null ? String(retrieval.mrr) : "n/a"],
+              ["Context cut", retrieval.contextReduction != null ? retrieval.contextReduction + "%" : "n/a"],
+              ["Scale", scale ? scale.hitRate + "% hit / " + scale.medianLatency + "ms" : "not loaded"],
+              ["Model", retrieval.model || "dependency-free default"]
+            ]
+          : checks.slice(0, 5).map(function (item) {
+              return [item.name || "check", (item.pass ? "pass" : "check") + " - " + item.actual + "/" + item.target];
+            })
       });
     }
     return cards;

@@ -1,0 +1,66 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:strict-longmemeval-benchmark-disables-semantic-concept-expansion-1779078721405",
+  "title": "Strict LongMemEval benchmark disables semantic concept expansion",
+  "summary": "Kage LongMemEval S headline benchmarking must run with semanticExpansion disabled. The product recall stack can still use built in semantic concept expansion, but external/adopted benchmark reports should use the strict",
+  "body": "Kage LongMemEval-S headline benchmarking must run with semanticExpansion disabled. The product recall stack can still use built-in semantic concept expansion, but external/adopted benchmark reports should use the strict no-semantic-expansion mode or explicitly label --semantic-expansion as product/tuned. Verified strict full run on 470 non-abstention questions: R@5 96.17%, R@10 98.72%, R@20 99.79%, MRR 0.9094, NDCG@10 0.9279.\nEvidence: Changed mcp/kernel.ts to accept semanticExpansion:false, benchmarks/longmemeval-kage-retrieval.mjs defaults to strict no-semantic-expansion, updated README.md and benchmarks/LONGMEMEVAL.md with strict metrics.\nVerified by: npm test --prefix mcp -- --test-name-pattern strict external benchmarks|common memory concepts; node benchmarks/longmemeval-kage-retrieval.mjs --data /private/tmp/kage-external-bench/longmemeval_s_cleaned.json --limit 470 --top-k 10 --out /private/tmp/kage-external-bench/longmemeval-kage-strict-no-semantic.json",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "benchmark",
+    "longmemeval",
+    "integrity",
+    "recall"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "benchmarks/longmemeval-kage-retrieval.mjs",
+    "benchmarks/LONGMEMEVAL.md",
+    "README.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-18T04:32:01.405Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage LongMemEval-S headline benchmarking must run with semanticExpansion disabled. The product recall stack can still use built-in semantic concept expansion, but external/adopted benchmark reports should use the strict no-semantic-expansion mode or explicitly label --semantic-expansion as product/tuned. Verified strict full run on 470 non-abstention questions: R@5 96.17%, R@10 98.72%, R@20 99.79%, MRR 0.9094, NDCG@10 0.9279.\nEvidence: Changed mcp/kernel.ts to accept semanticExpansion:false, benchmarks/longmemeval-kage-retrieval.mjs defaults to strict no-semantic-expansion, updated README.md and benchmarks/LONGMEMEVAL.md with strict metrics.\nVerified by: npm test --prefix mcp -- --test-name-pattern strict external benchmarks|common memory concepts; node benchmarks/longmemeval-kage-retrieval.mjs --data /private/tmp/kage-external-bench/longmemeval_s_cleaned.json --limit 470 --top-k 10 --out /private/tmp/kage-external-bench/longmemeval-kage-strict-no-semantic.json",
+    "verification": "Changed mcp/kernel.ts to accept semanticExpansion:false, benchmarks/longmemeval-kage-retrieval.mjs defaults to strict no-semantic-expansion, updated README.md and benchmarks/LONGMEMEVAL.md with strict metrics."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-18T04:32:01.405Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 244
+  },
+  "created_at": "2026-05-18T04:32:01.405Z",
+  "updated_at": "2026-05-19T04:53:22.459Z"
+}

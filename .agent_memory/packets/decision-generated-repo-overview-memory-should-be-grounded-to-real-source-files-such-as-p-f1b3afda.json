@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:generated-repo-overview-memory-should-be-grounded-to-real-source-files-such-as-p",
+  "title": "Generated repo overview memory should be grounded to real source files such as package.jso",
+  "summary": "Generated repo overview memory should be grounded to real source files such as package.json and README.md, not a broad synthetic root path. The lifecycle and handoff reports treat broad or missing paths as ungrounded, wh",
+  "body": "Generated repo overview memory should be grounded to real source files such as package.json and README.md, not a broad synthetic root path. The lifecycle and handoff reports treat broad or missing paths as ungrounded, which keeps the dashboard in a warning state even when the memory body is useful. The generator now adds package.json and README.md when present, and the regression is covered in mcp/kernel.test.ts.\nVerified by: npm test --prefix mcp",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "generated-memory",
+    "grounding",
+    "handoff",
+    "dashboard"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts",
+    ".agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-17T22:35:06.617Z"
+    }
+  ],
+  "context": {
+    "fact": "Generated repo overview memory should be grounded to real source files such as package.json and README.md, not a broad synthetic root path. The lifecycle and handoff reports treat broad or missing paths as ungrounded, which keeps the dashboard in a warning state even when the memory body is useful. The generator now adds package.json and README.md when present, and the regression is covered in mcp/kernel.test.ts.\nVerified by: npm test --prefix mcp",
+    "verification": "npm test --prefix mcp"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-17T22:35:06.617Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 113
+  },
+  "created_at": "2026-05-17T22:35:06.617Z",
+  "updated_at": "2026-05-19T04:53:22.455Z"
+}

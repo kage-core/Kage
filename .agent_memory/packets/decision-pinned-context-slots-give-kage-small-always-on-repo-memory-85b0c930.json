@@ -1,0 +1,77 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:pinned-context-slots-give-kage-small-always-on-repo-memory-1779075616821",
+  "title": "Pinned context slots give Kage small always-on repo memory",
+  "summary": "After inspecting AgentMemory's slots feature, Kage now implements repo local pinned context slots instead of global persona slots. Slots live in .agent memory/slots/slots.json, are reviewable in git, block sensitive cont",
+  "body": "After inspecting AgentMemory's slots feature, Kage now implements repo-local pinned context slots instead of global persona slots. Slots live in .agent_memory/slots/slots.json, are reviewable in git, block sensitive content, support CLI/MCP/REST create/list/delete, and are injected into recall/context before task-specific memory. Refresh writes .agent_memory/reports/context-slots.json and the viewer dashboard shows a Pinned context card. This gives agents tiny always-relevant repo guidance without loading all memory or relying on hidden global state.",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "agentmemory-comparison",
+    "context-slots",
+    "pinned-context",
+    "recall",
+    "viewer",
+    "dashboard",
+    "mcp",
+    "rest",
+    "collaboration"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts",
+    "mcp/cli.ts",
+    "mcp/index.ts",
+    "mcp/mcp.test.ts",
+    "mcp/daemon.ts",
+    "mcp/daemon.test.ts",
+    "mcp/viewer/app.js",
+    "docs/viewer/app.js",
+    "README.md",
+    "mcp/README.md",
+    "docs/guide.html"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-18T03:40:16.821Z"
+    }
+  ],
+  "context": {
+    "fact": "After inspecting AgentMemory's slots feature, Kage now implements repo-local pinned context slots instead of global persona slots. Slots live in .agent_memory/slots/slots.json, are reviewable in git, block sensitive content, support CLI/MCP/REST create/list/delete, and are injected into recall/context before task-specific memory. Refresh writes .agent_memory/reports/context-slots.json and the viewer dashboard shows a Pinned context card. This gives agents tiny always-relevant repo guidance without loading all memory or relying on hidden global state."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-18T03:40:16.821Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 96,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 139
+  },
+  "created_at": "2026-05-18T03:40:16.821Z",
+  "updated_at": "2026-05-19T04:53:22.457Z"
+}

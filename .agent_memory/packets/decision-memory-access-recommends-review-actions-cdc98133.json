@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:memory-access-recommends-review-actions-1779052638402",
+  "title": "Memory access recommends review actions",
+  "summary": "Kage memory access now converts local recall telemetry into actionable review recommendations. Hot, reviewable packets become keep verified actions; cold packets become review cold actions; ungrounded cold packets become",
+  "body": "Kage memory access now converts local recall telemetry into actionable review recommendations. Hot, reviewable packets become keep-verified actions; cold packets become review-cold actions; ungrounded cold packets become add-code-grounding actions. Generated diff change-memory is excluded from recommendations but remains in raw access totals. The viewer Memory page renders these actions in a Review actions section.",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/cli.ts",
+    "mcp/viewer/memory.html",
+    "mcp/viewer/app.js",
+    "mcp/viewer/styles.css",
+    "docs/viewer/memory.html",
+    "docs/viewer/app.js",
+    "docs/viewer/styles.css",
+    "mcp/kernel.test.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-17T21:17:18.401Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage memory access now converts local recall telemetry into actionable review recommendations. Hot, reviewable packets become keep-verified actions; cold packets become review-cold actions; ungrounded cold packets become add-code-grounding actions. Generated diff change-memory is excluded from recommendations but remains in raw access totals. The viewer Memory page renders these actions in a Review actions section."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-17T21:17:18.401Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 96,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 105
+  },
+  "created_at": "2026-05-17T21:17:18.401Z",
+  "updated_at": "2026-05-19T04:53:22.456Z"
+}

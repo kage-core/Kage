@@ -1,0 +1,68 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:setup-doctor-surfaces-claude-ambient-hook-readiness-1779059970990",
+  "title": "Setup doctor surfaces Claude ambient hook readiness",
+  "summary": "Kage setup doctor now uses the same Claude Code ambient hook summary as verify agent. setupDoctor accepts a homeDir/serverPath option, marks Claude Code as not configured when MCP config exists but required ambient hooks",
+  "body": "Kage setup doctor now uses the same Claude Code ambient hook summary as verify-agent. setupDoctor accepts a homeDir/serverPath option, marks Claude Code as not configured when MCP config exists but required ambient hooks or hook scripts are missing, and the CLI prints missing hook events/scripts. This makes partial installs visible before teammates rely on automatic prompt recall, observation, and distillation.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'setup generates all-agent MCP configuration'",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "agentmemory-comparison",
+    "claude-code",
+    "hooks",
+    "setup-doctor"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts",
+    "mcp/cli.ts",
+    "README.md",
+    "mcp/README.md",
+    "docs/guide.html"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-17T23:19:30.990Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage setup doctor now uses the same Claude Code ambient hook summary as verify-agent. setupDoctor accepts a homeDir/serverPath option, marks Claude Code as not configured when MCP config exists but required ambient hooks or hook scripts are missing, and the CLI prints missing hook events/scripts. This makes partial installs visible before teammates rely on automatic prompt recall, observation, and distillation.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'setup generates all-agent MCP configuration'",
+    "verification": "npm test --prefix mcp -- --test-name-pattern 'setup generates all-agent MCP configuration'"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-17T23:19:30.990Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 2,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 130
+  },
+  "created_at": "2026-05-17T23:19:30.990Z",
+  "updated_at": "2026-05-19T04:53:22.459Z"
+}

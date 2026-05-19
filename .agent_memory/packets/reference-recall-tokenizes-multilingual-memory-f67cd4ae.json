@@ -1,0 +1,59 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:reference:recall-tokenizes-multilingual-memory-1779046695263",
+  "title": "Recall tokenizes multilingual memory",
+  "summary": "Kage recall now uses Unicode aware lexical tokenization and CJK bigrams so repo memory written in Chinese, Japanese, Korean, accented Latin, or mixed code/prose remains searchable even when terms are not space separated.",
+  "body": "Kage recall now uses Unicode-aware lexical tokenization and CJK bigrams so repo memory written in Chinese, Japanese, Korean, accented Latin, or mixed code/prose remains searchable even when terms are not space-separated. This was borrowed from studying AgentMemory's explicit Unicode/CJK BM25 handling, but implemented locally without adding dependencies.\nEvidence: Implemented in mcp/kernel.ts; documented in README.md, mcp/README.md, and benchmarks/README.md.\nVerified by: npm test --prefix mcp",
+  "type": "reference",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "retrieval"
+  ],
+  "paths": [
+    "mcp/kernel.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-17T19:38:15.263Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage recall now uses Unicode-aware lexical tokenization and CJK bigrams so repo memory written in Chinese, Japanese, Korean, accented Latin, or mixed code/prose remains searchable even when terms are not space-separated. This was borrowed from studying AgentMemory's explicit Unicode/CJK BM25 handling, but implemented locally without adding dependencies.\nEvidence: Implemented in mcp/kernel.ts; documented in README.md, mcp/README.md, and benchmarks/README.md.\nVerified by: npm test --prefix mcp",
+    "verification": "Implemented in mcp/kernel.ts; documented in README.md, mcp/README.md, and benchmarks/README.md."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-17T19:38:15.263Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 90,
+    "reasons": [
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 124
+  },
+  "created_at": "2026-05-17T19:38:15.263Z",
+  "updated_at": "2026-05-19T04:53:22.461Z"
+}

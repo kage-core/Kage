@@ -8,6 +8,8 @@ import {
 import {
   SETUP_AGENTS,
   auditProject,
+  benchmarkCodingMemoryQuality,
+  benchmarkMemoryScale,
   benchmarkTaskComparison,
   benchmarkProject,
   buildGlobalCdnBundle,
@@ -19,19 +21,32 @@ import {
   buildStructuralIndex,
   createPublicCandidate,
   createReviewArtifact,
+  deleteContextSlot,
   distillSession,
   exportPublicBundle,
   graphMermaid,
   installAgentPolicy,
   kageCleanupCandidates,
+  kageCapabilityAudit,
   kageContributors,
+  kageContextSlots,
   kageDecisionIntelligence,
   kageDependencyPath,
   kageGraphInsights,
+  kageMemoryAccess,
+  kageMemoryAudit,
+  kageMemoryHandoff,
+  kageMemoryLifecycle,
+  kageMemoryLineage,
+  kageMemoryReconciliation,
+  kageMemoryTimeline,
   kageMetrics,
   kageModuleHealth,
+  kageProjectProfile,
   kageReviewerSuggestions,
   kageRisk,
+  kageSessionCaptureReport,
+  kageSessionReplay,
   learn,
   memoryInbox,
   kageWorkspace,
@@ -48,10 +63,14 @@ import {
   queryCodeGraph,
   queryGraph,
   recall,
+  recallWithEmbeddings,
   recordFeedback,
   refreshProject,
   registryRecommendations,
   setupAgent,
+  setupDoctor,
+  setContextSlot,
+  supersedeMemory,
   validateProject,
   verifyAgentActivation,
   writeCodeIndex,
@@ -176,6 +195,7 @@ export function listTools() {
           project_dir: { type: "string", description: "Absolute path to the project root" },
           query: { type: "string", description: "The task or question — used for both memory recall and code graph search" },
           limit: { type: "number", description: "Max memory packets to return (default 5)" },
+          session_id: { type: "string", description: "Optional active agent session id for memory reconciliation" },
           targets: { type: "array", items: { type: "string" }, description: "Optional files the agent may edit or explain; used for risk context" },
           changed_files: { type: "array", items: { type: "string" }, description: "Optional changed files for pre-edit or PR risk context" },
         },
@@ -241,6 +261,7 @@ export function listTools() {
           project_dir: { type: "string" },
           limit: { type: "number" },
           explain: { type: "boolean" },
+          embeddings: { type: "boolean" },
           json: { type: "boolean" },
         },
         required: ["query", "project_dir"],
@@ -355,6 +376,73 @@ export function listTools() {
       },
     },
     {
+      name: "kage_profile",
+      description:
+        "Return a compact project profile for agent orientation: repo totals, languages, top code+memory concepts, key files, memory focus, run commands, and next actions.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_capabilities",
+      description:
+        "Return an evidence-backed Kage memory-system capability audit across repo memory, collaboration/session proof, benchmarks, and dashboard/viewer readiness.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_context_slots",
+      description:
+        "List repo-local pinned context slots. Pinned slots are small, reviewable facts that Kage includes in recall/context before task-specific memory.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_context_slot_set",
+      description:
+        "Create or update a repo-local pinned context slot. Use for durable, high-signal repo guidance that should always be included without loading all memory.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+          label: { type: "string" },
+          content: { type: "string" },
+          description: { type: "string" },
+          pinned: { type: "boolean" },
+          size_limit: { type: "number" },
+          paths: { type: "array", items: { type: "string" } },
+          tags: { type: "array", items: { type: "string" } },
+        },
+        required: ["project_dir", "label", "content"],
+      },
+    },
+    {
+      name: "kage_context_slot_delete",
+      description: "Delete a repo-local context slot by label.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+          label: { type: "string" },
+        },
+        required: ["project_dir", "label"],
+      },
+    },
+    {
       name: "kage_decisions",
       description:
         "Summarize Kage why-memory for a repo: decisions, gotchas, runbooks, conventions, code explanations, path coverage, weak/stale memory, and important code paths that still lack decision memory.",
@@ -394,6 +482,18 @@ export function listTools() {
       name: "kage_metrics",
       description:
         "Return concise Kage adoption and quality metrics: code graph counts, language/parser coverage, memory graph evidence coverage, pending/approved packets, validation state, and readiness score.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_memory_access",
+      description:
+        "Report which repo-local memory packets have actually been recalled recently. This uses local ignored access telemetry and does not mutate shareable packet files.",
       inputSchema: {
         type: "object",
         properties: {
@@ -513,6 +613,20 @@ export function listTools() {
       },
     },
     {
+      name: "kage_memory_reconcile",
+      description:
+        "Return agent-owned memory reconciliation work when source files linked to existing memory changed. Agents must update, supersede, or mark stale memory before final handoff.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+          session_id: { type: "string" },
+          limit: { type: "number" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
       name: "kage_quality",
       description:
         "Return memory quality metrics: useful memory ratio, duplicate burden, stale/wrong feedback, evidence coverage, path grounding, and review queue size.",
@@ -525,13 +639,93 @@ export function listTools() {
       },
     },
     {
-      name: "kage_benchmark",
+      name: "kage_memory_lifecycle",
       description:
-        "Return Kage proof metrics: runbook, bug-fix, decision and code-flow coverage, recall hit rate, estimated rediscovery avoided, tokens saved, and time-to-first-use.",
+        "Return a repo-local memory lifecycle report: healthy, hot, cold, stale, disputed, ungrounded, pending, generated, and concrete review actions.",
       inputSchema: {
         type: "object",
         properties: {
           project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_memory_timeline",
+      description:
+        "Return recent repo-memory activity for teammate handoff: added, updated, pending, and deprecated packets with review actions.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+          days: { type: "number" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_memory_lineage",
+      description:
+        "Return memory supersession chains so agents can use current replacement packets and keep retired memory as audit history.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_memory_audit",
+      description:
+        "Return the repo-local audit trail for explicit memory mutations: capture, feedback, review, supersede, deprecate, and delete.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+          limit: { type: "number" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_memory_handoff",
+      description:
+        "Return a teammate/agent handoff queue by combining memory inbox, lifecycle, audit, timeline, and lineage into concrete next actions.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_supersede",
+      description:
+        "Mark one repo-local memory packet as superseded by a replacement packet and write bidirectional lineage edges.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+          packet_id: { type: "string" },
+          replacement_packet_id: { type: "string" },
+          reason: { type: "string" },
+        },
+        required: ["project_dir", "packet_id", "replacement_packet_id"],
+      },
+    },
+    {
+      name: "kage_benchmark",
+      description:
+        "Return Kage proof metrics, or set mode=memory_quality / memory_scale for synthetic memory retrieval benchmarks.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+          mode: { type: "string", enum: ["project", "memory_quality", "memory_scale"] },
+          sizes: { type: "array", items: { type: "number" } },
+          top_k: { type: "number" },
         },
         required: ["project_dir"],
       },
@@ -561,6 +755,18 @@ export function listTools() {
           write: { type: "boolean" },
         },
         required: ["agent", "project_dir"],
+      },
+    },
+    {
+      name: "kage_setup_doctor",
+      description:
+        "Audit Kage setup across supported agents, including Claude Code ambient hook readiness when applicable.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
       },
     },
     {
@@ -674,6 +880,32 @@ export function listTools() {
           session_id: { type: "string" },
         },
         required: ["project_dir", "session_id"],
+      },
+    },
+    {
+      name: "kage_sessions",
+      description:
+        "Summarize local agent observation sessions, durable capture candidates, and next distillation actions without exposing raw transcript replay.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_session_replay",
+      description:
+        "Return a privacy-preserving replay digest for observed agent sessions: timeline, touched paths, commands, durable candidates, and distill actions without raw transcript text.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+          session_id: { type: "string" },
+          limit: { type: "number" },
+        },
+        required: ["project_dir"],
       },
     },
     {
@@ -1000,11 +1232,16 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     const dependencyResult = wantsDependencyPath(query) && pathHints.length >= 2
       ? kageDependencyPath(projectDir, pathHints[0], pathHints[1])
       : null;
+    const reconciliation = kageMemoryReconciliation(projectDir, {
+      sessionId: typeof args?.session_id === "string" ? args.session_id : undefined,
+      limit: 5,
+    });
     const sections = [
       recallResult.context_block,
       graphResult.context_block ? `\n## Graph Facts\n${graphResult.context_block}` : "",
       riskResult ? riskContextBlock(riskResult) : "",
       dependencyResult ? `\n## Dependency Path\n${dependencyResult.summary}${dependencyResult.path.length ? `\nPath: ${dependencyResult.path.join(" -> ")}` : ""}` : "",
+      reconciliation.unresolved_count ? `\n## Memory Reconciliation\n${reconciliation.agent_instruction}` : "",
       `\n_${validationText}_`,
     ].filter(Boolean).join("");
     return {
@@ -1013,7 +1250,9 @@ export async function callTool(name: string, args: Record<string, unknown> | und
   }
 
   if (name === "kage_recall") {
-    const result = recall(String(args?.project_dir ?? ""), String(args?.query ?? ""), Number(args?.limit ?? 5), Boolean(args?.explain));
+    const result = args?.embeddings
+      ? await recallWithEmbeddings(String(args?.project_dir ?? ""), String(args?.query ?? ""), Number(args?.limit ?? 5), Boolean(args?.explain))
+      : recall(String(args?.project_dir ?? ""), String(args?.query ?? ""), Number(args?.limit ?? 5), Boolean(args?.explain));
     return {
       content: [{ type: "text", text: args?.json || args?.explain ? JSON.stringify(result, null, 2) : result.context_block }],
     };
@@ -1096,6 +1335,49 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     };
   }
 
+  if (name === "kage_profile") {
+    const result = kageProjectProfile(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_capabilities") {
+    const result = kageCapabilityAudit(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_context_slots") {
+    const result = kageContextSlots(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_context_slot_set") {
+    const result = setContextSlot(String(args?.project_dir ?? ""), {
+      label: String(args?.label ?? ""),
+      content: String(args?.content ?? ""),
+      description: args?.description == null ? undefined : String(args.description),
+      pinned: args?.pinned == null ? undefined : Boolean(args.pinned),
+      size_limit: args?.size_limit == null ? undefined : Number(args.size_limit),
+      paths: arrayArg(args?.paths),
+      tags: arrayArg(args?.tags),
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_context_slot_delete") {
+    const result = deleteContextSlot(String(args?.project_dir ?? ""), String(args?.label ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
   if (name === "kage_decisions") {
     const result = kageDecisionIntelligence(String(args?.project_dir ?? ""));
     return {
@@ -1120,6 +1402,60 @@ export async function callTool(name: string, args: Record<string, unknown> | und
 
   if (name === "kage_metrics") {
     const result = kageMetrics(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_memory_access") {
+    const result = kageMemoryAccess(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_memory_lifecycle") {
+    const result = kageMemoryLifecycle(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_memory_timeline") {
+    const result = kageMemoryTimeline(String(args?.project_dir ?? ""), Number(args?.days ?? 14));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_memory_lineage") {
+    const result = kageMemoryLineage(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_memory_audit") {
+    const result = kageMemoryAudit(String(args?.project_dir ?? ""), Number(args?.limit ?? 100));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_memory_handoff") {
+    const result = kageMemoryHandoff(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_supersede") {
+    const result = supersedeMemory(
+      String(args?.project_dir ?? ""),
+      String(args?.packet_id ?? ""),
+      String(args?.replacement_packet_id ?? ""),
+      typeof args?.reason === "string" ? args.reason : "",
+    );
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };
@@ -1197,6 +1533,17 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     };
   }
 
+  if (name === "kage_memory_reconcile") {
+    const result = kageMemoryReconciliation(String(args?.project_dir ?? ""), {
+      sessionId: typeof args?.session_id === "string" ? args.session_id : undefined,
+      limit: Number(args?.limit ?? 25),
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      isError: !result.ok,
+    };
+  }
+
   if (name === "kage_quality") {
     const result = qualityReport(String(args?.project_dir ?? ""));
     return {
@@ -1205,7 +1552,15 @@ export async function callTool(name: string, args: Record<string, unknown> | und
   }
 
   if (name === "kage_benchmark") {
-    const result = benchmarkProject(String(args?.project_dir ?? ""));
+    const mode = String(args?.mode ?? "project");
+    const result = mode === "memory_quality"
+      ? benchmarkCodingMemoryQuality({ topK: Number(args?.top_k ?? 10) })
+      : mode === "memory_scale"
+        ? benchmarkMemoryScale({
+            sizes: Array.isArray(args?.sizes) ? args.sizes.map(Number) : undefined,
+            topK: Number(args?.top_k ?? 10),
+          })
+        : benchmarkProject(String(args?.project_dir ?? ""));
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };
@@ -1220,6 +1575,13 @@ export async function callTool(name: string, args: Record<string, unknown> | und
 
   if (name === "kage_setup_agent") {
     const result = setupAgent(String(args?.agent ?? "") as SetupAgent, String(args?.project_dir ?? ""), { write: Boolean(args?.write) });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_setup_doctor") {
+    const result = setupDoctor(String(args?.project_dir ?? ""));
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };
@@ -1312,6 +1674,25 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       isError: !result.ok,
+    };
+  }
+
+  if (name === "kage_sessions") {
+    const result = kageSessionCaptureReport(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      isError: false,
+    };
+  }
+
+  if (name === "kage_session_replay") {
+    const result = kageSessionReplay(String(args?.project_dir ?? ""), {
+      sessionId: args?.session_id ? String(args.session_id) : undefined,
+      limit: typeof args?.limit === "number" ? args.limit : undefined,
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      isError: false,
     };
   }
 
