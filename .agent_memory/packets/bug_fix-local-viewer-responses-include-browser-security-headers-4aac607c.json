@@ -3,7 +3,7 @@
   "id": "repo:https-github-com-kage-core-kage:bug_fix:local-viewer-responses-include-browser-security-headers-1779050518395",
   "title": "Local viewer responses include browser security headers",
   "summary": "Kage's local viewer now serves static files with conservative browser security headers: CSP blocks inline scripts and script attributes, nosniff prevents MIME sniffing, referrer policy is no referrer, COOP is same origin",
-  "body": "Kage's local viewer now serves static files with conservative browser security headers: CSP blocks inline scripts and script attributes, nosniff prevents MIME sniffing, referrer-policy is no-referrer, COOP is same-origin, and frame-ancestors is none. This follows the AgentMemory viewer-security lesson without adding nonce complexity because Kage loads app.js as an external script.\nEvidence: Implemented viewerStaticHeaders in mcp/daemon.ts, added daemon regression coverage in mcp/daemon.test.ts, and documented the local viewer hardening in README.md and mcp/README.md.\nVerified by: npm test --prefix mcp; curl -I http://127.0.0.1:8767/viewer/index.html",
+  "body": "Kage's local viewer now serves static files with conservative browser security headers: CSP blocks inline scripts and script attributes, nosniff prevents MIME sniffing, referrer-policy is no-referrer, COOP is same-origin, and frame-ancestors is none. This follows the local viewer security review without adding nonce complexity because Kage loads app.js as an external script.\nEvidence: Implemented viewerStaticHeaders in mcp/daemon.ts, added daemon regression coverage in mcp/daemon.test.ts, and documented the local viewer hardening in README.md and mcp/README.md.\nVerified by: npm test --prefix mcp; curl -I http://127.0.0.1:8767/viewer/index.html",
   "type": "bug_fix",
   "scope": "repo",
   "visibility": "team",
@@ -12,7 +12,6 @@
   "confidence": 0.7,
   "tags": [
     "session-learning",
-    "agentmemory-comparison",
     "viewer",
     "security",
     "csp",
@@ -32,7 +31,7 @@
     }
   ],
   "context": {
-    "fact": "Kage's local viewer now serves static files with conservative browser security headers: CSP blocks inline scripts and script attributes, nosniff prevents MIME sniffing, referrer-policy is no-referrer, COOP is same-origin, and frame-ancestors is none. This follows the AgentMemory viewer-security lesson without adding nonce complexity because Kage loads app.js as an external script.\nEvidence: Implemented viewerStaticHeaders in mcp/daemon.ts, added daemon regression coverage in mcp/daemon.test.ts, and documented the local viewer hardening in README.md and mcp/README.md.\nVerified by: npm test --prefix mcp; curl -I http://127.0.0.1:8767/viewer/index.html",
+    "fact": "Kage's local viewer now serves static files with conservative browser security headers: CSP blocks inline scripts and script attributes, nosniff prevents MIME sniffing, referrer-policy is no-referrer, COOP is same-origin, and frame-ancestors is none. This follows the local viewer security review without adding nonce complexity because Kage loads app.js as an external script.\nEvidence: Implemented viewerStaticHeaders in mcp/daemon.ts, added daemon regression coverage in mcp/daemon.test.ts, and documented the local viewer hardening in README.md and mcp/README.md.\nVerified by: npm test --prefix mcp; curl -I http://127.0.0.1:8767/viewer/index.html",
     "verification": "Implemented viewerStaticHeaders in mcp/daemon.ts, added daemon regression coverage in mcp/daemon.test.ts, and documented the local viewer hardening in README.md and mcp/README.md."
   },
   "freshness": {

@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:pinned-context-slots-give-kage-small-always-on-repo-memory-1779075616821",
   "title": "Pinned context slots give Kage small always-on repo memory",
-  "summary": "After inspecting AgentMemory's slots feature, Kage now implements repo local pinned context slots instead of global persona slots. Slots live in .agent memory/slots/slots.json, are reviewable in git, block sensitive cont",
-  "body": "After inspecting AgentMemory's slots feature, Kage now implements repo-local pinned context slots instead of global persona slots. Slots live in .agent_memory/slots/slots.json, are reviewable in git, block sensitive content, support CLI/MCP/REST create/list/delete, and are injected into recall/context before task-specific memory. Refresh writes .agent_memory/reports/context-slots.json and the viewer dashboard shows a Pinned context card. This gives agents tiny always-relevant repo guidance without loading all memory or relying on hidden global state.",
+  "summary": "After inspecting pinned context patterns, Kage now implements repo local pinned context slots instead of global persona slots. Slots live in .agent memory/slots/slots.json, are reviewable in git, block sensitive cont",
+  "body": "After inspecting pinned context patterns, Kage now implements repo-local pinned context slots instead of global persona slots. Slots live in .agent_memory/slots/slots.json, are reviewable in git, block sensitive content, support CLI/MCP/REST create/list/delete, and are injected into recall/context before task-specific memory. Refresh writes .agent_memory/reports/context-slots.json and the viewer dashboard shows a Pinned context card. This gives agents tiny always-relevant repo guidance without loading all memory or relying on hidden global state.",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -12,7 +12,6 @@
   "confidence": 0.7,
   "tags": [
     "session-learning",
-    "agentmemory-comparison",
     "context-slots",
     "pinned-context",
     "recall",
@@ -44,7 +43,7 @@
     }
   ],
   "context": {
-    "fact": "After inspecting AgentMemory's slots feature, Kage now implements repo-local pinned context slots instead of global persona slots. Slots live in .agent_memory/slots/slots.json, are reviewable in git, block sensitive content, support CLI/MCP/REST create/list/delete, and are injected into recall/context before task-specific memory. Refresh writes .agent_memory/reports/context-slots.json and the viewer dashboard shows a Pinned context card. This gives agents tiny always-relevant repo guidance without loading all memory or relying on hidden global state."
+    "fact": "After inspecting pinned context patterns, Kage now implements repo-local pinned context slots instead of global persona slots. Slots live in .agent_memory/slots/slots.json, are reviewable in git, block sensitive content, support CLI/MCP/REST create/list/delete, and are injected into recall/context before task-specific memory. Refresh writes .agent_memory/reports/context-slots.json and the viewer dashboard shows a Pinned context card. This gives agents tiny always-relevant repo guidance without loading all memory or relying on hidden global state."
   },
   "freshness": {
     "ttl_days": 365,

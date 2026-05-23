@@ -15,7 +15,6 @@
     "code-graph",
     "multilanguage",
     "generic-static",
-    "repowise-comparison",
     "large-repos"
   ],
   "paths": [

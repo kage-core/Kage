@@ -3,7 +3,7 @@
   "id": "repo:https-github-com-kage-core-kage:decision:kage-viewer-benchmark-reports-now-include-a-proof-ledger-with-the-measured-metri",
   "title": "Kage viewer benchmark reports now include a proof ledger with the measured metric, target",
   "summary": "Kage viewer benchmark reports now include a proof ledger with the measured metric, target threshold, pass state, exact command, and next action for coding memory retrieval, memory scale sanity, and repo trust gates. This",
-  "body": "Kage viewer benchmark reports now include a proof ledger with the measured metric, target threshold, pass state, exact command, and next action for coding-memory retrieval, memory-scale sanity, and repo trust gates. This was added after comparing AgentMemory's benchmark marketing: Kage should make proof reproducible and visible in the viewer, not only store scores in benchmark JSON or README prose.\nVerified by: npm test --prefix mcp; node --check mcp/viewer/app.js; node --check docs/viewer/app.js",
+  "body": "Kage viewer benchmark reports now include a proof ledger with the measured metric, target threshold, pass state, exact command, and next action for coding-memory retrieval, memory-scale sanity, and repo trust gates. This was added after comparing benchmark-reporting best practices: Kage should make proof reproducible and visible in the viewer, not only store scores in benchmark JSON or README prose.\nVerified by: npm test --prefix mcp; node --check mcp/viewer/app.js; node --check docs/viewer/app.js",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -14,8 +14,7 @@
     "session-learning",
     "benchmark",
     "viewer",
-    "proof-ledger",
-    "agentmemory-comparison"
+    "proof-ledger"
   ],
   "paths": [
     "mcp/daemon.ts",
@@ -37,7 +36,7 @@
     }
   ],
   "context": {
-    "fact": "Kage viewer benchmark reports now include a proof ledger with the measured metric, target threshold, pass state, exact command, and next action for coding-memory retrieval, memory-scale sanity, and repo trust gates. This was added after comparing AgentMemory's benchmark marketing: Kage should make proof reproducible and visible in the viewer, not only store scores in benchmark JSON or README prose.\nVerified by: npm test --prefix mcp; node --check mcp/viewer/app.js; node --check docs/viewer/app.js",
+    "fact": "Kage viewer benchmark reports now include a proof ledger with the measured metric, target threshold, pass state, exact command, and next action for coding-memory retrieval, memory-scale sanity, and repo trust gates. This was added after comparing benchmark-reporting best practices: Kage should make proof reproducible and visible in the viewer, not only store scores in benchmark JSON or README prose.\nVerified by: npm test --prefix mcp; node --check mcp/viewer/app.js; node --check docs/viewer/app.js",
     "verification": "npm test --prefix mcp; node --check mcp/viewer/app.js; node --check docs/viewer/app.js"
   },
   "freshness": {

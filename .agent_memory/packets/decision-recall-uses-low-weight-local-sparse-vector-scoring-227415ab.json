@@ -15,8 +15,7 @@
     "recall",
     "vector-local",
     "benchmark",
-    "longmemeval",
-    "agentmemory-comparison"
+    "longmemeval"
   ],
   "paths": [
     "mcp/kernel.ts",

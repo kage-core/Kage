@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:viewer-workspace-should-be-a-drawer-1778828000216",
   "title": "Viewer workspace should be a drawer",
-  "summary": "Viewer comparison against Repowise showed Kage should not keep the right workspace permanently visible. Default viewer should be canvas first with the workspace hidden as a drawer; quick controls open Tools/Path/Inspecto",
-  "body": "Viewer comparison against Repowise showed Kage should not keep the right workspace permanently visible. Default viewer should be canvas-first with the workspace hidden as a drawer; quick controls open Tools/Path/Inspector only when needed, and selecting a node opens Inspect. This keeps the graph from being visually compressed while preserving memory/intel/review surfaces.\nVerified by: Live screenshot comparison with https://www.repowise.dev/repo/repowise-dev/repowise/graph and Playwright smoke",
+  "summary": "Viewer comparison against repo-intelligence tool showed Kage should not keep the right workspace permanently visible. Default viewer should be canvas first with the workspace hidden as a drawer; quick controls open Tools/Path/Inspecto",
+  "body": "Viewer comparison against repo-intelligence tool showed Kage should not keep the right workspace permanently visible. Default viewer should be canvas-first with the workspace hidden as a drawer; quick controls open Tools/Path/Inspector only when needed, and selecting a node opens Inspect. This keeps the graph from being visually compressed while preserving memory/intel/review surfaces.\nVerified by: Live screenshot comparison with https://www.repo-intelligence-tool.dev/repo/repo-intelligence-tool-dev/repo-intelligence-tool/graph and Playwright smoke",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -15,7 +15,7 @@
     "viewer",
     "ui",
     "graph",
-    "repowise"
+    "repo-intelligence-tool"
   ],
   "paths": [
     "mcp/viewer/index.html",
@@ -30,8 +30,8 @@
     }
   ],
   "context": {
-    "fact": "Viewer comparison against Repowise showed Kage should not keep the right workspace permanently visible. Default viewer should be canvas-first with the workspace hidden as a drawer; quick controls open Tools/Path/Inspector only when needed, and selecting a node opens Inspect. This keeps the graph from being visually compressed while preserving memory/intel/review surfaces.\nVerified by: Live screenshot comparison with https://www.repowise.dev/repo/repowise-dev/repowise/graph and Playwright smoke",
-    "verification": "Live screenshot comparison with https://www.repowise.dev/repo/repowise-dev/repowise/graph and Playwright smoke"
+    "fact": "Viewer comparison against repo-intelligence tool showed Kage should not keep the right workspace permanently visible. Default viewer should be canvas-first with the workspace hidden as a drawer; quick controls open Tools/Path/Inspector only when needed, and selecting a node opens Inspect. This keeps the graph from being visually compressed while preserving memory/intel/review surfaces.\nVerified by: Live screenshot comparison with https://www.repo-intelligence-tool.dev/repo/repo-intelligence-tool-dev/repo-intelligence-tool/graph and Playwright smoke",
+    "verification": "Live screenshot comparison with https://www.repo-intelligence-tool.dev/repo/repo-intelligence-tool-dev/repo-intelligence-tool/graph and Playwright smoke"
   },
   "freshness": {
     "ttl_days": 365,

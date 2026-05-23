@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:recall-diversifies-observed-session-sources-1779058571895",
   "title": "Recall diversifies observed session sources",
-  "summary": "After studying AgentMemory's search diversity, Kage recall now caps session provenance dominance for distilled observation session packets. recallWithVectorScores ranks all relevant packets, then diversifyRecallEntries a",
-  "body": "After studying AgentMemory's search diversity, Kage recall now caps session-provenance dominance for distilled observation-session packets. recallWithVectorScores ranks all relevant packets, then diversifyRecallEntries allows at most three packets from the same observation_session source before including independent session sources. This keeps noisy live-agent sessions from crowding out useful teammate memory while leaving normal explicit repo captures ungrouped and preserving existing score order within each source.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'recall diversifies results across observed session sources'; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check",
+  "summary": "After studying search-result diversity requirements, Kage recall now caps session provenance dominance for distilled observation session packets. recallWithVectorScores ranks all relevant packets, then diversifyRecallEntries a",
+  "body": "After studying search-result diversity requirements, Kage recall now caps session-provenance dominance for distilled observation-session packets. recallWithVectorScores ranks all relevant packets, then diversifyRecallEntries allows at most three packets from the same observation_session source before including independent session sources. This keeps noisy live-agent sessions from crowding out useful teammate memory while leaving normal explicit repo captures ungrouped and preserving existing score order within each source.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'recall diversifies results across observed session sources'; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -12,7 +12,6 @@
   "confidence": 0.7,
   "tags": [
     "session-learning",
-    "agentmemory-comparison",
     "recall",
     "ranking",
     "session-distillation"
@@ -29,7 +28,7 @@
     }
   ],
   "context": {
-    "fact": "After studying AgentMemory's search diversity, Kage recall now caps session-provenance dominance for distilled observation-session packets. recallWithVectorScores ranks all relevant packets, then diversifyRecallEntries allows at most three packets from the same observation_session source before including independent session sources. This keeps noisy live-agent sessions from crowding out useful teammate memory while leaving normal explicit repo captures ungrouped and preserving existing score order within each source.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'recall diversifies results across observed session sources'; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check",
+    "fact": "After studying search-result diversity requirements, Kage recall now caps session-provenance dominance for distilled observation-session packets. recallWithVectorScores ranks all relevant packets, then diversifyRecallEntries allows at most three packets from the same observation_session source before including independent session sources. This keeps noisy live-agent sessions from crowding out useful teammate memory while leaving normal explicit repo captures ungrouped and preserving existing score order within each source.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'recall diversifies results across observed session sources'; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check",
     "verification": "npm test --prefix mcp -- --test-name-pattern 'recall diversifies results across observed session sources'; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check"
   },
   "freshness": {

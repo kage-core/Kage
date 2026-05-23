@@ -3,7 +3,7 @@
   "id": "repo:https-github-com-kage-core-kage:decision:memory-lifecycle-is-now-a-first-class-report-1779053861487",
   "title": "Memory lifecycle is now a first-class report",
   "summary": "Kage now exposes kageMemoryLifecycle, CLI kage lifecycle, MCP kage memory lifecycle, local viewer reports/lifecycle.json, and dashboard/Memory page lifecycle cards. It classifies repo packets as healthy, hot, cold, stale",
-  "body": "Kage now exposes kageMemoryLifecycle, CLI kage lifecycle, MCP kage_memory_lifecycle, local viewer reports/lifecycle.json, and dashboard/Memory page lifecycle cards. It classifies repo packets as healthy, hot, cold, stale, disputed, ungrounded, pending, or generated with review actions so Kage borrows AgentMemory-style lifecycle visibility without hidden auto-decay.",
+  "body": "Kage now exposes kageMemoryLifecycle, CLI kage lifecycle, MCP kage_memory_lifecycle, local viewer reports/lifecycle.json, and dashboard/Memory page lifecycle cards. It classifies repo packets as healthy, hot, cold, stale, disputed, ungrounded, pending, or generated with review actions so Kage uses session-memory lifecycle visibility without hidden auto-decay.",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -32,7 +32,7 @@
     }
   ],
   "context": {
-    "fact": "Kage now exposes kageMemoryLifecycle, CLI kage lifecycle, MCP kage_memory_lifecycle, local viewer reports/lifecycle.json, and dashboard/Memory page lifecycle cards. It classifies repo packets as healthy, hot, cold, stale, disputed, ungrounded, pending, or generated with review actions so Kage borrows AgentMemory-style lifecycle visibility without hidden auto-decay."
+    "fact": "Kage now exposes kageMemoryLifecycle, CLI kage lifecycle, MCP kage_memory_lifecycle, local viewer reports/lifecycle.json, and dashboard/Memory page lifecycle cards. It classifies repo packets as healthy, hot, cold, stale, disputed, ungrounded, pending, or generated with review actions so Kage uses session-memory lifecycle visibility without hidden auto-decay."
   },
   "freshness": {
     "ttl_days": 365,

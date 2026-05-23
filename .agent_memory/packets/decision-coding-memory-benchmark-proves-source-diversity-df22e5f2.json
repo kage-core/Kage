@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:coding-memory-benchmark-proves-source-diversity-1779058804661",
   "title": "Coding-memory benchmark proves source diversity",
-  "summary": "Kage's packaged coding memory benchmark now includes a source diversity probe inspired by AgentMemory's session diversification. The probe creates four high scoring memories from one noisy observation session and one ind",
-  "body": "Kage's packaged coding-memory benchmark now includes a source-diversity probe inspired by AgentMemory's session diversification. The probe creates four high-scoring memories from one noisy observation_session and one independent observation_session, then requires recall top 4 to include the independent source with no more than three results from one session. viewerBenchmarkReport exposes this as a proof-ledger item named source-diversity, so the dashboard can prove noisy live-agent sessions do not crowd out independent teammate memory.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'coding memory quality benchmark is package-callable'; node mcp/dist/cli.js benchmark --memory-quality --json; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check",
+  "summary": "Kage's packaged coding memory benchmark now includes a source diversity probe inspired by session-source diversity requirements. The probe creates four high scoring memories from one noisy observation session and one ind",
+  "body": "Kage's packaged coding-memory benchmark now includes a source-diversity probe inspired by session-source diversity requirements. The probe creates four high-scoring memories from one noisy observation_session and one independent observation_session, then requires recall top 4 to include the independent source with no more than three results from one session. viewerBenchmarkReport exposes this as a proof-ledger item named source-diversity, so the dashboard can prove noisy live-agent sessions do not crowd out independent teammate memory.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'coding memory quality benchmark is package-callable'; node mcp/dist/cli.js benchmark --memory-quality --json; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -12,7 +12,6 @@
   "confidence": 0.7,
   "tags": [
     "session-learning",
-    "agentmemory-comparison",
     "benchmark",
     "viewer",
     "proof-ledger",
@@ -33,7 +32,7 @@
     }
   ],
   "context": {
-    "fact": "Kage's packaged coding-memory benchmark now includes a source-diversity probe inspired by AgentMemory's session diversification. The probe creates four high-scoring memories from one noisy observation_session and one independent observation_session, then requires recall top 4 to include the independent source with no more than three results from one session. viewerBenchmarkReport exposes this as a proof-ledger item named source-diversity, so the dashboard can prove noisy live-agent sessions do not crowd out independent teammate memory.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'coding memory quality benchmark is package-callable'; node mcp/dist/cli.js benchmark --memory-quality --json; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check",
+    "fact": "Kage's packaged coding-memory benchmark now includes a source-diversity probe inspired by session-source diversity requirements. The probe creates four high-scoring memories from one noisy observation_session and one independent observation_session, then requires recall top 4 to include the independent source with no more than three results from one session. viewerBenchmarkReport exposes this as a proof-ledger item named source-diversity, so the dashboard can prove noisy live-agent sessions do not crowd out independent teammate memory.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'coding memory quality benchmark is package-callable'; node mcp/dist/cli.js benchmark --memory-quality --json; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check",
     "verification": "npm test --prefix mcp -- --test-name-pattern 'coding memory quality benchmark is package-callable'; node mcp/dist/cli.js benchmark --memory-quality --json; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check"
   },
   "freshness": {

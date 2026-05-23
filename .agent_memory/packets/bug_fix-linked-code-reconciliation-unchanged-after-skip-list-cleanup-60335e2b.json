@@ -1,0 +1,96 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:bug_fix:linked-code-reconciliation-unchanged-after-skip-list-cleanup-1779546376043",
+  "title": "Linked-code reconciliation unchanged after skip-list cleanup",
+  "summary": "Bug fix update: linked code memory reconciliation remains source fingerprint based after public source hygiene cleanup. The kernel change removed external tool specific workspace skip entries only; source hash staleness",
+  "body": "Bug fix update: linked-code memory reconciliation remains source-fingerprint based after public-source hygiene cleanup. The kernel change removed external-tool-specific workspace skip entries only; source_hash_staleness behavior is unchanged. Newly captured and diff-derived packets still store source fingerprints, linked source hash drift is reported through context, reconcile, hooks, and pr check, and agents must update or supersede affected packets before handoff.\nEvidence: mcp/kernel.ts changed the workspace skip list only; stale-memory reconciliation tests still pass.\nVerified by: npm test --prefix mcp",
+  "type": "bug_fix",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "memory-lifecycle",
+    "stale-memory",
+    "path-fingerprints",
+    "memory-hygiene"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts",
+    "README.md",
+    "docs/guide.html"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-23T14:26:16.043Z"
+    }
+  ],
+  "context": {
+    "fact": "Bug fix update: linked-code memory reconciliation remains source-fingerprint based after public-source hygiene cleanup. The kernel change removed external-tool-specific workspace skip entries only; source_hash_staleness behavior is unchanged. Newly captured and diff-derived packets still store source fingerprints, linked source hash drift is reported through context, reconcile, hooks, and pr check, and agents must update or supersede affected packets before handoff.\nEvidence: mcp/kernel.ts changed the workspace skip list only; stale-memory reconciliation tests still pass.\nVerified by: npm test --prefix mcp",
+    "verification": "mcp/kernel.ts changed the workspace skip list only; stale-memory reconciliation tests still pass."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-23T14:26:16.043Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "0f43a36933c6e333905fd362aaa182174c4df5c1d7152f4cfd2efc23ef593b8f",
+        "size": 585123
+      },
+      {
+        "path": "mcp/kernel.test.ts",
+        "sha256": "cf7f960e15e17aa98ff823d83bc0730b0be6f8161084a8e31499b854259b4c38",
+        "size": 160510
+      },
+      {
+        "path": "README.md",
+        "sha256": "12f3c39b8bf029be766deb69837644bc3927b5410ee59a2c2d46ca37e5dcf594",
+        "size": 11071
+      },
+      {
+        "path": "docs/guide.html",
+        "sha256": "740131ba0a6dbae72bb120856479728b044472c900dbf7d8330abcf3d5df80c5",
+        "size": 37315
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [
+    {
+      "relation": "supersedes",
+      "to": "repo:https-github-com-kage-core-kage:bug_fix:linked-code-memory-reconciliation-remains-source-fingerprint-based-1779545138041",
+      "evidence": "Reverified after removing external-tool-specific workspace skip entries from mcp/kernel.ts.",
+      "created_at": "2026-05-23T14:26:30.766Z"
+    }
+  ],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 154
+  },
+  "created_at": "2026-05-23T14:26:16.043Z",
+  "updated_at": "2026-05-23T14:26:35.306Z"
+}

@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:memory-page-shows-lifecycle-proof-for-captured-repo-knowledge-1779028419014",
   "title": "Memory page shows lifecycle proof for captured repo knowledge",
-  "summary": "Kage viewer memory page now shows a Lifecycle proof section that turns packets into a capture grounding recall handoff story. This was added after comparing AgentMemory's session replay strength; Kage should prove collab",
-  "body": "Kage viewer memory page now shows a Lifecycle proof section that turns packets into a capture -> grounding -> recall -> handoff story. This was added after comparing AgentMemory's session replay strength; Kage should prove collaborative repo memory through grounded packet lifecycle cards, not raw transcript replay. The section ranks real memory packets by code links, evidence, recall query usefulness, and handoff value.\nEvidence: Implemented in mcp/viewer/memory.html, mcp/viewer/app.js, mcp/viewer/styles.css and synced to docs/viewer assets; asset cache bumped to v=35.\nVerified by: node --check mcp/viewer/app.js; node --check docs/viewer/app.js; npm test --prefix mcp",
+  "summary": "Kage viewer memory page now shows a Lifecycle proof section that turns packets into a capture grounding recall handoff story. This was added after comparing session lifecycle visibility requirements; Kage should prove collab",
+  "body": "Kage viewer memory page now shows a Lifecycle proof section that turns packets into a capture -> grounding -> recall -> handoff story. This was added after comparing session lifecycle visibility requirements; Kage should prove collaborative repo memory through grounded packet lifecycle cards, not raw transcript replay. The section ranks real memory packets by code links, evidence, recall query usefulness, and handoff value.\nEvidence: Implemented in mcp/viewer/memory.html, mcp/viewer/app.js, mcp/viewer/styles.css and synced to docs/viewer assets; asset cache bumped to v=35.\nVerified by: node --check mcp/viewer/app.js; node --check docs/viewer/app.js; npm test --prefix mcp",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -14,7 +14,6 @@
     "session-learning",
     "viewer",
     "memory-lifecycle",
-    "agentmemory-comparison",
     "collaboration"
   ],
   "paths": [
@@ -33,7 +32,7 @@
     }
   ],
   "context": {
-    "fact": "Kage viewer memory page now shows a Lifecycle proof section that turns packets into a capture -> grounding -> recall -> handoff story. This was added after comparing AgentMemory's session replay strength; Kage should prove collaborative repo memory through grounded packet lifecycle cards, not raw transcript replay. The section ranks real memory packets by code links, evidence, recall query usefulness, and handoff value.\nEvidence: Implemented in mcp/viewer/memory.html, mcp/viewer/app.js, mcp/viewer/styles.css and synced to docs/viewer assets; asset cache bumped to v=35.\nVerified by: node --check mcp/viewer/app.js; node --check docs/viewer/app.js; npm test --prefix mcp",
+    "fact": "Kage viewer memory page now shows a Lifecycle proof section that turns packets into a capture -> grounding -> recall -> handoff story. This was added after comparing session lifecycle visibility requirements; Kage should prove collaborative repo memory through grounded packet lifecycle cards, not raw transcript replay. The section ranks real memory packets by code links, evidence, recall query usefulness, and handoff value.\nEvidence: Implemented in mcp/viewer/memory.html, mcp/viewer/app.js, mcp/viewer/styles.css and synced to docs/viewer assets; asset cache bumped to v=35.\nVerified by: node --check mcp/viewer/app.js; node --check docs/viewer/app.js; npm test --prefix mcp",
     "verification": "Implemented in mcp/viewer/memory.html, mcp/viewer/app.js, mcp/viewer/styles.css and synced to docs/viewer assets; asset cache bumped to v=35."
   },
   "freshness": {

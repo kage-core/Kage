@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:contributor-profiles-stay-local-git-intelligence-1778816813971",
   "title": "Contributor profiles stay local git intelligence",
-  "summary": "Kage contributors should borrow Repowise style contributor profiles using only local git history and the existing code graph: commits, recent activity, touched files/modules, primary owned files, ownership silos, hotspot",
-  "body": "Kage contributors should borrow Repowise-style contributor profiles using only local git history and the existing code graph: commits, recent activity, touched files/modules, primary-owned files, ownership silos, hotspot ownership, and commit category mix. Expose it through CLI, MCP, viewer reports, and docs without contacting GitHub or adding a hosted database.",
+  "summary": "Kage contributors should uses repo-dashboard-style contributor profiles using only local git history and the existing code graph: commits, recent activity, touched files/modules, primary owned files, ownership silos, hotspot",
+  "body": "Kage contributors should uses repo-dashboard-style contributor profiles using only local git history and the existing code graph: commits, recent activity, touched files/modules, primary-owned files, ownership silos, hotspot ownership, and commit category mix. Expose it through CLI, MCP, viewer reports, and docs without contacting GitHub or adding a hosted database.",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -14,7 +14,6 @@
     "session-learning",
     "contributors",
     "git-history",
-    "repowise-comparison",
     "repo-intelligence"
   ],
   "paths": [
@@ -37,7 +36,7 @@
     }
   ],
   "context": {
-    "fact": "Kage contributors should borrow Repowise-style contributor profiles using only local git history and the existing code graph: commits, recent activity, touched files/modules, primary-owned files, ownership silos, hotspot ownership, and commit category mix. Expose it through CLI, MCP, viewer reports, and docs without contacting GitHub or adding a hosted database."
+    "fact": "Kage contributors should uses repo-dashboard-style contributor profiles using only local git history and the existing code graph: commits, recent activity, touched files/modules, primary-owned files, ownership silos, hotspot ownership, and commit category mix. Expose it through CLI, MCP, viewer reports, and docs without contacting GitHub or adding a hosted database."
   },
   "freshness": {
     "ttl_days": 365,

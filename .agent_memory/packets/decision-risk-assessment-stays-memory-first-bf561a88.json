@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:risk-assessment-stays-memory-first-1778786009585",
   "title": "Risk assessment stays memory-first",
-  "summary": "Kage risk borrows repo-intelligence signals without changing Kage's core: combine the existing code graph with local git history before edits.",
-  "body": "Kage risk should borrow repo-intelligence signals from tools like Repowise by combining the existing code graph with local git history: dependents, impact surface, churn, ownership, co-change partners, and test gaps. Keep it local-first and memory-adjacent rather than replacing Kage with a generic static map.\nVerified by: npm test --prefix mcp",
+  "summary": "Kage risk uses repo-intelligence signals without changing Kage's core: combine the existing code graph with local git history before edits.",
+  "body": "Kage risk should uses repo-intelligence signals from tools like repo-intelligence tool by combining the existing code graph with local git history: dependents, impact surface, churn, ownership, co-change partners, and test gaps. Keep it local-first and memory-adjacent rather than replacing Kage with a generic static map.\nVerified by: npm test --prefix mcp",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -32,7 +32,7 @@
     }
   ],
   "context": {
-    "fact": "Kage risk should borrow repo-intelligence signals from tools like Repowise by combining the existing code graph with local git history: dependents, impact surface, churn, ownership, co-change partners, and test gaps. Keep it local-first and memory-adjacent rather than replacing Kage with a generic static map.\nVerified by: npm test --prefix mcp",
+    "fact": "Kage risk should uses repo-intelligence signals from tools like repo-intelligence tool by combining the existing code graph with local git history: dependents, impact surface, churn, ownership, co-change partners, and test gaps. Keep it local-first and memory-adjacent rather than replacing Kage with a generic static map.\nVerified by: npm test --prefix mcp",
     "verification": "npm test --prefix mcp"
   },
   "freshness": {

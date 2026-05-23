@@ -15,8 +15,7 @@
     "retrieval",
     "benchmark",
     "longmemeval",
-    "temporal",
-    "agentmemory-comparison"
+    "temporal"
   ],
   "paths": [
     "mcp/kernel.ts",

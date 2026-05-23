@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:reviewer-suggestions-stay-local-git-intelligence-1778787836192",
   "title": "Reviewer suggestions stay local git intelligence",
-  "summary": "Kage reviewers borrows Repowise style reviewer suggestions using only local git history and Kage graph signals: authorship on target files, recent edits, and primary owners of co change partner files. It does not call Gi",
-  "body": "Kage reviewers borrows Repowise-style reviewer suggestions using only local git history and Kage graph signals: authorship on target files, recent edits, and primary owners of co-change partner files. It does not call GitHub or store external account state, keeping Kage repo-local and memory-first.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js reviewers --project . --targets mcp/kernel.ts --json",
+  "summary": "Kage reviewers uses repo-dashboard-style reviewer suggestions using only local git history and Kage graph signals: authorship on target files, recent edits, and primary owners of co change partner files. It does not call Gi",
+  "body": "Kage reviewers uses repo-dashboard-style reviewer suggestions using only local git history and Kage graph signals: authorship on target files, recent edits, and primary owners of co-change partner files. It does not call GitHub or store external account state, keeping Kage repo-local and memory-first.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js reviewers --project . --targets mcp/kernel.ts --json",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -14,8 +14,7 @@
     "session-learning",
     "reviewers",
     "git-history",
-    "co-change",
-    "repowise-comparison"
+    "co-change"
   ],
   "paths": [
     "mcp/kernel.ts",
@@ -34,7 +33,7 @@
     }
   ],
   "context": {
-    "fact": "Kage reviewers borrows Repowise-style reviewer suggestions using only local git history and Kage graph signals: authorship on target files, recent edits, and primary owners of co-change partner files. It does not call GitHub or store external account state, keeping Kage repo-local and memory-first.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js reviewers --project . --targets mcp/kernel.ts --json",
+    "fact": "Kage reviewers uses repo-dashboard-style reviewer suggestions using only local git history and Kage graph signals: authorship on target files, recent edits, and primary owners of co-change partner files. It does not call GitHub or store external account state, keeping Kage repo-local and memory-first.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js reviewers --project . --targets mcp/kernel.ts --json",
     "verification": "npm test --prefix mcp; node mcp/dist/cli.js reviewers --project . --targets mcp/kernel.ts --json"
   },
   "freshness": {

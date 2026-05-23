@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:graph-insights-stay-deterministic-and-memory-adjacent-1778813670160",
   "title": "Graph insights stay deterministic and memory-adjacent",
-  "summary": "Kage should borrow Repowise's useful graph intelligence as deterministic analysis over the existing source graph: central files, dependency cycles, import communities, and entry flows. Keep it separate from generated doc",
-  "body": "Kage should borrow Repowise's useful graph intelligence as deterministic analysis over the existing source graph: central files, dependency cycles, import communities, and entry flows. Keep it separate from generated documentation and use it to orient agents before broad architecture edits.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js graph-insights --project . --json",
+  "summary": "Kage should uses repo-intelligence useful graph intelligence as deterministic analysis over the existing source graph: central files, dependency cycles, import communities, and entry flows. Keep it separate from generated doc",
+  "body": "Kage should uses repo-intelligence useful graph intelligence as deterministic analysis over the existing source graph: central files, dependency cycles, import communities, and entry flows. Keep it separate from generated documentation and use it to orient agents before broad architecture edits.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js graph-insights --project . --json",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -15,8 +15,7 @@
     "graph-insights",
     "centrality",
     "communities",
-    "cycles",
-    "repowise-comparison"
+    "cycles"
   ],
   "paths": [
     "mcp/kernel.ts",
@@ -36,7 +35,7 @@
     }
   ],
   "context": {
-    "fact": "Kage should borrow Repowise's useful graph intelligence as deterministic analysis over the existing source graph: central files, dependency cycles, import communities, and entry flows. Keep it separate from generated documentation and use it to orient agents before broad architecture edits.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js graph-insights --project . --json",
+    "fact": "Kage should uses repo-intelligence useful graph intelligence as deterministic analysis over the existing source graph: central files, dependency cycles, import communities, and entry flows. Keep it separate from generated documentation and use it to orient agents before broad architecture edits.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js graph-insights --project . --json",
     "verification": "npm test --prefix mcp; node mcp/dist/cli.js graph-insights --project . --json"
   },
   "freshness": {

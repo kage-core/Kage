@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:viewer-uses-overview-dashboard-plus-graph-workspace-1778828991702",
   "title": "Viewer uses overview dashboard plus graph workspace",
-  "summary": "Viewer now uses a Repowise style split: an overview dashboard first, then a dedicated graph workspace. The dashboard should summarize readiness, memory coverage, graph health, risk, review, and workspace links from exist",
-  "body": "Viewer now uses a Repowise-style split: an overview dashboard first, then a dedicated graph workspace. The dashboard should summarize readiness, memory coverage, graph health, risk, review, and workspace links from existing graph/metrics/report artifacts; graph controls and deep inspection remain in the graph section drawer so the UI does not cram every panel onto one page.",
+  "summary": "Viewer now uses a repo-dashboard-style split: an overview dashboard first, then a dedicated graph workspace. The dashboard should summarize readiness, memory coverage, graph health, risk, review, and workspace links from exist",
+  "body": "Viewer now uses a repo-dashboard-style split: an overview dashboard first, then a dedicated graph workspace. The dashboard should summarize readiness, memory coverage, graph health, risk, review, and workspace links from existing graph/metrics/report artifacts; graph controls and deep inspection remain in the graph section drawer so the UI does not cram every panel onto one page.",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -26,7 +26,7 @@
     }
   ],
   "context": {
-    "fact": "Viewer now uses a Repowise-style split: an overview dashboard first, then a dedicated graph workspace. The dashboard should summarize readiness, memory coverage, graph health, risk, review, and workspace links from existing graph/metrics/report artifacts; graph controls and deep inspection remain in the graph section drawer so the UI does not cram every panel onto one page."
+    "fact": "Viewer now uses a repo-dashboard-style split: an overview dashboard first, then a dedicated graph workspace. The dashboard should summarize readiness, memory coverage, graph health, risk, review, and workspace links from existing graph/metrics/report artifacts; graph controls and deep inspection remain in the graph section drawer so the UI does not cram every panel onto one page."
   },
   "freshness": {
     "ttl_days": 365,

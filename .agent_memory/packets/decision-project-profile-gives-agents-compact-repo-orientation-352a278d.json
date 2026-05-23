@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:project-profile-gives-agents-compact-repo-orientation-1779074707075",
   "title": "Project profile gives agents compact repo orientation",
-  "summary": "Kage now has an AgentMemory inspired project profile implemented as a rebuildable Kage report, not a separate mutable memory store. kageProjectProfile summarizes existing structural index, code graph, and approved repo m",
-  "body": "Kage now has an AgentMemory-inspired project profile implemented as a rebuildable Kage report, not a separate mutable memory store. kageProjectProfile summarizes existing structural index, code graph, and approved repo memory into repo totals, languages, top code+memory concepts, key files, memory focus, run commands, next actions, and warnings. It is exposed through CLI kage profile, MCP kage_profile, REST GET /kage/profile, local viewer report generation, and the dashboard. The profile tolerates older packets that lack quality/freshness fields so existing repos keep working.",
+  "summary": "Kage now has an external memory tool inspired project profile implemented as a rebuildable Kage report, not a separate mutable memory store. kageProjectProfile summarizes existing structural index, code graph, and approved repo m",
+  "body": "Kage now has an Kage-native project profile implemented as a rebuildable Kage report, not a separate mutable memory store. kageProjectProfile summarizes existing structural index, code graph, and approved repo memory into repo totals, languages, top code+memory concepts, key files, memory focus, run commands, next actions, and warnings. It is exposed through CLI kage profile, MCP kage_profile, REST GET /kage/profile, local viewer report generation, and the dashboard. The profile tolerates older packets that lack quality/freshness fields so existing repos keep working.",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -12,7 +12,6 @@
   "confidence": 0.7,
   "tags": [
     "session-learning",
-    "agentmemory-comparison",
     "project-profile",
     "profile",
     "viewer",
@@ -43,7 +42,7 @@
     }
   ],
   "context": {
-    "fact": "Kage now has an AgentMemory-inspired project profile implemented as a rebuildable Kage report, not a separate mutable memory store. kageProjectProfile summarizes existing structural index, code graph, and approved repo memory into repo totals, languages, top code+memory concepts, key files, memory focus, run commands, next actions, and warnings. It is exposed through CLI kage profile, MCP kage_profile, REST GET /kage/profile, local viewer report generation, and the dashboard. The profile tolerates older packets that lack quality/freshness fields so existing repos keep working."
+    "fact": "Kage now has an Kage-native project profile implemented as a rebuildable Kage report, not a separate mutable memory store. kageProjectProfile summarizes existing structural index, code graph, and approved repo memory into repo totals, languages, top code+memory concepts, key files, memory focus, run commands, next actions, and warnings. It is exposed through CLI kage profile, MCP kage_profile, REST GET /kage/profile, local viewer report generation, and the dashboard. The profile tolerates older packets that lack quality/freshness fields so existing repos keep working."
   },
   "freshness": {
     "ttl_days": 365,

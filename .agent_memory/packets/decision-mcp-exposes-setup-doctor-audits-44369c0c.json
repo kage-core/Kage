@@ -3,7 +3,7 @@
   "id": "repo:https-github-com-kage-core-kage:decision:mcp-exposes-setup-doctor-audits-1779060160033",
   "title": "MCP exposes setup doctor audits",
   "summary": "Kage now exposes setup doctor through MCP as kage setup doctor. Agents can audit supported agent setup and Claude Code ambient hook readiness without shelling out, matching the CLI setup doctor output. This extends the A",
-  "body": "Kage now exposes setup doctor through MCP as kage_setup_doctor. Agents can audit supported-agent setup and Claude Code ambient hook readiness without shelling out, matching the CLI setup doctor output. This extends the AgentMemory-inspired install-proof work to the MCP surface agents actually use.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'MCP setup, quality, benchmark, observe, and distill tools work|MCP lists repo-local memory tools'",
+  "body": "Kage now exposes setup doctor through MCP as kage_setup_doctor. Agents can audit supported-agent setup and Claude Code ambient hook readiness without shelling out, matching the CLI setup doctor output. This extends the Kage-native install-proof work to the MCP surface agents actually use.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'MCP setup, quality, benchmark, observe, and distill tools work|MCP lists repo-local memory tools'",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -12,7 +12,6 @@
   "confidence": 0.7,
   "tags": [
     "session-learning",
-    "agentmemory-comparison",
     "mcp",
     "setup-doctor",
     "claude-code",
@@ -33,7 +32,7 @@
     }
   ],
   "context": {
-    "fact": "Kage now exposes setup doctor through MCP as kage_setup_doctor. Agents can audit supported-agent setup and Claude Code ambient hook readiness without shelling out, matching the CLI setup doctor output. This extends the AgentMemory-inspired install-proof work to the MCP surface agents actually use.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'MCP setup, quality, benchmark, observe, and distill tools work|MCP lists repo-local memory tools'",
+    "fact": "Kage now exposes setup doctor through MCP as kage_setup_doctor. Agents can audit supported-agent setup and Claude Code ambient hook readiness without shelling out, matching the CLI setup doctor output. This extends the Kage-native install-proof work to the MCP surface agents actually use.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'MCP setup, quality, benchmark, observe, and distill tools work|MCP lists repo-local memory tools'",
     "verification": "npm test --prefix mcp -- --test-name-pattern 'MCP setup, quality, benchmark, observe, and distill tools work|MCP lists repo-local memory tools'"
   },
   "freshness": {

@@ -3,7 +3,7 @@
   "id": "repo:https-github-com-kage-core-kage:decision:kage-context-should-surface-target-aware-repo-intelligence-1778787003394",
   "title": "kage_context should surface target-aware repo intelligence",
   "summary": "Risk and dependency path workflows should not require agents to remember extra calls. When kage context receives explicit targets, changed files, or path like file mentions in the query, it should include Kage risk signa",
-  "body": "Risk and dependency-path workflows should not require agents to remember extra calls. When kage_context receives explicit targets, changed files, or path-like file mentions in the query, it should include Kage risk signals and dependency path summaries in the same context block. This keeps Kage ambient while borrowing Repowise-style task workflows.\nVerified by: npm test --prefix mcp",
+  "body": "Risk and dependency-path workflows should not require agents to remember extra calls. When kage_context receives explicit targets, changed files, or path-like file mentions in the query, it should include Kage risk signals and dependency path summaries in the same context block. This keeps Kage ambient while borrowing repo-dashboard-style task workflows.\nVerified by: npm test --prefix mcp",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -32,7 +32,7 @@
     }
   ],
   "context": {
-    "fact": "Risk and dependency-path workflows should not require agents to remember extra calls. When kage_context receives explicit targets, changed files, or path-like file mentions in the query, it should include Kage risk signals and dependency path summaries in the same context block. This keeps Kage ambient while borrowing Repowise-style task workflows.\nVerified by: npm test --prefix mcp",
+    "fact": "Risk and dependency-path workflows should not require agents to remember extra calls. When kage_context receives explicit targets, changed files, or path-like file mentions in the query, it should include Kage risk signals and dependency path summaries in the same context block. This keeps Kage ambient while borrowing repo-dashboard-style task workflows.\nVerified by: npm test --prefix mcp",
     "verification": "npm test --prefix mcp"
   },
   "freshness": {

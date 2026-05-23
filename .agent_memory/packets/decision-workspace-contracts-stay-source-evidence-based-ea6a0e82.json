@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:workspace-contracts-stay-source-evidence-based-1778789275421",
   "title": "Workspace contracts stay source-evidence based",
-  "summary": "Kage workspace should borrow Repowise's cross repo contract idea only where it can stay deterministic: use existing Kage route facts plus source string evidence from consumer repos to report provider/consumer route links",
-  "body": "Kage workspace should borrow Repowise's cross-repo contract idea only where it can stay deterministic: use existing Kage route facts plus source string evidence from consumer repos to report provider/consumer route links. Do not add generated API docs or a server database for this layer.\nVerified by: npm test --prefix mcp",
+  "summary": "Kage workspace should uses repo-intelligence cross repo contract idea only where it can stay deterministic: use existing Kage route facts plus source string evidence from consumer repos to report provider/consumer route links",
+  "body": "Kage workspace should uses repo-intelligence cross-repo contract idea only where it can stay deterministic: use existing Kage route facts plus source string evidence from consumer repos to report provider/consumer route links. Do not add generated API docs or a server database for this layer.\nVerified by: npm test --prefix mcp",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -14,8 +14,7 @@
     "session-learning",
     "workspace",
     "contracts",
-    "route-graph",
-    "repowise-comparison"
+    "route-graph"
   ],
   "paths": [
     "mcp/kernel.ts",
@@ -34,7 +33,7 @@
     }
   ],
   "context": {
-    "fact": "Kage workspace should borrow Repowise's cross-repo contract idea only where it can stay deterministic: use existing Kage route facts plus source string evidence from consumer repos to report provider/consumer route links. Do not add generated API docs or a server database for this layer.\nVerified by: npm test --prefix mcp",
+    "fact": "Kage workspace should uses repo-intelligence cross-repo contract idea only where it can stay deterministic: use existing Kage route facts plus source string evidence from consumer repos to report provider/consumer route links. Do not add generated API docs or a server database for this layer.\nVerified by: npm test --prefix mcp",
     "verification": "npm test --prefix mcp"
   },
   "freshness": {

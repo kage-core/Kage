@@ -14,8 +14,7 @@
     "session-learning",
     "cleanup",
     "dead-code",
-    "code-graph",
-    "repowise-comparison"
+    "code-graph"
   ],
   "paths": [
     "mcp/kernel.ts",

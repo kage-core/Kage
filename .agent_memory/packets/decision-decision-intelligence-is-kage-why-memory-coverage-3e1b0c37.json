@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:decision-intelligence-is-kage-why-memory-coverage-1778817489957",
   "title": "Decision intelligence is Kage why-memory coverage",
-  "summary": "Kage decisions should expose the memory native part Repowise style static maps do not cover: which decisions, gotchas, runbooks, conventions, constraints, and code explanations are grounded to code paths; which important",
-  "body": "Kage decisions should expose the memory-native part Repowise-style static maps do not cover: which decisions, gotchas, runbooks, conventions, constraints, and code explanations are grounded to code paths; which important files still lack why-memory; and which decision packets are weak or stale. Expose it through CLI, MCP, viewer reports, and docs as .agent_memory/reports/decisions.json.",
+  "summary": "Kage decisions should expose the memory native part repo-dashboard-style static maps do not cover: which decisions, gotchas, runbooks, conventions, constraints, and code explanations are grounded to code paths; which important",
+  "body": "Kage decisions should expose the memory-native part repo-dashboard-style static maps do not cover: which decisions, gotchas, runbooks, conventions, constraints, and code explanations are grounded to code paths; which important files still lack why-memory; and which decision packets are weak or stale. Expose it through CLI, MCP, viewer reports, and docs as .agent_memory/reports/decisions.json.",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -15,7 +15,6 @@
     "decisions",
     "why-memory",
     "viewer",
-    "repowise-comparison",
     "repo-intelligence"
   ],
   "paths": [
@@ -38,7 +37,7 @@
     }
   ],
   "context": {
-    "fact": "Kage decisions should expose the memory-native part Repowise-style static maps do not cover: which decisions, gotchas, runbooks, conventions, constraints, and code explanations are grounded to code paths; which important files still lack why-memory; and which decision packets are weak or stale. Expose it through CLI, MCP, viewer reports, and docs as .agent_memory/reports/decisions.json."
+    "fact": "Kage decisions should expose the memory-native part repo-dashboard-style static maps do not cover: which decisions, gotchas, runbooks, conventions, constraints, and code explanations are grounded to code paths; which important files still lack why-memory; and which decision packets are weak or stale. Expose it through CLI, MCP, viewer reports, and docs as .agent_memory/reports/decisions.json."
   },
   "freshness": {
     "ttl_days": 365,

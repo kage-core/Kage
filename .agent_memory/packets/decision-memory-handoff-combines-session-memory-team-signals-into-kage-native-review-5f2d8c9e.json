@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "id": "repo:https-github-com-kage-core-kage:decision:memory-handoff-combines-agentmemory-style-team-signals-into-kage-native-review-1",
-  "title": "Memory handoff combines AgentMemory-style team signals into Kage-native review",
+  "id": "repo:https-github-com-kage-core-kage:decision:memory-handoff-combines-session-memory-team-signals-into-kage-native-review-1",
+  "title": "Memory handoff combines session-memory team signals into Kage-native review",
   "summary": "Kage now exposes a memory handoff report that composes inbox, lifecycle, audit, timeline, and lineage into one teammate/agent action queue. It does not add a new shared runtime or KV store; it reuses repo local packets,",
   "body": "Kage now exposes a memory handoff report that composes inbox, lifecycle, audit, timeline, and lineage into one teammate/agent action queue. It does not add a new shared runtime or KV store; it reuses repo-local packets, audit JSONL, and generated reports so collaboration stays git-visible and local-first. Use kage handoff or MCP kage_memory_handoff before switching agents, handing work to a teammate, or reviewing memory changes.",
   "type": "decision",

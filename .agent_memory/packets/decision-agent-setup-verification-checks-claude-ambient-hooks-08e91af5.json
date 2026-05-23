@@ -3,7 +3,7 @@
   "id": "repo:https-github-com-kage-core-kage:decision:agent-setup-verification-checks-claude-ambient-hooks-1779059804974",
   "title": "Agent setup verification checks Claude ambient hooks",
   "summary": "Kage setup verification now checks Claude Code ambient hook readiness, not only MCP config. verifyAgentActivation reports checks.ambient hooks present plus hook summary with required, installed, missing, script paths, an",
-  "body": "Kage setup verification now checks Claude Code ambient hook readiness, not only MCP config. verifyAgentActivation reports checks.ambient_hooks_present plus hook_summary with required, installed, missing, script paths, and marks Claude Code as needs_setup when ~/.claude.json exists but UserPromptSubmit/PostToolUse/PostToolUseFailure/PreCompact/Stop/SessionEnd hooks or scripts are missing. This prevents partial installs from appearing live after the AgentMemory-inspired ambient capture work.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'setup generates all-agent MCP configuration'",
+  "body": "Kage setup verification now checks Claude Code ambient hook readiness, not only MCP config. verifyAgentActivation reports checks.ambient_hooks_present plus hook_summary with required, installed, missing, script paths, and marks Claude Code as needs_setup when ~/.claude.json exists but UserPromptSubmit/PostToolUse/PostToolUseFailure/PreCompact/Stop/SessionEnd hooks or scripts are missing. This prevents partial installs from appearing live after the Kage-native ambient capture work.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'setup generates all-agent MCP configuration'",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -12,7 +12,6 @@
   "confidence": 0.7,
   "tags": [
     "session-learning",
-    "agentmemory-comparison",
     "claude-code",
     "hooks",
     "setup-verification"
@@ -33,7 +32,7 @@
     }
   ],
   "context": {
-    "fact": "Kage setup verification now checks Claude Code ambient hook readiness, not only MCP config. verifyAgentActivation reports checks.ambient_hooks_present plus hook_summary with required, installed, missing, script paths, and marks Claude Code as needs_setup when ~/.claude.json exists but UserPromptSubmit/PostToolUse/PostToolUseFailure/PreCompact/Stop/SessionEnd hooks or scripts are missing. This prevents partial installs from appearing live after the AgentMemory-inspired ambient capture work.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'setup generates all-agent MCP configuration'",
+    "fact": "Kage setup verification now checks Claude Code ambient hook readiness, not only MCP config. verifyAgentActivation reports checks.ambient_hooks_present plus hook_summary with required, installed, missing, script paths, and marks Claude Code as needs_setup when ~/.claude.json exists but UserPromptSubmit/PostToolUse/PostToolUseFailure/PreCompact/Stop/SessionEnd hooks or scripts are missing. This prevents partial installs from appearing live after the Kage-native ambient capture work.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'setup generates all-agent MCP configuration'",
     "verification": "npm test --prefix mcp -- --test-name-pattern 'setup generates all-agent MCP configuration'"
   },
   "freshness": {

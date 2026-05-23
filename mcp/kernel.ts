@@ -9637,7 +9637,7 @@ export function kageProjectProfile(projectDir: string): KageProjectProfileReport
   }
   const memoryConceptCounts = new Map<string, number>();
   for (const packet of approved) {
-    for (const tag of packet.tags.filter((item) => item && !["session-learning", "agentmemory-comparison"].includes(item))) {
+    for (const tag of packet.tags.filter((item) => item && !["session-learning", "external-comparison"].includes(item))) {
       memoryConceptCounts.set(tag, (memoryConceptCounts.get(tag) ?? 0) + 1);
     }
   }
@@ -10399,8 +10399,6 @@ const WORKSPACE_SKIP_DIRS = new Set([
   ".git",
   ".hg",
   ".next",
-  ".repowise",
-  ".repowise-workspace",
   "coverage",
   "dist",
   "node_modules",

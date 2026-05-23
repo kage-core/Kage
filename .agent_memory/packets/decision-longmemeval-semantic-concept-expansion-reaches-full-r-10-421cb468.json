@@ -15,8 +15,7 @@
     "retrieval",
     "benchmark",
     "longmemeval",
-    "semantic-expansion",
-    "agentmemory-comparison"
+    "semantic-expansion"
   ],
   "paths": [
     "mcp/kernel.ts",

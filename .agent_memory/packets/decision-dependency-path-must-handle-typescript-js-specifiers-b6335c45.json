@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:dependency-path-must-handle-typescript-js-specifiers-1778786787117",
   "title": "Dependency path must handle TypeScript js specifiers",
-  "summary": "Kage dependency path is the Kage native version of Repowise style dependency pathing: it traverses the existing source code graph and reports whether the source depends on the target, the target depends on the source, or",
-  "body": "Kage dependency-path is the Kage-native version of Repowise-style dependency pathing: it traverses the existing source code graph and reports whether the source depends on the target, the target depends on the source, or they are only connected undirected. Import resolution must map TypeScript source imports like ./kernel.js back to kernel.ts, and structural cache keys include an extractor version so parser improvements are not hidden by stale cached facts.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js dependency-path --project . --from mcp/cli.ts --to mcp/kernel.ts --json",
+  "summary": "Kage dependency path is the Kage native version of repo-dashboard-style dependency pathing: it traverses the existing source code graph and reports whether the source depends on the target, the target depends on the source, or",
+  "body": "Kage dependency-path is the Kage-native version of repo-dashboard-style dependency pathing: it traverses the existing source code graph and reports whether the source depends on the target, the target depends on the source, or they are only connected undirected. Import resolution must map TypeScript source imports like ./kernel.js back to kernel.ts, and structural cache keys include an extractor version so parser improvements are not hidden by stale cached facts.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js dependency-path --project . --from mcp/cli.ts --to mcp/kernel.ts --json",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -34,7 +34,7 @@
     }
   ],
   "context": {
-    "fact": "Kage dependency-path is the Kage-native version of Repowise-style dependency pathing: it traverses the existing source code graph and reports whether the source depends on the target, the target depends on the source, or they are only connected undirected. Import resolution must map TypeScript source imports like ./kernel.js back to kernel.ts, and structural cache keys include an extractor version so parser improvements are not hidden by stale cached facts.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js dependency-path --project . --from mcp/cli.ts --to mcp/kernel.ts --json",
+    "fact": "Kage dependency-path is the Kage-native version of repo-dashboard-style dependency pathing: it traverses the existing source code graph and reports whether the source depends on the target, the target depends on the source, or they are only connected undirected. Import resolution must map TypeScript source imports like ./kernel.js back to kernel.ts, and structural cache keys include an extractor version so parser improvements are not hidden by stale cached facts.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js dependency-path --project . --from mcp/cli.ts --to mcp/kernel.ts --json",
     "verification": "npm test --prefix mcp; node mcp/dist/cli.js dependency-path --project . --from mcp/cli.ts --to mcp/kernel.ts --json"
   },
   "freshness": {

@@ -14,8 +14,7 @@
     "session-learning",
     "retrieval",
     "benchmark",
-    "longmemeval",
-    "agentmemory-comparison"
+    "longmemeval"
   ],
   "paths": [
     "mcp/kernel.ts",

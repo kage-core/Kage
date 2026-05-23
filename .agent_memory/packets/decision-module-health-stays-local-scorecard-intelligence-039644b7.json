@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:module-health-stays-local-scorecard-intelligence-1778788979084",
   "title": "Module health stays local scorecard intelligence",
-  "summary": "Kage module health borrows Repowise style module scorecards using the existing code graph, cleanup candidates, tests, git churn, and ownership concentration. Keep it local and deterministic; do not add a hosted DB or gen",
-  "body": "Kage module-health borrows Repowise-style module scorecards using the existing code graph, cleanup candidates, tests, git churn, and ownership concentration. Keep it local and deterministic; do not add a hosted DB or generated wiki layer for this.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js module-health --project . --json",
+  "summary": "Kage module health uses repo-dashboard-style module scorecards using the existing code graph, cleanup candidates, tests, git churn, and ownership concentration. Keep it local and deterministic; do not add a hosted DB or gen",
+  "body": "Kage module-health uses repo-dashboard-style module scorecards using the existing code graph, cleanup candidates, tests, git churn, and ownership concentration. Keep it local and deterministic; do not add a hosted DB or generated wiki layer for this.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js module-health --project . --json",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -14,8 +14,7 @@
     "session-learning",
     "module-health",
     "code-graph",
-    "git-history",
-    "repowise-comparison"
+    "git-history"
   ],
   "paths": [
     "mcp/kernel.ts",
@@ -34,7 +33,7 @@
     }
   ],
   "context": {
-    "fact": "Kage module-health borrows Repowise-style module scorecards using the existing code graph, cleanup candidates, tests, git churn, and ownership concentration. Keep it local and deterministic; do not add a hosted DB or generated wiki layer for this.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js module-health --project . --json",
+    "fact": "Kage module-health uses repo-dashboard-style module scorecards using the existing code graph, cleanup candidates, tests, git churn, and ownership concentration. Keep it local and deterministic; do not add a hosted DB or generated wiki layer for this.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js module-health --project . --json",
     "verification": "npm test --prefix mcp; node mcp/dist/cli.js module-health --project . --json"
   },
   "freshness": {

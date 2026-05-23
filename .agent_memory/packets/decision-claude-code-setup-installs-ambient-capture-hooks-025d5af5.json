@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:claude-code-setup-installs-ambient-capture-hooks-1779059605338",
   "title": "Claude Code setup installs ambient capture hooks",
-  "summary": "After comparing AgentMemory's broad hook capture story, Kage Claude Code setup now installs UserPromptSubmit, PostToolUse, PostToolUseFailure, PreCompact, Stop, and SessionEnd hooks in addition to SessionStart. The obser",
-  "body": "After comparing AgentMemory's broad hook capture story, Kage Claude Code setup now installs UserPromptSubmit, PostToolUse, PostToolUseFailure, PreCompact, Stop, and SessionEnd hooks in addition to SessionStart. The observe hook stores privacy-filtered observations, injects relevant Kage recall context on prompts, and distills durable observations before compaction or session end. The setup test now executes the generated observe hook with a fake kage binary to prove observe, recall, and distill are wired.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'setup generates all-agent MCP configuration'",
+  "summary": "After comparing ambient session-capture requirements, Kage Claude Code setup now installs UserPromptSubmit, PostToolUse, PostToolUseFailure, PreCompact, Stop, and SessionEnd hooks in addition to SessionStart. The obser",
+  "body": "After comparing ambient session-capture requirements, Kage Claude Code setup now installs UserPromptSubmit, PostToolUse, PostToolUseFailure, PreCompact, Stop, and SessionEnd hooks in addition to SessionStart. The observe hook stores privacy-filtered observations, injects relevant Kage recall context on prompts, and distills durable observations before compaction or session end. The setup test now executes the generated observe hook with a fake kage binary to prove observe, recall, and distill are wired.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'setup generates all-agent MCP configuration'",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -12,7 +12,6 @@
   "confidence": 0.7,
   "tags": [
     "session-learning",
-    "agentmemory-comparison",
     "claude-code",
     "hooks",
     "session-capture"
@@ -32,7 +31,7 @@
     }
   ],
   "context": {
-    "fact": "After comparing AgentMemory's broad hook capture story, Kage Claude Code setup now installs UserPromptSubmit, PostToolUse, PostToolUseFailure, PreCompact, Stop, and SessionEnd hooks in addition to SessionStart. The observe hook stores privacy-filtered observations, injects relevant Kage recall context on prompts, and distills durable observations before compaction or session end. The setup test now executes the generated observe hook with a fake kage binary to prove observe, recall, and distill are wired.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'setup generates all-agent MCP configuration'",
+    "fact": "After comparing ambient session-capture requirements, Kage Claude Code setup now installs UserPromptSubmit, PostToolUse, PostToolUseFailure, PreCompact, Stop, and SessionEnd hooks in addition to SessionStart. The observe hook stores privacy-filtered observations, injects relevant Kage recall context on prompts, and distills durable observations before compaction or session end. The setup test now executes the generated observe hook with a fake kage binary to prove observe, recall, and distill are wired.\nVerified by: npm test --prefix mcp -- --test-name-pattern 'setup generates all-agent MCP configuration'",
     "verification": "npm test --prefix mcp -- --test-name-pattern 'setup generates all-agent MCP configuration'"
   },
   "freshness": {

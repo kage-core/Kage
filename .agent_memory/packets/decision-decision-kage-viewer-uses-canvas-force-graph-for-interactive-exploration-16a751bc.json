@@ -3,7 +3,7 @@
   "id": "repo:https-github-com-kage-core-kage:decision:decision-kage-viewer-uses-canvas-force-graph-for-interactive-exploration-1777753",
   "title": "Decision: Kage viewer uses canvas force graph for interactive exploration",
   "summary": "Decision: Kage viewer should use a custom canvas force graph for the primary graph surface. Keep Kage's high signal filtering and repo/code/memory semantics, but render visible nodes with force simulation, drag, pan, whe",
-  "body": "Decision: Kage viewer should use a custom canvas force graph for the primary graph surface. Keep Kage's high-signal filtering and repo/code/memory semantics, but render visible nodes with force simulation, drag, pan, wheel zoom, hover tooltips, selected-node focus, double-click focus selection, zoom-aware labels, weighted edges, and shape/color encoding by node type. The old SVG renderer can remain as fallback/internal code but should not be the primary visible graph.\nEvidence: Implemented in mcp/viewer/index.html, mcp/viewer/app.js, and mcp/viewer/styles.css after comparing AgentMemory's canvas viewer.\nVerified by: node --check mcp/viewer/app.js; npm test --prefix mcp; npm --cache /tmp/kage-npm-cache pack --dry-run",
+  "body": "Decision: Kage viewer should use a custom canvas force graph for the primary graph surface. Keep Kage's high-signal filtering and repo/code/memory semantics, but render visible nodes with force simulation, drag, pan, wheel zoom, hover tooltips, selected-node focus, double-click focus selection, zoom-aware labels, weighted edges, and shape/color encoding by node type. The old SVG renderer can remain as fallback/internal code but should not be the primary visible graph.\nEvidence: Implemented in mcp/viewer/index.html, mcp/viewer/app.js, and mcp/viewer/styles.css after comparing external memory tool's canvas viewer.\nVerified by: node --check mcp/viewer/app.js; npm test --prefix mcp; npm --cache /tmp/kage-npm-cache pack --dry-run",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -16,7 +16,7 @@
     "canvas",
     "force-graph",
     "ux",
-    "agentmemory"
+    "external-memory-tool"
   ],
   "paths": [
     "mcp/viewer/app.js",

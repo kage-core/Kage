@@ -15,8 +15,7 @@
     "code-graph",
     "calls",
     "confidence",
-    "viewer",
-    "repowise-comparison"
+    "viewer"
   ],
   "paths": [
     "mcp/kernel.ts",

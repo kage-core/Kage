@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:session-capture-report-makes-observation-distillation-visible-1779033504139",
   "title": "Session capture report makes observation distillation visible",
-  "summary": "Kage now exposes privacy scanned observation sessions through kage sessions, the kage sessions MCP tool, and the viewer Memory page. This is the Kage alternative to AgentMemory style raw session replay: show observed ses",
-  "body": "Kage now exposes privacy-scanned observation sessions through kage sessions, the kage_sessions MCP tool, and the viewer Memory page. This is the Kage alternative to AgentMemory-style raw session replay: show observed sessions, durable distillation candidates, and the exact kage distill action while keeping raw transcript replay out of the product surface.",
+  "summary": "Kage now exposes privacy scanned observation sessions through kage sessions, the kage sessions MCP tool, and the viewer Memory page. This is the Kage alternative to session-memory raw session replay: show observed ses",
+  "body": "Kage now exposes privacy-scanned observation sessions through kage sessions, the kage_sessions MCP tool, and the viewer Memory page. This is the Kage alternative to session-memory raw session replay: show observed sessions, durable distillation candidates, and the exact kage distill action while keeping raw transcript replay out of the product surface.",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -33,7 +33,7 @@
     }
   ],
   "context": {
-    "fact": "Kage now exposes privacy-scanned observation sessions through kage sessions, the kage_sessions MCP tool, and the viewer Memory page. This is the Kage alternative to AgentMemory-style raw session replay: show observed sessions, durable distillation candidates, and the exact kage distill action while keeping raw transcript replay out of the product surface."
+    "fact": "Kage now exposes privacy-scanned observation sessions through kage sessions, the kage_sessions MCP tool, and the viewer Memory page. This is the Kage alternative to session-memory raw session replay: show observed sessions, durable distillation candidates, and the exact kage distill action while keeping raw transcript replay out of the product surface."
   },
   "freshness": {
     "ttl_days": 365,

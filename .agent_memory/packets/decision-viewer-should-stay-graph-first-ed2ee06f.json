@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:viewer-should-stay-graph-first-1778827284194",
   "title": "Viewer should stay graph-first",
-  "summary": "Viewer UX should follow a graph first model inspired by Repowise style graph pages: keep the canvas primary, put common graph actions in a compact floating toolbar, and keep secondary surfaces as one active side workspac",
-  "body": "Viewer UX should follow a graph-first model inspired by Repowise-style graph pages: keep the canvas primary, put common graph actions in a compact floating toolbar, and keep secondary surfaces as one active side workspace/tab at a time. Avoid returning to a dashboard wall where controls, inspector, intelligence, review, and tables are all visible together.\nVerified by: Playwright smoke for quick scope/mode controls, Path Finder focus, and npm --prefix mcp test",
+  "summary": "Viewer UX should follow a graph first model inspired by repo-dashboard-style graph pages: keep the canvas primary, put common graph actions in a compact floating toolbar, and keep secondary surfaces as one active side workspac",
+  "body": "Viewer UX should follow a graph-first model inspired by repo-dashboard-style graph pages: keep the canvas primary, put common graph actions in a compact floating toolbar, and keep secondary surfaces as one active side workspace/tab at a time. Avoid returning to a dashboard wall where controls, inspector, intelligence, review, and tables are all visible together.\nVerified by: Playwright smoke for quick scope/mode controls, Path Finder focus, and npm --prefix mcp test",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -29,7 +29,7 @@
     }
   ],
   "context": {
-    "fact": "Viewer UX should follow a graph-first model inspired by Repowise-style graph pages: keep the canvas primary, put common graph actions in a compact floating toolbar, and keep secondary surfaces as one active side workspace/tab at a time. Avoid returning to a dashboard wall where controls, inspector, intelligence, review, and tables are all visible together.\nVerified by: Playwright smoke for quick scope/mode controls, Path Finder focus, and npm --prefix mcp test",
+    "fact": "Viewer UX should follow a graph-first model inspired by repo-dashboard-style graph pages: keep the canvas primary, put common graph actions in a compact floating toolbar, and keep secondary surfaces as one active side workspace/tab at a time. Avoid returning to a dashboard wall where controls, inspector, intelligence, review, and tables are all visible together.\nVerified by: Playwright smoke for quick scope/mode controls, Path Finder focus, and npm --prefix mcp test",
     "verification": "Playwright smoke for quick scope/mode controls, Path Finder focus, and npm --prefix mcp test"
   },
   "freshness": {

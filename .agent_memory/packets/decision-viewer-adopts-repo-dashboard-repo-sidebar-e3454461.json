@@ -1,9 +1,9 @@
 {
   "schema_version": 2,
-  "id": "repo:https-github-com-kage-core-kage:decision:viewer-adopts-repowise-style-repo-sidebar-1778831919783",
-  "title": "Viewer adopts Repowise-style repo sidebar",
-  "summary": "Kage viewer should use a Repowise style product frame: persistent left repository sidebar, repo card, route navigation, top status strip, and main content pages for Overview, Graph, Memory, Owners, Intel, Review, and Dat",
-  "body": "Kage viewer should use a Repowise-style product frame: persistent left repository sidebar, repo card, route navigation, top status strip, and main content pages for Overview, Graph, Memory, Owners, Intel, Review, and Data. Keep Kage's memory/code graph differentiation, but present it through professional repo dashboard structure with metrics and side navigation.",
+  "id": "repo:https-github-com-kage-core-kage:decision:viewer-adopts-repo-dashboard-style-repo-sidebar-1778831919783",
+  "title": "Viewer adopts repo-dashboard-style repo sidebar",
+  "summary": "Kage viewer should use a repo-dashboard-style product frame: persistent left repository sidebar, repo card, route navigation, top status strip, and main content pages for Overview, Graph, Memory, Owners, Intel, Review, and Dat",
+  "body": "Kage viewer should use a repo-dashboard-style product frame: persistent left repository sidebar, repo card, route navigation, top status strip, and main content pages for Overview, Graph, Memory, Owners, Intel, Review, and Data. Keep Kage's memory/code graph differentiation, but present it through professional repo dashboard structure with metrics and side navigation.",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -27,7 +27,7 @@
     }
   ],
   "context": {
-    "fact": "Kage viewer should use a Repowise-style product frame: persistent left repository sidebar, repo card, route navigation, top status strip, and main content pages for Overview, Graph, Memory, Owners, Intel, Review, and Data. Keep Kage's memory/code graph differentiation, but present it through professional repo dashboard structure with metrics and side navigation."
+    "fact": "Kage viewer should use a repo-dashboard-style product frame: persistent left repository sidebar, repo card, route navigation, top status strip, and main content pages for Overview, Graph, Memory, Owners, Intel, Review, and Data. Keep Kage's memory/code graph differentiation, but present it through professional repo dashboard structure with metrics and side navigation."
   },
   "freshness": {
     "ttl_days": 365,

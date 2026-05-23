@@ -15,8 +15,7 @@
     "viewer",
     "benchmark",
     "proof-ledger",
-    "source-diversity",
-    "agentmemory-comparison"
+    "source-diversity"
   ],
   "paths": [
     "mcp/viewer/app.js",

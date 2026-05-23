@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:workspace-recall-stays-kage-native-1778788979119",
   "title": "Workspace recall stays Kage-native",
-  "summary": "Kage should borrow Repowise's useful multi repo workspace idea by discovering local sibling git repos, reporting memory coverage, detecting package dependencies, and fanning out recall across indexed repos. Keep packets",
-  "body": "Kage should borrow Repowise's useful multi-repo workspace idea by discovering local sibling git repos, reporting memory coverage, detecting package dependencies, and fanning out recall across indexed repos. Keep packets repo-local and shareable through git; workspace recall should aggregate existing memories rather than copying them or requiring a server database.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js workspace --project . --json; node mcp/dist/cli.js workspace recall 'repowise workspace memory' --project . --json",
+  "summary": "Kage should uses repo-intelligence useful multi repo workspace idea by discovering local sibling git repos, reporting memory coverage, detecting package dependencies, and fanning out recall across indexed repos. Keep packets",
+  "body": "Kage should uses repo-intelligence useful multi-repo workspace idea by discovering local sibling git repos, reporting memory coverage, detecting package dependencies, and fanning out recall across indexed repos. Keep packets repo-local and shareable through git; workspace recall should aggregate existing memories rather than copying them or requiring a server database.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js workspace --project . --json; node mcp/dist/cli.js workspace recall 'repo-intelligence-tool workspace memory' --project . --json",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -14,8 +14,7 @@
     "session-learning",
     "workspace",
     "multi-repo",
-    "recall",
-    "repowise-comparison"
+    "recall"
   ],
   "paths": [
     "mcp/kernel.ts",
@@ -35,8 +34,8 @@
     }
   ],
   "context": {
-    "fact": "Kage should borrow Repowise's useful multi-repo workspace idea by discovering local sibling git repos, reporting memory coverage, detecting package dependencies, and fanning out recall across indexed repos. Keep packets repo-local and shareable through git; workspace recall should aggregate existing memories rather than copying them or requiring a server database.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js workspace --project . --json; node mcp/dist/cli.js workspace recall 'repowise workspace memory' --project . --json",
-    "verification": "npm test --prefix mcp; node mcp/dist/cli.js workspace --project . --json; node mcp/dist/cli.js workspace recall 'repowise workspace memory' --project . --json"
+    "fact": "Kage should uses repo-intelligence useful multi-repo workspace idea by discovering local sibling git repos, reporting memory coverage, detecting package dependencies, and fanning out recall across indexed repos. Keep packets repo-local and shareable through git; workspace recall should aggregate existing memories rather than copying them or requiring a server database.\nVerified by: npm test --prefix mcp; node mcp/dist/cli.js workspace --project . --json; node mcp/dist/cli.js workspace recall 'repo-intelligence-tool workspace memory' --project . --json",
+    "verification": "npm test --prefix mcp; node mcp/dist/cli.js workspace --project . --json; node mcp/dist/cli.js workspace recall 'repo-intelligence-tool workspace memory' --project . --json"
   },
   "freshness": {
     "ttl_days": 365,

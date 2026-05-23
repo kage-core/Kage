@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:kage-handoff-now-treats-observed-sessions-with-durable-distillation-candidates-a",
   "title": "Kage handoff now treats observed sessions with durable distillation candidates as warning-",
-  "summary": "Kage handoff now treats observed sessions with durable distillation candidates as warning level handoff work. This closes an AgentMemory style gap: live agent sessions can contain reusable commands, workflows, decisions,",
-  "body": "Kage handoff now treats observed sessions with durable distillation candidates as warning-level handoff work. This closes an AgentMemory-style gap: live agent sessions can contain reusable commands, workflows, decisions, or issue context, and a teammate should not see handoff as clean until those observations are distilled into reviewable repo memory packets. The viewer Review card and handoff panel now show distillable session counts alongside open memory items, mutations, and lineage.\nVerified by: npm test --prefix mcp; node --check mcp/viewer/app.js; node --check docs/viewer/app.js",
+  "summary": "Kage handoff now treats observed sessions with durable distillation candidates as warning level handoff work. This closes an session-memory gap: live agent sessions can contain reusable commands, workflows, decisions,",
+  "body": "Kage handoff now treats observed sessions with durable distillation candidates as warning-level handoff work. This closes an session-memory gap: live agent sessions can contain reusable commands, workflows, decisions, or issue context, and a teammate should not see handoff as clean until those observations are distilled into reviewable repo memory packets. The viewer Review card and handoff panel now show distillable session counts alongside open memory items, mutations, and lineage.\nVerified by: npm test --prefix mcp; node --check mcp/viewer/app.js; node --check docs/viewer/app.js",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -15,7 +15,6 @@
     "handoff",
     "session-capture",
     "distillation",
-    "agentmemory-comparison",
     "collaboration"
   ],
   "paths": [
@@ -36,7 +35,7 @@
     }
   ],
   "context": {
-    "fact": "Kage handoff now treats observed sessions with durable distillation candidates as warning-level handoff work. This closes an AgentMemory-style gap: live agent sessions can contain reusable commands, workflows, decisions, or issue context, and a teammate should not see handoff as clean until those observations are distilled into reviewable repo memory packets. The viewer Review card and handoff panel now show distillable session counts alongside open memory items, mutations, and lineage.\nVerified by: npm test --prefix mcp; node --check mcp/viewer/app.js; node --check docs/viewer/app.js",
+    "fact": "Kage handoff now treats observed sessions with durable distillation candidates as warning-level handoff work. This closes an session-memory gap: live agent sessions can contain reusable commands, workflows, decisions, or issue context, and a teammate should not see handoff as clean until those observations are distilled into reviewable repo memory packets. The viewer Review card and handoff panel now show distillable session counts alongside open memory items, mutations, and lineage.\nVerified by: npm test --prefix mcp; node --check mcp/viewer/app.js; node --check docs/viewer/app.js",
     "verification": "npm test --prefix mcp; node --check mcp/viewer/app.js; node --check docs/viewer/app.js"
   },
   "freshness": {

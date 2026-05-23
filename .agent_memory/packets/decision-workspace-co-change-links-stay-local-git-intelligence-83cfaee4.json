@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:decision:workspace-co-change-links-stay-local-git-intelligence-1778823600473",
   "title": "Workspace co-change links stay local git intelligence",
-  "summary": "Kage workspace cross repo co change detection should borrow Repowise's useful hidden coupling signal while staying Kage native: parse recent local git logs for sibling repos, match same author commits within a 24 hour wi",
-  "body": "Kage workspace cross-repo co-change detection should borrow Repowise's useful hidden-coupling signal while staying Kage-native: parse recent local git logs for sibling repos, match same-author commits within a 24-hour window, cap large commits, restrict pairs to existing code graph files, and expose frequency/strength/evidence in JSON, CLI text, and viewer summaries without adding a hosted database or network calls.\nVerified by: npm test --prefix mcp; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check; npm pack --dry-run",
+  "summary": "Kage workspace cross repo co change detection should uses repo-intelligence useful hidden coupling signal while staying Kage native: parse recent local git logs for sibling repos, match same author commits within a 24 hour wi",
+  "body": "Kage workspace cross-repo co-change detection should uses repo-intelligence useful hidden-coupling signal while staying Kage-native: parse recent local git logs for sibling repos, match same-author commits within a 24-hour window, cap large commits, restrict pairs to existing code graph files, and expose frequency/strength/evidence in JSON, CLI text, and viewer summaries without adding a hosted database or network calls.\nVerified by: npm test --prefix mcp; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check; npm pack --dry-run",
   "type": "decision",
   "scope": "repo",
   "visibility": "team",
@@ -15,7 +15,6 @@
     "workspace",
     "co-change",
     "git-history",
-    "repowise-comparison",
     "viewer"
   ],
   "paths": [
@@ -39,7 +38,7 @@
     }
   ],
   "context": {
-    "fact": "Kage workspace cross-repo co-change detection should borrow Repowise's useful hidden-coupling signal while staying Kage-native: parse recent local git logs for sibling repos, match same-author commits within a 24-hour window, cap large commits, restrict pairs to existing code graph files, and expose frequency/strength/evidence in JSON, CLI text, and viewer summaries without adding a hosted database or network calls.\nVerified by: npm test --prefix mcp; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check; npm pack --dry-run",
+    "fact": "Kage workspace cross-repo co-change detection should uses repo-intelligence useful hidden-coupling signal while staying Kage-native: parse recent local git logs for sibling repos, match same-author commits within a 24-hour window, cap large commits, restrict pairs to existing code graph files, and expose frequency/strength/evidence in JSON, CLI text, and viewer summaries without adding a hosted database or network calls.\nVerified by: npm test --prefix mcp; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check; npm pack --dry-run",
     "verification": "npm test --prefix mcp; node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check; npm pack --dry-run"
   },
   "freshness": {

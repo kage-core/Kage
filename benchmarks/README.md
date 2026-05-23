@@ -113,7 +113,7 @@ Current local run on 2026-05-17:
 
 ## Coding Memory Quality
 
-`coding-memory-quality.mjs` is an AgentMemory-style coding-memory quality
+`coding-memory-quality.mjs` is a Kage-native coding-memory quality
 benchmark for repo learnings. It creates a labeled 240-packet corpus with
 durable runbooks, decisions, bug causes, code explanations, and hard-negative
 adjacent notes, then measures whether Kage retrieves the labeled packets for 20
