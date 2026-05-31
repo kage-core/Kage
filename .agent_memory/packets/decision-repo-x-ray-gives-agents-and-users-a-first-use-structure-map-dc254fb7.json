@@ -1,0 +1,72 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:repo-x-ray-gives-agents-and-users-a-first-use-structure-map-1780175077969",
+  "title": "Repo X-Ray gives agents and users a first-use structure map",
+  "summary": "Kage now exposes Repo X Ray as a first use orientation layer that combines entry points, core modules, risk signals, tests, memory overlay, and knowledge gaps. The X Ray risk layer must filter generated memory paths such",
+  "body": "Kage now exposes Repo X-Ray as a first-use orientation layer that combines entry points, core modules, risk signals, tests, memory overlay, and knowledge gaps. The X-Ray risk layer must filter generated memory paths such as .agent_memory so the user sees actionable code/module risk, not Kage bookkeeping noise.\nEvidence: npm test --prefix mcp passed 173 tests; browser smoke on http://127.0.0.1:3128/ showed #repoXray visible with 6 layers, script 'I mapped your repo.', no .agent_memory risk noise, and no item overflow after CSS wrapping fix.\nVerified by: npm test --prefix mcp; git diff --check; in-app browser smoke on local viewer",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "repo-xray",
+    "viewer",
+    "first-use",
+    "memory",
+    "risk"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/index.ts",
+    "mcp/daemon.ts",
+    "mcp/cli.ts",
+    "mcp/viewer/app.js",
+    "mcp/viewer/styles.css",
+    "mcp/kernel.test.ts",
+    "mcp/mcp.test.ts",
+    "mcp/daemon.test.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-30T21:04:37.969Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage now exposes Repo X-Ray as a first-use orientation layer that combines entry points, core modules, risk signals, tests, memory overlay, and knowledge gaps. The X-Ray risk layer must filter generated memory paths such as .agent_memory so the user sees actionable code/module risk, not Kage bookkeeping noise.\nEvidence: npm test --prefix mcp passed 173 tests; browser smoke on http://127.0.0.1:3128/ showed #repoXray visible with 6 layers, script 'I mapped your repo.', no .agent_memory risk noise, and no item overflow after CSS wrapping fix.\nVerified by: npm test --prefix mcp; git diff --check; in-app browser smoke on local viewer",
+    "verification": "npm test --prefix mcp passed 173 tests; browser smoke on http://127.0.0.1:3128/ showed #repoXray visible with 6 layers, script 'I mapped your repo.', no .agent_memory risk noise, and no item overflow after CSS wrapping fix."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-30T21:04:37.969Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 159
+  },
+  "created_at": "2026-05-30T21:04:37.969Z",
+  "updated_at": "2026-05-30T21:04:41.095Z"
+}

@@ -28,9 +28,12 @@ import {
   kageModuleHealth,
   kageCapabilityAudit,
   kageProjectProfile,
+  kageRepoXray,
   kageRisk,
   kageSessionCaptureReport,
+  kageSessionLearningLedger,
   kageSessionReplay,
+  kageTeammateBrief,
   kageWorkspace,
   learn,
   memoryInbox,
@@ -70,6 +73,8 @@ export interface DaemonContextReport {
   context_block: string;
   recall: ReturnType<typeof recall>;
   graph: ReturnType<typeof queryGraph>;
+  teammate_brief: ReturnType<typeof kageTeammateBrief>;
+  learning_ledger: ReturnType<typeof kageSessionLearningLedger> | null;
   risk: ReturnType<typeof kageRisk> | null;
   dependency_path: ReturnType<typeof kageDependencyPath> | null;
   validation: ReturnType<typeof validateProject>;
@@ -305,9 +310,22 @@ export function daemonContextReport(projectDir: string, body: Record<string, unk
     sessionId: typeof body.session_id === "string" ? body.session_id : undefined,
     limit: 5,
   });
+  const teammateBrief = kageTeammateBrief(projectDir, {
+    query,
+    targets: explicitTargets,
+    changedFiles,
+    recallResult,
+    riskResult,
+    reconciliation,
+  });
+  const learningLedger = typeof body.session_id === "string" && body.session_id.trim()
+    ? kageSessionLearningLedger(projectDir, { sessionId: body.session_id, limit: 20 })
+    : null;
   const validationText = validation.ok ? "Memory healthy." : `Warnings: ${validation.warnings.join("; ")}`;
   const contextBlock = [
     recallResult.context_block,
+    teammateBrief.context_block,
+    learningLedger ? learningLedger.context_block : "",
     graphResult.context_block ? `\n## Graph Facts\n${graphResult.context_block}` : "",
     riskResult ? riskContextBlock(riskResult) : "",
     dependencyResult ? `\n## Dependency Path\n${dependencyResult.summary}${dependencyResult.path.length ? `\nPath: ${dependencyResult.path.join(" -> ")}` : ""}` : "",
@@ -318,6 +336,8 @@ export function daemonContextReport(projectDir: string, body: Record<string, unk
     context_block: contextBlock,
     recall: recallResult,
     graph: graphResult,
+    teammate_brief: teammateBrief,
+    learning_ledger: learningLedger,
     risk: riskResult,
     dependency_path: dependencyResult,
     validation,
@@ -360,9 +380,11 @@ export function daemonDoctor(projectDir: string): DaemonDoctor {
       `POST http://${DEFAULT_HOST}:${restPort}/kage/feedback`,
       `POST http://${DEFAULT_HOST}:${restPort}/kage/observe`,
       `POST http://${DEFAULT_HOST}:${restPort}/kage/distill`,
+      `GET http://${DEFAULT_HOST}:${restPort}/kage/learning-ledger`,
       `GET http://${DEFAULT_HOST}:${restPort}/kage/replay`,
       `GET http://${DEFAULT_HOST}:${restPort}/kage/setup-doctor`,
       `GET http://${DEFAULT_HOST}:${restPort}/kage/profile`,
+      `GET http://${DEFAULT_HOST}:${restPort}/kage/xray`,
       `GET http://${DEFAULT_HOST}:${restPort}/kage/capabilities`,
       `GET http://${DEFAULT_HOST}:${restPort}/kage/context-slots`,
       `POST http://${DEFAULT_HOST}:${restPort}/kage/context-slots`,
@@ -459,6 +481,10 @@ export async function startDaemon(projectDir: string, options: { host?: string; 
         json(res, 200, kageProjectProfile(projectDir));
         return;
       }
+      if (req.method === "GET" && url.pathname === "/kage/xray") {
+        json(res, 200, kageRepoXray(projectDir));
+        return;
+      }
       if (req.method === "GET" && url.pathname === "/kage/capabilities") {
         json(res, 200, kageCapabilityAudit(projectDir));
         return;
@@ -467,6 +493,13 @@ export async function startDaemon(projectDir: string, options: { host?: string; 
         json(res, 200, kageSessionReplay(projectDir, {
           sessionId: url.searchParams.get("session") ?? undefined,
           limit: Number(url.searchParams.get("limit") ?? 200),
+        }));
+        return;
+      }
+      if (req.method === "GET" && url.pathname === "/kage/learning-ledger") {
+        json(res, 200, kageSessionLearningLedger(projectDir, {
+          sessionId: url.searchParams.get("session") ?? undefined,
+          limit: Number(url.searchParams.get("limit") ?? 50),
         }));
         return;
       }
@@ -618,6 +651,7 @@ export async function startViewer(projectDir: string, options: { host?: string; 
   const benchmarkPath = join(reportsDir, "benchmark.json");
   const contributorsPath = join(reportsDir, "contributors.json");
   const profilePath = join(reportsDir, "profile.json");
+  const xrayPath = join(reportsDir, "xray.json");
   const capabilitiesPath = join(reportsDir, "capabilities.json");
   const slotsPath = join(reportsDir, "context-slots.json");
   const decisionsPath = join(reportsDir, "decisions.json");
@@ -646,6 +680,7 @@ export async function startViewer(projectDir: string, options: { host?: string; 
     writeFileSync(benchmarkPath, JSON.stringify(viewerBenchmarkReport(projectDir), null, 2));
     writeFileSync(contributorsPath, JSON.stringify(kageContributors(projectDir), null, 2));
     writeFileSync(profilePath, JSON.stringify(kageProjectProfile(projectDir), null, 2));
+    writeFileSync(xrayPath, JSON.stringify(kageRepoXray(projectDir), null, 2));
     writeFileSync(capabilitiesPath, JSON.stringify(kageCapabilityAudit(projectDir), null, 2));
     writeFileSync(slotsPath, JSON.stringify(kageContextSlots(projectDir), null, 2));
     writeFileSync(decisionsPath, JSON.stringify(kageDecisionIntelligence(projectDir), null, 2));
@@ -666,7 +701,7 @@ export async function startViewer(projectDir: string, options: { host?: string; 
     // non-fatal: viewer will show 404 for reports if generation fails
   }
 
-  const url = `http://${host}:${port}/viewer/index.html?graph=${encodeURIComponent(graphPath)}&code=${encodeURIComponent(codePath)}&metrics=${encodeURIComponent(metricsPath)}&inbox=${encodeURIComponent(inboxPath)}&review=${encodeURIComponent(reviewPath)}&pending=${encodeURIComponent(pendingDir)}&quality=${encodeURIComponent(qualityPath)}&benchmark=${encodeURIComponent(benchmarkPath)}&contributors=${encodeURIComponent(contributorsPath)}&profile=${encodeURIComponent(profilePath)}&capabilities=${encodeURIComponent(capabilitiesPath)}&slots=${encodeURIComponent(slotsPath)}&decisions=${encodeURIComponent(decisionsPath)}&risk=${encodeURIComponent(riskPath)}&moduleHealth=${encodeURIComponent(moduleHealthPath)}&graphInsights=${encodeURIComponent(graphInsightsPath)}&workspace=${encodeURIComponent(workspacePath)}&sessions=${encodeURIComponent(sessionsPath)}&replay=${encodeURIComponent(replayPath)}&memoryAccess=${encodeURIComponent(memoryAccessPath)}&memoryAudit=${encodeURIComponent(memoryAuditPath)}&handoff=${encodeURIComponent(handoffPath)}&lifecycle=${encodeURIComponent(lifecyclePath)}&timeline=${encodeURIComponent(timelinePath)}&lineage=${encodeURIComponent(lineagePath)}&setup=${encodeURIComponent(setupPath)}&view=code`;
+  const url = `http://${host}:${port}/viewer/index.html?graph=${encodeURIComponent(graphPath)}&code=${encodeURIComponent(codePath)}&metrics=${encodeURIComponent(metricsPath)}&inbox=${encodeURIComponent(inboxPath)}&review=${encodeURIComponent(reviewPath)}&pending=${encodeURIComponent(pendingDir)}&quality=${encodeURIComponent(qualityPath)}&benchmark=${encodeURIComponent(benchmarkPath)}&contributors=${encodeURIComponent(contributorsPath)}&profile=${encodeURIComponent(profilePath)}&xray=${encodeURIComponent(xrayPath)}&capabilities=${encodeURIComponent(capabilitiesPath)}&slots=${encodeURIComponent(slotsPath)}&decisions=${encodeURIComponent(decisionsPath)}&risk=${encodeURIComponent(riskPath)}&moduleHealth=${encodeURIComponent(moduleHealthPath)}&graphInsights=${encodeURIComponent(graphInsightsPath)}&workspace=${encodeURIComponent(workspacePath)}&sessions=${encodeURIComponent(sessionsPath)}&replay=${encodeURIComponent(replayPath)}&memoryAccess=${encodeURIComponent(memoryAccessPath)}&memoryAudit=${encodeURIComponent(memoryAuditPath)}&handoff=${encodeURIComponent(handoffPath)}&lifecycle=${encodeURIComponent(lifecyclePath)}&timeline=${encodeURIComponent(timelinePath)}&lineage=${encodeURIComponent(lineagePath)}&setup=${encodeURIComponent(setupPath)}&view=code`;
 
   const server = createServer((req, res) => {
     const requestUrl = new URL(req.url ?? "/", `http://${host}:${port}`);

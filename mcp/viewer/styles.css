@@ -464,6 +464,145 @@ body.viewer-page-data .graph-panel {
 .dashboard-stat-warn strong { color: var(--warn); }
 .dashboard-stat-code strong { color: var(--code); }
 
+.repo-xray {
+  margin-bottom: 22px;
+  padding: 22px;
+  border: 1px solid rgba(106, 215, 255, 0.20);
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, rgba(7, 19, 18, 0.92), rgba(10, 14, 24, 0.76));
+}
+
+.repo-xray-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 10px;
+}
+
+.repo-xray-head span {
+  display: block;
+  color: var(--code);
+  font-size: 11px;
+  font-weight: 820;
+  text-transform: uppercase;
+}
+
+.repo-xray-head h2 {
+  margin-top: 5px;
+  color: var(--text);
+  font-size: 24px;
+  line-height: 1.12;
+}
+
+.repo-xray-head strong {
+  flex: 0 0 auto;
+  color: var(--terminal-strong);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.repo-xray > p {
+  max-width: 900px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.repo-xray-layers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.repo-xray-layer {
+  min-height: 190px;
+  padding: 14px;
+  border: 1px solid rgba(65, 255, 143, 0.12);
+  border-radius: 8px;
+  background: rgba(6, 16, 11, 0.76);
+}
+
+.repo-xray-layer-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.repo-xray-layer-head strong {
+  display: block;
+  color: var(--terminal-strong);
+  font-size: 13px;
+}
+
+.repo-xray-layer-head span {
+  display: block;
+  margin-top: 4px;
+  color: var(--terminal-dim);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.repo-xray-layer-head em {
+  color: var(--code);
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 820;
+}
+
+.repo-xray-items {
+  display: grid;
+  gap: 8px;
+}
+
+.repo-xray-item {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  align-items: stretch;
+  justify-content: stretch;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(65, 255, 143, 0.10);
+  border-radius: 6px;
+  background: rgba(1, 8, 6, 0.56);
+  color: var(--muted);
+  text-align: left;
+  white-space: normal;
+}
+
+.repo-xray-item span { min-width: 0; }
+
+.repo-xray-item strong {
+  display: block;
+  color: var(--text);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.repo-xray-item em {
+  display: block;
+  margin-top: 3px;
+  color: var(--terminal-dim);
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.repo-xray-item i {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--terminal-strong);
+}
+
+.repo-xray-item-watch i { background: var(--warn); }
+.repo-xray-item-risk i { background: var(--danger); }
+
 .dashboard-charts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2142,7 +2281,15 @@ body.viewer-page-memory .memory-list {
   padding-top: 8px;
   color: var(--muted);
   font-size: 12px;
+  line-height: 1.35;
   overflow-wrap: anywhere;
+}
+.intel-card li strong {
+  display: block;
+  margin-bottom: 2px;
+}
+.intel-card li span {
+  display: block;
 }
 .intel-card strong { color: var(--terminal-strong); }
 .intel-section {
@@ -2545,6 +2692,7 @@ body.viewer-page-data .debug-overview {
   .dashboard-hero { grid-template-columns: 1fr; }
   .dashboard-actions { justify-content: flex-start; }
   .dashboard-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .repo-xray-layers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dashboard-charts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .lifecycle-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -2584,7 +2732,7 @@ body.viewer-page-data .debug-overview {
   .app-header p { font-size: 11px; }
   .dashboard-panel { min-height: 560px; padding: 14px; }
   .dashboard-hero h2 { font-size: 26px; }
-  .dashboard-stats, .dashboard-charts, .dashboard-grid { grid-template-columns: 1fr; }
+  .dashboard-stats, .repo-xray-layers, .dashboard-charts, .dashboard-grid { grid-template-columns: 1fr; }
   .dashboard-card { min-height: 0; }
   body.viewer-page-graph .control-panel { grid-template-columns: 1fr; }
   body.viewer-page-graph .workspace-shell { max-height: none; }

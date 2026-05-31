@@ -51,6 +51,7 @@ import {
   kageMetrics,
   kageModuleHealth,
   kageProjectProfile,
+  kageRepoXray,
   kageWorkspace,
   kageWorkspaceRecall,
   kageReviewerSuggestions,
@@ -134,6 +135,7 @@ Usage:
   kage supersede --project <dir> --packet <old-id> --replacement <new-id> [--reason <text>] [--json]
   kage contributors --project <dir> [--json]
   kage profile --project <dir> [--json]
+  kage xray --project <dir> [--json]
   kage capabilities --project <dir> [--json]
   kage decisions --project <dir> [--json]
   kage module-health --project <dir> [--json]
@@ -728,6 +730,25 @@ async function main(): Promise<void> {
       for (const commandItem of result.run_commands.slice(0, 6)) console.log(`- ${commandItem.name}: ${commandItem.command}`);
     }
     if (result.next_actions.length) console.log(`Next: ${result.next_actions[0]}`);
+    if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
+    return;
+  }
+
+  if (command === "xray" || command === "repo-xray") {
+    const result = kageRepoXray(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage Repo X-Ray: ${result.summary}`);
+    for (const line of result.first_use_script) console.log(`- ${line}`);
+    for (const layer of result.layers) {
+      console.log(`\n${layer.title}: ${layer.summary}`);
+      for (const item of layer.items.slice(0, 5)) {
+        console.log(`- ${item.path}: ${item.evidence.slice(0, 2).join("; ")}`);
+      }
+    }
+    if (result.next_actions.length) console.log(`\nNext: ${result.next_actions[0]}`);
     if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
     return;
   }

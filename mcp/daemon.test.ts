@@ -74,9 +74,26 @@ test("viewer defaults keep advanced diagnostics out of normal workflows", () => 
   assert.match(rule("body.viewer-page-graph .graph-insights-panel"), /display:\s*none/);
   assert.doesNotMatch(graphHtml, /<span>Render Mode<\/span>/);
   assert.match(app, /cards\.concat\(tailCards\)\.slice\(0,\s*3\)/);
-  assert.match(app, /riskFirst = new Set\(\["Change Risk", "Module Health", "Decision Memory", "Graph Insights", "Memory Quality"\]\)/);
+  assert.match(app, /riskFirst = new Set\(\["Before You Edit", "Change Risk", "Module Health", "Decision Memory", "Graph Insights", "Memory Quality"\]\)/);
+  assert.match(app, /userFacingRiskTargets\(risk\)/);
   assert.match(app, /primaryCards = normalizedCards\.filter/);
   assert.match(app, /intel-deep-drawer/);
+});
+
+test("viewer labels separate inbox blockers from handoff review work", () => {
+  const app = readFileSync(join(process.cwd(), "viewer", "app.js"), "utf8");
+  const htmlFiles = ["index.html", "graph.html", "intel.html", "memory.html", "review.html", "owners.html", "data.html"];
+
+  for (const file of htmlFiles) {
+    const html = readFileSync(join(process.cwd(), "viewer", file), "utf8");
+    assert.doesNotMatch(html, /Open risks/);
+    assert.match(html, /Open edit checklist/);
+  }
+
+  assert.doesNotMatch(app, /openCount = Number\(firstNumber\(handoff\.totals\.open_items/);
+  assert.doesNotMatch(app, /blockers = Number\(firstNumber\(handoff\.totals\.open_items/);
+  assert.match(app, /handoffReviewCount/);
+  assert.match(app, /Inbox: clear/);
 });
 
 test("viewer benchmark report combines local gates with coding memory retrieval proof", () => {
@@ -124,16 +141,24 @@ test("daemon doctor advertises complete REST memory operations", () => {
   assert.ok(report.endpoints.includes("POST http://127.0.0.1:3111/kage/feedback"));
   assert.ok(report.endpoints.includes("GET http://127.0.0.1:3111/kage/setup-doctor"));
   assert.ok(report.endpoints.includes("GET http://127.0.0.1:3111/kage/profile"));
+  assert.ok(report.endpoints.includes("GET http://127.0.0.1:3111/kage/xray"));
   assert.ok(report.endpoints.includes("GET http://127.0.0.1:3111/kage/capabilities"));
   assert.ok(report.endpoints.includes("GET http://127.0.0.1:3111/kage/context-slots"));
   assert.ok(report.endpoints.includes("POST http://127.0.0.1:3111/kage/context-slots"));
   assert.ok(report.endpoints.includes("GET http://127.0.0.1:3111/kage/replay"));
+  assert.ok(report.endpoints.includes("GET http://127.0.0.1:3111/kage/learning-ledger"));
 });
 
 test("daemon context report gives REST agents combined memory graph and risk context", () => {
   const project = mkdtempSync(join(tmpdir(), "kage-daemon-context-"));
   mkdirSync(join(project, "src"), { recursive: true });
+  mkdirSync(join(project, "test"), { recursive: true });
   writeFileSync(join(project, "src", "auth.ts"), "export function verifyToken(token: string) { return token.length > 0; }\n", "utf8");
+  writeFileSync(
+    join(project, "test", "auth.test.ts"),
+    "import { verifyToken } from '../src/auth.js';\ntest('verifyToken accepts non-empty tokens', () => verifyToken('token'));\n",
+    "utf8"
+  );
   const captured = capture({
     projectDir: project,
     title: "Auth token verification gotcha",
@@ -152,6 +177,9 @@ test("daemon context report gives REST agents combined memory graph and risk con
   });
 
   assert.match(report.context_block, /# Kage Context/);
+  assert.match(report.context_block, /Teammate Brief/);
+  assert.match(report.context_block, /Verification Contract/);
+  assert.match(report.context_block, /test\/auth\.test\.ts/);
   assert.match(report.context_block, /Auth token verification gotcha/);
   assert.equal(report.recall.results.some((item) => item.packet.title === "Auth token verification gotcha"), true);
   assert.equal(report.graph.entities.length + report.graph.edges.length > 0, true);

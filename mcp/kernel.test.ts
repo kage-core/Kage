@@ -61,6 +61,7 @@ import {
   kageMetrics,
   kageModuleHealth,
   kageProjectProfile,
+  kageRepoXray,
   kageReviewerSuggestions,
   kageWorkspace,
   kageWorkspaceRecall,
@@ -1023,6 +1024,11 @@ test("risk report combines code dependents with git ownership and co-change sign
   assert.equal(target.git.co_change_partners.some((partner) => partner.file_path === "src/app.js"), true);
   assert.equal(target.co_change_warnings.some((partner) => partner.file_path === "src/app.js" && partner.included_in_change === false), true);
   assert.equal(report.ownership_silos.some((silo) => silo.file_path === "src/core.js" && silo.primary_owner === "Test <test@example.com>"), false);
+
+  writeFileSync(join(project, "src", "core.js"), "export function core() { return 3; }\n", "utf8");
+  const changedReport = kageRisk(project);
+  assert.ok(changedReport.targets["src/core.js"]);
+  assert.equal(changedReport.targets["rc/core.js"], undefined);
 });
 
 test("dependency path reports forward reverse and undirected code graph connections", () => {
@@ -1271,6 +1277,40 @@ test("graph insights report central files cycles communities and entry flows", (
   assert.equal(report.dependency_cycles.some((cycle) => cycle.files.includes("src/a.js") && cycle.files.includes("src/b.js")), true);
   assert.equal(report.communities.some((community) => community.files.includes("src/index.js") && community.files.includes("src/server.js")), true);
   assert.equal(report.entry_flows.some((flow) => flow.entry === "src/server.js" && flow.path.includes("src/a.js")), true);
+});
+
+test("repo x-ray gives first-use code structure map", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  mkdirSync(join(project, "test"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ scripts: { test: "node --test" } }), "utf8");
+  writeFileSync(join(project, "src", "auth.js"), "export function verifyToken(token) { return token.length > 0; }\n", "utf8");
+  writeFileSync(join(project, "src", "server.js"), "import { verifyToken } from './auth.js';\nconst app = { get() {} };\nfunction handler(req) { return verifyToken(req.token); }\napp.get('/health', handler);\n", "utf8");
+  writeFileSync(join(project, "test", "auth.test.js"), "import { verifyToken } from '../src/auth.js';\ntest('auth', () => verifyToken('token'));\n", "utf8");
+  commitAll(project, "auth server");
+  const captured = capture({
+    projectDir: project,
+    title: "Auth token invariant",
+    body: "When editing src/auth.js, keep token verification side-effect free because middleware callers retry requests.",
+    type: "decision",
+    paths: ["src/auth.js"],
+    tags: ["auth"],
+  });
+  assert.equal(captured.ok, true);
+  buildStructuralIndex(project);
+  buildCodeGraph(project, { force: true });
+
+  const report = kageRepoXray(project);
+
+  assert.equal(report.schema_version, 1);
+  assert.ok(report.layers.some((layer) => layer.id === "entry_points" && layer.items.some((item) => item.path === "src/server.js")));
+  assert.ok(report.layers.some((layer) => layer.id === "core_modules" && layer.items.some((item) => item.path === "src/auth.js")));
+  assert.ok(report.layers.some((layer) => layer.id === "test_map" && layer.items.some((item) => item.path === "test/auth.test.js")));
+  assert.ok(report.layers.some((layer) => layer.id === "memory_overlay" && layer.items.some((item) => item.path === "src/auth.js")));
+  assert.ok(report.layers.some((layer) => layer.id === "change_risk" && layer.items.every((item) => !item.path.startsWith(".agent_memory/"))));
+  assert.ok(report.first_use_script.some((line) => /I mapped your repo/.test(line)));
+  assert.ok(report.next_actions.length);
 });
 
 test("workspace summarizes sibling repos and recalls across repo memory", () => {
@@ -3414,4 +3454,39 @@ test("pr check blocks when observed session learnings still need distillation", 
   assert.equal(check.ok, false);
   assert.match(check.errors.join("\n"), /distillable session/);
   assert.ok(check.required_actions.some((action) => action.includes("kage distill --project . --session pr-session")));
+});
+
+test("pr check ignores stale packets that were already superseded", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "retry.ts"), "export const retryMode = 'callback-idempotency';\n", "utf8");
+  commitAll(project, "initial retry");
+  const oldMemory = capture({
+    projectDir: project,
+    title: "Retry mode stays callback based",
+    body: "Retry mode uses callback idempotency. Verify retry behavior before changing src/retry.ts.",
+    type: "decision",
+    paths: ["src/retry.ts"],
+  });
+  assert.equal(oldMemory.ok, true);
+  assert.equal(refreshProject(project).ok, true);
+
+  writeFileSync(join(project, "src", "retry.ts"), "export const retryMode = 'session-state';\n", "utf8");
+  const replacement = capture({
+    projectDir: project,
+    title: "Retry mode now uses session state",
+    body: "Retry mode now uses session state. Verify retry behavior before changing src/retry.ts.",
+    type: "decision",
+    paths: ["src/retry.ts"],
+  });
+  assert.equal(replacement.ok, true);
+  const supersede = supersedeMemory(project, oldMemory.packet!.id, replacement.packet!.id, "Retry mode changed and memory was replaced.");
+  assert.equal(supersede.ok, true);
+  assert.equal(refreshProject(project).stale_packets.some((packet) => packet.id === oldMemory.packet!.id), true);
+
+  const check = prCheck(project);
+
+  assert.equal(check.stale_packets.some((packet) => packet.id === oldMemory.packet!.id), false);
+  assert.equal(check.errors.some((error) => error.includes("stale memory")), false);
 });

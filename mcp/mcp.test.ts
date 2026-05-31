@@ -31,6 +31,7 @@ test("MCP lists repo-local memory tools", () => {
   assert.equal(names.includes("kage_reviewers"), true);
   assert.equal(names.includes("kage_contributors"), true);
   assert.equal(names.includes("kage_profile"), true);
+  assert.equal(names.includes("kage_xray"), true);
   assert.equal(names.includes("kage_capabilities"), true);
   assert.equal(names.includes("kage_context_slots"), true);
   assert.equal(names.includes("kage_context_slot_set"), true);
@@ -64,6 +65,7 @@ test("MCP lists repo-local memory tools", () => {
   assert.equal(names.includes("kage_capture"), true);
   assert.equal(names.includes("kage_observe"), true);
   assert.equal(names.includes("kage_distill"), true);
+  assert.equal(names.includes("kage_learning_ledger"), true);
   assert.equal(names.includes("kage_session_replay"), true);
   assert.equal(names.includes("kage_feedback"), true);
   assert.equal(names.includes("kage_install_policy"), true);
@@ -100,6 +102,92 @@ test("MCP kage_context includes risk and dependency path when file targets are p
   assert.match(text, /Risk Signals/);
   assert.match(text, /Dependency Path/);
   assert.match(text, /src\/app\.js -> src\/core\.js/);
+});
+
+test("MCP kage_context returns a teammate brief with verification obligations", async () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  mkdirSync(join(project, "test"), { recursive: true });
+  writeFileSync(join(project, "src", "server.js"), "export function createApp() { return 'ok'; }\n", "utf8");
+  writeFileSync(
+    join(project, "test", "server.test.js"),
+    "import test from 'node:test';\nimport { createApp } from '../src/server.js';\ntest('createApp routes tasks', () => createApp());\n",
+    "utf8"
+  );
+
+  const result = await callTool("kage_context", {
+    project_dir: project,
+    query: "change src/server.js safely",
+    targets: ["src/server.js"],
+    changed_files: ["src/server.js"],
+  });
+  const text = textContent(result);
+  assert.match(text, /Teammate Brief/);
+  assert.match(text, /Verification Contract/);
+  assert.match(text, /test\/server\.test\.js/);
+  assert.match(text, /Next Actions/);
+});
+
+test("MCP kage_xray returns first-use repo map", async () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  mkdirSync(join(project, "test"), { recursive: true });
+  writeFileSync(join(project, "src", "server.js"), "const app = { get() {} };\nexport function createApp() { return app; }\napp.get('/health', createApp);\n", "utf8");
+  writeFileSync(join(project, "test", "server.test.js"), "import { createApp } from '../src/server.js';\ntest('createApp', () => createApp());\n", "utf8");
+
+  const result = await callTool("kage_xray", { project_dir: project });
+  const report = JSON.parse(textContent(result));
+
+  assert.equal(report.schema_version, 1);
+  assert.ok(report.layers.some((layer: { id: string; items: Array<{ path: string }> }) => layer.id === "entry_points" && layer.items.some((item) => item.path === "src/server.js")));
+  assert.ok(report.first_use_script.some((line: string) => /I mapped your repo/.test(line)));
+});
+
+test("MCP kage_learning_ledger classifies what agents should save", async () => {
+  const project = tempProject();
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
+  await callTool("kage_observe", {
+    project_dir: project,
+    type: "command_result",
+    session_id: "ledger-session",
+    command: "npm test -- webhooks",
+    exit_code: 0,
+    summary: "Use this when changing webhook signature verification because the default suite skips signed payload replay.",
+  });
+  await callTool("kage_observe", {
+    project_dir: project,
+    type: "tool_use",
+    session_id: "ledger-session",
+    tool: "read",
+    summary: "Read package metadata.",
+  });
+  await callTool("kage_observe", {
+    project_dir: project,
+    type: "command_result",
+    session_id: "ledger-session",
+    command: "npm test",
+    exit_code: 1,
+  });
+
+  const result = await callTool("kage_learning_ledger", {
+    project_dir: project,
+    session_id: "ledger-session",
+  });
+  const ledger = JSON.parse(textContent(result));
+  assert.equal(ledger.totals.save_candidates, 1);
+  assert.equal(ledger.totals.ignore_items, 1);
+  assert.equal(ledger.totals.needs_evidence, 1);
+  assert.equal(ledger.sessions[0].decisions.some((item: { disposition: string; memory_type?: string }) => item.disposition === "save" && item.memory_type === "runbook"), true);
+
+  const context = await callTool("kage_context", {
+    project_dir: project,
+    query: "finish webhook verification work",
+    session_id: "ledger-session",
+  });
+  const text = textContent(context);
+  assert.match(text, /Session Learning Ledger/);
+  assert.match(text, /Save candidates: 1/);
+  assert.match(text, /Needs evidence: 1/);
 });
 
 test("MCP kage_recall returns agent-ready context", async () => {
