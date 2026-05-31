@@ -1,0 +1,7 @@
+# Pilot task selection for the Kage ablation.
+#
+# Leave as AUTO to let run_ablation.py deterministically sample the first N
+# tasks (grouped by repo so continual-learning can accumulate). To pin specific
+# SWE-bench Verified instance_ids instead, list them one per line below and
+# remove AUTO. Unknown ids are ignored against the loaded dataset.
+AUTO

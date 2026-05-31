@@ -1,0 +1,3 @@
+anthropic>=0.40
+datasets>=2.19
+swebench>=2.1

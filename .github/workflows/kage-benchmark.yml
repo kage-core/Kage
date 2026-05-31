@@ -1,0 +1,113 @@
+name: Kage Benchmark (SWE-bench ablation)
+
+# Manually triggered. Runs the controlled memory ablation from benchmark/ on
+# SWE-bench Verified: same fixed agent scaffold, Kage memory on vs off, scored
+# by the official SWE-bench harness (Docker). Produces a resolution / tokens /
+# time delta table in the job summary and as an artifact.
+#
+# Requires repo secret ANTHROPIC_API_KEY. Keep `limit` small — each task builds
+# a multi-GB Docker image and makes live model calls (real API spend).
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Number of tasks (grouped by repo). Start tiny."
+        required: true
+        default: "3"
+      model:
+        description: "Anthropic model id"
+        required: true
+        default: "claude-sonnet-4-6"
+
+jobs:
+  ablation:
+    name: Memory ablation pilot
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      RUN: results/ci
+      MODEL: ${{ github.event.inputs.model }}
+      LIMIT: ${{ github.event.inputs.limit }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL
+          docker image prune -af || true
+          df -h
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+
+      - name: Build and link kage CLI
+        working-directory: mcp
+        run: |
+          npm ci && npm run build
+          npm link            # puts `kage` on PATH for the kage arm
+          kage --help | head -1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install benchmark deps
+        working-directory: benchmark
+        run: pip install -r requirements.txt
+
+      - name: Smoke check (no model, no Docker)
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        working-directory: benchmark
+        run: python smoke.py
+
+      - name: Generate predictions (both arms)
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        working-directory: benchmark
+        run: python run_ablation.py --arm both --limit "${LIMIT}" --out "${RUN}"
+
+      - name: Score control (official harness, Docker)
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        working-directory: benchmark
+        run: bash score.sh control "${RUN}"
+
+      - name: Score kage (official harness, Docker)
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        working-directory: benchmark
+        run: bash score.sh kage "${RUN}"
+
+      - name: Build report
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        working-directory: benchmark
+        run: |
+          python report.py "${RUN}"
+          {
+            echo "## Kage memory ablation — SWE-bench Verified (pilot, limit=${LIMIT})";
+            echo;
+            cat "${RUN}/report.md";
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail if no API key
+        if: ${{ env.ANTHROPIC_API_KEY == '' }}
+        run: |
+          echo "::error::Set the ANTHROPIC_API_KEY repo secret to run the benchmark." >&2
+          exit 1
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kage-ablation-results
+          path: |
+            benchmark/results/ci/preds_*.jsonl
+            benchmark/results/ci/metrics_*.json
+            benchmark/results/ci/report.md
+          if-no-files-found: ignore
