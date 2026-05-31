@@ -5,20 +5,27 @@ name: Kage Benchmark (SWE-bench ablation)
 # by the official SWE-bench harness (Docker). Produces a resolution / tokens /
 # time delta table in the job summary and as an artifact.
 #
-# Requires repo secret ANTHROPIC_API_KEY. Keep `limit` small — each task builds
-# a multi-GB Docker image and makes live model calls (real API spend).
+# Requires a repo secret for the chosen provider: OPENAI_API_KEY (default) or
+# ANTHROPIC_API_KEY. Keep `limit` small — each task builds a multi-GB Docker
+# image and makes live model calls (real API spend).
 
 on:
   workflow_dispatch:
     inputs:
+      provider:
+        description: "Agent model provider"
+        required: true
+        default: "openai"
+        type: choice
+        options: [openai, anthropic]
       limit:
         description: "Number of tasks (grouped by repo). Start tiny."
         required: true
         default: "3"
       model:
-        description: "Anthropic model id"
-        required: true
-        default: "claude-sonnet-4-6"
+        description: "Model id (blank = provider default: gpt-4o / claude-sonnet-4-6)"
+        required: false
+        default: ""
 
 jobs:
   ablation:
@@ -27,9 +34,12 @@ jobs:
     timeout-minutes: 120
     env:
       RUN: results/ci
+      PROVIDER: ${{ github.event.inputs.provider }}
       MODEL: ${{ github.event.inputs.model }}
       LIMIT: ${{ github.event.inputs.limit }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      KEY_PRESENT: ${{ (github.event.inputs.provider == 'openai' && secrets.OPENAI_API_KEY != '') || (github.event.inputs.provider == 'anthropic' && secrets.ANTHROPIC_API_KEY != '') }}
 
     steps:
       - name: Checkout
@@ -65,27 +75,27 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Smoke check (no model, no Docker)
-        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        if: ${{ env.KEY_PRESENT == 'true' }}
         working-directory: benchmark
         run: python smoke.py
 
       - name: Generate predictions (both arms)
-        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        if: ${{ env.KEY_PRESENT == 'true' }}
         working-directory: benchmark
         run: python run_ablation.py --arm both --limit "${LIMIT}" --out "${RUN}"
 
       - name: Score control (official harness, Docker)
-        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        if: ${{ env.KEY_PRESENT == 'true' }}
         working-directory: benchmark
         run: bash score.sh control "${RUN}"
 
       - name: Score kage (official harness, Docker)
-        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        if: ${{ env.KEY_PRESENT == 'true' }}
         working-directory: benchmark
         run: bash score.sh kage "${RUN}"
 
       - name: Build report
-        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        if: ${{ env.KEY_PRESENT == 'true' }}
         working-directory: benchmark
         run: |
           python report.py "${RUN}"
@@ -96,9 +106,9 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail if no API key
-        if: ${{ env.ANTHROPIC_API_KEY == '' }}
+        if: ${{ env.KEY_PRESENT != 'true' }}
         run: |
-          echo "::error::Set the ANTHROPIC_API_KEY repo secret to run the benchmark." >&2
+          echo "::error::Set the ${PROVIDER}_API_KEY repo secret (upper-cased) to run the benchmark." >&2
           exit 1
 
       - name: Upload results

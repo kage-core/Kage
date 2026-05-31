@@ -9,11 +9,10 @@ the measured delta is attributable to memory, not to scaffold cleverness.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import time
 from dataclasses import dataclass, field
-
-from anthropic import Anthropic
 
 SYSTEM = """You are an autonomous software engineer fixing a real GitHub issue.
 
@@ -62,76 +61,107 @@ def _run(cmd: str, cwd: str, timeout: int = 120) -> str:
         return f"<command timed out after {timeout}s>"
 
 
+def _build_prompt(problem_statement: str, extra_context: str | None) -> str:
+    text = f"# Issue to fix\n\n{problem_statement}\n"
+    if extra_context:
+        text += (
+            "\n# Repository memory (recalled by Kage — may speed up the fix)\n\n"
+            f"{extra_context}\n"
+        )
+    return text
+
+
 def run_task(
     *,
     repo_dir: str,
     problem_statement: str,
     model: str,
+    provider: str | None = None,
     max_steps: int = 40,
     extra_context: str | None = None,
-    client: Anthropic | None = None,
 ) -> TaskResult:
     """Drive the fixed scaffold on one task. Returns patch + usage metrics.
 
-    `extra_context` is the ONLY arm-dependent input: empty for `control`,
-    a Kage-recalled context block for the `kage` arm.
+    The provider/model is just the agent's driver — the ablation's independent
+    variable is `extra_context` (Kage on vs off), so any provider is valid.
+    `extra_context` is empty for `control`, a Kage context block for `kage`.
     """
-    client = client or Anthropic()
-    system = [
-        {
-            "type": "text",
-            "text": SYSTEM.format(repo_dir=repo_dir),
-            "cache_control": {"type": "ephemeral"},
-        }
-    ]
-
-    user_text = f"# Issue to fix\n\n{problem_statement}\n"
-    if extra_context:
-        user_text += (
-            "\n# Repository memory (recalled by Kage — may speed up the fix)\n\n"
-            f"{extra_context}\n"
-        )
-
-    messages = [{"role": "user", "content": user_text}]
+    provider = (provider or os.environ.get("PROVIDER", "openai")).lower()
+    runner = _run_openai if provider == "openai" else _run_anthropic
     result = TaskResult(patch="")
     t0 = time.time()
+    runner(
+        repo_dir=repo_dir, model=model, max_steps=max_steps,
+        user_text=_build_prompt(problem_statement, extra_context), result=result,
+    )
+    result.wall_clock_s = round(time.time() - t0, 2)
+    # The prediction is the working-tree diff produced by the agent.
+    result.patch = _run("git add -A && git diff --cached", cwd=repo_dir, timeout=60)
+    return result
 
+
+def _run_anthropic(*, repo_dir, model, max_steps, user_text, result):
+    from anthropic import Anthropic
+
+    client = Anthropic()
+    system = [{"type": "text", "text": SYSTEM.format(repo_dir=repo_dir),
+               "cache_control": {"type": "ephemeral"}}]
+    messages = [{"role": "user", "content": user_text}]
     for step in range(max_steps):
         resp = client.messages.create(
-            model=model,
-            max_tokens=4096,
-            system=system,
-            tools=[BASH_TOOL],
-            messages=messages,
+            model=model, max_tokens=4096, system=system, tools=[BASH_TOOL], messages=messages
         )
         u = resp.usage
         result.prompt_tokens += u.input_tokens
         result.completion_tokens += u.output_tokens
         result.cache_read_tokens += getattr(u, "cache_read_input_tokens", 0) or 0
         result.steps = step + 1
-
         messages.append({"role": "assistant", "content": resp.content})
-
         tool_uses = [b for b in resp.content if b.type == "tool_use"]
-        texts = [b.text for b in resp.content if b.type == "text"]
-        result.transcript.append({"step": step, "text": " ".join(texts)[:500]})
-
         if not tool_uses:
             result.stopped_reason = "model_stopped"
-            break
-
+            return
         tool_results = []
         for tu in tool_uses:
-            cmd = (tu.input or {}).get("command", "")
-            output = _run(cmd, cwd=repo_dir)
-            tool_results.append(
-                {"type": "tool_result", "tool_use_id": tu.id, "content": output}
-            )
+            out = _run((tu.input or {}).get("command", ""), cwd=repo_dir)
+            tool_results.append({"type": "tool_result", "tool_use_id": tu.id, "content": out})
         messages.append({"role": "user", "content": tool_results})
-    else:
-        result.stopped_reason = "max_steps"
+    result.stopped_reason = "max_steps"
 
-    result.wall_clock_s = round(time.time() - t0, 2)
-    # The prediction is the working-tree diff produced by the agent.
-    result.patch = _run("git add -A && git diff --cached", cwd=repo_dir, timeout=60)
-    return result
+
+_OPENAI_TOOL = {"type": "function", "function": {
+    "name": "bash", "description": BASH_TOOL["description"],
+    "parameters": BASH_TOOL["input_schema"]}}
+
+
+def _run_openai(*, repo_dir, model, max_steps, user_text, result):
+    from openai import OpenAI
+
+    client = OpenAI()
+    messages = [
+        {"role": "system", "content": SYSTEM.format(repo_dir=repo_dir)},
+        {"role": "user", "content": user_text},
+    ]
+    for step in range(max_steps):
+        resp = client.chat.completions.create(
+            model=model, messages=messages, tools=[_OPENAI_TOOL], max_tokens=4096
+        )
+        u = resp.usage
+        if u:
+            result.prompt_tokens += u.prompt_tokens
+            result.completion_tokens += u.completion_tokens
+        result.steps = step + 1
+        msg = resp.choices[0].message
+        messages.append(msg.model_dump(exclude_none=True))
+        if not msg.tool_calls:
+            result.stopped_reason = "model_stopped"
+            return
+        for tc in msg.tool_calls:
+            import json as _json
+            try:
+                cmd = _json.loads(tc.function.arguments or "{}").get("command", "")
+            except _json.JSONDecodeError:
+                cmd = ""
+            out = _run(cmd, cwd=repo_dir)
+            messages.append({"role": "tool", "tool_call_id": tc.id, "content": out})
+    result.stopped_reason = "max_steps"

@@ -11,7 +11,10 @@ Usage:
   python run_ablation.py --arm kage    --limit 5 --out results/run1
   python run_ablation.py --arm both    --full    --out results/full
 
-Env: ANTHROPIC_API_KEY required. MODEL overrides the default model.
+Env:
+  PROVIDER  openai (default) | anthropic
+  MODEL     overrides the default model for the provider
+  OPENAI_API_KEY / ANTHROPIC_API_KEY  per provider
 """
 
 from __future__ import annotations
@@ -24,12 +27,12 @@ import subprocess
 from collections import defaultdict
 from pathlib import Path
 
-from anthropic import Anthropic
-
 import agent
 import kage_memory
 
-MODEL = os.environ.get("MODEL", "claude-sonnet-4-6")
+PROVIDER = os.environ.get("PROVIDER", "openai").lower()
+DEFAULT_MODEL = {"openai": "gpt-4o", "anthropic": "claude-sonnet-4-6"}
+MODEL = os.environ.get("MODEL") or DEFAULT_MODEL.get(PROVIDER, "gpt-4o")
 DATASET = "princeton-nlp/SWE-bench_Verified"
 MODEL_NAME_TAG = {"control": "kage-ablation-control", "kage": "kage-ablation-kage"}
 
@@ -83,7 +86,6 @@ def prepare_checkout(task: dict, cache_root: Path, work_root: Path) -> str:
 
 
 def run_arm(arm: str, tasks: list[dict], out_dir: Path) -> None:
-    client = Anthropic()
     cache_root = out_dir / "_repo_cache"
     work_root = out_dir / f"_work_{arm}"
     cache_root.mkdir(parents=True, exist_ok=True)
@@ -114,8 +116,8 @@ def run_arm(arm: str, tasks: list[dict], out_dir: Path) -> None:
                 repo_dir=repo_dir,
                 problem_statement=task["problem_statement"],
                 model=MODEL,
+                provider=PROVIDER,
                 extra_context=extra,
-                client=client,
             )
 
             preds_f.write(json.dumps({
@@ -162,8 +164,9 @@ def main() -> None:
     ap.add_argument("--out", default="results/run")
     args = ap.parse_args()
 
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        raise SystemExit("ANTHROPIC_API_KEY not set")
+    key = "OPENAI_API_KEY" if PROVIDER == "openai" else "ANTHROPIC_API_KEY"
+    if not os.environ.get(key):
+        raise SystemExit(f"{key} not set (PROVIDER={PROVIDER})")
 
     limit = None if args.full else (args.limit or 5)
     tasks = load_tasks(limit, None if args.full else args.ids_file)
