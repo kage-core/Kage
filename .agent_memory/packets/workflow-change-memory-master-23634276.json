@@ -1,0 +1,322 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
+  "title": "Change memory: master",
+  "summary": "Repo-local context for 29 changed repo paths on master.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/bug_fix-linked-code-reconciliation-still-uses-source-fingerprints-after-risk-path-parser-24204434.json\n- .agent_memory/packets/bug_fix-linked-code-reconciliation-unchanged-after-skip-list-cleanup-60335e2b.json\n- .agent_memory/packets/bug_fix-pr-check-should-ignore-superseded-stale-packets-f1e59b8a.json\n- .agent_memory/packets/decision-before-you-edit-risk-page-must-explain-why-and-what-to-do-first-41b900df.json\n- .agent_memory/packets/decision-kage-context-now-gives-agents-verification-and-learning-decision-contracts-36e86d79.json\n- .agent_memory/packets/decision-project-profile-gives-agents-compact-repo-orientation-352a278d.json\n- .agent_memory/packets/decision-public-source-avoids-external-tool-specific-skip-names-06a3d2bf.json\n- .agent_memory/packets/decision-public-source-skip-lists-remain-generic-after-risk-path-parser-fix-921fd297.json\n- .agent_memory/packets/decision-repo-x-ray-gives-agents-and-users-a-first-use-structure-map-dc254fb7.json\n- .agent_memory/packets/decision-viewer-must-separate-inbox-blockers-from-handoff-review-items-ea1b70e3.json\n- .agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json\n- .agent_memory/packets/repo_map-kage-repo-structure-b5f385f7.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n- mcp/cli.ts\n- mcp/daemon.test.ts\n- mcp/daemon.ts\n- mcp/index.ts\n- mcp/kernel.test.ts\n- mcp/kernel.ts\n- mcp/mcp.test.ts\n- mcp/viewer/app.js\n- mcp/viewer/data.html\n- mcp/viewer/graph.html\n- mcp/viewer/index.html\n- mcp/viewer/intel.html\n- mcp/viewer/memory.html\n- mcp/viewer/owners.html\n- mcp/viewer/review.html\n- mcp/viewer/styles.css\n\nDiff summary:\n```text\n...unchanged-after-skip-list-cleanup-60335e2b.json |  25 +-\n ...s-agents-compact-repo-orientation-352a278d.json |   4 +-\n ...external-tool-specific-skip-names-06a3d2bf.json |  25 +-\n .../repo_map-kage-repo-overview-a522f3a0.json      |   4 +-\n .../repo_map-kage-repo-structure-b5f385f7.json     |   4 +-\n mcp/cli.ts                                         |  21 +\n mcp/daemon.test.ts                                 |  30 +-\n mcp/daemon.ts                                      |  37 +-\n mcp/index.ts                                       |  60 ++\n mcp/kernel.test.ts                                 |  75 +++\n mcp/kernel.ts                                      | 666 ++++++++++++++++++++-\n mcp/mcp.test.ts                                    |  88 +++\n mcp/viewer/app.js                                  | 279 +++++++--\n mcp/viewer/data.html                               |  12 +-\n mcp/viewer/graph.html                              |  12 +-\n mcp/viewer/index.html                              |  25 +-\n mcp/viewer/intel.html                              |  12 +-\n mcp/viewer/memory.html                             |  12 +-\n mcp/viewer/owners.html                             |  12 +-\n mcp/viewer/review.html                             |  14 +-\n mcp/viewer/styles.css                              | 150 ++++-\n 21 files changed, 1442 insertions(+), 125 deletions(-)\n.agent_memory/packets/bug_fix-linked-code-reconciliation-still-uses-source-fingerprints-after-risk-path-parser-24204434.json | untracked\n.agent_memory/packets/bug_fix-pr-check-should-ignore-superseded-stale-packets-f1e59b8a.json | untracked\n.agent_memory/packets/decision-before-you-edit-risk-page-must-explain-why-and-what-to-do-first-41b900df.json | untracked\n.agent_memory/packets/decision-kage-context-now-gives-agents-verification-and-learning-decision-contracts-36e86d79.json | untracked\n.agent_memory/packets/decision-public-source-skip-lists-remain-generic-after-risk-path-parser-fix-921fd297.json | untracked\n.agent_memory/packets/decision-repo-x-ray-gives-agents-and-users-a-first-use-structure-map-dc254fb7.json | untracked\n.agent_memory/packets/decision-viewer-must-separate-inbox-blockers-from-handoff-review-items-ea1b70e3.json | untracked\n.agent_memory/packets/workflow-change-memory-master-23634276.json | untracked\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "type": "workflow",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.62,
+  "tags": [
+    "change-memory",
+    "diff-proposal",
+    "repo-local",
+    "branch:master"
+  ],
+  "paths": [
+    ".agent_memory/packets/bug_fix-linked-code-reconciliation-still-uses-source-fingerprints-after-risk-path-parser-24204434.json",
+    ".agent_memory/packets/bug_fix-linked-code-reconciliation-unchanged-after-skip-list-cleanup-60335e2b.json",
+    ".agent_memory/packets/bug_fix-pr-check-should-ignore-superseded-stale-packets-f1e59b8a.json",
+    ".agent_memory/packets/decision-before-you-edit-risk-page-must-explain-why-and-what-to-do-first-41b900df.json",
+    ".agent_memory/packets/decision-kage-context-now-gives-agents-verification-and-learning-decision-contracts-36e86d79.json",
+    ".agent_memory/packets/decision-project-profile-gives-agents-compact-repo-orientation-352a278d.json",
+    ".agent_memory/packets/decision-public-source-avoids-external-tool-specific-skip-names-06a3d2bf.json",
+    ".agent_memory/packets/decision-public-source-skip-lists-remain-generic-after-risk-path-parser-fix-921fd297.json",
+    ".agent_memory/packets/decision-repo-x-ray-gives-agents-and-users-a-first-use-structure-map-dc254fb7.json",
+    ".agent_memory/packets/decision-viewer-must-separate-inbox-blockers-from-handoff-review-items-ea1b70e3.json",
+    ".agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json",
+    ".agent_memory/packets/repo_map-kage-repo-structure-b5f385f7.json",
+    ".agent_memory/packets/workflow-change-memory-master-23634276.json",
+    "mcp/cli.ts",
+    "mcp/daemon.test.ts",
+    "mcp/daemon.ts",
+    "mcp/index.ts",
+    "mcp/kernel.test.ts",
+    "mcp/kernel.ts",
+    "mcp/mcp.test.ts",
+    "mcp/viewer/app.js",
+    "mcp/viewer/data.html",
+    "mcp/viewer/graph.html",
+    "mcp/viewer/index.html",
+    "mcp/viewer/intel.html",
+    "mcp/viewer/memory.html",
+    "mcp/viewer/owners.html",
+    "mcp/viewer/review.html",
+    "mcp/viewer/styles.css"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "git_diff",
+      "branch": "master",
+      "head": "5ffa3935ac263735db2911140a5a52bde52c0af8",
+      "merge_base": "5ffa3935ac263735db2911140a5a52bde52c0af8",
+      "changed_files": [
+        ".agent_memory/packets/bug_fix-linked-code-reconciliation-still-uses-source-fingerprints-after-risk-path-parser-24204434.json",
+        ".agent_memory/packets/bug_fix-linked-code-reconciliation-unchanged-after-skip-list-cleanup-60335e2b.json",
+        ".agent_memory/packets/bug_fix-pr-check-should-ignore-superseded-stale-packets-f1e59b8a.json",
+        ".agent_memory/packets/decision-before-you-edit-risk-page-must-explain-why-and-what-to-do-first-41b900df.json",
+        ".agent_memory/packets/decision-kage-context-now-gives-agents-verification-and-learning-decision-contracts-36e86d79.json",
+        ".agent_memory/packets/decision-project-profile-gives-agents-compact-repo-orientation-352a278d.json",
+        ".agent_memory/packets/decision-public-source-avoids-external-tool-specific-skip-names-06a3d2bf.json",
+        ".agent_memory/packets/decision-public-source-skip-lists-remain-generic-after-risk-path-parser-fix-921fd297.json",
+        ".agent_memory/packets/decision-repo-x-ray-gives-agents-and-users-a-first-use-structure-map-dc254fb7.json",
+        ".agent_memory/packets/decision-viewer-must-separate-inbox-blockers-from-handoff-review-items-ea1b70e3.json",
+        ".agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json",
+        ".agent_memory/packets/repo_map-kage-repo-structure-b5f385f7.json",
+        ".agent_memory/packets/workflow-change-memory-master-23634276.json",
+        "mcp/cli.ts",
+        "mcp/daemon.test.ts",
+        "mcp/daemon.ts",
+        "mcp/index.ts",
+        "mcp/kernel.test.ts",
+        "mcp/kernel.ts",
+        "mcp/mcp.test.ts",
+        "mcp/viewer/app.js",
+        "mcp/viewer/data.html",
+        "mcp/viewer/graph.html",
+        "mcp/viewer/index.html",
+        "mcp/viewer/intel.html",
+        "mcp/viewer/memory.html",
+        "mcp/viewer/owners.html",
+        "mcp/viewer/review.html",
+        "mcp/viewer/styles.css"
+      ],
+      "summary_path": ".agent_memory/review/branch-summary-master.json"
+    }
+  ],
+  "context": {
+    "fact": "Current branch master changes 29 repo paths.",
+    "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
+    "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
+    "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
+    "verification": "Generated from git diff and refreshed by kage pr summarize or kage propose --from-diff.",
+    "risk_if_forgotten": "Future agents may repeat orientation work, miss branch-specific assumptions, or ignore files touched by this change.",
+    "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
+  },
+  "freshness": {
+    "last_verified_at": "2026-05-31T08:49:47.939Z",
+    "ttl_days": 180,
+    "path_fingerprints": [
+      {
+        "path": "mcp/cli.ts",
+        "sha256": "198c4c21a157478dbe359074e1c43be945f86c201a44112c37f0cc2fd8855b09",
+        "size": 78943
+      },
+      {
+        "path": "mcp/daemon.test.ts",
+        "sha256": "d30ff6f335daa88de4fb206f7f0ed63efdf19141d09aa30e3684836233852109",
+        "size": 11126
+      },
+      {
+        "path": "mcp/daemon.ts",
+        "sha256": "fcbb0240db020ac36815e3fb8de0061cf60a93fd4c59522a731ac2c16a3f5ab5",
+        "size": 32873
+      },
+      {
+        "path": "mcp/index.ts",
+        "sha256": "915ddbaca2965ce66efdd7a3043ce46967b55e60af47e8b5f3685a7b317eacb6",
+        "size": 64927
+      },
+      {
+        "path": "mcp/kernel.test.ts",
+        "sha256": "53a079f441147b8b6f0c77072313c926848d66c551297341087e9199de4eec7e",
+        "size": 164659
+      },
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "1e771e9746d8bb15694eb72359f854d1356dbccd4761d6dd58cffeda1949b32c",
+        "size": 612459
+      },
+      {
+        "path": "mcp/mcp.test.ts",
+        "sha256": "177cc206653a2a2d90816e7045df789d6fbd1a43a7758bff8011d7f1a3f7d744",
+        "size": 36173
+      },
+      {
+        "path": "mcp/viewer/app.js",
+        "sha256": "903b0a9c807cac57104df510b1a61a9699418a2bd1a4a16d94fb391d15ce6edc",
+        "size": 309656
+      },
+      {
+        "path": "mcp/viewer/data.html",
+        "sha256": "ca1b6d326e4ee3b664559ce011ca70102271ecbc299cbdee26570699084c1e56",
+        "size": 14219
+      },
+      {
+        "path": "mcp/viewer/graph.html",
+        "sha256": "ca1b6d326e4ee3b664559ce011ca70102271ecbc299cbdee26570699084c1e56",
+        "size": 14219
+      },
+      {
+        "path": "mcp/viewer/index.html",
+        "sha256": "8746f043c6376cae9daf47e98cc5b268ae4230f2200dad90548a7320657a6eef",
+        "size": 14761
+      },
+      {
+        "path": "mcp/viewer/intel.html",
+        "sha256": "ca1b6d326e4ee3b664559ce011ca70102271ecbc299cbdee26570699084c1e56",
+        "size": 14219
+      },
+      {
+        "path": "mcp/viewer/memory.html",
+        "sha256": "829a6cd869ee2acbde084a37c86080a5b628fbf0fa9c752aafe3746f0260cc50",
+        "size": 17970
+      },
+      {
+        "path": "mcp/viewer/owners.html",
+        "sha256": "ca1b6d326e4ee3b664559ce011ca70102271ecbc299cbdee26570699084c1e56",
+        "size": 14219
+      },
+      {
+        "path": "mcp/viewer/review.html",
+        "sha256": "d110125f9d9b859a164af9f6590995b9617b23753627af143a5c107a214a6bfc",
+        "size": 14788
+      },
+      {
+        "path": "mcp/viewer/styles.css",
+        "sha256": "d7dc306fa7a2c14b13bd54b11483ade3f2a7bc8e70d16dcd069b2f61f1221469",
+        "size": 63011
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "git_diff"
+  },
+  "edges": [
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/bug_fix-linked-code-reconciliation-still-uses-source-fingerprints-after-risk-path-parser-24204434.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/bug_fix-linked-code-reconciliation-unchanged-after-skip-list-cleanup-60335e2b.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/bug_fix-pr-check-should-ignore-superseded-stale-packets-f1e59b8a.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/decision-before-you-edit-risk-page-must-explain-why-and-what-to-do-first-41b900df.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/decision-kage-context-now-gives-agents-verification-and-learning-decision-contracts-36e86d79.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/decision-project-profile-gives-agents-compact-repo-orientation-352a278d.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/decision-public-source-avoids-external-tool-specific-skip-names-06a3d2bf.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/decision-public-source-skip-lists-remain-generic-after-risk-path-parser-fix-921fd297.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/decision-repo-x-ray-gives-agents-and-users-a-first-use-structure-map-dc254fb7.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/decision-viewer-must-separate-inbox-blockers-from-handoff-review-items-ea1b70e3.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/repo_map-kage-repo-structure-b5f385f7.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/workflow-change-memory-master-23634276.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:mcp/cli.ts",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:mcp/daemon.test.ts",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:mcp/daemon.ts",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:mcp/index.ts",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:mcp/kernel.test.ts",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:mcp/kernel.ts",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:mcp/mcp.test.ts",
+      "evidence": "git_diff"
+    }
+  ],
+  "quality": {
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 1166,
+    "admission": {
+      "admit": true,
+      "class": "candidate",
+      "score": 70,
+      "reasons": [
+        "durable memory type",
+        "has provenance",
+        "repo scoped or path grounded",
+        "has durable trigger, rationale, issue context, or explanation",
+        "substantive enough to reuse"
+      ],
+      "risks": []
+    },
+    "candidate_kind": "change_memory",
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true
+  },
+  "created_at": "2026-05-31T08:49:47.939Z",
+  "updated_at": "2026-05-31T08:49:53.676Z"
+}

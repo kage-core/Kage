@@ -1,0 +1,63 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:bug_fix:pr-check-should-ignore-superseded-stale-packets-1780217359224",
+  "title": "PR check should ignore superseded stale packets",
+  "summary": "Kage PR checks should block active approved or pending stale memory, but not retired memory that has already been superseded. Superseded packets remain in lineage for auditability; they should not keep a branch from publ",
+  "body": "Kage PR checks should block active approved or pending stale memory, but not retired memory that has already been superseded. Superseded packets remain in lineage for auditability; they should not keep a branch from publishing after a replacement packet records current knowledge.\nEvidence: Added regression coverage that supersedes a path-drifted packet, refreshes, and asserts prCheck excludes the superseded packet from stale_packets and stale-memory errors.\nVerified by: npm test --prefix mcp -- kernel.test.js",
+  "type": "bug_fix",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "pr-check",
+    "memory-lineage",
+    "stale-memory"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-31T08:49:19.224Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage PR checks should block active approved or pending stale memory, but not retired memory that has already been superseded. Superseded packets remain in lineage for auditability; they should not keep a branch from publishing after a replacement packet records current knowledge.\nEvidence: Added regression coverage that supersedes a path-drifted packet, refreshes, and asserts prCheck excludes the superseded packet from stale_packets and stale-memory errors.\nVerified by: npm test --prefix mcp -- kernel.test.js",
+    "verification": "Added regression coverage that supersedes a path-drifted packet, refreshes, and asserts prCheck excludes the superseded packet from stale_packets and stale-memory errors."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-31T08:49:19.224Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 129
+  },
+  "created_at": "2026-05-31T08:49:19.224Z",
+  "updated_at": "2026-05-31T08:49:25.959Z"
+}

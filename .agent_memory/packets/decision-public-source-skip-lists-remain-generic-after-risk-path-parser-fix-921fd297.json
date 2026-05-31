@@ -1,0 +1,70 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:public-source-skip-lists-remain-generic-after-risk-path-parser-fix-1780217154439",
+  "title": "Public source skip lists remain generic after risk path parser fix",
+  "summary": "The current kernel change fixes git porcelain path parsing for changed file risk reports and does not reintroduce external tool specific skip names. Public source skip logic should continue using generic generated/depend",
+  "body": "The current kernel change fixes git porcelain path parsing for changed-file risk reports and does not reintroduce external-tool-specific skip names. Public source skip logic should continue using generic generated/dependency directory names only, while report path parsing should preserve real project paths such as mcp/cli.ts instead of trimming them to cp/cli.ts.\nEvidence: The regression test in mcp/kernel.test.ts asserts changedReport.targets['src/core.js'] exists and changedReport.targets['rc/core.js'] is undefined after parsePorcelainPath replaced line.slice(3).\nVerified by: npm test --prefix mcp -- daemon.test.js; node mcp/dist/cli.js refresh --project .",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "public-source",
+    "risk",
+    "path-parsing"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-05-31T08:45:54.439Z"
+    }
+  ],
+  "context": {
+    "fact": "The current kernel change fixes git porcelain path parsing for changed-file risk reports and does not reintroduce external-tool-specific skip names. Public source skip logic should continue using generic generated/dependency directory names only, while report path parsing should preserve real project paths such as mcp/cli.ts instead of trimming them to cp/cli.ts.\nEvidence: The regression test in mcp/kernel.test.ts asserts changedReport.targets['src/core.js'] exists and changedReport.targets['rc/core.js'] is undefined after parsePorcelainPath replaced line.slice(3).\nVerified by: npm test --prefix mcp -- daemon.test.js; node mcp/dist/cli.js refresh --project .",
+    "verification": "The regression test in mcp/kernel.test.ts asserts changedReport.targets['src/core.js'] exists and changedReport.targets['rc/core.js'] is undefined after parsePorcelainPath replaced line.slice(3)."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-05-31T08:45:54.439Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [
+    {
+      "relation": "supersedes",
+      "to": "repo:https-github-com-kage-core-kage:decision:public-source-avoids-external-tool-specific-skip-names-1779546321185",
+      "evidence": "Updated after risk path parser fix; public skip-list decision remains generic.",
+      "created_at": "2026-05-31T08:46:12.218Z"
+    }
+  ],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 167
+  },
+  "created_at": "2026-05-31T08:45:54.439Z",
+  "updated_at": "2026-05-31T08:46:21.183Z"
+}

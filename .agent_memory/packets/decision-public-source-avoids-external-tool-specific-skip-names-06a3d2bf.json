@@ -8,7 +8,7 @@
   "scope": "repo",
   "visibility": "team",
   "sensitivity": "internal",
-  "status": "approved",
+  "status": "superseded",
   "confidence": 0.7,
   "tags": [
     "session-learning",
@@ -48,7 +48,10 @@
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
-    "verification": "repo_local_agent_capture"
+    "verification": "repo_local_agent_capture",
+    "superseded_at": "2026-05-31T08:46:12.218Z",
+    "superseded_by": "repo:https-github-com-kage-core-kage:decision:public-source-skip-lists-remain-generic-after-risk-path-parser-fix-1780217154439",
+    "superseded_reason": "Updated after risk path parser fix; public skip-list decision remains generic."
   },
   "edges": [
     {
@@ -56,6 +59,12 @@
       "to": "repo:https-github-com-kage-core-kage:decision:public-repo-memory-should-avoid-competitor-shorthand-1779545107224",
       "evidence": "Updated after removing the remaining external-tool-specific skip-list entries from source.",
       "created_at": "2026-05-23T14:25:33.235Z"
+    },
+    {
+      "relation": "superseded_by",
+      "to": "repo:https-github-com-kage-core-kage:decision:public-source-skip-lists-remain-generic-after-risk-path-parser-fix-1780217154439",
+      "evidence": "Updated after risk path parser fix; public skip-list decision remains generic.",
+      "created_at": "2026-05-31T08:46:12.218Z"
     }
   ],
   "quality": {
@@ -77,8 +86,16 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 178
+    "estimated_tokens_saved": 178,
+    "stale": true,
+    "stale_reasons": [
+      "packet status is superseded",
+      "linked path changed since memory was verified: mcp/kernel.ts"
+    ],
+    "suggested_action": "mark_stale",
+    "superseded_by": "repo:https-github-com-kage-core-kage:decision:public-source-skip-lists-remain-generic-after-risk-path-parser-fix-1780217154439",
+    "superseded_reason": "Updated after risk path parser fix; public skip-list decision remains generic."
   },
   "created_at": "2026-05-23T14:25:21.183Z",
-  "updated_at": "2026-05-23T14:25:44.080Z"
+  "updated_at": "2026-05-31T08:46:21.183Z"
 }

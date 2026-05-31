@@ -43,10 +43,13 @@ import {
   kageMetrics,
   kageModuleHealth,
   kageProjectProfile,
+  kageRepoXray,
   kageReviewerSuggestions,
   kageRisk,
   kageSessionCaptureReport,
+  kageSessionLearningLedger,
   kageSessionReplay,
+  kageTeammateBrief,
   learn,
   memoryInbox,
   kageWorkspace,
@@ -379,6 +382,18 @@ export function listTools() {
       name: "kage_profile",
       description:
         "Return a compact project profile for agent orientation: repo totals, languages, top code+memory concepts, key files, memory focus, run commands, and next actions.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_xray",
+      description:
+        "Return a first-use Repo X-Ray: code structure layers for entry points, core files, risk, tests, memory overlay, and knowledge gaps.",
       inputSchema: {
         type: "object",
         properties: {
@@ -895,6 +910,20 @@ export function listTools() {
       },
     },
     {
+      name: "kage_learning_ledger",
+      description:
+        "Return an agent-facing ledger that classifies observed session events into save, ignore, needs-evidence, or already-distilled memory decisions.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+          session_id: { type: "string" },
+          limit: { type: "number" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
       name: "kage_session_replay",
       description:
         "Return a privacy-preserving replay digest for observed agent sessions: timeline, touched paths, commands, durable candidates, and distill actions without raw transcript text.",
@@ -1236,8 +1265,21 @@ export async function callTool(name: string, args: Record<string, unknown> | und
       sessionId: typeof args?.session_id === "string" ? args.session_id : undefined,
       limit: 5,
     });
+    const teammateBrief = kageTeammateBrief(projectDir, {
+      query,
+      targets: explicitTargets,
+      changedFiles,
+      recallResult,
+      riskResult,
+      reconciliation,
+    });
+    const learningLedger = typeof args?.session_id === "string" && args.session_id.trim()
+      ? kageSessionLearningLedger(projectDir, { sessionId: args.session_id, limit: 20 })
+      : null;
     const sections = [
       recallResult.context_block,
+      teammateBrief.context_block,
+      learningLedger ? learningLedger.context_block : "",
       graphResult.context_block ? `\n## Graph Facts\n${graphResult.context_block}` : "",
       riskResult ? riskContextBlock(riskResult) : "",
       dependencyResult ? `\n## Dependency Path\n${dependencyResult.summary}${dependencyResult.path.length ? `\nPath: ${dependencyResult.path.join(" -> ")}` : ""}` : "",
@@ -1337,6 +1379,13 @@ export async function callTool(name: string, args: Record<string, unknown> | und
 
   if (name === "kage_profile") {
     const result = kageProjectProfile(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_xray") {
+    const result = kageRepoXray(String(args?.project_dir ?? ""));
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };
@@ -1679,6 +1728,17 @@ export async function callTool(name: string, args: Record<string, unknown> | und
 
   if (name === "kage_sessions") {
     const result = kageSessionCaptureReport(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      isError: false,
+    };
+  }
+
+  if (name === "kage_learning_ledger") {
+    const result = kageSessionLearningLedger(String(args?.project_dir ?? ""), {
+      sessionId: args?.session_id ? String(args.session_id) : undefined,
+      limit: typeof args?.limit === "number" ? args.limit : undefined,
+    });
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       isError: false,

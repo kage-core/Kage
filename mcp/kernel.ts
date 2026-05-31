@@ -544,6 +544,54 @@ export interface SessionReplayReport {
   next_action: string;
 }
 
+export type SessionLearningDisposition = "save" | "ignore" | "needs_evidence" | "already_distilled";
+
+export interface SessionLearningDecision {
+  observation_id: string;
+  timestamp: string;
+  session_id: string;
+  event_type: ObservationEventType;
+  disposition: SessionLearningDisposition;
+  memory_type?: "runbook" | "workflow" | "decision";
+  reason: string;
+  evidence: string;
+  path?: string;
+  command?: string;
+  exit_code?: number;
+  distill_command?: string;
+}
+
+export interface SessionLearningLedgerReport {
+  schema_version: 1;
+  project_dir: string;
+  generated_at: string;
+  selected_session_id?: string;
+  totals: {
+    sessions: number;
+    observations: number;
+    save_candidates: number;
+    ignore_items: number;
+    needs_evidence: number;
+    already_distilled: number;
+  };
+  sessions: Array<{
+    session_id: string;
+    first_at: string;
+    last_at: string;
+    observations: number;
+    save_candidates: number;
+    ignore_items: number;
+    needs_evidence: number;
+    already_distilled: number;
+    commands: string[];
+    paths: string[];
+    decisions: SessionLearningDecision[];
+    next_action: string;
+  }>;
+  privacy_model: string;
+  context_block: string;
+}
+
 export type CapabilityAuditPillarId = "memory" | "collaboration" | "benchmark" | "dashboard_viewer";
 export type CapabilityAuditStatus = "ready" | "watch" | "gap";
 
@@ -1212,6 +1260,24 @@ export interface KageDependencyPathResult {
   warnings: string[];
 }
 
+export interface KageVerificationContract {
+  focus_files: string[];
+  related_tests: Array<{ test_path: string; title: string; covers: string | null }>;
+  test_gap_files: string[];
+  required_actions: string[];
+}
+
+export interface KageTeammateBrief {
+  schema_version: 1;
+  project_dir: string;
+  generated_at: string;
+  query: string;
+  verification_contract: KageVerificationContract;
+  memory_warnings: string[];
+  next_actions: string[];
+  context_block: string;
+}
+
 export interface KageCleanupCandidate {
   path: string;
   kind: "unreferenced_file" | "unused_export" | "unused_internal_symbol";
@@ -1386,6 +1452,42 @@ export interface KageGraphInsightsReport {
   entry_flows: Array<{ entry: string; path: string[] }>;
   warnings: string[];
   summary: string;
+}
+
+export type KageRepoXrayLayerId =
+  | "entry_points"
+  | "core_modules"
+  | "change_risk"
+  | "test_map"
+  | "memory_overlay"
+  | "knowledge_gaps";
+
+export interface KageRepoXrayItem {
+  label: string;
+  path: string;
+  kind: string;
+  strength: number;
+  status: "ok" | "watch" | "risk";
+  evidence: string[];
+  action: string;
+}
+
+export interface KageRepoXrayLayer {
+  id: KageRepoXrayLayerId;
+  title: string;
+  summary: string;
+  items: KageRepoXrayItem[];
+}
+
+export interface KageRepoXrayReport {
+  schema_version: 1;
+  project_dir: string;
+  generated_at: string;
+  summary: string;
+  first_use_script: string[];
+  layers: KageRepoXrayLayer[];
+  next_actions: string[];
+  warnings: string[];
 }
 
 export interface KageWorkspaceRepo {
@@ -8631,6 +8733,133 @@ export function queryCodeGraph(projectDir: string, query: string, limit = 10, gr
   };
 }
 
+function fileHintsFromText(text: string): string[] {
+  const matches = text.match(/[A-Za-z0-9_./@-]+\.(?:ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|kt|kts|rb|php|cs|c|h|cc|cpp|hpp|swift|json|md)\b/g) ?? [];
+  return [...new Set(matches.map((match) => match.replace(/^\.\//, "")).filter((match) => !/^https?:\/\//.test(match)))];
+}
+
+function dedupeStrings(values: string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+function teammateBriefLines(brief: Omit<KageTeammateBrief, "context_block">): string[] {
+  const verification = brief.verification_contract;
+  const lines = [
+    "\n## Teammate Brief",
+    "Purpose: reduce verification debt and context loss for this task.",
+    "",
+    "### Verification Contract",
+  ];
+
+  if (verification.focus_files.length) {
+    lines.push(`Focus files: ${verification.focus_files.join(", ")}`);
+  }
+  if (verification.related_tests.length) {
+    lines.push("Related tests:");
+    for (const test of verification.related_tests.slice(0, 5)) {
+      lines.push(`- ${test.test_path}${test.title ? ` - ${test.title}` : ""}${test.covers ? ` (covers ${test.covers})` : ""}`);
+    }
+  } else if (verification.focus_files.length) {
+    lines.push("Related tests: none found in the current code graph.");
+  }
+  if (verification.test_gap_files.length) {
+    lines.push(`Test gaps: ${verification.test_gap_files.join(", ")}`);
+  }
+
+  if (brief.memory_warnings.length) {
+    lines.push("", "### Memory Warnings", ...brief.memory_warnings.slice(0, 5).map((warning) => `- ${warning}`));
+  }
+
+  lines.push("", "### Next Actions");
+  for (const action of brief.next_actions.slice(0, 6)) {
+    lines.push(`- ${action}`);
+  }
+  return lines;
+}
+
+export function kageTeammateBrief(
+  projectDir: string,
+  options: {
+    query: string;
+    targets?: string[];
+    changedFiles?: string[];
+    recallResult?: RecallResult;
+    riskResult?: KageRiskReport | null;
+    reconciliation?: MemoryReconciliationReport;
+  }
+): KageTeammateBrief {
+  const query = options.query;
+  const focusFiles = dedupeStrings([
+    ...(options.targets ?? []),
+    ...(options.changedFiles ?? []),
+    ...fileHintsFromText(query),
+  ]);
+  const codeQuery = dedupeStrings([query, ...focusFiles]).join(" ");
+  const code = queryCodeGraph(projectDir, codeQuery || query, 12);
+  const relatedTests = code.tests
+    .map((test) => ({
+      test_path: test.test_path,
+      title: test.title,
+      covers: test.covers_path ?? test.covers_symbol ?? null,
+    }))
+    .filter((test, index, all) => all.findIndex((item) => item.test_path === test.test_path && item.title === test.title) === index);
+
+  const riskTargets = options.riskResult ? Object.values(options.riskResult.targets) : [];
+  const testGapFiles = dedupeStrings([
+    ...riskTargets.filter((target) => target.test_gap).map((target) => target.target),
+    ...(focusFiles.length && !relatedTests.length ? focusFiles : []),
+  ]);
+  const memoryWarnings = [
+    ...((options.recallResult?.results ?? [])
+      .filter((entry) => Boolean((entry.packet.quality ?? {}).stale))
+      .map((entry) => `Recalled memory may be stale: ${entry.packet.title}.`)),
+    ...(options.reconciliation?.unresolved_count
+      ? [`${options.reconciliation.unresolved_count} linked memory item(s) need update, supersede, or stale marking before handoff.`]
+      : []),
+  ];
+
+  const requiredActions = [
+    ...(relatedTests.length
+      ? [`Run or account for related test coverage: ${relatedTests.slice(0, 3).map((test) => test.test_path).join(", ")}.`]
+      : focusFiles.length
+        ? ["No related tests were found; identify the correct verification before claiming completion."]
+        : ["Identify task-specific verification before claiming completion."]),
+    ...testGapFiles.map((file) => `Resolve test-gap risk for ${file} or explain why existing verification is sufficient.`),
+    ...(memoryWarnings.length ? ["Resolve memory warnings before final handoff."] : []),
+  ];
+
+  const nextActions = dedupeStrings([
+    ...requiredActions,
+    ...(riskTargets.length
+      ? riskTargets
+          .filter((target) => target.co_change_warnings.length)
+          .slice(0, 2)
+          .map((target) => `Review co-change partners for ${target.target}: ${target.co_change_warnings.slice(0, 3).map((item) => item.file_path).join(", ")}.`)
+      : []),
+    "Keep any durable lesson evidence-backed; future agents should inherit only verified repo knowledge.",
+  ]);
+
+  const briefWithoutBlock = {
+    schema_version: 1 as const,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    query,
+    verification_contract: {
+      focus_files: focusFiles,
+      related_tests: relatedTests,
+      test_gap_files: testGapFiles,
+      required_actions: requiredActions,
+    },
+    memory_warnings: memoryWarnings,
+    next_actions: nextActions,
+  };
+
+  return {
+    ...briefWithoutBlock,
+    context_block: teammateBriefLines(briefWithoutBlock).join("\n"),
+  };
+}
+
 function gitLines(projectDir: string, args: string[]): string[] {
   return (readGit(projectDir, args) ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
 }
@@ -8734,7 +8963,7 @@ function gitFileSignal(projectDir: string, path: string, graphPaths: Set<string>
 
 function gitChangedFiles(projectDir: string): string[] {
   return gitLines(projectDir, ["status", "--porcelain", "-uall"])
-    .map((line) => line.slice(3).trim().split(" -> ").at(-1) ?? "")
+    .map((line) => parsePorcelainPath(line).split(" -> ").at(-1) ?? "")
     .filter(Boolean)
     .map((path) => gitPathToProjectRelative(projectDir, path) ?? path)
     .filter((path) => !isNoisePath(path));
@@ -10391,6 +10620,270 @@ export function kageGraphInsights(projectDir: string): KageGraphInsightsReport {
     entry_flows: flows,
     warnings: [],
     summary: `${centralFiles.length} central file(s), ${cycles.length} dependency cycle(s), ${communities.length} communit${communities.length === 1 ? "y" : "ies"}, ${flows.length} entry flow(s).`,
+  };
+}
+
+function xrayItem(
+  input: Omit<KageRepoXrayItem, "strength" | "status"> & { strength?: number; status?: KageRepoXrayItem["status"] }
+): KageRepoXrayItem {
+  return {
+    ...input,
+    strength: Math.max(1, Math.min(100, Math.round(input.strength ?? 50))),
+    status: input.status ?? "ok",
+  };
+}
+
+function uniqueXrayItems(items: KageRepoXrayItem[]): KageRepoXrayItem[] {
+  const byPath = new Map<string, KageRepoXrayItem>();
+  for (const item of items) {
+    const existing = byPath.get(item.path);
+    if (!existing || item.strength > existing.strength || (item.status === "risk" && existing.status !== "risk")) {
+      byPath.set(item.path, item);
+    }
+  }
+  return [...byPath.values()].sort((a, b) => b.strength - a.strength || a.path.localeCompare(b.path));
+}
+
+function isXrayCodePath(path: string, graphPaths: Set<string>): boolean {
+  const normalized = path.replace(/\\/g, "/").replace(/^\/+/, "");
+  return graphPaths.has(normalized) && !normalized.startsWith(".agent_memory/") && !normalized.startsWith("agent_memory/");
+}
+
+export function kageRepoXray(projectDir: string): KageRepoXrayReport {
+  const graph = readCurrentCodeGraph(projectDir) ?? buildCodeGraph(projectDir);
+  const profile = kageProjectProfile(projectDir);
+  const risk = kageRisk(projectDir);
+  const health = kageModuleHealth(projectDir);
+  const insights = kageGraphInsights(projectDir);
+  const decisions = kageDecisionIntelligence(projectDir);
+  const approved = loadApprovedPackets(projectDir);
+  const graphPaths = new Set(graph.files.map((file) => file.path));
+  const routeCounts = countBy(graph.routes, (route) => route.file_path);
+  const testsBySource = new Map<string, CodeTestEdge[]>();
+  for (const test of graph.tests) {
+    const key = test.covers_path ?? test.covers_symbol ?? "";
+    if (!key) continue;
+    const list = testsBySource.get(key) ?? [];
+    list.push(test);
+    testsBySource.set(key, list);
+  }
+
+  const entryItems = uniqueXrayItems([
+    ...graph.routes.map((route) => xrayItem({
+      label: `${route.method} ${route.path}`,
+      path: route.file_path,
+      kind: "route",
+      strength: 90,
+      status: "ok",
+      evidence: [`Route handler in ${route.file_path}`, `${route.method} ${route.path}`],
+      action: "Start here to understand request flow before changing runtime behavior.",
+    })),
+    ...insights.entry_flows.map((flow) => xrayItem({
+      label: flow.entry,
+      path: flow.entry,
+      kind: "entry_flow",
+      strength: Math.min(96, 64 + flow.path.length * 6),
+      status: "ok",
+      evidence: [`Entry flow: ${flow.path.slice(0, 5).join(" -> ")}`],
+      action: "Trace this entry flow before editing shared dependencies.",
+    })),
+    ...profile.run_commands.slice(0, 4).map((command) => xrayItem({
+      label: command.name,
+      path: "package.json",
+      kind: "script",
+      strength: 58,
+      status: "ok",
+      evidence: [`package script: ${command.name} = ${command.command}`],
+      action: "Use this command evidence when verifying changes.",
+    })),
+  ]).slice(0, 8);
+
+  const centralByPath = new Map(insights.central_files.map((file) => [file.path, file]));
+  const coreItems = uniqueXrayItems([
+    ...profile.key_files.map((file) => {
+      const central = centralByPath.get(file.path);
+      return xrayItem({
+        label: file.path,
+        path: file.path,
+        kind: file.kind,
+        strength: Math.min(100, file.score + (central ? central.dependents * 6 : 0)),
+        status: "ok",
+        evidence: unique([
+          ...file.why,
+          ...(central ? [`centrality ${central.pagerank}, ${central.dependents} dependent(s)`] : []),
+        ]).slice(0, 4),
+        action: "Inspect this file early; Kage sees it as a central part of the repo.",
+      });
+    }),
+    ...insights.central_files.slice(0, 8).map((file) => xrayItem({
+      label: file.path,
+      path: file.path,
+      kind: file.kind,
+      strength: Math.min(100, 45 + file.dependents * 8 + file.imports * 3),
+      status: "ok",
+      evidence: [`${file.dependents} dependent(s)`, `${file.imports} outgoing import(s)`],
+      action: "Use this as a structural orientation point before following dependencies.",
+    })),
+  ]).slice(0, 10);
+
+  const riskTargets = Object.values(risk.targets).filter((target) => isXrayCodePath(target.target, graphPaths));
+  const riskHotspots = risk.global_hotspots.filter((hotspot) => isXrayCodePath(hotspot.file_path, graphPaths));
+  const riskItems = uniqueXrayItems([
+    ...riskTargets.map((target) => xrayItem({
+      label: target.target,
+      path: target.target,
+      kind: target.risk_type,
+      strength: Math.max(30, Math.round(target.hotspot_score * 100), target.dependents_count * 12, target.test_gap ? 70 : 0),
+      status: target.test_gap || target.risk_type === "single-owner" || target.risk_type === "churn-heavy" ? "risk" : "watch",
+      evidence: [
+        `${target.dependents_count} direct dependent(s)`,
+        `${target.git.commit_count_90d} commit(s) in 90d`,
+        target.test_gap ? "test gap" : "test signal found",
+      ],
+      action: "Review dependents, tests, and owners before editing this path.",
+    })),
+    ...riskHotspots.slice(0, 8).map((hotspot) => xrayItem({
+      label: hotspot.file_path,
+      path: hotspot.file_path,
+      kind: "hotspot",
+      strength: Math.round(hotspot.hotspot_score * 100),
+      status: "risk",
+      evidence: [`${hotspot.commit_count_90d} commit(s) in 90d`, `primary owner ${hotspot.primary_owner ?? "unknown"}`],
+      action: "Treat this as a change hotspot; ask Kage for risk before editing.",
+    })),
+    ...health.modules.filter((module) => module.grade === "C" || module.grade === "D").slice(0, 5).map((module) => xrayItem({
+      label: module.module,
+      path: module.module === "(root)" ? "." : module.module,
+      kind: "module",
+      strength: 100 - module.score,
+      status: module.grade === "D" ? "risk" : "watch",
+      evidence: module.reasons.slice(0, 3),
+      action: "Use module health reasons to decide tests and review scope.",
+    })),
+  ]).slice(0, 10);
+
+  const testItems = uniqueXrayItems([
+    ...graph.tests.map((test) => xrayItem({
+      label: test.title || test.test_path,
+      path: test.test_path,
+      kind: "test",
+      strength: 78,
+      status: "ok",
+      evidence: [`covers ${test.covers_path ?? test.covers_symbol ?? "repo behavior"}`],
+      action: "Run or account for this test when changing the covered code.",
+    })),
+    ...graph.files
+      .filter((file) => file.kind === "source" && !hasTestCoverage(file.path, graph))
+      .slice(0, 8)
+      .map((file) => xrayItem({
+        label: file.path,
+        path: file.path,
+        kind: "test_gap",
+        strength: routeCounts[file.path] ? 82 : 58,
+        status: "watch",
+        evidence: routeCounts[file.path] ? [`${routeCounts[file.path]} route(s), no direct test signal`] : ["no direct test signal"],
+        action: "Identify the right verification path before claiming a change here is safe.",
+      })),
+  ]).slice(0, 12);
+
+  const memoryByPath = new Map<string, MemoryPacket[]>();
+  for (const packet of approved) {
+    for (const path of packet.paths.filter((item) => graphPaths.has(item))) {
+      const list = memoryByPath.get(path) ?? [];
+      list.push(packet);
+      memoryByPath.set(path, list);
+    }
+  }
+  const memoryItems = uniqueXrayItems([...memoryByPath.entries()].map(([path, packets]) => xrayItem({
+    label: path,
+    path,
+    kind: "memory_overlay",
+    strength: Math.min(100, packets.length * 22 + (testsBySource.get(path)?.length ?? 0) * 8 + (routeCounts[path] ?? 0) * 8),
+    status: "ok",
+    evidence: packets.slice(0, 3).map((packet) => `${packet.type}: ${packet.title}`),
+    action: "Read linked memory before editing; this is repo lore attached to code.",
+  }))).slice(0, 10);
+
+  const gapItems = uniqueXrayItems(decisions.coverage_gaps.slice(0, 10).map((gap) => xrayItem({
+    label: gap.path,
+    path: gap.path,
+    kind: "knowledge_gap",
+    strength: Math.min(100, gap.dependents * 16 + gap.churn_90d * 8 + 24),
+    status: "watch",
+    evidence: [gap.reason, `${gap.dependents} dependent(s)`, `${gap.churn_90d} commit(s) in 90d`],
+    action: "Capture why-memory here when the next session learns reusable context.",
+  })));
+
+  const layers: KageRepoXrayLayer[] = [
+    {
+      id: "entry_points",
+      title: "Entry Points",
+      summary: entryItems.length ? "Where runtime behavior appears to start." : "No route, script, or entry-flow signals found yet.",
+      items: entryItems,
+    },
+    {
+      id: "core_modules",
+      title: "Core Modules",
+      summary: coreItems.length ? "Files Kage would inspect first to understand this repo." : "No central code files found yet.",
+      items: coreItems,
+    },
+    {
+      id: "change_risk",
+      title: "Change Risk",
+      summary: riskItems.length ? "Hotspots, low-health modules, and risky change targets." : "No local risk signals found yet.",
+      items: riskItems,
+    },
+    {
+      id: "test_map",
+      title: "Test Map",
+      summary: testItems.length ? "Verification paths and code with missing direct test signals." : "No tests found in the code graph.",
+      items: testItems,
+    },
+    {
+      id: "memory_overlay",
+      title: "Memory Overlay",
+      summary: memoryItems.length ? "Repo knowledge already attached to code." : "No code-linked memory yet.",
+      items: memoryItems,
+    },
+    {
+      id: "knowledge_gaps",
+      title: "Knowledge Gaps",
+      summary: gapItems.length ? "High-signal code paths that need why-memory." : "No decision-memory coverage gaps detected.",
+      items: gapItems,
+    },
+  ];
+
+  const script = [
+    "I mapped your repo.",
+    `I found ${entryItems.length} entry point(s), ${coreItems.length} core code signal(s), ${riskItems.length} risk signal(s), and ${testItems.length} verification signal(s).`,
+    memoryItems.length
+      ? `${memoryItems.length} code area(s) already have attached repo memory.`
+      : "I do not see much code-linked repo memory yet, so I will learn carefully during the session.",
+    "Click any X-Ray item to focus the graph and see the evidence.",
+  ];
+  const nextActions = [
+    ...(entryItems.length ? [`Start orientation from ${entryItems[0].path}.`] : ["Run kage refresh so entry points can be indexed."]),
+    ...(riskItems.length ? [`Review highest-risk area ${riskItems[0].path} before making edits.`] : []),
+    ...(testItems.some((item) => item.kind === "test_gap") ? ["Resolve test-map gaps by identifying task-specific verification before handoff."] : []),
+    ...(gapItems.length ? ["Capture why-memory for knowledge gaps when the session uncovers durable context."] : []),
+  ];
+  const warnings = unique([
+    ...profile.warnings,
+    ...risk.warnings,
+    ...health.warnings,
+    ...insights.warnings,
+    ...decisions.warnings,
+  ]);
+
+  return {
+    schema_version: 1,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    summary: `Repo X-Ray mapped ${graph.files.length} file(s), ${graph.symbols.length} symbol(s), ${graph.routes.length} route(s), ${graph.tests.length} test signal(s), and ${approved.length} memory packet(s).`,
+    first_use_script: script,
+    layers,
+    next_actions: unique(nextActions),
+    warnings,
   };
 }
 
@@ -13351,6 +13844,176 @@ export function kageSessionReplay(
   };
 }
 
+function distilledObservationSessions(projectDir: string): Set<string> {
+  const ids = new Set<string>();
+  for (const packet of [...loadApprovedPackets(projectDir), ...loadPendingPackets(projectDir)]) {
+    for (const ref of packet.source_refs) {
+      if (ref.kind === "observation_session" && typeof ref.session_id === "string" && ref.session_id.trim()) {
+        ids.add(ref.session_id.trim());
+      }
+    }
+  }
+  return ids;
+}
+
+function eventLearningCandidate(
+  event: ObservationRecord,
+  knownCommands: Set<string>
+): { memory_type: "runbook" | "workflow" | "decision"; reason: string } | null {
+  if (event.type === "command_result") {
+    if (typeof event.exit_code === "number" && event.exit_code !== 0 && !`${event.summary ?? ""}\n${event.text ?? ""}`.trim()) {
+      return null;
+    }
+    const reusable = reusableCommandObservation(event, knownCommands);
+    if (reusable) return { memory_type: "runbook", reason: reusable.learning };
+  }
+  if (event.type === "file_change") {
+    const learning = reusableFileObservation(event);
+    if (learning) return { memory_type: "workflow", reason: learning };
+  }
+  if (event.type === "user_prompt") {
+    const learning = reusablePromptObservation(event);
+    if (learning) return { memory_type: "decision", reason: learning };
+  }
+  return null;
+}
+
+function ignoredObservationReason(event: ObservationRecord): string {
+  if (event.type === "tool_use" || event.type === "tool_result") return "Tool telemetry helps replay the session but is not durable repo knowledge by itself.";
+  if (event.type === "command_result" || event.type === "test_result") return "Verification evidence is useful for this session but needs a reusable cause, fix, or runbook before saving.";
+  if (event.type === "file_change") return "The file touch is generic; save only if it explains a convention, workflow, bug, or invariant.";
+  if (event.type === "user_prompt") return "The prompt is episodic; save only decisions, policies, gotchas, or reusable context.";
+  return "Session bookkeeping is not durable repo memory.";
+}
+
+function learningLedgerContextBlock(report: Omit<SessionLearningLedgerReport, "context_block">): string {
+  const lines = ["\n## Session Learning Ledger"];
+  if (!report.sessions.length) {
+    lines.push("No observed session events found.");
+    return lines.join("\n");
+  }
+  lines.push(`Save candidates: ${report.totals.save_candidates}`);
+  lines.push(`Needs evidence: ${report.totals.needs_evidence}`);
+  if (report.totals.already_distilled) lines.push(`Already distilled: ${report.totals.already_distilled}`);
+  lines.push("");
+  lines.push("### Memory Decisions");
+  for (const session of report.sessions.slice(0, 3)) {
+    lines.push(`Session ${session.session_id}: ${session.save_candidates} save, ${session.needs_evidence} needs evidence, ${session.ignore_items} ignore.`);
+    for (const decision of session.decisions.filter((item) => item.disposition !== "ignore").slice(0, 4)) {
+      lines.push(`- ${decision.disposition}: ${decision.memory_type ?? decision.event_type} - ${decision.evidence}`);
+    }
+  }
+  lines.push("", "### Next Actions");
+  for (const action of unique(report.sessions.map((session) => session.next_action)).slice(0, 4)) {
+    lines.push(`- ${action}`);
+  }
+  return lines.join("\n");
+}
+
+export function kageSessionLearningLedger(
+  projectDir: string,
+  options: { sessionId?: string; limit?: number } = {}
+): SessionLearningLedgerReport {
+  ensureMemoryDirs(projectDir);
+  const limit = Math.max(1, Math.min(200, Math.floor(options.limit ?? 50)));
+  const observations = loadObservations(projectDir, options.sessionId);
+  const knownCommands = knownRepoCommands(projectDir);
+  const distilledSessions = distilledObservationSessions(projectDir);
+  const bySession = new Map<string, ObservationRecord[]>();
+  for (const observation of observations) {
+    const rows = bySession.get(observation.session_id) ?? [];
+    rows.push(observation);
+    bySession.set(observation.session_id, rows);
+  }
+
+  const sessions = Array.from(bySession.entries()).map(([sessionId, rows]) => {
+    const sorted = rows.slice().sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    const alreadyDistilled = distilledSessions.has(sessionId);
+    const distillCommand = `kage distill --project . --session ${sessionId}`;
+    const decisions = sorted.map((event): SessionLearningDecision => {
+      const candidate = eventLearningCandidate(event, knownCommands);
+      const failingEvidence = (event.type === "command_result" || event.type === "test_result") && typeof event.exit_code === "number" && event.exit_code !== 0;
+      const evidence = summarize(observationDigestSummary(event)).slice(0, 220);
+      if (candidate) {
+        return {
+          observation_id: event.id,
+          timestamp: event.timestamp,
+          session_id: event.session_id,
+          event_type: event.type,
+          disposition: alreadyDistilled ? "already_distilled" : "save",
+          memory_type: candidate.memory_type,
+          reason: alreadyDistilled ? "A memory packet already references this observed session." : candidate.reason,
+          evidence,
+          ...(event.path ? { path: event.path } : {}),
+          ...(event.command ? { command: normalizeCommandText(event.command) } : {}),
+          ...(typeof event.exit_code === "number" ? { exit_code: event.exit_code } : {}),
+          distill_command: distillCommand,
+        };
+      }
+      return {
+        observation_id: event.id,
+        timestamp: event.timestamp,
+        session_id: event.session_id,
+        event_type: event.type,
+        disposition: failingEvidence ? "needs_evidence" : "ignore",
+        reason: failingEvidence ? "A failure happened, but the observation does not yet explain a reusable cause, fix, workaround, or runbook." : ignoredObservationReason(event),
+        evidence,
+        ...(event.path ? { path: event.path } : {}),
+        ...(event.command ? { command: normalizeCommandText(event.command) } : {}),
+        ...(typeof event.exit_code === "number" ? { exit_code: event.exit_code } : {}),
+        ...(failingEvidence ? { distill_command: distillCommand } : {}),
+      };
+    });
+    const saveCandidates = decisions.filter((decision) => decision.disposition === "save").length;
+    const needsEvidence = decisions.filter((decision) => decision.disposition === "needs_evidence").length;
+    const ignoreItems = decisions.filter((decision) => decision.disposition === "ignore").length;
+    const alreadyDistilledCount = decisions.filter((decision) => decision.disposition === "already_distilled").length;
+    const nextAction = saveCandidates > 0
+      ? `${distillCommand} and review save candidates before handoff.`
+      : needsEvidence > 0
+        ? "Add a concise cause/fix summary for failing observations before deciding whether to save them."
+        : alreadyDistilledCount > 0
+          ? "Session learning already has memory packets; update or supersede them only if the facts changed."
+          : "No save-worthy session fact yet; keep observing without creating memory noise.";
+    return {
+      session_id: sessionId,
+      first_at: sorted[0]?.timestamp ?? "",
+      last_at: sorted.at(-1)?.timestamp ?? "",
+      observations: sorted.length,
+      save_candidates: saveCandidates,
+      ignore_items: ignoreItems,
+      needs_evidence: needsEvidence,
+      already_distilled: alreadyDistilledCount,
+      commands: unique(sorted.map((event) => event.command).filter(Boolean) as string[]).slice(0, 8),
+      paths: unique(sorted.map((event) => event.path).filter(Boolean) as string[]).slice(0, 12),
+      decisions: decisions.slice(0, limit),
+      next_action: nextAction,
+    };
+  }).sort((a, b) => b.last_at.localeCompare(a.last_at));
+
+  const totals = {
+    sessions: sessions.length,
+    observations: observations.length,
+    save_candidates: sessions.reduce((sum, session) => sum + session.save_candidates, 0),
+    ignore_items: sessions.reduce((sum, session) => sum + session.ignore_items, 0),
+    needs_evidence: sessions.reduce((sum, session) => sum + session.needs_evidence, 0),
+    already_distilled: sessions.reduce((sum, session) => sum + session.already_distilled, 0),
+  };
+  const reportWithoutBlock = {
+    schema_version: 1 as const,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    ...(options.sessionId ? { selected_session_id: options.sessionId } : {}),
+    totals,
+    sessions,
+    privacy_model: "The ledger classifies privacy-scanned observation metadata into save, ignore, needs-evidence, and already-distilled decisions; raw transcript text is not the product surface.",
+  };
+  return {
+    ...reportWithoutBlock,
+    context_block: learningLedgerContextBlock(reportWithoutBlock),
+  };
+}
+
 export function distillSession(projectDir: string, sessionId: string): DistillResult {
   const observations = loadObservations(projectDir, sessionId);
   const candidates: CaptureResult[] = [];
@@ -13731,6 +14394,7 @@ export function prCheck(projectDir: string): PrCheckResult {
   const codeInputHash = currentCodeGraphInputHash(projectDir);
   const memoryInputHash = knowledgeGraphInputHash(projectDir, codeInputHash);
   const stalePackets = loadPacketsFromDir(packetsDir(projectDir))
+    .filter((packet) => packet.status === "approved" || packet.status === "pending")
     .map((packet) => ({ packet, reasons: staleMemoryReasons(projectDir, packet) }))
     .filter((entry) => entry.reasons.length)
     .map((entry) => staleFinding(entry.packet, entry.reasons));

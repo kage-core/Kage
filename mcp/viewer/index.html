@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Kage viewer</title>
-    <link rel="stylesheet" href="./styles.css?v=36">
+    <link rel="stylesheet" href="./styles.css?v=37">
   </head>
   <body>
     <div class="viewer-shell">
@@ -21,7 +21,7 @@
           <a class="viewer-section active" href="./" data-viewer-page="overview" aria-current="page">Overview</a>
           <a class="viewer-section" href="./graph.html" data-viewer-page="graph">Graph</a>
           <a class="viewer-section" href="./memory.html" data-viewer-page="memory">Memory</a>
-          <a class="viewer-section" href="./intel.html" data-viewer-page="intel">Risks</a>
+          <a class="viewer-section" href="./intel.html" data-viewer-page="intel">Before You Edit</a>
           <a class="viewer-section" href="./review.html" data-viewer-page="review">Review</a>
         </nav>
         <nav class="sidebar-secondary" aria-label="Diagnostics">
@@ -55,6 +55,17 @@
         <main class="layout">
       <section class="dashboard-panel" aria-label="Kage repo dashboard">
         <div id="dashboardStats" class="dashboard-stats" aria-label="Repo dashboard stats"></div>
+        <section id="repoXray" class="repo-xray" aria-label="Repo X-Ray">
+          <div class="repo-xray-head">
+            <div>
+              <span>Repo X-Ray</span>
+              <h2>Show me what you understand</h2>
+            </div>
+            <strong id="repoXrayStatus">waiting</strong>
+          </div>
+          <p id="repoXrayScript">Kage will map entry points, core files, risk, tests, and memory overlays when the X-Ray report is loaded.</p>
+          <div id="repoXrayLayers" class="repo-xray-layers"></div>
+        </section>
         <div id="dashboardCharts" class="dashboard-charts" aria-label="Repo health charts"></div>
         <div class="dashboard-grid">
           <article class="dashboard-card primary" id="dashboardMemory">
@@ -70,10 +81,10 @@
             <a href="./graph.html" data-viewer-page="graph">Explore graph</a>
           </article>
           <article class="dashboard-card primary" id="dashboardIntel">
-            <div class="dashboard-card-head"><span>Risks</span><strong>reports</strong></div>
+            <div class="dashboard-card-head"><span>Before You Edit</span><strong>checklist</strong></div>
             <h3>What needs attention</h3>
             <ul></ul>
-            <a href="./intel.html" data-viewer-page="intel">Open risks</a>
+            <a href="./intel.html" data-viewer-page="intel">Open edit checklist</a>
           </article>
           <article class="dashboard-card primary" id="dashboardReview">
             <div class="dashboard-card-head"><span>Review</span><strong>handoff</strong></div>
@@ -259,9 +270,9 @@
             <div id="proofList" class="proof-list"></div>
           </section>
 
-          <section class="intelligence-panel" aria-label="Risks and reports">
+          <section class="intelligence-panel" aria-label="Before edit risks and reports">
             <div class="panel-heading">
-              <h2>Risks</h2>
+              <h2>Before You Edit</h2>
               <span id="intelligenceStatus">reports</span>
             </div>
             <div id="intelligenceList" class="intelligence-list"></div>
@@ -273,7 +284,7 @@
               <span id="entityCount">0</span>
             </div>
             <div id="debugOverview" class="debug-overview"></div>
-            <div class="debug-guide">Use artifacts when the graph or recall output looks wrong. Normal repo work starts from Overview, Graph, Memory, Risks, or Review.</div>
+            <div class="debug-guide">Use artifacts when the graph or recall output looks wrong. Normal repo work starts from Overview, Graph, Memory, Before You Edit, or Review.</div>
             <div id="entityList" class="list"></div>
           </section>
 

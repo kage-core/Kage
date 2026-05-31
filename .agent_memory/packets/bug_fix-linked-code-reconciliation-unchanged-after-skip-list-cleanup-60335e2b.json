@@ -8,7 +8,7 @@
   "scope": "repo",
   "visibility": "team",
   "sensitivity": "internal",
-  "status": "approved",
+  "status": "superseded",
   "confidence": 0.7,
   "tags": [
     "session-learning",
@@ -60,7 +60,10 @@
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
-    "verification": "repo_local_agent_capture"
+    "verification": "repo_local_agent_capture",
+    "superseded_at": "2026-05-31T08:46:12.217Z",
+    "superseded_by": "repo:https-github-com-kage-core-kage:bug_fix:linked-code-reconciliation-still-uses-source-fingerprints-after-risk-path-parser",
+    "superseded_reason": "Updated after risk path parser fix; reconciliation remains source-fingerprint based."
   },
   "edges": [
     {
@@ -68,6 +71,12 @@
       "to": "repo:https-github-com-kage-core-kage:bug_fix:linked-code-memory-reconciliation-remains-source-fingerprint-based-1779545138041",
       "evidence": "Reverified after removing external-tool-specific workspace skip entries from mcp/kernel.ts.",
       "created_at": "2026-05-23T14:26:30.766Z"
+    },
+    {
+      "relation": "superseded_by",
+      "to": "repo:https-github-com-kage-core-kage:bug_fix:linked-code-reconciliation-still-uses-source-fingerprints-after-risk-path-parser",
+      "evidence": "Updated after risk path parser fix; reconciliation remains source-fingerprint based.",
+      "created_at": "2026-05-31T08:46:12.217Z"
     }
   ],
   "quality": {
@@ -89,8 +98,16 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 154
+    "estimated_tokens_saved": 154,
+    "stale": true,
+    "stale_reasons": [
+      "packet status is superseded",
+      "linked path changed since memory was verified: mcp/kernel.ts, mcp/kernel.test.ts"
+    ],
+    "suggested_action": "mark_stale",
+    "superseded_by": "repo:https-github-com-kage-core-kage:bug_fix:linked-code-reconciliation-still-uses-source-fingerprints-after-risk-path-parser",
+    "superseded_reason": "Updated after risk path parser fix; reconciliation remains source-fingerprint based."
   },
   "created_at": "2026-05-23T14:26:16.043Z",
-  "updated_at": "2026-05-23T14:26:35.306Z"
+  "updated_at": "2026-05-31T08:46:21.182Z"
 }
