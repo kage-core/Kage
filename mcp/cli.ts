@@ -166,14 +166,14 @@ Usage:
   kage graph "<query>" --project <dir> [--json]
   kage graph-registry --project <dir> [--json]
   kage embeddings build --project <dir> [--model Xenova/all-MiniLM-L6-v2] [--json]
-  kage recall "<query>" --project <dir> [--json] [--explain] [--embeddings]
+  kage recall "<query>" --project <dir> [--json] [--explain] [--embeddings] [--max-context-tokens <n>] [--structural-hops <n>]
   kage observe --project <dir> --event <json>
   kage sessions --project <dir> [--json]
   kage replay --project <dir> [--session <id>] [--limit <n>] [--json]
   kage distill --project <dir> --session <id>
-  kage learn --project <dir> --learning <text> [--title <title>] [--type <type>] [--evidence <text>] [--verified-by <text>] [--tags a,b] [--paths a,b]
+  kage learn --project <dir> --learning <text> [--title <title>] [--type <type>] [--evidence <text>] [--verified-by <text>] [--tags a,b] [--paths a,b] [--graph-nodes a,b] [--allow-missing-paths]
   kage feedback --project <dir> --packet <packet-id> --kind helpful|wrong|stale
-  kage capture --project <dir> --title <title> --body <body> [--type <type>] [--summary <summary>] [--tags a,b] [--paths a,b] [--stack a,b]
+  kage capture --project <dir> --title <title> --body <body> [--type <type>] [--summary <summary>] [--tags a,b] [--paths a,b] [--stack a,b] [--graph-nodes a,b] [--allow-missing-paths]
   kage propose --project <dir> --from-diff
   kage review-artifact --project <dir>
   kage promote --project <dir> --public <packet-id>

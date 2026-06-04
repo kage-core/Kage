@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased - memory-quality mechanisms
+
+- Write-time citation validation: `kage_capture`/`kage_learn` (and the CLI)
+  reject a write when every referenced path is missing from the repo, with an
+  `allow_missing_paths` / `--allow-missing-paths` escape hatch. The core
+  `capture()` library stays permissive for programmatic callers.
+- Recall now excludes hard-stale memory (cited files deleted since capture,
+  expired TTL, or reported stale) from the payload and records what was
+  suppressed; `includeStale` bypasses for audits.
+- New `kage verify` / `kage_verify_citations` for on-demand grounding and
+  staleness checks of repo memory.
+- New `kage compact` / `kage_compact`: prune dead citations, deprecate
+  hard-stale packets, and surface near-duplicate clusters for agent-driven
+  merge (no hosted LLM).
+- Packets record `author_branch`; agents can declare `graph_nodes` at capture
+  (stored as code-reference edges).
+- Opt-in recall token budget (`--max-context-tokens` / `max_context_tokens`)
+  and opt-in traversal-driven structural blast radius (`--structural-hops` /
+  `structural_hops`).
+- `kage hook install` now also installs `post-merge` / `post-checkout` hooks so
+  pulled teammate packets re-index automatically.
+- Packet loaders skip unparseable / merge-conflicted packets instead of
+  crashing all of recall/verify/compact.
+- gitignore: stop tracking auto-generated `repo_map` packets (the patterns
+  missed the repo-key infix), which were causing spurious merge conflicts.
+
 ## v1.1.36 - 2026-05-17
 
 - Added a viewer overview dashboard with sections for readiness, memory

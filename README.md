@@ -174,7 +174,10 @@ dependency-free.
 
 ```bash
 kage recall "how do I run tests" --project .
+kage recall "auth token validation" --project . --structural-hops 2 # + 2-hop code blast radius
 kage code-graph "auth routes tests" --project .
+kage verify --project . # check cited files still exist and memory isn't stale
+kage compact --project . --dry-run # prune dead citations; surface duplicates to merge
 kage risk --project . --targets src/auth.ts --json
 kage capabilities --project . # evidence-backed memory system readiness
 kage slots set --project . --label project_context --content "Always run checkout retry tests after touching retry modules." --paths src/retry.ts --tags checkout,tests
