@@ -95,8 +95,13 @@ def run_task(
         user_text=_build_prompt(problem_statement, extra_context), result=result,
     )
     result.wall_clock_s = round(time.time() - t0, 2)
-    # The prediction is the working-tree diff produced by the agent.
-    result.patch = _run("git add -A && git diff --cached", cwd=repo_dir, timeout=60)
+    # Capture only source-code changes — exclude .agent_memory (Kage writes
+    # memory packets into the checkout) and any other non-code artifacts.
+    result.patch = _run(
+        "git add -A -- ':!.agent_memory' ':!*.pyc' ':!__pycache__' "
+        "&& git diff --cached -- ':!.agent_memory'",
+        cwd=repo_dir, timeout=60,
+    )
     return result
 
 
