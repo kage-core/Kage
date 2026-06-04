@@ -19,9 +19,7 @@
   ],
   "paths": [
     "mcp/kernel.ts",
-    "mcp/kernel.test.ts",
-    ".agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json",
-    ".agent_memory/packets/repo_map-kage-repo-structure-b5f385f7.json"
+    "mcp/kernel.test.ts"
   ],
   "stack": [],
   "source_refs": [
@@ -32,8 +30,20 @@
   ],
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-05T21:01:49.574Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-04T18:29:12.645Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "b20279bb3af5028358f71f4460aeedb32af467898cb20c97c0706aebde44de64",
+        "size": 630543
+      },
+      {
+        "path": "mcp/kernel.test.ts",
+        "sha256": "7b8c741e08cbd629ce461e61d0abac5b038963c7b0903e60e8af6e811c56f485",
+        "size": 175153
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -55,8 +65,13 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 213
+    "estimated_tokens_saved": 213,
+    "stale": true,
+    "stale_reasons": [
+      "some referenced paths are missing: .agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json, .agent_memory/packets/repo_map-kage-repo-structure-b5f385f7.json"
+    ],
+    "suggested_action": "update"
   },
   "created_at": "2026-05-05T21:01:49.574Z",
-  "updated_at": "2026-05-19T04:53:22.455Z"
+  "updated_at": "2026-06-04T18:29:12.646Z"
 }
