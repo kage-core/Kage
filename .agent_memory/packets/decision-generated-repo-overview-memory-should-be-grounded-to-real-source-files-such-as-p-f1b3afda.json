@@ -69,13 +69,8 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 113,
-    "stale": true,
-    "stale_reasons": [
-      "some referenced paths are missing: .agent_memory/packets/repo_map-kage-repo-overview-a522f3a0.json"
-    ],
-    "suggested_action": "update"
+    "estimated_tokens_saved": 113
   },
   "created_at": "2026-05-17T22:35:06.617Z",
-  "updated_at": "2026-06-04T18:29:12.646Z"
+  "updated_at": "2026-06-04T18:44:01.691Z"
 }
