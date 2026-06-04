@@ -135,7 +135,7 @@ _OPENAI_TOOL = {"type": "function", "function": {
 
 
 def _run_openai(*, repo_dir, model, max_steps, user_text, result):
-    from openai import OpenAI
+    from openai import OpenAI, RateLimitError
 
     client = OpenAI()
     messages = [
@@ -143,9 +143,19 @@ def _run_openai(*, repo_dir, model, max_steps, user_text, result):
         {"role": "user", "content": user_text},
     ]
     for step in range(max_steps):
-        resp = client.chat.completions.create(
-            model=model, messages=messages, tools=[_OPENAI_TOOL], max_tokens=4096
-        )
+        # Retry on 429 rate-limit with exponential backoff (max 3 retries).
+        for attempt in range(4):
+            try:
+                resp = client.chat.completions.create(
+                    model=model, messages=messages, tools=[_OPENAI_TOOL], max_tokens=4096
+                )
+                break
+            except RateLimitError as e:
+                if attempt == 3:
+                    raise
+                wait = 2 ** attempt * 30  # 30s, 60s, 120s
+                print(f"  rate-limited, waiting {wait}s (attempt {attempt+1}/3)…")
+                time.sleep(wait)
         u = resp.usage
         if u:
             result.prompt_tokens += u.prompt_tokens
