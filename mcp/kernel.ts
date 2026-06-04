@@ -97,6 +97,7 @@ interface GraphInputs {
   semanticExpansion?: boolean;
   includeStale?: boolean;
   maxContextTokens?: number;
+  structuralHops?: number;
 }
 
 // Bounded context assembly (PRD Feature 2: "inject only the relevant rule + structural
@@ -8753,6 +8754,18 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
   const codeContext = queryCodeGraph(projectDir, query, 5, codeGraph);
   const pinnedContext = renderPinnedRepoContext(readContextSlots(projectDir));
 
+  // PRD Feature 2: traverse the code graph outward from the recalled memory's files
+  // (the semantic entry point) to assemble a bounded structural blast radius. Opt-in
+  // via inputs.structuralHops so default recall output is unchanged.
+  const structuralHops = inputs.structuralHops ?? 0;
+  const blastRadius = structuralHops > 0
+    ? structuralBlastRadius(
+        codeGraph,
+        unique(scored.flatMap((entry) => entry.packet.paths).filter((path) => meaningfulMemoryPath(path))),
+        structuralHops
+      )
+    : [];
+
   const lines = [
     `# Kage Context`,
     "",
@@ -8765,6 +8778,9 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
     ...codeContext.tests.slice(0, 3).map((test, index) => `${index + 1}. [test] ${test.title} in ${test.test_path}:${test.line}${test.covers_symbol ? ` covers ${test.covers_symbol}` : ""}`),
     ...(!codeContext.symbols.length && !codeContext.routes.length && !codeContext.tests.length ? codeContext.files.slice(0, 3).map((file, index) => `${index + 1}. [file] ${file.path} (${file.kind})`) : []),
     "",
+    ...(blastRadius.length
+      ? [`## Structural Blast Radius (${structuralHops}-hop)`, ...blastRadius.map((path, index) => `${index + 1}. ${path}`), ""]
+      : []),
     scored.length ? "## Relevant Memory" : "No relevant repo memory found.",
     ...scored.flatMap((entry, index) => [
       "",
@@ -9277,6 +9293,42 @@ function codeDependents(graph: CodeGraph): Map<string, Set<string>> {
     dependents.set(edge.to_path, list);
   }
   return dependents;
+}
+
+// Bounded N-hop structural traversal from a set of seed files (the files the recalled
+// memory is about) — the PRD's "structural blast radius". Walks both import directions
+// (who-depends-on and what-it-depends-on), excludes the seeds, and ranks by how many
+// files depend on each node. Pure graph traversal; no full-repo scan.
+function structuralBlastRadius(graph: CodeGraph, seedPaths: string[], hops: number, limit = 8): string[] {
+  const seeds = seedPaths.filter(Boolean);
+  if (!seeds.length || hops <= 0) return [];
+  const dependents = codeDependents(graph);
+  const dependencies = new Map<string, Set<string>>();
+  for (const edge of graph.imports) {
+    if (!edge.from_path || !edge.to_path) continue;
+    const list = dependencies.get(edge.from_path) ?? new Set<string>();
+    list.add(edge.to_path);
+    dependencies.set(edge.from_path, list);
+  }
+  const seedSet = new Set(seeds);
+  const visited = new Set<string>();
+  let frontier = new Set(seeds);
+  for (let depth = 0; depth < hops; depth += 1) {
+    const next = new Set<string>();
+    for (const node of frontier) {
+      for (const neighbor of [...(dependents.get(node) ?? []), ...(dependencies.get(node) ?? [])]) {
+        if (seedSet.has(neighbor) || visited.has(neighbor)) continue;
+        visited.add(neighbor);
+        next.add(neighbor);
+      }
+    }
+    frontier = next;
+  }
+  const score = new Map<string, number>();
+  for (const [path, incoming] of dependents.entries()) score.set(path, incoming.size);
+  return [...visited]
+    .sort((a, b) => (score.get(b) ?? 0) - (score.get(a) ?? 0) || a.localeCompare(b))
+    .slice(0, limit);
 }
 
 function impactSurface(target: string, dependents: Map<string, Set<string>>, graph: CodeGraph): string[] {

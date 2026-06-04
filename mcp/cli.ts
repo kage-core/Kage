@@ -1640,9 +1640,10 @@ async function main(): Promise<void> {
     const query = firstPositional(args);
     if (!query) usage();
     const maxContextTokens = args.includes("--max-context-tokens") ? numberArg(args, "--max-context-tokens", 0) : undefined;
+    const structuralHops = args.includes("--structural-hops") ? numberArg(args, "--structural-hops", 2) : undefined;
     const result = args.includes("--embeddings")
       ? await recallWithEmbeddings(projectArg(args), query, 5, args.includes("--explain"))
-      : recall(projectArg(args), query, 5, args.includes("--explain"), { maxContextTokens });
+      : recall(projectArg(args), query, 5, args.includes("--explain"), { maxContextTokens, structuralHops });
     if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
     else console.log(result.context_block);
     return;
