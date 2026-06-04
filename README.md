@@ -2,11 +2,15 @@
 
 # Kage
 
-### Shared repo memory for AI coding agents
+### The agent memory your team can trust and own
 
-Kage gives Codex, Claude Code, Cursor, and other MCP agents the repo context
-they keep forgetting: commands, decisions, bugs, conventions, code paths,
-symbols, tests, and teammate knowledge.
+Every coding agent now "remembers." Kage is the memory you can **trust**: it
+refuses to store hallucinated citations, withholds memory whose evidence was
+deleted, and is grounded to your actual code graph — all stored as plain files
+your team **reviews in the same PR as the code**. Git-native, local-first, no
+API key.
+
+Works with Codex, Claude Code, Cursor, Windsurf, and any MCP agent.
 
 <p>
   <a href="https://kage-core.github.io/Kage/">Website</a>
@@ -59,6 +63,24 @@ the relevant slice for the current task instead of rereading the whole repo.
 
 Kage is local-first. No hosted service, external database, or API key is
 required for normal use.
+
+### What makes Kage different: trust + governance
+
+Most agent-memory tools optimize for *capturing more*. The hard problem is
+trusting what's captured — an agent acting on stale or hallucinated memory is
+worse than one with none. Kage is built around that:
+
+- **Validated on write** — a memory citing files that don't exist is rejected.
+- **Verified on recall** — memory whose cited files were deleted is silently
+  withheld from the agent (and shown to you, never hidden).
+- **Grounded to code** — memory links to the code graph; recall can return the
+  bounded blast radius of what a change touches.
+- **Governed like code** — packets are plain files; review, approve, and merge
+  memory in the same pull request as the code it describes.
+
+Prove it on your own repo: `kage benchmark --trust --project .` — it measures
+hallucinated-citation rejection, stale-memory exclusion, and live grounding.
+See [docs/TRUST.md](docs/TRUST.md).
 
 ## What you get
 
