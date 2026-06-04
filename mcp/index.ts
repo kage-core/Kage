@@ -269,6 +269,7 @@ export function listTools() {
           embeddings: { type: "boolean" },
           json: { type: "boolean" },
           max_context_tokens: { type: "number" },
+          structural_hops: { type: "number", description: "If >0, append a bounded N-hop code-graph blast radius seeded from the recalled memory's files." },
         },
         required: ["query", "project_dir"],
       },
@@ -1326,9 +1327,10 @@ export async function callTool(name: string, args: Record<string, unknown> | und
 
   if (name === "kage_recall") {
     const maxContextTokens = typeof args?.max_context_tokens === "number" ? args.max_context_tokens : undefined;
+    const structuralHops = typeof args?.structural_hops === "number" ? args.structural_hops : undefined;
     const result = args?.embeddings
       ? await recallWithEmbeddings(String(args?.project_dir ?? ""), String(args?.query ?? ""), Number(args?.limit ?? 5), Boolean(args?.explain))
-      : recall(String(args?.project_dir ?? ""), String(args?.query ?? ""), Number(args?.limit ?? 5), Boolean(args?.explain), { maxContextTokens });
+      : recall(String(args?.project_dir ?? ""), String(args?.query ?? ""), Number(args?.limit ?? 5), Boolean(args?.explain), { maxContextTokens, structuralHops });
     return {
       content: [{ type: "text", text: args?.json || args?.explain ? JSON.stringify(result, null, 2) : result.context_block }],
     };

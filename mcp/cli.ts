@@ -166,14 +166,14 @@ Usage:
   kage graph "<query>" --project <dir> [--json]
   kage graph-registry --project <dir> [--json]
   kage embeddings build --project <dir> [--model Xenova/all-MiniLM-L6-v2] [--json]
-  kage recall "<query>" --project <dir> [--json] [--explain] [--embeddings]
+  kage recall "<query>" --project <dir> [--json] [--explain] [--embeddings] [--max-context-tokens <n>] [--structural-hops <n>]
   kage observe --project <dir> --event <json>
   kage sessions --project <dir> [--json]
   kage replay --project <dir> [--session <id>] [--limit <n>] [--json]
   kage distill --project <dir> --session <id>
-  kage learn --project <dir> --learning <text> [--title <title>] [--type <type>] [--evidence <text>] [--verified-by <text>] [--tags a,b] [--paths a,b]
+  kage learn --project <dir> --learning <text> [--title <title>] [--type <type>] [--evidence <text>] [--verified-by <text>] [--tags a,b] [--paths a,b] [--graph-nodes a,b] [--allow-missing-paths]
   kage feedback --project <dir> --packet <packet-id> --kind helpful|wrong|stale
-  kage capture --project <dir> --title <title> --body <body> [--type <type>] [--summary <summary>] [--tags a,b] [--paths a,b] [--stack a,b]
+  kage capture --project <dir> --title <title> --body <body> [--type <type>] [--summary <summary>] [--tags a,b] [--paths a,b] [--stack a,b] [--graph-nodes a,b] [--allow-missing-paths]
   kage propose --project <dir> --from-diff
   kage review-artifact --project <dir>
   kage promote --project <dir> --public <packet-id>
@@ -1640,9 +1640,10 @@ async function main(): Promise<void> {
     const query = firstPositional(args);
     if (!query) usage();
     const maxContextTokens = args.includes("--max-context-tokens") ? numberArg(args, "--max-context-tokens", 0) : undefined;
+    const structuralHops = args.includes("--structural-hops") ? numberArg(args, "--structural-hops", 2) : undefined;
     const result = args.includes("--embeddings")
       ? await recallWithEmbeddings(projectArg(args), query, 5, args.includes("--explain"))
-      : recall(projectArg(args), query, 5, args.includes("--explain"), { maxContextTokens });
+      : recall(projectArg(args), query, 5, args.includes("--explain"), { maxContextTokens, structuralHops });
     if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
     else console.log(result.context_block);
     return;

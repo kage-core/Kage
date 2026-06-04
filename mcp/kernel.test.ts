@@ -3663,6 +3663,28 @@ test("recall bounds the context block to an opt-in token budget", () => {
   assert.match(bounded.context_block, /Context trimmed/);
 });
 
+test("recall assembles a bounded structural blast radius from the recalled memory's files", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "core.js"), "export function core() { return 1; }\n", "utf8");
+  writeFileSync(join(project, "src", "app.js"), "import { core } from './core.js';\nexport function app() { return core(); }\n", "utf8");
+  const captured = capture({
+    projectDir: project,
+    title: "Core retry invariant",
+    body: "Core retry invariant: payment retries are idempotent in src/core.js.",
+    type: "decision",
+    paths: ["src/core.js"],
+  });
+  assert.equal(captured.ok, true);
+
+  const plain = recall(project, "core retry idempotent payment", 5);
+  assert.equal(/Structural Blast Radius/.test(plain.context_block), false); // off by default
+
+  const traversed = recall(project, "core retry idempotent payment", 5, false, { structuralHops: 2 });
+  assert.match(traversed.context_block, /Structural Blast Radius \(2-hop\)/);
+  assert.match(traversed.context_block, /src\/app\.js/); // app.js depends on the recalled core.js
+});
+
 test("hook install also installs pull/merge sync hooks", () => {
   const project = tempProject();
   execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
