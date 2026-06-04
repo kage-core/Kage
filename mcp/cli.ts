@@ -9,6 +9,7 @@ import {
   benchmarkTaskComparison,
   benchmarkCodingMemoryQuality,
   benchmarkMemoryScale,
+  benchmarkTrust,
   buildEmbeddingIndex,
   approvePending,
   benchmarkProject,
@@ -150,6 +151,7 @@ Usage:
   kage inbox --project <dir> [--json]
   kage quality --project <dir> [--json]
   kage benchmark --project <dir> [--json]
+  kage benchmark --trust --project <dir> [--json]
   kage benchmark --memory-quality [--json]
   kage benchmark --scale [--sizes 240,1000,5000] [--json]
   kage benchmark --project <dir> --compare --task <task> [--json]
@@ -1339,6 +1341,22 @@ async function main(): Promise<void> {
   }
 
   if (command === "benchmark") {
+    if (args.includes("--trust")) {
+      const result = benchmarkTrust(projectArg(args));
+      if (args.includes("--json")) {
+        console.log(JSON.stringify(result, null, 2));
+        if (!result.ok) process.exitCode = 1;
+        return;
+      }
+      console.log("Kage Trust Benchmark — can this memory be trusted?");
+      console.log(`Trust score: ${result.trust_score}/100  (${result.ok ? "PASS" : "REVIEW"})`);
+      console.log(`  Hallucinated-citation rejection: ${result.metrics.hallucinated_citation_rejection_rate}%  (${result.detail.hallucination.rejected}/${result.detail.hallucination.attempted})`);
+      console.log(`  Stale-memory exclusion:          ${result.metrics.stale_memory_exclusion_rate}%  (${result.detail.staleness.excluded_after}/${result.detail.staleness.recallable_before})`);
+      console.log(`  Live grounding rate:             ${result.metrics.live_grounding_rate}%  (${result.detail.live_memory.grounded}/${result.detail.live_memory.checked} packets)`);
+      console.log(`  Wrong-advice prevented:          ${result.metrics.wrong_advice_prevented_rate}%`);
+      if (!result.ok) process.exitCode = 1;
+      return;
+    }
     if (args.includes("--memory-quality")) {
       const result = benchmarkCodingMemoryQuality({
         topK: Number(takeArg(args, "--top-k") ?? 10),

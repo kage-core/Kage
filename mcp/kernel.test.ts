@@ -36,6 +36,7 @@ import {
   gcProject,
   compactProject,
   verifyCitations,
+  benchmarkTrust,
   initProject,
   indexProject,
   installAgentPolicy,
@@ -3683,6 +3684,18 @@ test("recall assembles a bounded structural blast radius from the recalled memor
   const traversed = recall(project, "core retry idempotent payment", 5, false, { structuralHops: 2 });
   assert.match(traversed.context_block, /Structural Blast Radius \(2-hop\)/);
   assert.match(traversed.context_block, /src\/app\.js/); // app.js depends on the recalled core.js
+});
+
+test("trust benchmark proves citation rejection, stale exclusion, and grounding", () => {
+  const project = tempProject();
+  const report = benchmarkTrust(project);
+  assert.equal(report.metrics.hallucinated_citation_rejection_rate, 100);
+  assert.equal(report.detail.hallucination.rejected, report.detail.hallucination.attempted);
+  assert.equal(report.detail.staleness.recallable_before > 0, true);
+  assert.equal(report.detail.staleness.excluded_after, report.detail.staleness.recallable_before);
+  assert.equal(report.metrics.stale_memory_exclusion_rate, 100);
+  assert.equal(report.trust_score >= 90, true);
+  assert.equal(report.ok, true);
 });
 
 test("hook install also installs pull/merge sync hooks", () => {
