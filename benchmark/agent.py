@@ -95,11 +95,11 @@ def run_task(
         user_text=_build_prompt(problem_statement, extra_context), result=result,
     )
     result.wall_clock_s = round(time.time() - t0, 2)
-    # Capture only source-code changes — exclude .agent_memory (Kage writes
-    # memory packets into the checkout) and any other non-code artifacts.
+    # Remove Kage's memory directory before staging so it never lands in the
+    # patch. (kage_memory.persist() is called by the caller *after* run_task
+    # returns, so this doesn't lose any cross-task learnings.)
     result.patch = _run(
-        "git add -A -- ':!.agent_memory' ':!*.pyc' ':!__pycache__' "
-        "&& git diff --cached -- ':!.agent_memory'",
+        "rm -rf .agent_memory && git add -A && git diff --cached",
         cwd=repo_dir, timeout=60,
     )
     return result
