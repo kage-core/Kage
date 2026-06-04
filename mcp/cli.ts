@@ -78,6 +78,8 @@ import {
   recallWithEmbeddings,
   recordFeedback,
   gcProject,
+  compactProject,
+  verifyCitations,
   refreshProject,
   rejectPending,
   registryRecommendations,
@@ -117,6 +119,8 @@ Usage:
   kage hook uninstall --project <dir> [--json]
   kage refresh --project <dir> [--full] [--json]
   kage gc --project <dir> [--dry-run] [--force] [--json]
+  kage compact --project <dir> [--dry-run] [--json]
+  kage verify --project <dir> [--id <packet-id>] [--json]
   kage pr summarize --project <dir> [--json]
   kage pr check --project <dir> [--json]
   kage upgrade [--dry-run]
@@ -468,6 +472,61 @@ async function main(): Promise<void> {
     }
     if (!result.deprecated.length && !result.deleted.length) {
       console.log("No stale packets found — memory is clean.");
+    }
+    return;
+  }
+
+  if (command === "compact") {
+    const project = projectArg(args);
+    const dryRun = args.includes("--dry-run");
+    const result = compactProject(project, { dryRun });
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    const label = dryRun ? " [dry-run]" : "";
+    console.log(`Kage compact${label} — scanned ${result.total_scanned} packets`);
+    if (result.pruned_citations.length) {
+      console.log(`\nPruned dead citations (${result.pruned_citations.length}):`);
+      for (const p of result.pruned_citations) console.log(`  ✂  ${p.title} — removed ${p.removed_paths.join(", ")}`);
+    }
+    if (result.deprecated.length) {
+      console.log(`\nDeprecated stale (${result.deprecated.length}):`);
+      for (const p of result.deprecated) console.log(`  ✗ ${p.title} — ${p.reason}`);
+    }
+    if (result.duplicate_clusters.length) {
+      console.log(`\nDuplicate clusters to merge (${result.duplicate_clusters.length}) — review with kage_compact / kage supersede:`);
+      for (const cluster of result.duplicate_clusters) {
+        console.log(`  ~${cluster.score} similarity:`);
+        for (const member of cluster.packets) console.log(`     • ${member.title} (${member.id})`);
+      }
+    }
+    if (!result.pruned_citations.length && !result.deprecated.length && !result.duplicate_clusters.length) {
+      console.log("Nothing to compact — memory is clean.");
+    }
+    return;
+  }
+
+  if (command === "verify") {
+    const project = projectArg(args);
+    const idFlag = args.indexOf("--id");
+    const id = idFlag >= 0 ? args[idFlag + 1] : undefined;
+    const result = verifyCitations(project, { id });
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      if (!result.ok) process.exit(2);
+      return;
+    }
+    if (!result.ok) {
+      console.log(`Verification failed:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);
+      process.exit(2);
+    }
+    console.log(`Kage verify — ${result.checked} packet(s): ${result.valid} valid, ${result.stale} stale, ${result.ungrounded} ungrounded`);
+    for (const entry of result.packets.filter((p) => p.stale || !p.grounded)) {
+      const flags = [entry.stale ? `stale:${entry.stale_severity}` : "", entry.grounded ? "" : "ungrounded"].filter(Boolean).join(", ");
+      console.log(`  ⚠ ${entry.title} [${flags}]`);
+      if (entry.missing_paths.length) console.log(`      missing: ${entry.missing_paths.join(", ")}`);
+      for (const reason of entry.stale_reasons) console.log(`      - ${reason}`);
     }
     return;
   }
@@ -1395,12 +1454,16 @@ async function main(): Promise<void> {
       tags: listArg(takeArg(args, "--tags")),
       paths: listArg(takeArg(args, "--paths")),
       stack: listArg(takeArg(args, "--stack")),
+      graphNodes: listArg(takeArg(args, "--graph-nodes")),
+      allowMissingPaths: args.includes("--allow-missing-paths"),
+      strictCitations: true,
     });
     if (!result.ok) {
       console.error(`Learning capture blocked:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);
       process.exit(2);
     }
     console.log(`Captured session learning: ${result.path}`);
+    if (result.warnings?.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
     console.log("Repo-local memory is written immediately. Promotion to org/global still requires explicit review.");
     return;
   }
@@ -1576,9 +1639,10 @@ async function main(): Promise<void> {
   if (command === "recall") {
     const query = firstPositional(args);
     if (!query) usage();
+    const maxContextTokens = args.includes("--max-context-tokens") ? numberArg(args, "--max-context-tokens", 0) : undefined;
     const result = args.includes("--embeddings")
       ? await recallWithEmbeddings(projectArg(args), query, 5, args.includes("--explain"))
-      : recall(projectArg(args), query, 5, args.includes("--explain"));
+      : recall(projectArg(args), query, 5, args.includes("--explain"), { maxContextTokens });
     if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
     else console.log(result.context_block);
     return;
@@ -1709,6 +1773,9 @@ async function main(): Promise<void> {
       tags: listArg(takeArg(args, "--tags")),
       paths: listArg(takeArg(args, "--paths")),
       stack: listArg(takeArg(args, "--stack")),
+      graphNodes: listArg(takeArg(args, "--graph-nodes")),
+      allowMissingPaths: args.includes("--allow-missing-paths"),
+      strictCitations: true,
     };
     const result = capture(input);
     if (!result.ok) {
@@ -1716,6 +1783,7 @@ async function main(): Promise<void> {
       process.exit(2);
     }
     console.log(`Captured repo-local packet: ${result.path}`);
+    if (result.warnings?.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
     console.log("Repo-local memory is written immediately. Promotion to org/global still requires explicit review.");
     return;
   }

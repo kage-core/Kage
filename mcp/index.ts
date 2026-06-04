@@ -68,6 +68,8 @@ import {
   recall,
   recallWithEmbeddings,
   recordFeedback,
+  verifyCitations,
+  compactProject,
   refreshProject,
   registryRecommendations,
   setupAgent,
@@ -266,6 +268,7 @@ export function listTools() {
           explain: { type: "boolean" },
           embeddings: { type: "boolean" },
           json: { type: "boolean" },
+          max_context_tokens: { type: "number" },
         },
         required: ["query", "project_dir"],
       },
@@ -825,7 +828,7 @@ export function listTools() {
     {
       name: "kage_learn",
       description:
-        "Capture an actual reusable learning from the current session as repo-local memory. Prefer this over diff proposal when the agent knows what was learned.",
+        "Capture an actual reusable learning from the current session as repo-local memory. Prefer this over diff proposal when the agent knows what was learned. Capture is rejected if every referenced path is missing from the repo; set allow_missing_paths to record anyway (e.g. a file you are about to create).",
       inputSchema: {
         type: "object",
         properties: {
@@ -838,6 +841,8 @@ export function listTools() {
           tags: { type: "array", items: { type: "string" } },
           paths: { type: "array", items: { type: "string" } },
           stack: { type: "array", items: { type: "string" } },
+          graph_nodes: { type: "array", items: { type: "string" } },
+          allow_missing_paths: { type: "boolean" },
         },
         required: ["project_dir", "learning"],
       },
@@ -845,7 +850,7 @@ export function listTools() {
     {
       name: "kage_capture",
       description:
-        "Create a repo-local Kage memory packet immediately. Org/global promotion still requires explicit human review.",
+        "Create a repo-local Kage memory packet immediately. Org/global promotion still requires explicit human review. Capture is rejected if every referenced path is missing from the repo; set allow_missing_paths to record anyway.",
       inputSchema: {
         type: "object",
         properties: {
@@ -857,8 +862,36 @@ export function listTools() {
           tags: { type: "array", items: { type: "string" } },
           paths: { type: "array", items: { type: "string" } },
           stack: { type: "array", items: { type: "string" } },
+          graph_nodes: { type: "array", items: { type: "string" }, description: "Code-graph node references (symbol/route/file) this memory is about." },
+          allow_missing_paths: { type: "boolean" },
         },
         required: ["project_dir", "title", "body"],
+      },
+    },
+    {
+      name: "kage_verify_citations",
+      description:
+        "Verify that a memory packet's cited file paths still exist and that the memory is not stale, before trusting it. Pass an id to check one packet, or omit to audit all approved repo memory. Returns grounding and staleness for each.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+          id: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_compact",
+      description:
+        "Consolidate repo memory: prune dead citations, deprecate hard-stale packets, and surface near-duplicate clusters to merge (via kage_supersede). Defaults to a dry run; pass dry_run=false to apply pruning/deprecation. Duplicate merging stays an agent decision — no hosted LLM is used.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+          dry_run: { type: "boolean" },
+        },
+        required: ["project_dir"],
       },
     },
     {
@@ -1292,9 +1325,10 @@ export async function callTool(name: string, args: Record<string, unknown> | und
   }
 
   if (name === "kage_recall") {
+    const maxContextTokens = typeof args?.max_context_tokens === "number" ? args.max_context_tokens : undefined;
     const result = args?.embeddings
       ? await recallWithEmbeddings(String(args?.project_dir ?? ""), String(args?.query ?? ""), Number(args?.limit ?? 5), Boolean(args?.explain))
-      : recall(String(args?.project_dir ?? ""), String(args?.query ?? ""), Number(args?.limit ?? 5), Boolean(args?.explain));
+      : recall(String(args?.project_dir ?? ""), String(args?.query ?? ""), Number(args?.limit ?? 5), Boolean(args?.explain), { maxContextTokens });
     return {
       content: [{ type: "text", text: args?.json || args?.explain ? JSON.stringify(result, null, 2) : result.context_block }],
     };
@@ -1668,13 +1702,17 @@ export async function callTool(name: string, args: Record<string, unknown> | und
       tags: arrayArg(args?.tags),
       paths: arrayArg(args?.paths),
       stack: arrayArg(args?.stack),
+      graphNodes: arrayArg(args?.graph_nodes),
+      allowMissingPaths: Boolean(args?.allow_missing_paths),
+      strictCitations: true,
     });
+    const learnWarnings = result.warnings?.length ? `\nWarnings:\n${result.warnings.map((warning) => `- ${warning}`).join("\n")}` : "";
     return {
       content: [
         {
           type: "text",
           text: result.ok
-            ? `Captured session learning: ${result.path}\nRepo-local memory is written immediately. Org/global promotion still requires explicit review.`
+            ? `Captured session learning: ${result.path}\nRepo-local memory is written immediately. Org/global promotion still requires explicit review.${learnWarnings}`
             : `Learning capture blocked:\n${result.errors.map((error) => `- ${error}`).join("\n")}`,
         },
       ],
@@ -1692,17 +1730,41 @@ export async function callTool(name: string, args: Record<string, unknown> | und
       tags: arrayArg(args?.tags),
       paths: arrayArg(args?.paths),
       stack: arrayArg(args?.stack),
+      graphNodes: arrayArg(args?.graph_nodes),
+      allowMissingPaths: Boolean(args?.allow_missing_paths),
+      strictCitations: true,
     });
 
+    const captureWarnings = result.warnings?.length ? `\nWarnings:\n${result.warnings.map((warning) => `- ${warning}`).join("\n")}` : "";
     return {
       content: [
         {
           type: "text",
           text: result.ok
-            ? `Captured repo-local packet: ${result.path}\nOrg/global promotion still requires explicit review.`
+            ? `Captured repo-local packet: ${result.path}\nOrg/global promotion still requires explicit review.${captureWarnings}`
             : `Capture blocked:\n${result.errors.map((error) => `- ${error}`).join("\n")}`,
         },
       ],
+      isError: !result.ok,
+    };
+  }
+
+  if (name === "kage_verify_citations") {
+    const result = verifyCitations(String(args?.project_dir ?? ""), {
+      id: args?.id ? String(args.id) : undefined,
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      isError: !result.ok,
+    };
+  }
+
+  if (name === "kage_compact") {
+    const result = compactProject(String(args?.project_dir ?? ""), {
+      dryRun: args?.dry_run === undefined ? true : Boolean(args.dry_run),
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       isError: !result.ok,
     };
   }

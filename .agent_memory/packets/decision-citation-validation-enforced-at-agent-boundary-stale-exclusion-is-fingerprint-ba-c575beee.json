@@ -1,0 +1,89 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:citation-validation-enforced-at-agent-boundary-stale-exclusion-is-fingerprint-ba",
+  "title": "Citation validation enforced at agent boundary; stale exclusion is fingerprint-based",
+  "summary": "Added the PRD's missing memory quality mechanisms. Citation validation lives at the agent boundary kage capture/kage learn tools + CLI set strictCitations:true , not in core capture , so programmatic callers and migratio",
+  "body": "Added the PRD's missing memory-quality mechanisms. Citation validation lives at the agent boundary (kage_capture/kage_learn tools + CLI set strictCitations:true), not in core capture(), so programmatic callers and migrations stay permissive; allow_missing_paths is the escape hatch. Recall-time stale exclusion uses recallHardStaleReason() which only excludes when stored path_fingerprints (paths that existed at capture) are now deleted, ttl expired, or reports_stale>0 — a citation that NEVER existed is an ungrounded write (guarded at capture), not recall staleness. Packets carry author_branch. New kage_verify_citations and kage_compact tools/CLI commands. Packet loaders (loadPacketsFromDir/loadPacketEntriesFromDir) now skip unparseable/merge-conflicted packets instead of crashing all of recall.\nVerified by: npm test (180 pass); node dist/cli.js verify/compact smoke tests",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "memory-quality",
+    "prd",
+    "citations",
+    "staleness"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/index.ts",
+    "mcp/cli.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-04T15:18:00.531Z"
+    }
+  ],
+  "context": {
+    "fact": "Added the PRD's missing memory-quality mechanisms. Citation validation lives at the agent boundary (kage_capture/kage_learn tools + CLI set strictCitations:true), not in core capture(), so programmatic callers and migrations stay permissive; allow_missing_paths is the escape hatch. Recall-time stale exclusion uses recallHardStaleReason() which only excludes when stored path_fingerprints (paths that existed at capture) are now deleted, ttl expired, or reports_stale>0 — a citation that NEVER existed is an ungrounded write (guarded at capture), not recall staleness. Packets carry author_branch. New kage_verify_citations and kage_compact tools/CLI commands. Packet loaders (loadPacketsFromDir/loadPacketEntriesFromDir) now skip unparseable/merge-conflicted packets instead of crashing all of recall.\nVerified by: npm test (180 pass); node dist/cli.js verify/compact smoke tests",
+    "verification": "npm test (180 pass); node dist/cli.js verify/compact smoke tests"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-04T15:18:00.531Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "efc5987b72e8648294cc507179c18c2a4e76e73bc0041c2dab7746450afd3a55",
+        "size": 626537
+      },
+      {
+        "path": "mcp/index.ts",
+        "sha256": "746dd0e8bb8022740d40bd7e04760c2831af9d03f73d7984b172e22322a7d6df",
+        "size": 67496
+      },
+      {
+        "path": "mcp/cli.ts",
+        "sha256": "d3b1393808948d08ab997d6bdaa74cfab13c6d343451fd06f5f686eebe8ed317",
+        "size": 82143
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 221,
+    "stale": true,
+    "stale_reasons": [
+      "linked path changed since memory was verified: mcp/kernel.ts, mcp/index.ts, mcp/cli.ts"
+    ],
+    "suggested_action": "update"
+  },
+  "created_at": "2026-06-04T15:18:00.531Z",
+  "updated_at": "2026-06-04T16:01:04.456Z",
+  "author_branch": "master"
+}

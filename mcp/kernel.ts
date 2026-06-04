@@ -56,6 +56,7 @@ export interface MemoryPacket {
   quality: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  author_branch?: string | null;
 }
 
 interface MemoryPathFingerprint {
@@ -94,6 +95,27 @@ interface GraphInputs {
   knowledgeGraph?: KnowledgeGraph;
   trackAccess?: boolean;
   semanticExpansion?: boolean;
+  includeStale?: boolean;
+  maxContextTokens?: number;
+}
+
+// Bounded context assembly (PRD Feature 2: "inject only the relevant rule + structural
+// map, dropping the rest"). Opt-in: when a token budget is set, keep the highest-priority
+// sections (preamble + code graph + memory come first in the block) and drop trailing
+// lower-priority sections until the estimate fits. Default (no budget) is unchanged.
+function boundContextBlock(block: string, budget: number): string {
+  if (!Number.isFinite(budget) || budget <= 0 || estimateTokens(block) <= budget) return block;
+  const parts = block.split(/\n(?=## )/);
+  const kept = [parts[0]];
+  let dropped = 0;
+  for (const section of parts.slice(1)) {
+    if (estimateTokens([...kept, section].join("\n")) <= budget) kept.push(section);
+    else dropped += 1;
+  }
+  const result = kept.join("\n");
+  return dropped
+    ? `${result}\n\n_Context trimmed to ~${budget} tokens; ${dropped} lower-priority section(s) dropped._`
+    : result;
 }
 
 interface GraphMemoryCacheEntry {
@@ -160,6 +182,7 @@ export interface RecallResult {
     score_breakdown?: RecallScoreBreakdown;
   }>;
   explanations?: RecallExplanation[];
+  suppressed?: Array<{ id: string; title: string; reason: string }>;
 }
 
 export interface RecallScoreBreakdown {
@@ -279,6 +302,9 @@ export interface CaptureInput {
   paths?: string[];
   stack?: string[];
   context?: EngineeringMemoryContext;
+  allowMissingPaths?: boolean;
+  strictCitations?: boolean;
+  graphNodes?: string[];
 }
 
 export interface CaptureResult {
@@ -286,6 +312,7 @@ export interface CaptureResult {
   packet?: MemoryPacket;
   path?: string;
   errors: string[];
+  warnings?: string[];
 }
 
 export interface LearnInput {
@@ -299,6 +326,9 @@ export interface LearnInput {
   evidence?: string;
   verifiedBy?: string;
   context?: EngineeringMemoryContext;
+  allowMissingPaths?: boolean;
+  strictCitations?: boolean;
+  graphNodes?: string[];
 }
 
 export type LearnResult = CaptureResult;
@@ -2112,6 +2142,7 @@ export interface KageHookResult {
   message: string;
   errors: string[];
   warnings: string[];
+  additional_hooks?: string[];
 }
 
 export interface PublicBundleResult {
@@ -3125,6 +3156,51 @@ function staleMemoryReasons(projectDir: string, packet: MemoryPacket, fingerprin
   return unique(reasons);
 }
 
+// Classifies stale reasons into severity. "hard" reasons (deprecated status, user
+// reported stale, ttl expired, all citations deleted) mean the memory should be
+// excluded from recall; "soft" reasons (some citations missing, a linked file
+// changed) mean keep-but-flag — the memory may just need review, not suppression.
+function staleSeverity(reasons: string[]): "hard" | "soft" | "none" {
+  if (!reasons.length) return "none";
+  const hard = reasons.some((reason) =>
+    reason.startsWith("packet status is") ||
+    reason.startsWith("user or agent reported") ||
+    reason.startsWith("freshness ttl expired") ||
+    reason.startsWith("all referenced paths are missing"));
+  return hard ? "hard" : "soft";
+}
+
+// Decides whether a packet should be excluded from the recall payload (PRD Feature 3:
+// "deleted or heavily refactored since the timestamp"). Distinct from staleMemoryReasons:
+// a citation that NEVER existed (no stored fingerprint) is an ungrounded write — guarded
+// at capture time — not recall-time staleness, so it does NOT trigger exclusion here.
+// Returns a reason string when the memory is hard-stale, otherwise null.
+function recallHardStaleReason(projectDir: string, packet: MemoryPacket, cache?: Map<string, MemoryPathFingerprint | null>): string | null {
+  if (packet.status === "deprecated" || packet.status === "superseded") return `packet status is ${packet.status}`;
+  const quality = (packet.quality ?? {}) as Record<string, unknown>;
+  if (Number(quality.reports_stale ?? 0) > 0) return "user or agent reported this memory stale";
+  const freshness = (packet.freshness ?? {}) as Record<string, unknown>;
+  const ttlDays = Number(freshness.ttl_days ?? freshness.ttlDays ?? 0);
+  const verifiedAt = Date.parse(String(freshness.last_verified_at ?? packet.updated_at ?? packet.created_at));
+  if (Number.isFinite(ttlDays) && ttlDays > 0 && Number.isFinite(verifiedAt)) {
+    const ageDays = (Date.now() - verifiedAt) / (1000 * 60 * 60 * 24);
+    if (ageDays > ttlDays) return `freshness ttl expired (${Math.floor(ageDays)}d old, ttl ${ttlDays}d)`;
+  }
+  // Only paths that existed at capture get a stored fingerprint; if every one of them is
+  // now gone, the memory's evidence was deleted out from under it.
+  const stored = packetStoredPathFingerprints(packet);
+  if (stored.length) {
+    const deleted = stored.filter((fingerprint) => {
+      const current = memoryPathFingerprint(projectDir, fingerprint.path, cache);
+      return current === null;
+    });
+    if (deleted.length === stored.length) {
+      return `all cited files deleted since capture: ${deleted.slice(0, 4).map((fingerprint) => fingerprint.path).join(", ")}`;
+    }
+  }
+  return null;
+}
+
 function changedPathsFromStaleReasons(reasons: string[]): string[] {
   return unique(reasons.flatMap((reason) => {
     const match = reason.match(/^linked path changed since memory was verified: (.+)$/);
@@ -3525,12 +3601,27 @@ function walkFiles(root: string, predicate: (path: string) => boolean): string[]
   return out.sort();
 }
 
+// Tolerant packet read: a single corrupt or merge-conflicted packet (e.g. an
+// unresolved `<<<<<<<` from a teammate's git merge) must not take down all of
+// recall/verify/compact. Skip the bad file with a warning and keep going.
+function tryReadPacket(path: string): MemoryPacket | null {
+  try {
+    return readJson<MemoryPacket>(path);
+  } catch (error) {
+    process.stderr.write(`kage: skipping unreadable memory packet ${path}: ${(error as Error).message}\n`);
+    return null;
+  }
+}
+
 function loadPacketsFromDir(dir: string): MemoryPacket[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((name) => name.endsWith(".json"))
     .sort()
-    .map((name) => readJson<MemoryPacket>(join(dir, name)));
+    .flatMap((name) => {
+      const packet = tryReadPacket(join(dir, name));
+      return packet ? [packet] : [];
+    });
 }
 
 function loadPacketEntriesFromDir(dir: string): Array<{ path: string; packet: MemoryPacket }> {
@@ -3538,9 +3629,10 @@ function loadPacketEntriesFromDir(dir: string): Array<{ path: string; packet: Me
   return readdirSync(dir)
     .filter((name) => name.endsWith(".json"))
     .sort()
-    .map((name) => {
+    .flatMap((name) => {
       const path = join(dir, name);
-      return { path, packet: readJson<MemoryPacket>(path) };
+      const packet = tryReadPacket(path);
+      return packet ? [{ path, packet }] : [];
     });
 }
 
@@ -7623,6 +7715,151 @@ export function gcProject(projectDir: string, options: { dryRun?: boolean; force
   };
 }
 
+export interface CitationVerificationEntry {
+  id: string;
+  title: string;
+  status: string;
+  paths: string[];
+  missing_paths: string[];
+  grounded: boolean;
+  stale: boolean;
+  stale_severity: "hard" | "soft" | "none";
+  stale_reasons: string[];
+}
+
+export interface CitationVerificationResult {
+  ok: boolean;
+  project_dir: string;
+  checked: number;
+  valid: number;
+  stale: number;
+  ungrounded: number;
+  packets: CitationVerificationEntry[];
+  errors: string[];
+}
+
+// On-demand citation/freshness check the agent can call before trusting a memory.
+// Pass an id to verify one packet, or omit to audit all approved memory.
+export function verifyCitations(projectDir: string, options: { id?: string } = {}): CitationVerificationResult {
+  ensureMemoryDirs(projectDir);
+  const approved = loadApprovedPackets(projectDir);
+  const targets = options.id ? approved.filter((packet) => packet.id === options.id) : approved;
+  if (options.id && !targets.length) {
+    return { ok: false, project_dir: projectDir, checked: 0, valid: 0, stale: 0, ungrounded: 0, packets: [], errors: [`Approved packet not found: ${options.id}`] };
+  }
+  const cache = new Map<string, MemoryPathFingerprint | null>();
+  const packets: CitationVerificationEntry[] = targets.map((packet) => {
+    const meaningful = packet.paths.filter((path) => meaningfulMemoryPath(path) && !shouldSkipRepoMemoryPath(path));
+    const missing = meaningful.filter((path) => !pathExistsInRepo(projectDir, path));
+    const reasons = staleMemoryReasons(projectDir, packet, cache);
+    const severity = staleSeverity(reasons);
+    const grounded = packetGroundingWarnings(projectDir, packet, "packet").length === 0;
+    return {
+      id: packet.id,
+      title: packet.title,
+      status: packet.status,
+      paths: packet.paths,
+      missing_paths: missing,
+      grounded,
+      stale: severity !== "none",
+      stale_severity: severity,
+      stale_reasons: reasons,
+    };
+  });
+  return {
+    ok: true,
+    project_dir: projectDir,
+    checked: packets.length,
+    valid: packets.filter((entry) => !entry.stale && entry.grounded).length,
+    stale: packets.filter((entry) => entry.stale).length,
+    ungrounded: packets.filter((entry) => !entry.grounded).length,
+    packets,
+    errors: [],
+  };
+}
+
+export interface CompactResult {
+  ok: boolean;
+  project_dir: string;
+  dry_run: boolean;
+  pruned_citations: Array<{ id: string; title: string; removed_paths: string[] }>;
+  deprecated: Array<{ id: string; title: string; reason: string }>;
+  duplicate_clusters: Array<{ score: number; packets: Array<{ id: string; title: string }> }>;
+  total_scanned: number;
+  errors: string[];
+}
+
+// Deterministic memory consolidation (no hosted LLM — preserves the no-API-key promise):
+//  1. prune dead citations from packets and refresh their path fingerprints,
+//  2. deprecate hard-stale packets (delegating to the same severity rules as recall/gc),
+//  3. surface near-duplicate clusters for an agent to merge via kage_supersede.
+export function compactProject(projectDir: string, options: { dryRun?: boolean } = {}): CompactResult {
+  ensureMemoryDirs(projectDir);
+  const dryRun = options.dryRun === true;
+  const entries = loadPacketEntriesFromDir(packetsDir(projectDir));
+  const prunedCitations: CompactResult["pruned_citations"] = [];
+  const deprecated: CompactResult["deprecated"] = [];
+  const cache = new Map<string, MemoryPathFingerprint | null>();
+
+  for (const { path, packet } of entries) {
+    if (packet.status === "deprecated" || packet.status === "superseded") continue;
+    const hardReason = recallHardStaleReason(projectDir, packet, cache);
+    if (hardReason) {
+      deprecated.push({ id: packet.id, title: packet.title, reason: hardReason });
+      if (!dryRun) writeJson(path, { ...packet, status: "deprecated" as const, updated_at: nowIso() });
+      continue;
+    }
+    const meaningful = packet.paths.filter((p) => meaningfulMemoryPath(p) && !shouldSkipRepoMemoryPath(p));
+    const missing = meaningful.filter((p) => !pathExistsInRepo(projectDir, p));
+    if (missing.length) {
+      const keptPaths = packet.paths.filter((p) => !missing.includes(p));
+      prunedCitations.push({ id: packet.id, title: packet.title, removed_paths: missing });
+      if (!dryRun) {
+        writeJson(path, {
+          ...packet,
+          paths: keptPaths,
+          freshness: {
+            ...(packet.freshness ?? {}),
+            path_fingerprints: memoryPathFingerprints(projectDir, keptPaths),
+            last_verified_at: nowIso(),
+          },
+          updated_at: nowIso(),
+        });
+      }
+    }
+  }
+
+  // Cluster near-duplicate approved packets (report only — merging is an agent decision).
+  const context = memoryQualityContext(projectDir);
+  const approved = context.packets.filter((packet) => packet.status === "approved");
+  const seen = new Set<string>();
+  const clusters: CompactResult["duplicate_clusters"] = [];
+  for (const packet of approved) {
+    if (seen.has(packet.id)) continue;
+    const dupes = duplicateCandidatesWithContext(packet, context, 0.6).filter((dupe) => dupe.status === "approved");
+    if (!dupes.length) continue;
+    const members = [{ id: packet.id, title: packet.title }, ...dupes.map((dupe) => ({ id: dupe.id, title: dupe.title }))];
+    members.forEach((member) => seen.add(member.id));
+    clusters.push({ score: Math.max(...dupes.map((dupe) => dupe.score)), packets: members });
+  }
+
+  if (!dryRun && (prunedCitations.length || deprecated.length)) {
+    const rebuilt = buildGraphIndexes(projectDir);
+    writeJson(join(memoryRoot(projectDir), "metrics.json"), kageMetricsShallow(projectDir, rebuilt));
+  }
+
+  return {
+    ok: true,
+    project_dir: projectDir,
+    dry_run: dryRun,
+    pruned_citations: prunedCitations,
+    deprecated,
+    duplicate_clusters: clusters,
+    total_scanned: entries.length,
+    errors: [],
+  };
+}
+
 export function installAgentPolicy(projectDir: string): PolicyInstallResult {
   const agentsPath = join(projectDir, "AGENTS.md");
   const claudePath = join(projectDir, "CLAUDE.md");
@@ -8442,7 +8679,23 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
       })()
     : recallQueryExpansion(query);
   const terms = expansion.terms;
-  const approvedPackets = loadApprovedPackets(projectDir);
+  const allApprovedPackets = loadApprovedPackets(projectDir);
+  const includeStale = inputs.includeStale === true;
+  const staleFingerprintCache = new Map<string, MemoryPathFingerprint | null>();
+  const suppressed: Array<{ id: string; title: string; reason: string }> = [];
+  // Just-in-time staleness gate: hard-stale memory (deleted citations, expired ttl,
+  // reported stale) is excluded from the recall payload so the agent never sees it
+  // as valid. Suppression is recorded (not silent) so `kage verify` can explain it.
+  const approvedPackets = includeStale
+    ? allApprovedPackets
+    : allApprovedPackets.filter((packet) => {
+        const reason = recallHardStaleReason(projectDir, packet, staleFingerprintCache);
+        if (reason) {
+          suppressed.push({ id: packet.id, title: packet.title, reason });
+          return false;
+        }
+        return true;
+      });
   const baseScores = scorePacketsBm25(expansion.baseTerms, approvedPackets);
   const temporalScores = scorePacketsBm25(expansion.temporalTerms, approvedPackets);
   const semanticScores = scorePacketsBm25(expansion.semanticTerms, approvedPackets);
@@ -8532,12 +8785,17 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
     "",
     graphContext.edges.length ? "## Related Graph Facts" : "",
     ...graphContext.edges.slice(0, 5).map((edge, index) => `${index + 1}. ${edge.fact} (evidence: ${edge.evidence.join(", ")})`),
+    ...(suppressed.length
+      ? ["", `_${suppressed.length} stale memory packet(s) excluded from recall. Run kage verify for details._`]
+      : []),
   ];
 
+  const assembledBlock = lines.join("\n");
   const result: RecallResult = {
     query,
-    context_block: lines.join("\n"),
+    context_block: inputs.maxContextTokens ? boundContextBlock(assembledBlock, inputs.maxContextTokens) : assembledBlock,
     results: scored,
+    suppressed: suppressed.length ? suppressed : undefined,
     explanations: explain
       ? scored.map((entry) => ({
           packet_id: entry.packet.id,
@@ -12765,6 +13023,9 @@ export function learn(input: LearnInput): LearnResult {
     paths: input.paths,
     stack: input.stack,
     context: input.context,
+    allowMissingPaths: input.allowMissingPaths,
+    strictCitations: input.strictCitations,
+    graphNodes: input.graphNodes,
   });
 }
 
@@ -12783,7 +13044,35 @@ export function capture(input: CaptureInput): CaptureResult {
     };
   }
 
+  const warnings: string[] = [];
+  const meaningfulPaths = (input.paths ?? [])
+    .filter((path) => path && meaningfulMemoryPath(path) && !shouldSkipRepoMemoryPath(path));
+  const missingPaths = meaningfulPaths.filter((path) => !pathExistsInRepo(input.projectDir, path));
+  // Citation validation. Strict mode (agent-facing record_memory tools / CLI) rejects a
+  // write whose every cited path is missing — the PRD's "reject if citations don't exist".
+  // The core library stays permissive (warn-only) for programmatic callers and migrations.
+  if (input.strictCitations && meaningfulPaths.length && missingPaths.length === meaningfulPaths.length && !input.allowMissingPaths) {
+    return {
+      ok: false,
+      errors: [
+        `Citation validation failed: none of the referenced paths exist in this repo: ${missingPaths.join(", ")}. ` +
+          `Fix the paths, or pass allow_missing_paths to record anyway (e.g. for a file you are about to create).`,
+      ],
+      warnings: [],
+    };
+  }
+  if (missingPaths.length) {
+    warnings.push(`Some referenced paths do not exist in this repo: ${missingPaths.join(", ")}`);
+  }
+
   const createdAt = nowIso();
+  // Agent-asserted links to code-graph nodes (PRD `graph_nodes`): the agent recording the
+  // memory knows which symbol/route/file the rule is about, so let it declare them instead
+  // of relying solely on background derivation.
+  const graphEdges = unique(input.graphNodes ?? [])
+    .map((node) => node.trim())
+    .filter(Boolean)
+    .map((node) => ({ relation: "references_code", to: node, evidence: "agent_capture", created_at: createdAt }));
   const packet: MemoryPacket = {
     schema_version: PACKET_SCHEMA_VERSION,
     id: makePacketId(input.projectDir, type, input.title, String(Date.now())),
@@ -12825,10 +13114,12 @@ export function capture(input: CaptureInput): CaptureResult {
     },
     created_at: createdAt,
     updated_at: createdAt,
+    author_branch: gitBranch(input.projectDir),
   };
+  packet.edges = graphEdges;
 
   const validation = validatePacket(packet);
-  if (!validation.ok) return { ok: false, errors: validation.errors };
+  if (!validation.ok) return { ok: false, errors: validation.errors, warnings };
   packet.quality = {
     ...packet.quality,
     ...evaluateMemoryQuality(input.projectDir, packet),
@@ -12840,7 +13131,7 @@ export function capture(input: CaptureInput): CaptureResult {
     path: relative(input.projectDir, path),
     source_kind: packet.source_refs[0]?.kind ?? "explicit_capture",
   });
-  return { ok: true, packet, path, errors: [] };
+  return { ok: true, packet, path, errors: [], warnings };
 }
 
 export function createPublicCandidate(projectDir: string, id: string): PublicCandidateResult {
@@ -14464,10 +14755,63 @@ function shellQuote(value: string): string {
   return `'${value.replace(/'/g, "'\"'\"'")}'`;
 }
 
-function gitHookPath(projectDir: string): string | null {
-  const raw = readGit(projectDir, ["rev-parse", "--git-path", "hooks/post-commit"]);
+function gitHookPath(projectDir: string, hookName = "post-commit"): string | null {
+  const raw = readGit(projectDir, ["rev-parse", "--git-path", `hooks/${hookName}`]);
   if (!raw) return null;
   return resolve(projectDir, raw);
+}
+
+// Hooks that fire after history changes underfoot (git pull / merge / checkout):
+// re-index repo memory so newly pulled teammate packets are immediately recallable.
+const KAGE_SYNC_HOOKS = ["post-merge", "post-checkout"] as const;
+
+function kageSyncHookBlock(projectDir: string): string {
+  const project = shellQuote(resolve(projectDir));
+  return [
+    KAGE_POST_COMMIT_HOOK_START,
+    "# Kage sync hook: re-index repo memory after pull/merge/checkout.",
+    "# Set KAGE_SKIP_HOOK=1 to bypass, or KAGE_BIN=/path/to/kage to override.",
+    "if [ \"${KAGE_SKIP_HOOK:-0}\" != \"1\" ]; then",
+    "  KAGE_BIN=\"${KAGE_BIN:-kage}\"",
+    "  if command -v \"$KAGE_BIN\" >/dev/null 2>&1; then",
+    "    (",
+    `      "$KAGE_BIN" index --project ${project} --json >/dev/null 2>&1 || true`,
+    "    ) &",
+    "  fi",
+    "fi",
+    KAGE_POST_COMMIT_HOOK_END,
+  ].join("\n");
+}
+
+function installSyncHooks(projectDir: string): string[] {
+  const installed: string[] = [];
+  for (const hookName of KAGE_SYNC_HOOKS) {
+    const hookPath = gitHookPath(projectDir, hookName);
+    if (!hookPath) continue;
+    ensureDir(dirname(hookPath));
+    const existing = safeReadText(hookPath) ?? "";
+    const base = stripKageHookBlock(existing);
+    const prefix = base.trim() ? base.trimEnd() : "#!/bin/sh";
+    const next = `${prefix}\n\n${kageSyncHookBlock(projectDir)}\n`;
+    if (existing !== next) writeFileSync(hookPath, next, "utf8");
+    chmodSync(hookPath, 0o755);
+    installed.push(hookPath);
+  }
+  return installed;
+}
+
+function uninstallSyncHooks(projectDir: string): string[] {
+  const removed: string[] = [];
+  for (const hookName of KAGE_SYNC_HOOKS) {
+    const hookPath = gitHookPath(projectDir, hookName);
+    if (!hookPath) continue;
+    const existing = safeReadText(hookPath) ?? "";
+    if (!hasKageHookBlock(existing)) continue;
+    writeFileSync(hookPath, stripKageHookBlock(existing), "utf8");
+    chmodSync(hookPath, 0o755);
+    removed.push(hookPath);
+  }
+  return removed;
 }
 
 function hasKageHookBlock(content: string): boolean {
@@ -14549,19 +14893,23 @@ export function kageHookInstall(projectDir: string): KageHookResult {
   const base = stripKageHookBlock(existing);
   const prefix = base.trim() ? base.trimEnd() : "#!/bin/sh";
   const next = `${prefix}\n\n${kagePostCommitHookBlock(projectDir)}\n`;
-  const changed = existing !== next;
-  if (changed) writeFileSync(hookPath, next, "utf8");
+  const commitChanged = existing !== next;
+  if (commitChanged) writeFileSync(hookPath, next, "utf8");
   chmodSync(hookPath, 0o755);
+  const syncHooks = installSyncHooks(projectDir);
   return {
     ok: true,
     action: "install",
     project_dir: projectDir,
     hook_path: hookPath,
     installed: true,
-    changed,
-    message: changed ? "Installed Kage post-commit hook." : "Kage post-commit hook is already current.",
+    changed: commitChanged,
+    message: commitChanged
+      ? "Installed Kage post-commit hook and pull/merge sync hooks."
+      : "Kage post-commit and sync hooks are already current.",
     errors: [],
     warnings: [],
+    additional_hooks: syncHooks,
   };
 }
 
@@ -14598,6 +14946,7 @@ export function kageHookUninstall(projectDir: string): KageHookResult {
   const next = stripKageHookBlock(existing);
   writeFileSync(hookPath, next, "utf8");
   chmodSync(hookPath, 0o755);
+  const removedSyncHooks = uninstallSyncHooks(projectDir);
   return {
     ok: true,
     action: "uninstall",
@@ -14605,9 +14954,10 @@ export function kageHookUninstall(projectDir: string): KageHookResult {
     hook_path: hookPath,
     installed: false,
     changed: true,
-    message: "Removed Kage post-commit hook.",
+    message: "Removed Kage post-commit and sync hooks.",
     errors: [],
     warnings: [],
+    additional_hooks: removedSyncHooks,
   };
 }
 

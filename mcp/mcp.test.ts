@@ -237,6 +237,8 @@ test("MCP kage_capture creates repo-local memory and blocks sensitive input", as
 
 test("MCP kage_supersede writes memory lineage", async () => {
   const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "checkout.ts"), "export function checkout() { return 'ok'; }\n", "utf8");
   await callTool("kage_capture", {
     project_dir: project,
     title: "Old retry note",

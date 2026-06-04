@@ -34,6 +34,8 @@ import {
   graphDir,
   graphMermaid,
   gcProject,
+  compactProject,
+  verifyCitations,
   initProject,
   indexProject,
   installAgentPolicy,
@@ -3489,4 +3491,186 @@ test("pr check ignores stale packets that were already superseded", () => {
 
   assert.equal(check.stale_packets.some((packet) => packet.id === oldMemory.packet!.id), false);
   assert.equal(check.errors.some((error) => error.includes("stale memory")), false);
+});
+
+test("strict capture rejects all-missing citations, honors escape hatch, and stamps author_branch", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "real.ts"), "export const real = 1;\n", "utf8");
+  execFileSync("git", ["add", "."], { cwd: project, stdio: "ignore" });
+  execFileSync("git", ["commit", "-m", "seed"], { cwd: project, stdio: "ignore", env: gitIdentityEnv });
+
+  const rejected = capture({
+    projectDir: project,
+    title: "Hallucinated note",
+    body: "Use the helper in src/ghost.ts for retries.",
+    type: "decision",
+    paths: ["src/ghost.ts"],
+    strictCitations: true,
+  });
+  assert.equal(rejected.ok, false);
+  assert.match(rejected.errors[0], /Citation validation failed/);
+
+  const allowed = capture({
+    projectDir: project,
+    title: "Planned helper",
+    body: "Will add src/ghost.ts soon.",
+    type: "decision",
+    paths: ["src/ghost.ts"],
+    strictCitations: true,
+    allowMissingPaths: true,
+  });
+  assert.equal(allowed.ok, true);
+  assert.equal(allowed.warnings?.some((warning) => warning.includes("src/ghost.ts")), true);
+
+  const grounded = capture({
+    projectDir: project,
+    title: "Real note",
+    body: "Use src/real.ts for the retry helper.",
+    type: "decision",
+    paths: ["src/real.ts"],
+    strictCitations: true,
+  });
+  assert.equal(grounded.ok, true);
+  assert.equal(typeof grounded.packet?.author_branch, "string");
+
+  // The core library stays permissive for programmatic callers (no strictCitations).
+  const permissive = capture({
+    projectDir: project,
+    title: "Programmatic note",
+    body: "Internal caller references src/ghost.ts.",
+    type: "decision",
+    paths: ["src/ghost.ts"],
+  });
+  assert.equal(permissive.ok, true);
+});
+
+test("verifyCitations flags deleted citations and reports grounding", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "keep.ts"), "export const keep = 1;\n", "utf8");
+  writeFileSync(join(project, "src", "drop.ts"), "export const drop = 1;\n", "utf8");
+  const kept = capture({ projectDir: project, title: "Keep note", body: "About src/keep.ts behavior.", type: "decision", paths: ["src/keep.ts"] });
+  const dropped = capture({ projectDir: project, title: "Drop note", body: "About src/drop.ts behavior.", type: "decision", paths: ["src/drop.ts"] });
+  assert.equal(kept.ok && dropped.ok, true);
+  unlinkSync(join(project, "src", "drop.ts"));
+
+  const report = verifyCitations(project);
+  assert.equal(report.ok, true);
+  assert.equal(report.checked, 2);
+  const dropEntry = report.packets.find((entry) => entry.title === "Drop note");
+  assert.equal(dropEntry?.stale, true);
+  assert.equal(dropEntry?.missing_paths.includes("src/drop.ts"), true);
+  const keepEntry = report.packets.find((entry) => entry.title === "Keep note");
+  assert.equal(keepEntry?.stale, false);
+
+  const single = verifyCitations(project, { id: dropped.packet!.id });
+  assert.equal(single.checked, 1);
+  assert.equal(single.packets[0]?.title, "Drop note");
+});
+
+test("recall excludes memory whose cited files were deleted since capture", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "widget.ts"), "export const widget = 1;\n", "utf8");
+  const deleted = capture({ projectDir: project, title: "Widget retry rule", body: "Widget retries use idempotency keys in src/widget.ts.", type: "decision", paths: ["src/widget.ts"] });
+  assert.equal(deleted.ok, true);
+
+  const before = recall(project, "widget retry idempotency", 5);
+  assert.equal(before.results.some((entry) => entry.packet.title === "Widget retry rule"), true);
+
+  unlinkSync(join(project, "src", "widget.ts"));
+  const after = recall(project, "widget retry idempotency", 5);
+  assert.equal(after.results.some((entry) => entry.packet.title === "Widget retry rule"), false);
+  assert.equal(after.suppressed?.some((entry) => entry.title === "Widget retry rule"), true);
+
+  const withStale = recall(project, "widget retry idempotency", 5, false, { includeStale: true });
+  assert.equal(withStale.results.some((entry) => entry.packet.title === "Widget retry rule"), true);
+
+  // A citation that NEVER existed is an ungrounded write, not recall-time staleness:
+  // it must still be recallable (capture-time validation guards that case instead).
+  const ghost = capture({ projectDir: project, title: "Ghost composition convention", body: "Prefer composition in src/never.ts modules.", type: "convention", paths: ["src/never.ts"] });
+  assert.equal(ghost.ok, true);
+  const ghostRecall = recall(project, "composition convention modules", 5);
+  assert.equal(ghostRecall.results.some((entry) => entry.packet.title === "Ghost composition convention"), true);
+});
+
+test("compactProject prunes dead citations, deprecates deleted memory, and clusters duplicates", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "a.ts"), "export const a = 1;\n", "utf8");
+  writeFileSync(join(project, "src", "b.ts"), "export const b = 1;\n", "utf8");
+  const partial = capture({ projectDir: project, title: "Partial cite", body: "Touches src/a.ts and src/b.ts together.", type: "decision", paths: ["src/a.ts", "src/b.ts"] });
+  const gone = capture({ projectDir: project, title: "Gone cite", body: "All about src/b.ts cleanup work.", type: "decision", paths: ["src/b.ts"] });
+  assert.equal(partial.ok && gone.ok, true);
+  unlinkSync(join(project, "src", "b.ts"));
+
+  const dry = compactProject(project, { dryRun: true });
+  assert.equal(dry.dry_run, true);
+  assert.equal(dry.pruned_citations.some((entry) => entry.id === partial.packet!.id && entry.removed_paths.includes("src/b.ts")), true);
+  assert.equal(dry.deprecated.some((entry) => entry.id === gone.packet!.id), true);
+
+  const applied = compactProject(project, { dryRun: false });
+  assert.equal(applied.pruned_citations.length >= 1, true);
+  assert.equal(applied.deprecated.length >= 1, true);
+  // The deprecated, all-citations-deleted packet is now out of recall.
+  const recalled = recall(project, "src/b.ts cleanup work", 5);
+  assert.equal(recalled.results.some((entry) => entry.packet.title === "Gone cite"), false);
+
+  writeFileSync(join(project, "src", "c.ts"), "export const c = 1;\n", "utf8");
+  capture({ projectDir: project, title: "Use jose for auth", body: "Use the jose library for auth token validation in src/c.ts.", type: "decision", paths: ["src/c.ts"] });
+  capture({ projectDir: project, title: "Auth uses jose", body: "Use the jose library for auth token validation in src/c.ts.", type: "decision", paths: ["src/c.ts"] });
+  const dupReport = compactProject(project, { dryRun: true });
+  assert.equal(dupReport.duplicate_clusters.length >= 1, true);
+});
+
+test("capture records agent-supplied graph_nodes as code-reference edges", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "auth.ts"), "export function validateToken() { return true; }\n", "utf8");
+  const result = capture({
+    projectDir: project,
+    title: "Auth token rule",
+    body: "Use jose for token validation.",
+    type: "decision",
+    paths: ["src/auth.ts"],
+    graphNodes: ["symbol:validateToken", "file:src/auth.ts", "symbol:validateToken"],
+  });
+  assert.equal(result.ok, true);
+  const edges = result.packet!.edges as Array<Record<string, unknown>>;
+  assert.equal(edges.length, 2); // deduped
+  assert.equal(edges.every((edge) => edge.relation === "references_code"), true);
+  assert.equal(edges.some((edge) => edge.to === "symbol:validateToken"), true);
+});
+
+test("recall bounds the context block to an opt-in token budget", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "m.ts"), "export const m = 1;\n", "utf8");
+  for (let i = 0; i < 8; i += 1) {
+    capture({
+      projectDir: project,
+      title: `Retry rule ${i}`,
+      body: `Retry rule ${i}: payment retries use idempotency keys and exponential backoff in src/m.ts to avoid duplicate charges across the whole system.`,
+      type: "decision",
+      paths: ["src/m.ts"],
+    });
+  }
+  const full = recall(project, "payment retry idempotency backoff", 8);
+  const bounded = recall(project, "payment retry idempotency backoff", 8, false, { maxContextTokens: 60 });
+  assert.equal(bounded.context_block.length < full.context_block.length, true);
+  assert.match(bounded.context_block, /Context trimmed/);
+});
+
+test("hook install also installs pull/merge sync hooks", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  const result = kageHookInstall(project);
+  assert.equal(result.installed, true);
+  assert.equal((result.additional_hooks ?? []).length >= 1, true);
+  const postMerge = join(project, ".git", "hooks", "post-merge");
+  assert.equal(existsSync(postMerge), true);
+  assert.match(readFileSync(postMerge, "utf8"), /"\$KAGE_BIN" index/);
+  assert.equal(existsSync(join(project, ".git", "hooks", "post-checkout")), true);
 });

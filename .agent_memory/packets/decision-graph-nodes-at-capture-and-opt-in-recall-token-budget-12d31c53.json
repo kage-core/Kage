@@ -1,0 +1,103 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:graph-nodes-at-capture-and-opt-in-recall-token-budget-1780588863630",
+  "title": "graph_nodes at capture and opt-in recall token budget",
+  "summary": "Added the last two PRD aligned memory mechanisms within Kage's zero dependency design. CaptureInput.graphNodes lets the agent declare code graph node references at capture; capture stores them as deduped {relation:'refer",
+  "body": "Added the last two PRD-aligned memory mechanisms within Kage's zero-dependency design. CaptureInput.graphNodes lets the agent declare code-graph node references at capture; capture() stores them as deduped {relation:'references_code',to,evidence:'agent_capture'} edges (survives refresh, like supersede lineage). GraphInputs.maxContextTokens + boundContextBlock() give recall an opt-in hard token budget that drops trailing lower-priority sections (preamble/code-graph/memory kept first); default path unchanged. Wired into kage_capture/kage_learn (graph_nodes) and kage_recall (max_context_tokens) tools + CLI. Deliberately did NOT add SQLite graph store or ANN index — they break the no-API-key/zero-dep promise and need explicit owner sign-off.\nVerified by: npm test (182 pass); tsc --noEmit clean",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "memory-quality",
+    "prd",
+    "graph-nodes",
+    "token-budget"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/index.ts",
+    "mcp/cli.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-04T16:01:03.630Z"
+    }
+  ],
+  "context": {
+    "fact": "Added the last two PRD-aligned memory mechanisms within Kage's zero-dependency design. CaptureInput.graphNodes lets the agent declare code-graph node references at capture; capture() stores them as deduped {relation:'references_code',to,evidence:'agent_capture'} edges (survives refresh, like supersede lineage). GraphInputs.maxContextTokens + boundContextBlock() give recall an opt-in hard token budget that drops trailing lower-priority sections (preamble/code-graph/memory kept first); default path unchanged. Wired into kage_capture/kage_learn (graph_nodes) and kage_recall (max_context_tokens) tools + CLI. Deliberately did NOT add SQLite graph store or ANN index — they break the no-API-key/zero-dep promise and need explicit owner sign-off.\nVerified by: npm test (182 pass); tsc --noEmit clean",
+    "verification": "'agent_capture'} edges (survives refresh, like supersede lineage). GraphInputs.maxContextTokens + boundContextBlock() give recall an opt-in hard token budget that drops trailing lower-priority sections (preamble/code-graph/memory kept first); default path unchanged. Wired into kage_capture/kage_learn (graph_nodes) and kage_recall (max_context_tokens) tools + CLI. Deliberately did NOT add SQLite graph store or ANN index — they break the no-API-key/zero-dep promise and need explicit owner sign-off."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-04T16:01:03.630Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "d5ccd2c09421242939e15a78374be4e8d073e6069554896c6790f1b963cffce4",
+        "size": 628192
+      },
+      {
+        "path": "mcp/index.ts",
+        "sha256": "34718cf29d9334cb8e52352edc2235969ae27eded1f65f254fa6055fc5dbcd49",
+        "size": 67998
+      },
+      {
+        "path": "mcp/cli.ts",
+        "sha256": "1ec68a0913a3c01a0c168866a27193dc79ae482487f8b010e1c401dbcd062100",
+        "size": 82408
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [
+    {
+      "relation": "references_code",
+      "to": "symbol:capture",
+      "evidence": "agent_capture",
+      "created_at": "2026-06-04T16:01:03.630Z"
+    },
+    {
+      "relation": "references_code",
+      "to": "symbol:boundContextBlock",
+      "evidence": "agent_capture",
+      "created_at": "2026-06-04T16:01:03.630Z"
+    },
+    {
+      "relation": "references_code",
+      "to": "symbol:recallWithVectorScores",
+      "evidence": "agent_capture",
+      "created_at": "2026-06-04T16:01:03.630Z"
+    }
+  ],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 200
+  },
+  "created_at": "2026-06-04T16:01:03.630Z",
+  "updated_at": "2026-06-04T16:01:04.457Z",
+  "author_branch": "master"
+}
