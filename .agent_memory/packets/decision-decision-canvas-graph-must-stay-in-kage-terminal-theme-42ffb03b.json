@@ -18,10 +18,7 @@
     "canvas",
     "brand"
   ],
-  "paths": [
-    "mcp/viewer/app.js",
-    "mcp/viewer/styles.css"
-  ],
+  "paths": [],
   "stack": [],
   "source_refs": [
     {
@@ -54,13 +51,8 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 346,
-    "stale": true,
-    "stale_reasons": [
-      "all referenced paths are missing: mcp/viewer/app.js, mcp/viewer/styles.css"
-    ],
-    "suggested_action": "update"
+    "estimated_tokens_saved": 346
   },
   "created_at": "2026-05-02T20:42:48.561Z",
-  "updated_at": "2026-06-05T12:30:37.725Z"
+  "updated_at": "2026-06-05T14:03:30.155Z"
 }

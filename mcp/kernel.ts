@@ -3132,7 +3132,7 @@ function staleMemoryReasons(projectDir: string, packet: MemoryPacket, fingerprin
     if (ageDays > ttlDays) reasons.push(`freshness ttl expired (${Math.floor(ageDays)}d old, ttl ${ttlDays}d)`);
   }
 
-  const paths = packet.paths.filter(meaningfulMemoryPath);
+  const paths = packet.paths.filter((path) => meaningfulMemoryPath(path) && !isGroundingIgnored(projectDir, path));
   const missingPaths = paths.filter((path) => !existsSync(join(projectDir, path)));
   if (paths.length > 0 && missingPaths.length === paths.length) {
     reasons.push(`all referenced paths are missing: ${missingPaths.slice(0, 4).join(", ")}`);
@@ -3143,6 +3143,7 @@ function staleMemoryReasons(projectDir: string, packet: MemoryPacket, fingerprin
   if (freshness.path_fingerprint_policy === "source_hash_staleness") {
     const storedFingerprints = packetStoredPathFingerprints(packet);
     const changedPaths = storedFingerprints
+      .filter((fingerprint) => !isGroundingIgnored(projectDir, fingerprint.path))
       .filter((fingerprint) => existsSync(join(projectDir, fingerprint.path)))
       .filter((fingerprint) => {
         const current = memoryPathFingerprint(projectDir, fingerprint.path, fingerprintCache);
@@ -4382,7 +4383,7 @@ function pathExistsInRepo(projectDir: string, packetPath: string): boolean {
 
 function packetGroundingWarnings(projectDir: string, packet: MemoryPacket, source: string): string[] {
   const warnings: string[] = [];
-  const meaningfulPaths = packet.paths.filter((path) => path && path !== "root" && !shouldSkipRepoMemoryPath(path));
+  const meaningfulPaths = packet.paths.filter((path) => path && path !== "root" && !shouldSkipRepoMemoryPath(path) && !isGroundingIgnored(projectDir, path));
   const missingPaths = meaningfulPaths.filter((path) => !pathExistsInRepo(projectDir, path));
   if (meaningfulPaths.length && missingPaths.length === meaningfulPaths.length) {
     warnings.push(`${source}: none of the referenced paths exist in this repo: ${missingPaths.join(", ")}`);
@@ -4913,6 +4914,43 @@ function readKageIgnore(projectDir: string): string[] {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0 && !line.startsWith("#"));
+}
+
+// A repo can declare non-knowledge paths (e.g. a presentation/visualization layer)
+// in .kageignore. Those paths must not count as memory grounding: memory should never
+// be anchored to, or marked stale by, files the repo says are not knowledge-bearing.
+function normalizeRelPath(path: string): string {
+  return String(path).replace(/\\/g, "/").replace(/^\/+/, "");
+}
+function isGroundingIgnored(projectDir: string, path: string): boolean {
+  const patterns = readKageIgnore(projectDir);
+  if (!patterns.length) return false;
+  return isKageIgnored(normalizeRelPath(path), patterns);
+}
+// Strip .kageignore'd paths from a packet's grounding (paths, source refs, and
+// path fingerprints). Returns a new packet if anything changed, else null.
+function prunePacketGroundingPaths(packet: MemoryPacket, patterns: string[]): MemoryPacket | null {
+  if (!patterns.length) return null;
+  const ignored = (p: unknown) => typeof p === "string" && isKageIgnored(normalizeRelPath(p), patterns);
+  let changed = false;
+  const paths = packet.paths.filter((p) => (ignored(p) ? ((changed = true), false) : true));
+  const sourceRefs = packet.source_refs.map((ref) => {
+    const next: Record<string, unknown> = { ...ref };
+    if (ignored(next.path)) { delete next.path; changed = true; }
+    if (Array.isArray(next.changed_files)) {
+      const kept = (next.changed_files as unknown[]).filter((f) => !ignored(f));
+      if (kept.length !== (next.changed_files as unknown[]).length) { next.changed_files = kept; changed = true; }
+    }
+    return next;
+  });
+  const freshness: Record<string, unknown> = { ...(packet.freshness ?? {}) };
+  if (Array.isArray(freshness.path_fingerprints)) {
+    const fps = freshness.path_fingerprints as Array<Record<string, unknown>>;
+    const kept = fps.filter((f) => !ignored(f?.path));
+    if (kept.length !== fps.length) { freshness.path_fingerprints = kept; changed = true; }
+  }
+  if (!changed) return null;
+  return { ...packet, paths, source_refs: sourceRefs, freshness };
 }
 
 function wildcardPattern(pattern: string): RegExp {
@@ -7555,13 +7593,18 @@ function refreshPacketStaleness(projectDir: string): { findings: StaleMemoryFind
   const findings: StaleMemoryFinding[] = [];
   let updated = 0;
   const fingerprintCache = new Map<string, MemoryPathFingerprint | null>();
+  const ignorePatterns = readKageIgnore(projectDir);
   for (const entry of loadPacketEntriesFromDir(packetsDir(projectDir))) {
-    const reasons = staleMemoryReasons(projectDir, entry.packet, fingerprintCache);
-    const oldQuality = (entry.packet.quality ?? {}) as Record<string, unknown>;
-    const oldFreshness = (entry.packet.freshness ?? {}) as Record<string, unknown>;
+    // Drop any .kageignore'd grounding (presentation layers etc.) from the stored packet
+    // so memory is never anchored to non-knowledge files.
+    const pruned = prunePacketGroundingPaths(entry.packet, ignorePatterns);
+    const packet = pruned ?? entry.packet;
+    const reasons = staleMemoryReasons(projectDir, packet, fingerprintCache);
+    const oldQuality = (packet.quality ?? {}) as Record<string, unknown>;
+    const oldFreshness = (packet.freshness ?? {}) as Record<string, unknown>;
     let nextQuality: Record<string, unknown>;
     if (reasons.length) {
-      const finding = staleFinding(entry.packet, reasons);
+      const finding = staleFinding(packet, reasons);
       findings.push(finding);
       nextQuality = {
         ...oldQuality,
@@ -7574,11 +7617,12 @@ function refreshPacketStaleness(projectDir: string): { findings: StaleMemoryFind
       nextQuality = rest;
     }
     const nextFreshness = oldFreshness;
-    const changed = JSON.stringify(oldQuality) !== JSON.stringify(nextQuality)
+    const changed = pruned !== null
+      || JSON.stringify(oldQuality) !== JSON.stringify(nextQuality)
       || JSON.stringify(oldFreshness) !== JSON.stringify(nextFreshness);
     if (changed) {
       writeJson(entry.path, {
-        ...entry.packet,
+        ...packet,
         freshness: nextFreshness,
         quality: nextQuality,
         updated_at: nowIso(),
@@ -13302,8 +13346,11 @@ export function capture(input: CaptureInput): CaptureResult {
   }
 
   const warnings: string[] = [];
-  const meaningfulPaths = (input.paths ?? [])
-    .filter((path) => path && meaningfulMemoryPath(path) && !shouldSkipRepoMemoryPath(path));
+  // .kageignore'd paths (e.g. a presentation/visualization layer) are not knowledge-bearing,
+  // so they never become grounding for a packet — dropped before validation and storage.
+  const groundedPaths = (input.paths ?? []).filter((path) => path && !isGroundingIgnored(input.projectDir, path));
+  const meaningfulPaths = groundedPaths
+    .filter((path) => meaningfulMemoryPath(path) && !shouldSkipRepoMemoryPath(path));
   const missingPaths = meaningfulPaths.filter((path) => !pathExistsInRepo(input.projectDir, path));
   // Citation validation. Strict mode (agent-facing record_memory tools / CLI) rejects a
   // write whose every cited path is missing — the PRD's "reject if citations don't exist".
@@ -13343,7 +13390,7 @@ export function capture(input: CaptureInput): CaptureResult {
     status: "approved",
     confidence: DEFAULT_CONFIDENCE,
     tags: input.tags ?? [],
-    paths: input.paths ?? [],
+    paths: groundedPaths,
     stack: input.stack ?? [],
     source_refs: [
       {
@@ -13355,7 +13402,7 @@ export function capture(input: CaptureInput): CaptureResult {
     freshness: {
       ttl_days: 365,
       last_verified_at: createdAt,
-      path_fingerprints: memoryPathFingerprints(input.projectDir, input.paths ?? []),
+      path_fingerprints: memoryPathFingerprints(input.projectDir, groundedPaths),
       path_fingerprint_policy: "source_hash_staleness",
       verification: "repo_local_agent_capture",
     },

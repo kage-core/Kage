@@ -1,0 +1,9 @@
+# Paths Kage should treat as non-knowledge: never index them into the code graph,
+# never let memory be grounded to them, and never mark memory stale because they
+# changed or were deleted. Patterns ending in "/" match a whole directory.
+
+# The viewer is a presentation/visualization layer, not knowledge-bearing source.
+# Memory packets describe repo logic and decisions; they should never be anchored
+# to viewer markup/scripts.
+mcp/viewer/
+docs/viewer/

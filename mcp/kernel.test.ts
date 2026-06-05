@@ -3547,3 +3547,56 @@ test("hook install also installs pull/merge sync hooks", () => {
   assert.match(readFileSync(postMerge, "utf8"), /"\$KAGE_BIN" index/);
   assert.equal(existsSync(join(project, ".git", "hooks", "post-checkout")), true);
 });
+
+test("kageignore'd paths never become memory grounding at capture time", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  writeFileSync(join(project, ".kageignore"), "viewer/\n", "utf8");
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "a.js"), "export const a = 1;\n", "utf8");
+  mkdirSync(join(project, "viewer"), { recursive: true });
+  writeFileSync(join(project, "viewer", "app.js"), "console.log('ui');\n", "utf8");
+
+  const res = capture({
+    projectDir: project,
+    title: "API returns typed errors",
+    body: "The API layer returns typed errors. Verified in src/a.js.",
+    type: "decision",
+    paths: ["src/a.js", "viewer/app.js"],
+  });
+  assert.equal(res.ok, true);
+  assert.deepEqual(res.packet?.paths, ["src/a.js"]);
+  const fingerprints = ((res.packet?.freshness as Record<string, unknown>)?.path_fingerprints as Array<Record<string, unknown>>) ?? [];
+  assert.equal(fingerprints.some((fp) => String(fp.path).includes("viewer/")), false);
+});
+
+test("refresh prunes kageignore'd grounding and does not mark memory stale for it", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "a.js"), "export const a = 1;\n", "utf8");
+  mkdirSync(join(project, "viewer"), { recursive: true });
+  writeFileSync(join(project, "viewer", "app.js"), "console.log('ui');\n", "utf8");
+
+  // Capture BEFORE declaring the viewer ignored, so the packet stores the viewer path.
+  const res = capture({
+    projectDir: project,
+    title: "API returns typed errors",
+    body: "The API layer returns typed errors. Verified in src/a.js and viewer/app.js.",
+    type: "decision",
+    paths: ["src/a.js", "viewer/app.js"],
+  });
+  assert.equal(res.ok, true);
+  assert.equal((res.packet?.paths ?? []).includes("viewer/app.js"), true);
+
+  // Declare the viewer non-knowledge and delete it (as if removed in a refactor).
+  writeFileSync(join(project, ".kageignore"), "viewer/\n", "utf8");
+  unlinkSync(join(project, "viewer", "app.js"));
+
+  refreshProject(project);
+
+  const packet = JSON.parse(readFileSync(res.path as string, "utf8"));
+  assert.equal(packet.paths.includes("viewer/app.js"), false);
+  assert.equal(packet.paths.includes("src/a.js"), true);
+  assert.notEqual(packet.quality?.stale, true);
+});

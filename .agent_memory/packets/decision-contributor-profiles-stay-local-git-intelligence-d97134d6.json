@@ -21,7 +21,6 @@
     "mcp/cli.ts",
     "mcp/index.ts",
     "mcp/daemon.ts",
-    "mcp/viewer/app.js",
     "mcp/kernel.test.ts",
     "mcp/mcp.test.ts",
     "README.md",
@@ -62,13 +61,8 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 91,
-    "stale": true,
-    "stale_reasons": [
-      "some referenced paths are missing: mcp/viewer/app.js"
-    ],
-    "suggested_action": "update"
+    "estimated_tokens_saved": 91
   },
   "created_at": "2026-05-15T03:46:53.971Z",
-  "updated_at": "2026-06-05T12:30:37.725Z"
+  "updated_at": "2026-06-05T14:03:30.155Z"
 }

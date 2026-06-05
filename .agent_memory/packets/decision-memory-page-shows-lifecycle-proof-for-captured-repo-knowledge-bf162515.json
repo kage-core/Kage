@@ -16,14 +16,7 @@
     "memory-lifecycle",
     "collaboration"
   ],
-  "paths": [
-    "mcp/viewer/memory.html",
-    "mcp/viewer/app.js",
-    "mcp/viewer/styles.css",
-    "docs/viewer/memory.html",
-    "docs/viewer/app.js",
-    "docs/viewer/styles.css"
-  ],
+  "paths": [],
   "stack": [],
   "source_refs": [
     {
@@ -60,13 +53,8 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 169,
-    "stale": true,
-    "stale_reasons": [
-      "all referenced paths are missing: mcp/viewer/memory.html, mcp/viewer/app.js, mcp/viewer/styles.css, docs/viewer/memory.html"
-    ],
-    "suggested_action": "update"
+    "estimated_tokens_saved": 169
   },
   "created_at": "2026-05-17T14:33:39.014Z",
-  "updated_at": "2026-06-05T12:30:37.728Z"
+  "updated_at": "2026-06-05T14:03:30.158Z"
 }
