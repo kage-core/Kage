@@ -25,20 +25,29 @@ test("viewer static responses include browser security headers", () => {
   assert.doesNotMatch(headers["content-security-policy"], /script-src 'unsafe-inline'/);
 });
 
-test("viewer console is a single CSP-safe page backed by external console.js", () => {
+test("viewer dashboard is a CSP-safe multi-section page backed by external console.js", () => {
   const indexHtml = readFileSync(join(process.cwd(), "viewer", "index.html"), "utf8");
   const consoleJs = readFileSync(join(process.cwd(), "viewer", "console.js"), "utf8");
   // CSP forbids inline scripts: the page must load console.js externally.
   assert.match(indexHtml, /<script src="\.\/console\.js/);
   assert.doesNotMatch(indexHtml, /<script>\s*\n\s*\(function/);
-  // Single-page console renders the trust hero, attention list, and memory list.
+  // Multi-section dashboard: sidebar nav drives separate Overview / Graph / Memory / Insights sections.
+  assert.match(indexHtml, /data-section="overview"/);
+  assert.match(indexHtml, /data-section="graph"/);
+  assert.match(indexHtml, /data-section="memory"/);
+  assert.match(indexHtml, /data-section="insights"/);
+  // Core surfaces: trust hero, stat tiles, the memory<->code graph canvas, the memory list, and insight charts.
   assert.match(indexHtml, /id="hero"/);
-  assert.match(indexHtml, /id="attentionSec"/);
+  assert.match(indexHtml, /id="tiles"/);
+  assert.match(indexHtml, /id="graph"/);
   assert.match(indexHtml, /id="list"/);
-  // console.js reads the lifecycle/trust/suppressed reports.
+  assert.match(indexHtml, /id="donut"/);
+  // console.js reads the lifecycle/trust/suppressed/metrics reports and renders the graph + insights.
   assert.match(consoleJs, /lifecycle/);
   assert.match(consoleJs, /trust_score/);
   assert.match(consoleJs, /suppressed/);
+  assert.match(consoleJs, /metrics/);
+  assert.match(consoleJs, /buildGraph/);
 });
 
 test("viewer benchmark report combines local gates with coding memory retrieval proof", () => {
