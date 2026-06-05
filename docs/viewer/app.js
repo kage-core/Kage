@@ -184,6 +184,7 @@
     edgeCount: document.getElementById("edgeCount"),
     reviewCount: document.getElementById("reviewCount"),
     dashboardStats: document.getElementById("dashboardStats"),
+    trustHero: document.getElementById("trustHero"),
     repoXray: document.getElementById("repoXray"),
     repoXrayStatus: document.getElementById("repoXrayStatus"),
     repoXrayScript: document.getElementById("repoXrayScript"),
@@ -234,8 +235,8 @@
   var PAGE_META = {
     overview: {
       eyebrow: "kage://overview",
-      title: "Repo dashboard",
-      summary: "What is safe to change next, what needs attention, and what is ready to hand off."
+      title: "Repository overview",
+      summary: "Whether this repo's agent memory can be trusted, what needs review, and what's ready to hand off."
     },
     graph: {
       eyebrow: "kage://graph",
@@ -2989,6 +2990,44 @@
     ].forEach(function (card) { els.debugOverview.appendChild(card); });
   }
 
+  function renderTrustHero(trust) {
+    if (!els.trustHero) return;
+    var metrics = (trust && trust.metrics) || {};
+    var score = trust && typeof trust.trust_score === "number" ? trust.trust_score : null;
+    var status = score == null ? "idle" : (score >= 90 ? "ok" : score >= 70 ? "warn" : "alert");
+    var bars = [
+      ["Hallucinated citations rejected", metrics.hallucinated_citation_rejection_rate],
+      ["Stale memory excluded from recall", metrics.stale_memory_exclusion_rate],
+      ["Live memory grounded to code", metrics.live_grounding_rate]
+    ];
+    var note = score == null
+      ? "Run <code>kage benchmark --trust</code> to score this repo."
+      : (status === "ok"
+        ? "Verified — agents recall only memory that is grounded and current."
+        : "Some memory needs review before agents should trust it.");
+    var barsHtml = bars.map(function (bar) {
+      var raw = bar[1];
+      var has = !(raw === null || raw === undefined || isNaN(raw));
+      var pct = has ? Math.max(0, Math.min(100, Number(raw))) : 0;
+      return '<div class="trust-bar">'
+        + '<span class="trust-bar-label"></span>'
+        + '<span class="trust-bar-track"><i style="width:' + pct + '%"></i></span>'
+        + '<b class="trust-bar-value">' + (has ? pct + "%" : "—") + '</b>'
+        + '</div>';
+    }).join("");
+    els.trustHero.setAttribute("data-status", status);
+    els.trustHero.innerHTML =
+      '<div class="trust-hero-score">'
+      + '<span class="trust-hero-eyebrow">Memory Trust</span>'
+      + '<div class="trust-hero-number"><strong>' + (score == null ? "—" : score) + '</strong><span>/100</span></div>'
+      + '<p class="trust-hero-note">' + note + '</p>'
+      + '</div>'
+      + '<div class="trust-hero-bars">' + barsHtml + '</div>';
+    // Set labels via textContent to avoid any HTML injection from labels.
+    var labelEls = els.trustHero.querySelectorAll(".trust-bar-label");
+    for (var i = 0; i < labelEls.length; i += 1) labelEls[i].textContent = bars[i][0];
+  }
+
   function renderDashboard() {
     if (!els.dashboardStats) return;
     var metrics = state.metrics || {};
@@ -3015,14 +3054,8 @@
     var readiness = handoff || dashboardReadiness(metrics, pendingReview, staleFlags, duplicateFlags, missingContext);
     var memoryCoverage = dashboardMemoryCoverage(reports, memoryCodeEdges, memoryGraph, memoryNodes);
     var riskHealth = riskTargets.length || hotspots ? (riskTargets.length + hotspots) + " checks" : "No flags";
-    var trust = reports.trust || {};
-    var trustMetrics = trust.metrics || {};
-    var trustScore = typeof trust.trust_score === "number" ? trust.trust_score : null;
-    var trustDetail = trustScore == null
-      ? "run kage benchmark --trust"
-      : "reject " + numOrDash(trustMetrics.hallucinated_citation_rejection_rate) + "% · stale-excl " + numOrDash(trustMetrics.stale_memory_exclusion_rate) + "% · grounded " + numOrDash(trustMetrics.live_grounding_rate) + "%";
+    renderTrustHero(reports.trust);
     var statRows = [
-      ["Trust", trustScore == null ? "—" : trustScore + "/100", trustDetail, trustScore == null ? "" : (trustScore >= 90 ? "ok" : "warn")],
       ["Handoff", readiness.label, readiness.detail, readiness.status],
       ["Memory", memoryCoverage.label, memoryCoverage.detail, memoryCoverage.status],
       ["Before edit", riskHealth, riskTargets.length + " edit areas, " + ownerSilos + " ownership silos", riskTargets.length || ownerSilos || hotspots ? "warn" : "ok"]

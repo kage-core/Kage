@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Kage viewer</title>
-    <link rel="stylesheet" href="./styles.css?v=37">
+    <link rel="stylesheet" href="./styles.css?v=38">
   </head>
   <body>
     <div class="viewer-shell">
@@ -54,16 +54,17 @@
 
         <main class="layout">
       <section class="dashboard-panel" aria-label="Kage repo dashboard">
+        <div id="trustHero" class="trust-hero" aria-label="Memory trust score"></div>
         <div id="dashboardStats" class="dashboard-stats" aria-label="Repo dashboard stats"></div>
-        <section id="repoXray" class="repo-xray" aria-label="Repo X-Ray">
+        <section id="repoXray" class="repo-xray" aria-label="Repository map">
           <div class="repo-xray-head">
             <div>
-              <span>Repo X-Ray</span>
-              <h2>Show me what you understand</h2>
+              <span>Repository map</span>
+              <h2>What Kage understands about this repo</h2>
             </div>
             <strong id="repoXrayStatus">waiting</strong>
           </div>
-          <p id="repoXrayScript">Kage will map entry points, core files, risk, tests, and memory overlays when the X-Ray report is loaded.</p>
+          <p id="repoXrayScript">Entry points, core modules, change risk, tests, and memory overlays — mapped from the code graph.</p>
           <div id="repoXrayLayers" class="repo-xray-layers"></div>
         </section>
         <div id="dashboardCharts" class="dashboard-charts" aria-label="Repo health charts"></div>
@@ -302,6 +303,6 @@
       </section>
     </div>
 
-    <script src="./app.js?v=50"></script>
+    <script src="./app.js?v=52"></script>
   </body>
 </html>
