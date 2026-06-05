@@ -100,6 +100,29 @@ kage setup verify-agent --agent claude-code --project .
 `verify-agent` checks the MCP server *and* the ambient prompt/tool/session hooks,
 so teammates don't mistake a partial setup for live automatic memory.
 
+## How you use it (mostly: you don't)
+
+Once installed, Kage runs as an ambient harness — your agent recalls and captures
+automatically. The loop:
+
+```mermaid
+flowchart LR
+  T(["You give the agent a task"]) --> CTX["kage_context<br/>recall grounded, non-stale memory"]
+  CTX --> WORK["Agent works<br/>with that context"]
+  WORK --> LEARN["kage_learn<br/>capture a durable learning"]
+  LEARN --> PRV["You review it in<br/>the same PR as code"]
+  PRV --> REF["kage refresh<br/>re-ground on merge"]
+  REF -. next task .-> CTX
+  WORK -. inspect anytime .-> VIEW["kage viewer"]
+  classDef k stroke:#41ff8f,color:#41ff8f;
+  class CTX,LEARN,REF k;
+```
+
+- **At task start** the agent calls `kage_context` — it gets only grounded, current memory.
+- **As it learns**, `kage_learn` captures the durable bits (validated on write).
+- **You review** memory in the PR like any other file; **`kage refresh`** re-grounds on merge.
+- **`kage viewer`** lets you inspect what's stored and what agents recalled.
+
 ## Kage vs typical agent memory
 
 Most memory tools optimize for capturing and recalling more. The hard part is
@@ -235,6 +258,25 @@ dependency-free.
 
 Kage stores each learning as a **packet** and moves it through a fixed lifecycle.
 Every number the viewer shows comes from where packets sit in that journey.
+
+```mermaid
+flowchart LR
+  A(["Agent learns something"]) --> C["Capture<br/>(kage_learn)"]
+  C --> V{"Citations exist<br/>in the repo?"}
+  V -- no --> X["Rejected on write<br/>hallucination blocked"]
+  V -- yes --> G["Ground<br/>fingerprint cited files"]
+  G --> S[("Stored<br/>git-tracked JSON")]
+  S --> R{"Recall<br/>agent asks"}
+  R -- grounded and current --> Y["Returned to agent"]
+  R -- code deleted or changed --> W["Withheld as stale<br/>shown to you"]
+  W -. kage refresh .-> U["Update, supersede,<br/>or retire"]
+  classDef good stroke:#41ff8f,color:#41ff8f;
+  classDef bad stroke:#ff7a8f,color:#ff7a8f;
+  classDef warn stroke:#ffd166,color:#ffd166;
+  class Y,S,G good;
+  class X bad;
+  class W warn;
+```
 
 **The journey:** capture → citation check (reject memory citing files that don't
 exist) → grounding (fingerprint the cited files) → approve (git-tracked JSON) →

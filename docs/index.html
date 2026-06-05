@@ -190,7 +190,7 @@ kage setup claude-code --project . --write   # or: codex, cursor, windsurf…</p
             </div>
             <div class="why-card">
               <h3>✓ Withheld on recall</h3>
-              <p>When the code a memory cites is deleted or refactored, Kage <b>withholds it from the agent</b> and shows you on the Suppression Shelf.</p>
+              <p>When the code a memory cites is deleted or refactored, Kage <b>withholds it from the agent</b> and flags it for you under "Needs review."</p>
             </div>
             <div class="why-card">
               <h3>✓ Grounded to your code</h3>
@@ -212,6 +212,24 @@ kage setup claude-code --project . --write   # or: codex, cursor, windsurf…</p
             <div class="step"><span class="num">3</span><div><b>Memory stays reviewable</b><span>Packets are git-visible JSON, not hidden chat transcripts or vendor state.</span></div></div>
             <div class="step"><span class="num">4</span><div><b>Future sessions recall context</b><span>Agents retrieve relevant packets and code graph facts before editing.</span></div></div>
           </div>
+
+          <p class="lede" style="margin-top:40px">The journey of a single packet — from a thing an agent learned to something it can be trusted to recall:</p>
+          <div class="pflow" aria-label="Packet lifecycle">
+            <div class="pnode"><span class="pk">1 · Capture</span><b>Agent records a learning</b><p>A decision, fix, or gotcha — with the files it's about.</p></div>
+            <span class="parrow">→</span>
+            <div class="pnode"><span class="pk">2 · Validate</span><b>Citations checked</b><p>Cited files must exist in the repo.</p><span class="out bad">✗ hallucination rejected</span></div>
+            <span class="parrow">→</span>
+            <div class="pnode"><span class="pk">3 · Ground</span><b>Fingerprinted to code</b><p>Linked to the exact file contents at capture.</p></div>
+            <span class="parrow">→</span>
+            <div class="pnode is-store"><span class="pk">4 · Store</span><b>Git-tracked JSON</b><p>Reviewed in the same PR as the code.</p></div>
+            <span class="parrow">→</span>
+            <div class="pnode"><span class="pk">5 · Recall</span><b>Returned to the agent</b><p><span class="out good">✓ grounded &amp; current</span><br/><span class="out warn">⊘ stale → withheld</span></p></div>
+          </div>
+
+          <div class="demo-frame">
+            <img src="assets/kage-demo.gif" alt="kage demo — a hallucinated citation rejected on write, a stale memory withheld from recall, and only grounded memory returned, ending in a Trust score of 92/100" loading="lazy" />
+          </div>
+          <p class="demo-cap"><code>npx -y @kage-core/kage-graph-mcp demo</code> — reject a hallucination, withhold a stale memory, recall only grounded knowledge.</p>
         </div>
       </section>
 
