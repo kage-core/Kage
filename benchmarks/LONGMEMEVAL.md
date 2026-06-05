@@ -73,7 +73,7 @@ node benchmarks/longmemeval-kage-retrieval.mjs \
 
 ## Current Result
 
-Run date: 2026-05-18
+Run date: 2026-05-18 · reproduced 2026-06-05 (470 questions, identical: 96.17% R@5 / 98.72% R@10, 209ms median)
 
 | System | R@5 | R@10 | R@20 | MRR | NDCG@10 | Median latency |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
