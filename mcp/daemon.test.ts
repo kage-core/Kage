@@ -25,75 +25,20 @@ test("viewer static responses include browser security headers", () => {
   assert.doesNotMatch(headers["content-security-policy"], /script-src 'unsafe-inline'/);
 });
 
-test("viewer normal pages use document scrolling instead of nested workspace scrolling", () => {
-  const css = readFileSync(join(process.cwd(), "viewer", "styles.css"), "utf8");
-  const memoryHtml = readFileSync(join(process.cwd(), "viewer", "memory.html"), "utf8");
-  const rule = (selector: string) => {
-    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const match = css.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`));
-    assert.ok(match, `missing ${selector}`);
-    return match[1];
-  };
-
-  assert.match(rule("body.viewer-page-memory .workspace-body"), /height:\s*auto/);
-  assert.match(rule("body.viewer-page-memory.has-selection .details-panel"), /max-height:\s*calc\(100vh - 176px\)/);
-  assert.match(rule("body.viewer-page-memory.has-selection .details-panel"), /position:\s*sticky/);
-  assert.match(rule("body.viewer-page-memory .memory-panel"), /min-height:\s*0/);
-  assert.match(rule("body.viewer-page-memory .memory-list"), /min-height:\s*280px/);
-  const workspaceShellRule = rule("body.viewer-page-memory .workspace-shell,\nbody.viewer-page-intel .workspace-shell,\nbody.viewer-page-owners .workspace-shell,\nbody.viewer-page-review .workspace-shell,\nbody.viewer-page-data .workspace-shell");
-  assert.match(workspaceShellRule, /min-height:\s*calc\(100vh - 176px\)/);
-  assert.match(workspaceShellRule, /height:\s*auto/);
-  assert.match(workspaceShellRule, /overflow:\s*visible/);
-  assert.match(rule(".memory-list"), /height:\s*auto/);
-  assert.match(rule(".memory-list"), /overflow:\s*visible/);
-  assert.match(rule(".intelligence-list"), /height:\s*auto/);
-  assert.match(rule(".intelligence-list"), /overflow:\s*visible/);
-  assert.match(memoryHtml, /<details class="memory-governance"/);
-  assert.ok(memoryHtml.indexOf("id=\"memoryList\"") < memoryHtml.indexOf("class=\"memory-governance\""));
-});
-
-test("viewer defaults keep advanced diagnostics out of normal workflows", () => {
-  const css = readFileSync(join(process.cwd(), "viewer", "styles.css"), "utf8");
-  const app = readFileSync(join(process.cwd(), "viewer", "app.js"), "utf8");
-  const graphHtml = readFileSync(join(process.cwd(), "viewer", "graph.html"), "utf8");
-  const rule = (selector: string) => {
-    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const match = css.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`));
-    assert.ok(match, `missing ${selector}`);
-    return match[1];
-  };
-
-  assert.match(rule(".sidebar-secondary"), /display:\s*none/);
-  assert.match(rule(".status-strip"), /display:\s*none/);
-  assert.match(rule(".autoload-status"), /display:\s*none/);
-  assert.match(rule(".app-header .file-picker"), /display:\s*none/);
-  assert.match(rule("#dashboardReview"), /display:\s*none/);
-  assert.match(rule("body.viewer-page-memory .memory-overview"), /display:\s*none/);
-  assert.match(rule("body.viewer-page-review .proof-panel"), /display:\s*none/);
-  assert.match(rule(".inspector-path-finder"), /display:\s*none\s*!important/);
-  assert.match(rule("body.viewer-page-graph .graph-insights-panel"), /display:\s*none/);
-  assert.doesNotMatch(graphHtml, /<span>Render Mode<\/span>/);
-  assert.match(app, /cards\.concat\(tailCards\)\.slice\(0,\s*3\)/);
-  assert.match(app, /riskFirst = new Set\(\["Before You Edit", "Change Risk", "Module Health", "Decision Memory", "Graph Insights", "Memory Quality"\]\)/);
-  assert.match(app, /userFacingRiskTargets\(risk\)/);
-  assert.match(app, /primaryCards = normalizedCards\.filter/);
-  assert.match(app, /intel-deep-drawer/);
-});
-
-test("viewer labels separate inbox blockers from handoff review work", () => {
-  const app = readFileSync(join(process.cwd(), "viewer", "app.js"), "utf8");
-  const htmlFiles = ["index.html", "graph.html", "intel.html", "memory.html", "review.html", "owners.html", "data.html"];
-
-  for (const file of htmlFiles) {
-    const html = readFileSync(join(process.cwd(), "viewer", file), "utf8");
-    assert.doesNotMatch(html, /Open risks/);
-    assert.match(html, /Open edit checklist/);
-  }
-
-  assert.doesNotMatch(app, /openCount = Number\(firstNumber\(handoff\.totals\.open_items/);
-  assert.doesNotMatch(app, /blockers = Number\(firstNumber\(handoff\.totals\.open_items/);
-  assert.match(app, /handoffReviewCount/);
-  assert.match(app, /Inbox: clear/);
+test("viewer console is a single CSP-safe page backed by external console.js", () => {
+  const indexHtml = readFileSync(join(process.cwd(), "viewer", "index.html"), "utf8");
+  const consoleJs = readFileSync(join(process.cwd(), "viewer", "console.js"), "utf8");
+  // CSP forbids inline scripts: the page must load console.js externally.
+  assert.match(indexHtml, /<script src="\.\/console\.js/);
+  assert.doesNotMatch(indexHtml, /<script>\s*\n\s*\(function/);
+  // Single-page console renders the trust hero, attention list, and memory list.
+  assert.match(indexHtml, /id="hero"/);
+  assert.match(indexHtml, /id="attentionSec"/);
+  assert.match(indexHtml, /id="list"/);
+  // console.js reads the lifecycle/trust/suppressed reports.
+  assert.match(consoleJs, /lifecycle/);
+  assert.match(consoleJs, /trust_score/);
+  assert.match(consoleJs, /suppressed/);
 });
 
 test("viewer benchmark report combines local gates with coding memory retrieval proof", () => {
