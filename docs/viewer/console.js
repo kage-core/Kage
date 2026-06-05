@@ -8,6 +8,7 @@
     trust: src("trust", root + "trust.json"),
     suppressed: src("suppressed", root + "suppressed.json"),
     metrics: src("metrics", "./data/kage/metrics.json"),
+    activity: src("activity", root + "activity.json"),
   };
   var state = { items: [], filter: "all", q: "", metrics: null, graphReady: false, showAll: false };
 
@@ -41,6 +42,7 @@
     overview: ["kage://overview", "Repository overview", "Whether this repo's agent memory can be trusted — at a glance."],
     graph: ["kage://memory-map", "Memory ↔ code map", "Each packet anchored to the files it's grounded in. Hover a node to inspect."],
     memory: ["kage://memory", "Memory", "Every packet Kage has stored, with health and grounding."],
+    activity: ["kage://activity", "Activity", "What agents actually recalled and captured here, over time."],
     insights: ["kage://insights", "Insights", "Health, composition, and what Kage has mapped in this repo."],
   };
   function show(name) {
@@ -60,11 +62,11 @@
   });
 
   // ---- load ----
-  Promise.all([getJSON(paths.trust), getJSON(paths.suppressed), getJSON(paths.lifecycle), getJSON(paths.metrics)])
-    .then(function (r) { render(r[0], r[1], r[2], r[3]); })
-    .catch(function () { render(null, null, null, null); });
+  Promise.all([getJSON(paths.trust), getJSON(paths.suppressed), getJSON(paths.lifecycle), getJSON(paths.metrics), getJSON(paths.activity)])
+    .then(function (r) { render(r[0], r[1], r[2], r[3], r[4]); })
+    .catch(function () { render(null, null, null, null, null); });
 
-  function render(trust, suppressed, lifecycle, metrics) {
+  function render(trust, suppressed, lifecycle, metrics, activity) {
     state.items = (lifecycle && lifecycle.items) || [];
     state.metrics = metrics || {};
     document.getElementById("repo").textContent = resolveRepoName(metrics, lifecycle);
@@ -73,8 +75,68 @@
     renderAttention(state.items, suppressed);
     renderChips(); renderList();
     renderInsights(metrics, state.items);
+    renderActivity(activity);
     var start = (location.hash || "").replace("#", "");
     show(META[start] ? start : "overview");
+  }
+
+  // ---- activity feed (real recorded recalls + captures) ----
+  function relTime(iso) {
+    var t = Date.parse(iso); if (!t) return "";
+    var s = (Date.now() - t) / 1000;
+    if (s < 60) return "just now";
+    if (s < 3600) return Math.floor(s / 60) + "m ago";
+    if (s < 86400) return Math.floor(s / 3600) + "h ago";
+    if (s < 86400 * 30) return Math.floor(s / 86400) + "d ago";
+    return String(iso).slice(0, 10);
+  }
+  var EV_ICON = { recall: "↺", capture: "＋", supersede: "⇄", deprecate: "✕", update: "✎", promote: "▲", feedback: "✦", other: "•" };
+  function renderActivity(activity) {
+    var t = (activity && activity.totals) || { events: 0, recalls: 0, captures: 0, recalls_7d: 0 };
+    var tiles = document.getElementById("activityTiles");
+    if (tiles) {
+      tiles.textContent = "";
+      [
+        { k: "Recalls (7 days)", v: fmt(t.recalls_7d), s: "agent memory pulls", cls: "green" },
+        { k: "Total recalls", v: fmt(t.recalls), s: "all time, this machine", cls: "green" },
+        { k: "Captures", v: fmt(t.captures), s: "memories written", cls: "memory" },
+        { k: "Events", v: fmt(t.events), s: "in the activity log", cls: "" },
+      ].forEach(function (d) { var x = el("div", "tile"); x.appendChild(el("div", "k", d.k)); x.appendChild(el("div", "v " + (d.cls || ""), d.v)); x.appendChild(el("div", "s", d.s)); tiles.appendChild(x); });
+    }
+    // recalls-per-day bars
+    var daily = (activity && activity.daily) || [];
+    var db = document.getElementById("activityDaily");
+    if (db) {
+      db.textContent = "";
+      if (!daily.length) { db.appendChild(el("div", "empty", "No recalls recorded yet. Run kage recall / kage_context and they'll appear here.")); }
+      var dmax = daily.reduce(function (a, b) { return Math.max(a, b.recalls); }, 1);
+      daily.forEach(function (d) {
+        var col = el("div", "col");
+        col.appendChild(el("span", "v", String(d.recalls)));
+        var bar = el("span", "bar" + (d.recalls ? "" : " empty")); col.appendChild(bar);
+        col.appendChild(el("span", "d", d.day.slice(5)));
+        db.appendChild(col);
+        setTimeout(function () { bar.style.height = Math.max(3, d.recalls / dmax * 96) + "px"; }, 60);
+      });
+    }
+    // feed
+    var feed = document.getElementById("activityFeed");
+    if (feed) {
+      feed.textContent = ""; feed.className = "feed";
+      var events = (activity && activity.events) || [];
+      if (!events.length) { feed.appendChild(el("div", "empty", "Nothing recorded yet. As agents recall and capture memory, it streams in here.")); return; }
+      events.forEach(function (e) {
+        var row = el("div", "ev " + (e.kind || "other"));
+        row.appendChild(el("span", "ei", EV_ICON[e.kind] || "•"));
+        var mid = el("div");
+        mid.appendChild(el("span", "et", e.title || e.kind));
+        mid.appendChild(document.createTextNode(" "));
+        mid.appendChild(el("span", "ek", e.kind === "recall" ? "recall" : (e.detail || e.kind)));
+        row.appendChild(mid);
+        row.appendChild(el("span", "when", relTime(e.at)));
+        feed.appendChild(row);
+      });
+    }
   }
 
   // ---- hero ----

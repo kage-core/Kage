@@ -2971,6 +2971,69 @@ function recordRecallAccess(projectDir: string, results: RecallResult["results"]
   }
 }
 
+// A chronological activity feed: every recall an agent made (from access telemetry)
+// merged with every memory mutation (from the audit trail), newest first. This is
+// what makes the dashboard "live" — real recorded events, not a static snapshot.
+export interface ActivityEvent {
+  at: string;
+  kind: "recall" | "capture" | "supersede" | "deprecate" | "update" | "promote" | "feedback" | "other";
+  title: string;
+  detail: string;
+  actor?: string;
+}
+export interface ActivityReport {
+  schema_version: number;
+  project_dir: string;
+  generated_at: string;
+  window_days: number;
+  totals: { events: number; recalls: number; captures: number; recalls_7d: number };
+  daily: Array<{ day: string; recalls: number }>;
+  events: ActivityEvent[];
+}
+const AUDIT_ACTIVITY_KIND: Record<string, ActivityEvent["kind"]> = {
+  capture: "capture", approve: "capture", supersede: "supersede", deprecate: "deprecate",
+  update: "update", promote: "promote", feedback: "feedback",
+};
+export function kageActivity(projectDir: string, options: { limit?: number } = {}): ActivityReport {
+  const limit = options.limit ?? 80;
+  const events: ActivityEvent[] = [];
+  let recalls = 0;
+  readMemoryAccessEntries(projectDir).forEach((entry) => {
+    (entry.recent ?? []).forEach((r) => {
+      if (!r || !r.at) return;
+      recalls += 1;
+      events.push({ at: r.at, kind: "recall", title: entry.title, detail: `recalled · rank ${r.rank}` });
+    });
+  });
+  let captures = 0;
+  for (const audit of loadMemoryAuditEntries(projectDir)) {
+    const kind = AUDIT_ACTIVITY_KIND[audit.operation] ?? "other";
+    if (kind === "capture") captures += 1;
+    const extra = audit.packet_titles.length > 1 ? ` (+${audit.packet_titles.length - 1} more)` : "";
+    events.push({ at: audit.timestamp, kind, title: (audit.packet_titles[0] ?? audit.operation) + extra, detail: audit.operation, actor: audit.actor });
+  }
+  events.sort((a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0));
+  const dayMap = new Map<string, number>();
+  events.forEach((e) => { if (e.kind === "recall") { const d = e.at.slice(0, 10); dayMap.set(d, (dayMap.get(d) ?? 0) + 1); } });
+  // Zero-fill the last 14 calendar days so the chart reads as a timeline, not a lone bar.
+  const daily: Array<{ day: string; recalls: number }> = [];
+  for (let i = 13; i >= 0; i -= 1) {
+    const day = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    daily.push({ day, recalls: dayMap.get(day) ?? 0 });
+  }
+  const cutoff7 = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const recalls7d = events.filter((e) => e.kind === "recall" && (Date.parse(e.at) || 0) >= cutoff7).length;
+  return {
+    schema_version: 1,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    window_days: ACCESS_WINDOW_DAYS,
+    totals: { events: events.length, recalls, captures, recalls_7d: recalls7d },
+    daily,
+    events: events.slice(0, limit),
+  };
+}
+
 function isGeneratedChangeMemory(packet: Pick<MemoryPacket, "type" | "tags" | "source_refs">): boolean {
   return packet.type === "workflow"
     && packet.tags.includes("change-memory")

@@ -43,6 +43,7 @@ import {
   kageHookUninstall,
   kageRisk,
   kageMemoryAccess,
+  kageActivity,
   kageMemoryAudit,
   kageMemoryHandoff,
   kageMemoryLifecycle,
@@ -132,6 +133,7 @@ Usage:
   kage branch --project <dir> [--json]
   kage metrics --project <dir> [--json]
   kage memory-access --project <dir> [--json]
+  kage activity --project <dir> [--json]
   kage memory-audit --project <dir> [--limit <n>] [--json]
   kage slots --project <dir> [--json]
   kage slots set --project <dir> --label <label> --content <text> [--description <text>] [--paths a,b] [--tags a,b] [--size-limit <n>] [--unpinned] [--json]
@@ -1016,6 +1018,20 @@ async function main(): Promise<void> {
     for (const entry of result.entries.filter((item) => !(item.tags.includes("change-memory") && item.tags.includes("diff-proposal"))).slice(0, 10)) {
       if (!entry.total_uses) continue;
       console.log(`- ${entry.title}: ${entry.uses_30d} recent, ${entry.total_uses} total${entry.best_rank ? `, best rank ${entry.best_rank}` : ""}`);
+    }
+    return;
+  }
+
+  if (command === "activity") {
+    const result = kageActivity(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage activity: ${result.totals.events} events (${result.totals.recalls} recalls, ${result.totals.captures} captures); ${result.totals.recalls_7d} recalls in 7 days`);
+    console.log("\nRecent:");
+    for (const event of result.events.slice(0, 15)) {
+      console.log(`- ${event.at.slice(0, 16).replace("T", " ")}  ${event.kind.padEnd(9)} ${event.title}`);
     }
     return;
   }

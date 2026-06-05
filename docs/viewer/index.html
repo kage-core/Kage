@@ -156,6 +156,21 @@
       .showmore:hover { color: var(--ink); border-color: var(--line-strong); background: rgba(255,255,255,0.025); }
       .row { cursor: pointer; }
 
+      /* activity */
+      .daybars { display: flex; align-items: flex-end; gap: 6px; height: 120px; padding-top: 8px; }
+      .daybars .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 7px; min-width: 0; }
+      .daybars .col .bar { width: 100%; max-width: 30px; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, var(--green), #2bbf6a); min-height: 3px; transition: height .8s cubic-bezier(.2,.7,.2,1); }
+      .daybars .col .bar.empty { background: rgba(255,255,255,0.05); }
+      .daybars .col .d { color: var(--faint); font: 400 9.5px/1 var(--mono); white-space: nowrap; }
+      .daybars .col .v { color: var(--muted); font: 600 11px/1 var(--mono); }
+      .feed { display: grid; }
+      .ev { display: grid; grid-template-columns: 18px 1fr auto; gap: 0 13px; align-items: baseline; padding: 11px 4px; border-top: 1px solid var(--line); }
+      .ev:first-child { border-top: 0; }
+      .ev .ei { font-size: 13px; line-height: 1.5; }
+      .ev .et { font: 500 13.5px/1.45 var(--sans); } .ev .ek { color: var(--faint); font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .04em; }
+      .ev .when { color: var(--faint); font: 400 11px/1 var(--mono); white-space: nowrap; }
+      .ev.recall .ei { color: var(--green); } .ev.capture .ei { color: var(--memory); } .ev.supersede .ei, .ev.deprecate .ei { color: var(--warn); }
+
       /* packet detail drawer */
       .drawer-backdrop { position: fixed; inset: 0; background: rgba(2,5,3,0.6); backdrop-filter: blur(2px); opacity: 0; pointer-events: none; transition: opacity .25s ease; z-index: 40; }
       .drawer-backdrop.open { opacity: 1; pointer-events: auto; }
@@ -213,6 +228,7 @@
           <button data-section="overview" aria-current="true"><span class="ic">◎</span> Overview</button>
           <button data-section="graph"><span class="ic">⬡</span> Memory map</button>
           <button data-section="memory"><span class="ic">▤</span> Memory</button>
+          <button data-section="activity"><span class="ic">◷</span> Activity</button>
           <button data-section="insights"><span class="ic">▦</span> Insights</button>
         </nav>
         <div class="grow"></div>
@@ -268,6 +284,12 @@
             <div class="panel" style="padding:6px 22px;"><div id="list"></div></div>
           </section>
 
+          <section class="section" id="section-activity">
+            <div class="tiles" id="activityTiles"></div>
+            <div class="panel"><h2>Recalls per day <span class="sub">— how often agents pulled this repo's memory</span></h2><div class="daybars" id="activityDaily"></div></div>
+            <div class="panel"><h2>Recent activity</h2><div id="activityFeed"></div></div>
+          </section>
+
           <section class="section" id="section-insights">
             <div class="ins-grid">
               <div class="panel"><h2>Memory health</h2><div class="donut-row"><div class="donut" id="donut"><div class="center" id="donutCenter"></div></div><div class="legend2" id="healthLegend"></div></div><div class="donut-cap" id="healthCap"></div></div>
@@ -284,6 +306,6 @@
     </div>
     <div class="drawer-backdrop" id="detailBackdrop"></div>
     <aside class="drawer" id="detail" aria-hidden="true"></aside>
-    <script src="./console.js?v=10"></script>
+    <script src="./console.js?v=11"></script>
   </body>
 </html>

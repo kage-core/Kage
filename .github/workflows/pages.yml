@@ -44,6 +44,7 @@ jobs:
           node mcp/dist/cli.js benchmark --trust --project . --json > .agent_memory/reports/trust.json || true
           node mcp/dist/cli.js suppressed --project . --json > .agent_memory/reports/suppressed.json || true
           node mcp/dist/cli.js lifecycle --project . --json > .agent_memory/reports/lifecycle.json || true
+          node mcp/dist/cli.js activity --project . --json > .agent_memory/reports/activity.json || true
       - uses: actions/configure-pages@v5
         with:
           enablement: true
@@ -70,7 +71,7 @@ jobs:
           cp .agent_memory/metrics.json docs/viewer/data/kage/metrics.json
           cp .agent_memory/inbox.json docs/viewer/data/kage/inbox.json
           # Optional reports the hosted viewer fetches if present.
-          for report in risk contributors decisions module-health graph-insights workspace quality benchmark trust suppressed lifecycle; do
+          for report in risk contributors decisions module-health graph-insights workspace quality benchmark trust suppressed lifecycle activity; do
             if [ -f ".agent_memory/reports/${report}.json" ]; then
               cp ".agent_memory/reports/${report}.json" "docs/viewer/data/kage/reports/${report}.json"
             fi

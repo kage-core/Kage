@@ -21,6 +21,7 @@ import {
   kageMemoryAudit,
   kageMemoryHandoff,
   kageMemoryLifecycle,
+  kageActivity,
   kageMemoryLineage,
   kageMemoryReconciliation,
   kageMemoryTimeline,
@@ -667,6 +668,7 @@ export async function startViewer(projectDir: string, options: { host?: string; 
   const memoryAuditPath = join(reportsDir, "memory-audit.json");
   const handoffPath = join(reportsDir, "handoff.json");
   const lifecyclePath = join(reportsDir, "lifecycle.json");
+  const activityPath = join(reportsDir, "activity.json");
   const timelinePath = join(reportsDir, "timeline.json");
   const lineagePath = join(reportsDir, "lineage.json");
   const setupPath = join(reportsDir, "setup.json");
@@ -698,6 +700,7 @@ export async function startViewer(projectDir: string, options: { host?: string; 
     writeFileSync(memoryAuditPath, JSON.stringify(kageMemoryAudit(projectDir), null, 2));
     writeFileSync(handoffPath, JSON.stringify(kageMemoryHandoff(projectDir), null, 2));
     writeFileSync(lifecyclePath, JSON.stringify(kageMemoryLifecycle(projectDir), null, 2));
+    writeFileSync(activityPath, JSON.stringify(kageActivity(projectDir), null, 2));
     writeFileSync(timelinePath, JSON.stringify(kageMemoryTimeline(projectDir), null, 2));
     writeFileSync(lineagePath, JSON.stringify(kageMemoryLineage(projectDir), null, 2));
     writeFileSync(setupPath, JSON.stringify(setupDoctor(projectDir), null, 2));
@@ -707,7 +710,7 @@ export async function startViewer(projectDir: string, options: { host?: string; 
     // non-fatal: viewer will show 404 for reports if generation fails
   }
 
-  const url = `http://${host}:${port}/viewer/index.html?graph=${encodeURIComponent(graphPath)}&code=${encodeURIComponent(codePath)}&metrics=${encodeURIComponent(metricsPath)}&inbox=${encodeURIComponent(inboxPath)}&review=${encodeURIComponent(reviewPath)}&pending=${encodeURIComponent(pendingDir)}&quality=${encodeURIComponent(qualityPath)}&benchmark=${encodeURIComponent(benchmarkPath)}&contributors=${encodeURIComponent(contributorsPath)}&profile=${encodeURIComponent(profilePath)}&xray=${encodeURIComponent(xrayPath)}&capabilities=${encodeURIComponent(capabilitiesPath)}&slots=${encodeURIComponent(slotsPath)}&decisions=${encodeURIComponent(decisionsPath)}&risk=${encodeURIComponent(riskPath)}&moduleHealth=${encodeURIComponent(moduleHealthPath)}&graphInsights=${encodeURIComponent(graphInsightsPath)}&workspace=${encodeURIComponent(workspacePath)}&sessions=${encodeURIComponent(sessionsPath)}&replay=${encodeURIComponent(replayPath)}&memoryAccess=${encodeURIComponent(memoryAccessPath)}&memoryAudit=${encodeURIComponent(memoryAuditPath)}&handoff=${encodeURIComponent(handoffPath)}&lifecycle=${encodeURIComponent(lifecyclePath)}&timeline=${encodeURIComponent(timelinePath)}&lineage=${encodeURIComponent(lineagePath)}&setup=${encodeURIComponent(setupPath)}&trust=${encodeURIComponent(trustPath)}&suppressed=${encodeURIComponent(suppressedPath)}&view=code`;
+  const url = `http://${host}:${port}/viewer/index.html?graph=${encodeURIComponent(graphPath)}&code=${encodeURIComponent(codePath)}&metrics=${encodeURIComponent(metricsPath)}&inbox=${encodeURIComponent(inboxPath)}&review=${encodeURIComponent(reviewPath)}&pending=${encodeURIComponent(pendingDir)}&quality=${encodeURIComponent(qualityPath)}&benchmark=${encodeURIComponent(benchmarkPath)}&contributors=${encodeURIComponent(contributorsPath)}&profile=${encodeURIComponent(profilePath)}&xray=${encodeURIComponent(xrayPath)}&capabilities=${encodeURIComponent(capabilitiesPath)}&slots=${encodeURIComponent(slotsPath)}&decisions=${encodeURIComponent(decisionsPath)}&risk=${encodeURIComponent(riskPath)}&moduleHealth=${encodeURIComponent(moduleHealthPath)}&graphInsights=${encodeURIComponent(graphInsightsPath)}&workspace=${encodeURIComponent(workspacePath)}&sessions=${encodeURIComponent(sessionsPath)}&replay=${encodeURIComponent(replayPath)}&memoryAccess=${encodeURIComponent(memoryAccessPath)}&memoryAudit=${encodeURIComponent(memoryAuditPath)}&handoff=${encodeURIComponent(handoffPath)}&lifecycle=${encodeURIComponent(lifecyclePath)}&activity=${encodeURIComponent(activityPath)}&timeline=${encodeURIComponent(timelinePath)}&lineage=${encodeURIComponent(lineagePath)}&setup=${encodeURIComponent(setupPath)}&trust=${encodeURIComponent(trustPath)}&suppressed=${encodeURIComponent(suppressedPath)}&view=code`;
 
   const server = createServer((req, res) => {
     const requestUrl = new URL(req.url ?? "/", `http://${host}:${port}`);
