@@ -12,6 +12,10 @@
 .agent_memory/packets/repo_map-*repo-structure-*.json
 .claude/
 .agents/
+# but track the Codex plugin marketplace manifest (Codex reads .agents/plugins/)
+!.agents/
+!.agents/plugins/
+!.agents/plugins/marketplace.json
 .cursorrules
 __pycache__/
 *.pyc

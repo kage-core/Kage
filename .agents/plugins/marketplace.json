@@ -1,0 +1,22 @@
+{
+  "name": "kage",
+  "interface": {
+    "displayName": "Kage — trustworthy repo memory"
+  },
+  "plugins": [
+    {
+      "name": "kage",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/kage-core/Kage.git",
+        "path": "./plugin",
+        "ref": "master"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
