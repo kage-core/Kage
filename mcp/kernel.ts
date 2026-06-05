@@ -13661,6 +13661,10 @@ elif event_name == "PreCompact":
     payload = {"type": "session_end", "summary": "Claude Code is compacting context; distill durable observations before compaction."}
 elif event_name == "SessionEnd":
     payload = {"type": "session_end", "summary": "Claude Code session ended; distill durable observations for teammate handoff."}
+elif event_name == "SubagentStop":
+    payload = {"type": "session_end", "summary": "Subagent finished; distill durable observations from the subagent run."}
+elif event_name == "PreToolUse":
+    payload = {"type": "tool_use", "tool": tool, "path": path, "command": command, "summary": "About to run: " + compact(command or tool or d, 200)}
 else:
     payload = {"type": "tool_use", "tool": tool, "path": path, "command": command, "summary": compact(d, 320), "text": compact(d)}
 
@@ -13672,7 +13676,7 @@ if [[ -n "$OBSERVATION" ]]; then
   kage observe --project "$CWD" --event "$OBSERVATION" --json >/dev/null 2>&1 || true
 fi
 
-if [[ "$EVENT" == "PreCompact" || "$EVENT" == "SessionEnd" ]]; then
+if [[ "$EVENT" == "PreCompact" || "$EVENT" == "SessionEnd" || "$EVENT" == "SubagentStop" ]]; then
   kage distill --project "$CWD" --session "$SESSION" --json >/dev/null 2>&1 || true
 fi
 
@@ -13708,11 +13712,13 @@ exit 0
       hooks: {
         SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/session-start.sh", timeout: 5 }] }],
         UserPromptSubmit: [{ hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 12 }] }],
+        PreToolUse: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 5 }] }],
         PostToolUse: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 5 }] }],
         PostToolUseFailure: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 5 }] }],
         PreCompact: [{ hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 20 }] }],
         Stop: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/stop.sh", timeout: 20 }] }],
         SessionEnd: [{ hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 20 }] }],
+        SubagentStop: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 20 }] }],
       },
     };
     setSnippet(path, JSON.stringify({ mcpServers: { kage: server } }, null, 2), [
