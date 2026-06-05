@@ -13,16 +13,7 @@
   "tags": [
     "session-learning"
   ],
-  "paths": [
-    "mcp/viewer/index.html",
-    "mcp/viewer/graph.html",
-    "mcp/viewer/memory.html",
-    "mcp/viewer/intel.html",
-    "mcp/viewer/review.html",
-    "mcp/viewer/data.html",
-    "mcp/viewer/styles.css",
-    "mcp/viewer/app.js"
-  ],
+  "paths": [],
   "stack": [],
   "source_refs": [
     {
@@ -58,13 +49,8 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 85,
-    "stale": true,
-    "stale_reasons": [
-      "some referenced paths are missing: mcp/viewer/graph.html, mcp/viewer/memory.html, mcp/viewer/intel.html, mcp/viewer/review.html"
-    ],
-    "suggested_action": "update"
+    "estimated_tokens_saved": 85
   },
   "created_at": "2026-05-15T07:47:32.071Z",
-  "updated_at": "2026-06-05T12:30:37.733Z"
+  "updated_at": "2026-06-05T14:03:30.163Z"
 }

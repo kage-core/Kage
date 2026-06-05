@@ -20,8 +20,7 @@
   "paths": [
     ".github/workflows/pages.yml",
     "README.md",
-    "docs/index.html",
-    "mcp/viewer/index.html"
+    "docs/index.html"
   ],
   "stack": [],
   "source_refs": [
@@ -58,5 +57,5 @@
     "estimated_tokens_saved": 164
   },
   "created_at": "2026-05-03T08:00:31.670Z",
-  "updated_at": "2026-05-19T04:50:14.910Z"
+  "updated_at": "2026-06-05T14:03:30.156Z"
 }

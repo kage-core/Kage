@@ -16,12 +16,6 @@
   "paths": [
     "mcp/kernel.ts",
     "mcp/cli.ts",
-    "mcp/viewer/memory.html",
-    "mcp/viewer/app.js",
-    "mcp/viewer/styles.css",
-    "docs/viewer/memory.html",
-    "docs/viewer/app.js",
-    "docs/viewer/styles.css",
     "mcp/kernel.test.ts"
   ],
   "stack": [],
@@ -58,13 +52,8 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 105,
-    "stale": true,
-    "stale_reasons": [
-      "some referenced paths are missing: mcp/viewer/memory.html, mcp/viewer/app.js, mcp/viewer/styles.css, docs/viewer/memory.html"
-    ],
-    "suggested_action": "update"
+    "estimated_tokens_saved": 105
   },
   "created_at": "2026-05-17T21:17:18.401Z",
-  "updated_at": "2026-06-05T12:30:37.727Z"
+  "updated_at": "2026-06-05T14:03:30.157Z"
 }

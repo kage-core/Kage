@@ -28,8 +28,6 @@
     "mcp/mcp.test.ts",
     "mcp/daemon.ts",
     "mcp/daemon.test.ts",
-    "mcp/viewer/app.js",
-    "docs/viewer/app.js",
     "README.md",
     "mcp/README.md",
     "docs/guide.html"
@@ -69,13 +67,8 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 146,
-    "stale": true,
-    "stale_reasons": [
-      "some referenced paths are missing: mcp/viewer/app.js, docs/viewer/app.js"
-    ],
-    "suggested_action": "update"
+    "estimated_tokens_saved": 146
   },
   "created_at": "2026-05-18T03:25:07.074Z",
-  "updated_at": "2026-06-05T12:30:37.728Z"
+  "updated_at": "2026-06-05T14:03:30.159Z"
 }

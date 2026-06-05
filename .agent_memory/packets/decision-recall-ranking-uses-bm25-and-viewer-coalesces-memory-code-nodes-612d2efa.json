@@ -19,9 +19,7 @@
   ],
   "paths": [
     "mcp/kernel.ts",
-    "mcp/kernel.test.ts",
-    "mcp/viewer/app.js",
-    "mcp/viewer/styles.css"
+    "mcp/kernel.test.ts"
   ],
   "stack": [],
   "source_refs": [
@@ -63,13 +61,8 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 240,
-    "stale": true,
-    "stale_reasons": [
-      "some referenced paths are missing: mcp/viewer/app.js, mcp/viewer/styles.css"
-    ],
-    "suggested_action": "update"
+    "estimated_tokens_saved": 240
   },
   "created_at": "2026-05-06T03:48:51.768Z",
-  "updated_at": "2026-06-05T12:30:37.729Z"
+  "updated_at": "2026-06-05T14:03:30.160Z"
 }

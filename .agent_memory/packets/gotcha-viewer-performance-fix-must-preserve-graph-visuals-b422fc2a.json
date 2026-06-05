@@ -17,9 +17,7 @@
     "graph",
     "ui"
   ],
-  "paths": [
-    "mcp/viewer/app.js"
-  ],
+  "paths": [],
   "stack": [],
   "source_refs": [
     {
@@ -52,13 +50,8 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 165,
-    "stale": true,
-    "stale_reasons": [
-      "all referenced paths are missing: mcp/viewer/app.js"
-    ],
-    "suggested_action": "update"
+    "estimated_tokens_saved": 165
   },
   "created_at": "2026-05-03T07:31:30.344Z",
-  "updated_at": "2026-06-05T12:30:37.734Z"
+  "updated_at": "2026-06-05T14:03:30.164Z"
 }
