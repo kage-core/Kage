@@ -40,35 +40,70 @@ Works with Codex, Claude Code, Cursor, Windsurf, and any MCP agent.
 > Watch Kage reject a hallucinated memory, withhold a stale one, and recall only
 > grounded memory — then open the viewer.
 
+**Works with** Claude Code · Codex · Cursor · Windsurf · Gemini CLI · Cline ·
+Goose · Roo Code · Kilo Code · OpenCode · Aider · Claude Desktop · any MCP client
+
 </div>
 
 ---
 
+![Kage viewer — Memory Trust score and the Suppression Shelf showing memory withheld from recall](docs/assets/kage-viewer-demo-poster.png)
+
+<div align="center"><sub>The viewer leads with one question: <b>can you trust this memory?</b> — trust score, and the memories recall is withholding right now.</sub></div>
+
+## The problem
+
+Every coding agent now remembers — and that's the danger. They confidently act on
+memory that's **stale** (the file it cites was deleted last week), **hallucinated**
+(it cites a file that never existed), or **ungrounded** (it has nothing to do with
+your code). An agent acting on wrong memory is worse than one with none.
+
+**Kage is the memory you can trust.** It validates citations on write, withholds
+stale memory on recall, grounds everything to your code graph, and stores it as
+plain files your team reviews in the same PR as the code.
+
 ## Quick start
 
-Requires Node.js 18 or newer. The package installs two binaries: `kage` and
-`kage-graph-mcp`.
+Requires Node.js 18+. Two steps to live memory — no API key, no database.
 
+**1. Install + initialize**
 ```bash
 npm install -g @kage-core/kage-graph-mcp
 cd your-repo
 kage init --project .
-kage setup codex --project . --write
-# or: kage setup claude-code --project . --write
-# restart the agent once
-kage setup verify-agent --agent codex --project .
-kage recall "how do I run tests" --project .
 ```
 
-For Claude Code, `kage setup verify-agent --agent claude-code --project .`
-checks the MCP server and the ambient prompt/tool/session hooks, so teammates
-do not mistake a partial setup for live automatic memory.
-`kage setup doctor --project . --json` exposes the same hook summary for audits.
-MCP agents can use `kage_setup_doctor` for that audit too.
+**2. Connect your agent** (one command — auto-writes the MCP + hooks config)
+```bash
+kage setup claude-code --project . --write     # Claude Code
+kage setup codex       --project . --write     # Codex
+kage setup cursor      --project . --write     # Cursor
+kage setup windsurf    --project . --write     # Windsurf
+# also: gemini-cli, cline, goose, roo, kilo, opencode, aider, claude-desktop
+kage setup list                                # see every supported agent
+```
 
-Other supported agents: Cursor, Windsurf, Gemini CLI, OpenCode, Cline, Goose,
-Roo Code, Kilo Code, Claude Desktop, Aider, and generic MCP clients
-(`kage setup list`).
+Then restart the agent once and confirm it's live:
+```bash
+kage setup verify-agent --agent claude-code --project .
+```
+`verify-agent` checks the MCP server *and* the ambient prompt/tool/session hooks,
+so teammates don't mistake a partial setup for live automatic memory.
+
+## Kage vs typical agent memory
+
+Most memory tools optimize for capturing and recalling more. The hard part is
+trusting it. Here's the difference that matters when an agent *acts* on memory:
+
+| | Typical agent memory | **Kage** |
+|---|---|---|
+| Hallucinated citation (file doesn't exist) | stored anyway | **rejected on write** |
+| Cited file deleted / refactored | still recalled | **withheld from recall** |
+| Grounded to your code graph | no | **yes — with blast radius** |
+| Where memory lives | a server / vector DB | **plain files in your repo** |
+| How you review it | a separate UI, if any | **in the same PR as the code** |
+| Dependencies to run | embeddings / DB / API key | **none** |
+| "Can I trust it?" — measurable | — | **`kage benchmark --trust` → 100/100** |
 
 ## Why Kage
 
@@ -102,56 +137,32 @@ Numbers and how to reproduce them: [docs/BENCHMARKS.md](docs/BENCHMARKS.md)
 
 ## What you get
 
-- Repo memory packets (decisions, bug fixes, runbooks, gotchas, conventions,
-  code explanations) stored as reviewable JSON.
-- Claude Code ambient hooks for prompt-time recall, tool-result observation,
-  failure capture, pre-compact/session-end distillation, and stop-time review
-  refresh. This makes Kage behave more like live repo memory instead of a
-  manual search command.
-- A code graph for files, symbols, imports, confidence-scored calls, routes
-  (FastAPI / Flask / Django / Rails / Laravel / Spring / Go / Rust / ASP.NET),
-  tests, and packages.
-- Memory-code links so repo knowledge points at the code it affects.
-- Pinned repo context slots for tiny always-relevant guidance that should be
-  included before task-specific recall without loading the whole memory graph.
-- Local memory-access tracking so Kage can show which memories agents actually
-  reuse and recommend what to verify, ground, or clean up, without mutating
-  shareable packet files on recall.
-- A memory lifecycle report that classifies packets as healthy, hot, cold,
-  stale, disputed, ungrounded, pending, or generated, with concrete review
-  actions for teammates.
-- Linked-file fingerprints on newly captured and diff-derived memory, so
-  `kage refresh` can flag those packets when the source code they explain
-  changes and ask for an update or superseding packet instead of serving stale
-  repo lore.
-- Agent memory reconciliation: `kage_context`, Claude Code Stop hooks, and
-  `kage pr check` turn linked-code drift into an agent task. The agent must
-  update, supersede, or mark stale memory before final handoff instead of
-  asking the user to review an inbox.
-- A memory timeline that shows recently added, updated, pending, or retired
-  repo knowledge before teammate handoff.
-- Memory lineage for superseded packets, so agents stop recalling old repo
-  lore while humans can still audit what replaced it and why.
-- A repo-local memory audit trail for explicit mutations: capture, feedback,
-  review, supersede, deprecate, and delete.
-- A memory handoff queue that combines inbox, lifecycle, audit, timeline, and
-  lineage into the exact actions the next teammate or agent should review.
-- A privacy-preserving session replay digest that shows observed agent
-  timelines, touched paths, commands, durable candidates, and distill actions
-  without exposing raw transcript text.
-- Local git intelligence: risk, reviewers, contributor profiles, co-change
-  warnings, ownership silos, and module health.
-- A project profile report that gives agents a first-page orientation: top
-  code+memory concepts, key files, commands, memory focus, and next actions.
-- A capability audit that scores repo memory, collaboration/session proof,
-  benchmark proof, and dashboard/viewer readiness with evidence and next
-  actions.
-- A local viewer for memory, code graph, risks, review, and metrics, served
-  with conservative browser security headers.
-- A daemon REST surface for HTTP-only agents: combined context, recall,
-  capture, learn, feedback, observe, distill, setup doctor, and reports all use
-  the same repo-local memory packets and graph artifacts as MCP/CLI.
-- Review and validation commands for stale or risky memory.
+**🛡 Trust & grounding** — write-time citation validation, recall-time staleness
+exclusion, linked-file fingerprints that flag memory when its code changes,
+agent reconciliation on handoff, `kage verify`, and the Suppression Shelf.
+
+**⚡ Automatic capture** — Claude Code ambient hooks (9 lifecycle events) for
+prompt-time recall, tool observation, failure capture, and session-end
+distillation; observations are privacy-scanned before they're stored.
+
+**🧭 Code intelligence** — a code graph of files, symbols, imports,
+confidence-scored calls, routes (FastAPI/Flask/Django/Rails/Laravel/Spring/Go/
+Rust/ASP.NET), and tests; memory↔code links; bounded blast-radius on recall.
+
+**👥 Collaboration & lifecycle** — memory lifecycle, timeline, lineage for
+superseded packets, an auditable mutation trail, a handoff queue, and local git
+intelligence (risk, reviewers, co-change, ownership silos, module health).
+
+**🖥 Surfaces** — a trust-led local **viewer** (Memory Trust score, Suppression
+Shelf, code graph, memory browser, review inbox), a **daemon REST** API for
+HTTP-only agents, and a full **CLI** — all on the same repo-local packets.
+
+**🎛 Context controls** — pinned always-on context slots, memory-access tracking
+(what agents actually reuse), a project-profile orientation report, and a
+capability audit with evidence and next actions.
+
+Every packet is reviewable JSON in `.agent_memory/` — version-controlled,
+diffable, and reviewed in the same PR as the code it describes.
 
 ## External benchmarks
 
