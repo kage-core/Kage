@@ -25,13 +25,32 @@ Kage measures the category-correct thing:
 Recalling a fact fast is worthless if the fact is no longer true. **We benchmark
 truth; they benchmark recall.**
 
+### …and we still win their benchmark
+
+We ran LongMemEval-S anyway — all 470 non-abstention questions — to remove any
+"you're dodging it" objection:
+
+| System | R@5 | R@10 | R@20 | MRR |
+|---|---:|---:|---:|---:|
+| **Kage** (strict, **zero deps** — no vector DB, no LLM, no API key) | **96.17%** | **98.72%** | 99.79% | 0.909 |
+| agentmemory (published) | 95.2% | 98.6% | — | 0.882 |
+
+Kage edges them on R@5 and R@10 — **dependency-free**, while they need a vector
+index. Reproduce it: `node benchmarks/longmemeval-kage-retrieval.mjs --data
+longmemeval_s_cleaned.json --limit 470 --top-k 20` (see
+[benchmarks/LONGMEMEVAL.md](../benchmarks/LONGMEMEVAL.md)).
+
+So: we match them on *their* benchmark, **and** we win the one that matters for
+coding memory (truth + grounding) that they can't run at all.
+
 ## Feature-by-feature (honest)
 
 | | Kage | agentmemory |
 |---|---|---|
 | Automatic capture | ✅ 9 lifecycle hooks | ✅ 12 hooks (slight edge) |
-| Retrieval | BM25 + optional local embeddings | BM25 + vector + KG, RRF + rerank (more sophisticated) |
-| Headline benchmark | **SWE-bench ablation + Trust 100/100** | 95.2% R@5 LongMemEval (conversational) |
+| Retrieval | BM25 + local sparse-vector, **zero deps** | BM25 + vector + KG, RRF + rerank |
+| LongMemEval-S (their benchmark) | **96.17% R@5 / 98.72% R@10** (no deps) | 95.2% / 98.6% (needs vector index) |
+| Coding-correct benchmark | **SWE-bench ablation + Trust 100/100** | none (LongMemEval is conversational) |
 | **Code graph + blast radius** | ✅ native | ❌ "no explicit code graph" (external tools) |
 | **Write-time citation validation** | ✅ rejects hallucinated citations | ❌ "no validation layer" |
 | **Stale exclusion at recall** | ✅ withholds deleted-evidence memory | ❌ "no staleness checking" |
