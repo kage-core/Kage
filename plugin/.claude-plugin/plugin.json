@@ -11,6 +11,5 @@
   "repository": "https://github.com/kage-core/Kage",
   "license": "GPL-3.0-only",
   "keywords": ["memory", "mcp", "trust", "code-graph", "agent"],
-  "mcpServers": "./.mcp.json",
-  "skills": "./skills/"
+  "mcpServers": "./.mcp.json"
 }
