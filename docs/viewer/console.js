@@ -20,6 +20,21 @@
     return String(n);
   }
   function base(p) { return String(p).split("/").pop(); }
+  // The daemon serves report params as absolute paths (.../<repo>/.agent_memory/...),
+  // while project_dir is often "." (reports generated with `--project .`). Pull the
+  // real repo name from the path; fall back to project_dir basename, then a default.
+  function resolveRepoName(metrics, lifecycle) {
+    var cands = [paths.lifecycle, paths.trust, paths.metrics, paths.suppressed];
+    for (var i = 0; i < cands.length; i++) {
+      var m = /\/([^/]+)\/\.agent_memory\//.exec(cands[i] || "");
+      if (m && m[1]) return m[1];
+    }
+    if (metrics && metrics.repo) return metrics.repo;
+    var pd = ((metrics && metrics.project_dir) || (lifecycle && lifecycle.project_dir) || "").replace(/\/+$/, "");
+    var bn = pd.split("/").pop();
+    if (bn && bn !== "." && bn !== "..") return bn;
+    return "repository";
+  }
 
   // ---- nav ----
   var META = {
@@ -52,8 +67,7 @@
   function render(trust, suppressed, lifecycle, metrics) {
     state.items = (lifecycle && lifecycle.items) || [];
     state.metrics = metrics || {};
-    var repoName = (metrics && metrics.repo) || ((metrics && metrics.project_dir) || (lifecycle && lifecycle.project_dir) || "").split("/").pop() || "repository";
-    document.getElementById("repo").textContent = repoName;
+    document.getElementById("repo").textContent = resolveRepoName(metrics, lifecycle);
     renderHero(trust);
     renderTiles(metrics, state.items);
     renderAttention(state.items, suppressed);
@@ -178,8 +192,37 @@
     var right = el("div", "right");
     right.appendChild(el("span", "pill " + (i.health || ""), HEALTH_LABEL[i.health] || i.health || "memory"));
     if (i.total_uses) right.appendChild(el("span", "uses", "used " + i.total_uses + "×"));
-    row.appendChild(right); return row;
+    row.appendChild(right);
+    row.onclick = function () { openDetail(i); };
+    return row;
   }
+  // packet detail drawer — read a memory's full content, grounding, and status.
+  var drawer = document.getElementById("detail"), drawerBg = document.getElementById("detailBackdrop");
+  function closeDetail() { if (drawer) drawer.classList.remove("open"); if (drawerBg) drawerBg.classList.remove("open"); }
+  function openDetail(it) {
+    if (!drawer) return;
+    var h = "";
+    h += '<button class="dr-x" id="drClose" aria-label="Close">×</button>';
+    h += '<div class="dr-tags"><span class="type">' + escapeHtml(it.type || "memory") + '</span>';
+    h += '<span class="pill ' + (it.health || "") + '">' + escapeHtml(HEALTH_LABEL[it.health] || it.health || "") + '</span>';
+    if (it.status && it.status !== "approved") h += '<span class="pill">' + escapeHtml(it.status) + '</span>';
+    h += "</div>";
+    h += '<h3 class="dr-title">' + escapeHtml(it.title) + "</h3>";
+    if (it.summary) h += '<p class="dr-summary">' + escapeHtml(it.summary) + "</p>";
+    if (it.body) h += '<div class="dr-body">' + escapeHtml(it.body) + "</div>";
+    var files = (it.paths || []).filter(Boolean);
+    if (files.length) h += '<div class="dr-sec"><div class="dr-h">Grounded in</div>' + files.map(function (f) { return '<div class="dr-file">' + escapeHtml(f) + "</div>"; }).join("") + "</div>";
+    if (it.tags && it.tags.length) h += '<div class="dr-sec"><div class="dr-h">Tags</div><div class="dr-tagrow">' + it.tags.map(function (t) { return '<span class="tg">' + escapeHtml(t) + "</span>"; }).join("") + "</div></div>";
+    var meta = '<div class="dr-row">Used <b>' + (it.total_uses || 0) + "×</b>" + (it.uses_30d ? " (" + it.uses_30d + " in last 30 days)" : "") + "</div>";
+    if (it.last_accessed_at) meta += '<div class="dr-row">Last recalled <b>' + escapeHtml(String(it.last_accessed_at).slice(0, 10)) + "</b></div>";
+    if (it.stale_reasons && it.stale_reasons.length) meta += '<div class="dr-row warn">' + escapeHtml(it.stale_reasons[0]) + "</div>";
+    if (it.action) meta += '<div class="dr-row">' + escapeHtml(it.action) + "</div>";
+    h += '<div class="dr-sec"><div class="dr-h">Status</div>' + meta + "</div>";
+    drawer.innerHTML = h; drawer.scrollTop = 0; drawer.classList.add("open"); if (drawerBg) drawerBg.classList.add("open");
+    var x = document.getElementById("drClose"); if (x) x.onclick = closeDetail;
+  }
+  if (drawerBg) drawerBg.onclick = closeDetail;
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeDetail(); });
   function renderList() {
     var list = document.getElementById("list"); list.textContent = "";
     var q = state.q.trim().toLowerCase();
@@ -411,7 +454,9 @@
       n.forEach(function (nd, i) {
         if (active && !emph[i]) return;
         var strong = i === G.hover || i === G.focus;
-        if (!(active || strong || nd.deg >= 3)) return;
+        // Labels are detail-on-demand only: shown for the hovered/focused node and its
+        // highlighted neighbourhood. No always-on labels — they cluttered the graph.
+        if (!active) return;
         var sx = nd.x * v.s + v.tx, sy = nd.y * v.s + v.ty, r = nodeR(nd) * v.s;
         if (sx < -60 || sx > W + 60 || sy < -20 || sy > H + 20) return;
         ctx.font = (strong ? "700 " : "600 ") + "11px ui-monospace, Menlo, monospace";

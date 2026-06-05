@@ -1652,6 +1652,8 @@ export interface MemoryAccessReport {
 export interface MemoryLifecycleItem {
   packet_id: string;
   title: string;
+  summary: string;
+  body: string;
   type: MemoryType;
   status: MemoryStatus;
   health: "healthy" | "hot" | "cold" | "ungrounded" | "stale" | "disputed" | "generated";
@@ -2885,6 +2887,8 @@ export function kageMemoryLifecycle(projectDir: string): MemoryLifecycleReport {
     const item: MemoryLifecycleItem = {
       packet_id: packet.id,
       title: packet.title,
+      summary: packet.summary ?? "",
+      body: packet.body ?? "",
       type: packet.type,
       status: packet.status,
       health: action.health,

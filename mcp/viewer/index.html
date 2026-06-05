@@ -154,6 +154,28 @@
       .uses { color: var(--faint); font: 400 11px/1 var(--mono); }
       .showmore { width: 100%; margin-top: 14px; padding: 12px; background: transparent; border: 1px solid var(--line); border-radius: var(--r-control); color: var(--muted); font: 500 13px/1 var(--sans); cursor: pointer; }
       .showmore:hover { color: var(--ink); border-color: var(--line-strong); background: rgba(255,255,255,0.025); }
+      .row { cursor: pointer; }
+
+      /* packet detail drawer */
+      .drawer-backdrop { position: fixed; inset: 0; background: rgba(2,5,3,0.6); backdrop-filter: blur(2px); opacity: 0; pointer-events: none; transition: opacity .25s ease; z-index: 40; }
+      .drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+      .drawer { position: fixed; top: 0; right: 0; height: 100vh; width: min(460px, 92vw); transform: translateX(102%); transition: transform .28s cubic-bezier(.2,.7,.2,1);
+        background: var(--paper); border-left: 1px solid var(--line-strong); z-index: 50; overflow-y: auto; padding: 24px 26px 60px; box-shadow: -20px 0 60px rgba(0,0,0,.5); }
+      .drawer.open { transform: translateX(0); }
+      .drawer .dr-x { position: absolute; right: 16px; top: 14px; cursor: pointer; background: transparent; border: 0; color: var(--faint); font-size: 22px; line-height: 1; padding: 2px 6px; }
+      .drawer .dr-x:hover { color: var(--ink); }
+      .drawer .dr-tags { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; margin: 4px 30px 0 0; }
+      .drawer .dr-title { margin: 14px 0 0; font: 700 19px/1.35 var(--sans); color: var(--ink); }
+      .drawer .dr-summary { margin: 10px 0 0; color: var(--muted); font: 400 14px/1.6 var(--sans); }
+      .drawer .dr-body { margin: 18px 0 0; padding: 16px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--code-bg);
+        color: var(--code-text, #c9f8dc); font: 400 13px/1.7 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+      .drawer .dr-sec { margin-top: 20px; }
+      .drawer .dr-h { color: var(--faint); font: 600 10px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 9px; }
+      .drawer .dr-file { color: var(--code); font: 400 12px/1.7 var(--mono); overflow-wrap: anywhere; }
+      .drawer .dr-tagrow { display: flex; gap: 6px; flex-wrap: wrap; }
+      .drawer .tg { color: var(--muted); font: 500 11px/1 var(--mono); padding: 4px 8px; border: 1px solid var(--line); border-radius: 99px; }
+      .drawer .dr-row { color: var(--muted); font: 400 13px/1.7 var(--sans); } .drawer .dr-row b { color: var(--ink); }
+      .drawer .dr-row.warn { color: var(--warn); }
 
       /* insights */
       .ins-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -258,6 +280,8 @@
         </div>
       </main>
     </div>
-    <script src="./console.js?v=8"></script>
+    <div class="drawer-backdrop" id="detailBackdrop"></div>
+    <aside class="drawer" id="detail" aria-hidden="true"></aside>
+    <script src="./console.js?v=9"></script>
   </body>
 </html>
