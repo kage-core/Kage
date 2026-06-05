@@ -82,6 +82,7 @@ import {
   compactProject,
   verifyCitations,
   kageSuppressedMemory,
+  runDemo,
   refreshProject,
   rejectPending,
   registryRecommendations,
@@ -104,6 +105,7 @@ function usage(): never {
 
 Usage:
   kage index --project <dir>
+  kage demo [--project <dir>]
   kage init --project <dir>
   kage policy --project <dir>
   kage doctor --project <dir>
@@ -270,6 +272,29 @@ async function main(): Promise<void> {
     console.log(`Migrated legacy nodes: ${result.migrated}`);
     if (result.policyPath) console.log(`Agent policy: ${result.policyPath}`);
     console.log(`Indexes:\n${result.indexes.map((path) => `  - ${path}`).join("\n")}`);
+    return;
+  }
+
+  if (command === "demo") {
+    const demoDir = takeArg(args, "--project") ?? `${process.cwd()}/kage-demo`;
+    const result = runDemo(demoDir);
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log("Kage demo — can you trust your agent's memory?\n");
+    console.log(`Seeded ${result.captured.length} grounded memories in ${result.project_dir}\n`);
+    console.log("1. Hallucinated citation — REJECTED on write:");
+    if (result.rejected_hallucination) {
+      console.log(`   ✗ "${result.rejected_hallucination.title}"`);
+      console.log(`     ${result.rejected_hallucination.error}\n`);
+    }
+    console.log("2. Stale memory (cited file deleted) — WITHHELD from recall:");
+    for (const w of result.withheld) console.log(`   ⊘ ${w.title}\n     ${w.reason}`);
+    console.log("\n3. Recall returns only grounded, current memory:");
+    for (const t of result.recalled) console.log(`   ✓ ${t}`);
+    console.log(`\nTrust score: ${result.trust_score}/100`);
+    console.log(`\nSee it in the viewer:  ${result.viewer_command}`);
     return;
   }
 

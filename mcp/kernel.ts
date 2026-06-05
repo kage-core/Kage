@@ -12283,6 +12283,71 @@ export function benchmarkTrust(projectDir: string): TrustBenchmarkReport {
   }
 }
 
+export interface DemoResult {
+  ok: boolean;
+  project_dir: string;
+  captured: string[];
+  rejected_hallucination: { title: string; error: string } | null;
+  recalled: string[];
+  withheld: Array<{ title: string; reason: string }>;
+  trust_score: number;
+  viewer_command: string;
+}
+
+// `kage demo`: a self-contained 60-second proof of the trust wedge. Seeds a tiny
+// repo with grounded memory, then shows Kage (1) reject a hallucinated citation,
+// (2) withhold a memory whose cited file was deleted, and (3) recall only grounded
+// memory — the three things that make agent memory trustworthy.
+export function runDemo(demoDir: string): DemoResult {
+  rmSync(demoDir, { recursive: true, force: true });
+  mkdirSync(join(demoDir, "src"), { recursive: true });
+  writeFileSync(join(demoDir, "src", "auth.ts"), "export function validateToken() { return true; }\n", "utf8");
+  writeFileSync(join(demoDir, "src", "payments.ts"), "export function charge() { return 'ok'; }\n", "utf8");
+  writeFileSync(join(demoDir, "src", "legacy-retry.ts"), "export function retry() { return 1; }\n", "utf8");
+  ensureMemoryDirs(demoDir);
+
+  const captured: string[] = [];
+  for (const m of [
+    { title: "Auth uses jose, not jsonwebtoken", body: "Validate tokens with jose in src/auth.ts; jsonwebtoken was removed.", paths: ["src/auth.ts"] },
+    { title: "Payments must be idempotent", body: "charge() in src/payments.ts must be idempotent to avoid double charges.", paths: ["src/payments.ts"] },
+    { title: "Legacy retry helper is the fallback", body: "Old retry logic lives in src/legacy-retry.ts and is used as a fallback.", paths: ["src/legacy-retry.ts"] },
+  ]) {
+    const r = capture({ projectDir: demoDir, title: m.title, body: m.body, type: "decision", paths: m.paths });
+    if (r.ok && r.packet) captured.push(r.packet.title);
+  }
+
+  // (2) delete a cited file → that memory becomes stale and is withheld from recall.
+  unlinkSync(join(demoDir, "src", "legacy-retry.ts"));
+
+  // (1) a hallucinated citation is rejected at write time.
+  const hallucinated = capture({
+    projectDir: demoDir,
+    title: "Use the helper in src/ghost.ts",
+    body: "Retry handling lives in src/ghost.ts.",
+    type: "decision",
+    paths: ["src/ghost.ts"],
+    strictCitations: true,
+  });
+  const rejected = hallucinated.ok ? null : { title: "Use the helper in src/ghost.ts", error: hallucinated.errors[0] ?? "rejected" };
+
+  // (3) recall surfaces grounded memory; the stale one is withheld.
+  const recall = recallWithVectorScores(demoDir, "auth token payments retry idempotency", 5, false, { trackAccess: false });
+  const recalled = recall.results.map((entry) => entry.packet.title);
+  const withheld = kageSuppressedMemory(demoDir).items.map((item) => ({ title: item.title, reason: item.reason }));
+  const trust = benchmarkTrust(demoDir);
+
+  return {
+    ok: true,
+    project_dir: demoDir,
+    captured,
+    rejected_hallucination: rejected,
+    recalled,
+    withheld,
+    trust_score: trust.trust_score,
+    viewer_command: `kage viewer --project ${demoDir}`,
+  };
+}
+
 export function benchmarkProject(projectDir: string, inputs: GraphInputs = {}): BenchmarkReport {
   ensureMemoryDirs(projectDir);
   const built = inputs.codeGraph && inputs.knowledgeGraph ? null : currentOrBuildGraphs(projectDir);

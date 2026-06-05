@@ -1,6 +1,22 @@
 # Changelog
 
-## Unreleased - memory-quality mechanisms
+## v1.3.0 - trust, governance & first-run
+
+- `kage demo` (and `npx -y @kage-core/kage-graph-mcp demo`): a 60-second,
+  zero-setup proof of the trust wedge — rejects a hallucinated citation,
+  withholds a stale memory, recalls only grounded memory, prints a trust score.
+- The `kage-graph-mcp` binary now dispatches CLI subcommands (so a single
+  `npx @kage-core/kage-graph-mcp <command>` works); no-arg launch still starts
+  the MCP server.
+- Suppression Shelf in the viewer + `kage suppressed` / `kage_suppressed`:
+  surfaces memory recall is actively withholding.
+- Viewer redesign: trust-led overview (Memory Trust hero + metric bars).
+- Trust Benchmark (`kage benchmark --trust`), capture parity (9 lifecycle
+  hooks incl. PreToolUse/SubagentStop), traversal-driven structural blast radius.
+- docs/BENCHMARKS.md (own numbers, reproducible) and a trust-first README +
+  landing page.
+
+## Earlier in this line - memory-quality mechanisms
 
 - Write-time citation validation: `kage_capture`/`kage_learn` (and the CLI)
   reject a write when every referenced path is missing from the repo, with an

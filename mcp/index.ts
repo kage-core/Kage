@@ -1996,5 +1996,16 @@ async function main() {
 }
 
 if (require.main === module) {
+  const firstArg = process.argv[2];
+  if (firstArg && !firstArg.startsWith("-")) {
+    // A positional subcommand (demo, init, recall, ...) means the user wants the
+    // kage CLI, not the MCP stdio server. Delegate so a single
+    // `npx @kage-core/kage-graph-mcp <command>` works like the `kage` binary.
+    // MCP clients launch with no args (or flags), which falls through to the server.
+    const { spawnSync } = require("node:child_process");
+    const { join } = require("node:path");
+    const result = spawnSync(process.execPath, [join(__dirname, "cli.js"), ...process.argv.slice(2)], { stdio: "inherit" });
+    process.exit(result.status ?? 0);
+  }
   main().catch(console.error);
 }
