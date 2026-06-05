@@ -83,8 +83,13 @@ kage setup windsurf    --project . --write     # Windsurf
 kage setup list                                # see every supported agent
 ```
 
-Or install the Kage skill into **70+ agents** in one command:
+**Or install in one command:**
 ```bash
+# Claude Code / Codex — plugin marketplace
+/plugin marketplace add kage-core/Kage      # then: /plugin install kage@kage
+codex plugin marketplace add kage-core/Kage # then: codex plugin add kage@kage
+
+# 70+ agents — the open skills installer
 npx skills add kage-core/Kage
 ```
 

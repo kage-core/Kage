@@ -1,0 +1,17 @@
+{
+  "name": "kage",
+  "description": "Kage — trustworthy, code-grounded memory for coding agents.",
+  "owner": {
+    "name": "Kage",
+    "github": "kage-core"
+  },
+  "plugins": [
+    {
+      "name": "kage",
+      "description": "Trustworthy, code-grounded memory for coding agents: rejects hallucinated citations, withholds stale memory on recall, and grounds knowledge to your code graph. Stored as reviewable files in your repo.",
+      "source": "./plugin",
+      "category": "productivity",
+      "keywords": ["memory", "mcp", "trust", "code-graph", "agent"]
+    }
+  ]
+}

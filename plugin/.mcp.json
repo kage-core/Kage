@@ -1,0 +1,6 @@
+{
+  "kage": {
+    "command": "npx",
+    "args": ["-y", "@kage-core/kage-graph-mcp"]
+  }
+}
