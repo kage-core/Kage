@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Kage benchmarks: the Trust Benchmark (hallucinated-citation rejection, stale-memory exclusion, live grounding) plus dependency-free retrieval on LongMemEval-S. Reproducible commands included." />
+    <title>Kage Benchmarks — trust you can measure</title>
+    <link rel="stylesheet" href="assets/site.css?v=1" />
+    <style>
+      .bm-wrap { width: min(900px, calc(100% - 32px)); margin: 0 auto; padding: 40px 0 64px; }
+      .bm-table { width: 100%; border-collapse: collapse; margin: 16px 0; font: 400 14px/1.5 var(--sans, system-ui); }
+      .bm-table th, .bm-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line, #1c3b29); }
+      .bm-table th { color: var(--muted, #7fa88a); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+      .bm-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+      .bm-table strong { color: var(--brand, #0f8f57); }
+      .bm-cmd { display: block; margin: 14px 0; padding: 14px 16px; border-radius: 10px; background: #0a0f0c; color: #b9fbc0; border: 1px solid var(--line, #1c3b29); font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-x: auto; white-space: pre; }
+      .bm-note { color: var(--muted, #7fa88a); font-size: 14px; line-height: 1.6; }
+      .bm-wrap h1 { font: 800 34px/1.1 var(--sans, system-ui); margin: 0 0 8px; }
+      .bm-wrap h2 { margin: 40px 0 6px; font: 700 20px/1.2 var(--sans, system-ui); }
+      .bm-eyebrow { color: var(--brand, #0f8f57); font: 700 12px/1 var(--sans, system-ui); letter-spacing: .12em; text-transform: uppercase; }
+    </style>
+  </head>
+  <body>
+    <nav class="nav" aria-label="Main navigation">
+      <a class="brand" href="./" aria-label="Kage home">Kage</a>
+      <div class="nav-links">
+        <a href="guide.html#quickstart">Quickstart</a>
+        <a href="guide.html">Docs</a>
+        <a href="benchmarks.html" aria-current="page">Benchmarks</a>
+        <a href="viewer/">Viewer</a>
+        <a href="https://github.com/kage-core/Kage">GitHub</a>
+      </div>
+      <a class="nav-cta" href="guide.html#quickstart">Install Kage</a>
+    </nav>
+
+    <main class="bm-wrap">
+      <span class="bm-eyebrow">Benchmarks</span>
+      <h1>Trust you can measure.</h1>
+      <p class="bm-note">We publish our own numbers and exactly how to reproduce them. We don't post
+      head-to-head tables against other tools — a score only means something relative to the harness
+      that produced it, so cross-tool numbers measured on different harnesses aren't a fair comparison.
+      Run these on your own repo.</p>
+
+      <h2>1. The Trust Benchmark — the one that matters</h2>
+      <p class="bm-note">The question retrieval benchmarks never ask: <strong>can you trust what the
+      memory returns?</strong> An agent acting on stale or hallucinated memory is worse than one with
+      none. This is what Kage is built for, and what no other tool measures.</p>
+      <code class="bm-cmd">kage benchmark --trust --project .</code>
+      <table class="bm-table">
+        <tr><th>Metric</th><th class="num">Result</th></tr>
+        <tr><td>Hallucinated-citation rejection</td><td class="num">100%</td></tr>
+        <tr><td>Stale-memory exclusion</td><td class="num">100%</td></tr>
+        <tr><td>Live grounding rate</td><td class="num">99%</td></tr>
+        <tr><td><strong>Trust score</strong></td><td class="num"><strong>100 / 100</strong></td></tr>
+      </table>
+      <p class="bm-note">Controlled gates run in an isolated sandbox; grounding runs on your real repo.
+      Methodology: <a href="https://github.com/kage-core/Kage/blob/master/docs/TRUST.md">docs/TRUST.md</a>.</p>
+
+      <h2>2. Retrieval — competitive, dependency-free (a sanity check)</h2>
+      <p class="bm-note">We run the recognized long-term-memory retrieval benchmark, LongMemEval-S, as an
+      external sanity check. It's a <em>conversational</em> benchmark — not Kage's core use case (durable
+      repo memory) — but it shows our retrieval is strong with <strong>zero dependencies: no vector DB,
+      no embedding model, no API key.</strong></p>
+      <table class="bm-table">
+        <tr><th>Metric</th><th class="num">Kage strict recall</th></tr>
+        <tr><td>R@5</td><td class="num">96.17%</td></tr>
+        <tr><td>R@10</td><td class="num">98.72%</td></tr>
+        <tr><td>R@20</td><td class="num">99.79%</td></tr>
+        <tr><td>MRR</td><td class="num">0.909</td></tr>
+        <tr><td>Median latency</td><td class="num">~210 ms</td></tr>
+      </table>
+      <code class="bm-cmd">node benchmarks/longmemeval-kage-retrieval.mjs --data longmemeval_s_cleaned.json --limit 470 --top-k 20</code>
+      <p class="bm-note"><strong>Read this honestly:</strong> these are session-level retrieval-recall
+      scores, not end-to-end QA accuracy. On this dataset a plain BM25 baseline also reaches ~96.6% R@5 —
+      the benchmark is lexically tractable and strong retrievers cluster at 95–97%. The takeaway is
+      <em>"Kage matches strong lexical retrieval with no dependencies,"</em> not "Kage is uniquely best
+      at retrieval." Details:
+      <a href="https://github.com/kage-core/Kage/blob/master/benchmarks/LONGMEMEVAL.md">benchmarks/LONGMEMEVAL.md</a>.</p>
+
+      <h2>3. Coding-task memory — the category-correct benchmark</h2>
+      <p class="bm-note">Retrieval recall doesn't tell you whether memory makes a coding agent <em>better</em>.
+      Kage ships a <strong>SWE-bench Verified memory ablation</strong> — a controlled, single-variable
+      experiment measuring whether repo memory improves real GitHub-issue resolution. See
+      <a href="https://github.com/kage-core/Kage/blob/master/benchmark/README.md">benchmark/README.md</a>.</p>
+
+      <h2>Principle</h2>
+      <p class="bm-note">Lead with trust (ours, uncontested). Treat retrieval as a sanity check, stated
+      precisely. Never compare against a number measured on someone else's harness. Every number here is
+      reproducible with the commands above.</p>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner" style="width: min(900px, calc(100% - 32px)); margin: 0 auto;">
+        <span>Kage &middot; the agent memory you can trust</span>
+        <span><a href="./">Home</a> &middot; <a href="guide.html">Docs</a> &middot; <a href="viewer/">Viewer</a> &middot; <a href="https://github.com/kage-core/Kage">GitHub</a></span>
+      </div>
+    </footer>
+  </body>
+</html>
