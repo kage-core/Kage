@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
-  "summary": "Repo-local context for 88 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/bug_fix-bug-fix-inspector-connected-relation-sections-need-their-own-scroll-containers-92bf3faa.json\n- .agent_memory/packets/bug_fix-bug-fix-the-viewer-inspector-could-explode-the-page-height-when-a-selected-node--95f90fca.json\n- .agent_memory/packets/bug_fix-bug-fix-viewer-memory-code-graphs-looked-disconnected-because-knowledge-graph-ge-bec25d3d.json\n- .agent_memory/packets/bug_fix-hosted-github-pages-viewer-must-be-tracked-8497f2eb.json\n- .agent_memory/packets/bug_fix-hosted-viewer-must-hydrate-compact-memory-graph-530c1dc5.json\n- .agent_memory/packets/bug_fix-memory-code-relation-filter-excludes-path-only-edges-16ac4745.json\n- .agent_memory/packets/bug_fix-viewer-bridges-path-level-memory-to-code-files-bafb4993.json\n- .agent_memory/packets/bug_fix-viewer-combined-mode-must-prioritize-visible-memory-code-links-a9eb1584.json\n- .agent_memory/packets/bug_fix-viewer-memory-page-keeps-scrollable-content-bounded-9c94491d.json\n- .agent_memory/packets/bug_fix-viewer-must-not-map-file-path-aliases-to-arbitrary-symbols-1f76273b.json\n- .agent_memory/packets/bug_fix-viewer-node-inspector-shows-type-specific-code-details-f9763e07.json\n- .agent_memory/packets/bug_fix-viewer-normal-pages-use-document-scroll-not-nested-workspace-scroll-4ed18571.json\n- .agent_memory/packets/bug_fix-viewer-qa-repairs-make-page-actions-visible-a307bede.json\n- .agent_memory/packets/bug_fix-viewer-selection-should-not-imply-page-navigation-0e41beca.json\n- .agent_memory/packets/bug_fix-viewer-signal-mode-must-preserve-code-graph-endpoints-075ba83c.json\n- .agent_memory/packets/code_explanation-3d-viewer-orb-keeps-2d-style-interactions-246bf75c.json\n- .agent_memory/packets/code_explanation-3d-viewer-physics-and-edge-visibility-f9173468.json\n- .agent_memory/packets/code_explanation-viewer-3d-graph-mode-architecture-7402734e.json\n- .agent_memory/packets/decision-actionable-viewer-ux-means-fewer-choices-not-more-labels-0f56c8d6.json\n- .agent_memory/packets/decision-before-you-edit-risk-page-must-explain-why-and-what-to-do-first-41b900df.json\n- .agent_memory/packets/decision-code-graph-calls-carry-confidence-31c3b0f2.json\n- .agent_memory/packets/decision-code-index-inbox-and-benchmark-gates-harden-kage-handoff-quality-80fea58c.json\n- .agent_memory/packets/decision-contributor-profiles-stay-local-git-intelligence-d97134d6.json\n- .agent_memory/packets/decision-dashboard-uses-handoff-primary-action-as-the-top-review-signal-42ed1443.json\n- .agent_memory/packets/decision-decision-canvas-graph-must-stay-in-kage-terminal-theme-42ffb03b.json\n- .agent_memory/packets/decision-decision-intelligence-is-kage-why-memory-coverage-3e1b0c37.json\n- .agent_memory/packets/decision-decision-kage-viewer-uses-canvas-force-graph-for-interactive-exploration-16a751bc.json\n- .agent_memory/packets/decision-decision-viewer-hides-raw-full-graph-scopes-cafadd16.json\n- .agent_memory/packets/decision-decision-viewer-must-default-to-high-signal-graph-24bfa4ff.json\n- .agent_memory/packets/decision-decision-viewer-search-accepts-natural-language-graph-queries-12214ae2.json\n- .agent_memory/packets/decision-generated-graph-artifacts-use-compact-references-4c4fb191.json\n- .agent_memory/packets/decision-graph-page-needs-signal-metrics-and-artifacts-diagnostics-a4ff7f55.json\n- .agent_memory/packets/decision-hosted-viewer-loads-published-kage-repo-graph-first-a1a5bd82.json\n- .agent_memory/packets/decision-hosted-viewer-must-auto-load-a-demo-graph-29fd5e52.json\n- .agent_memory/packets/decision-intel-page-uses-metric-highlight-action-cards-8ff95fa1.json\n- .agent_memory/packets/decision-kage-handoff-now-treats-observed-sessions-with-durable-distillation-candidates-a-fe0c7323.json\n- .agent_memory/packets/decision-kage-viewer-benchmark-reports-now-include-a-proof-ledger-with-the-measured-metri-84cc8a4f.json\n- .agent_memory/packets/decision-memory-access-recommends-review-actions-cdc98133.json\n- .agent_memory/packets/decision-memory-audit-is-first-class-mutation-governance-ed50ecee.json\n- .agent_memory/packets/decision-memory-handoff-combines-session-memory-team-signals-into-kage-native-review-5f2d8c9e.json\n\nDiff summary:\n```text\n...ation-sections-need-their-own-scroll-containers-92bf3faa.json | 9 +++++++--\n ...d-explode-the-page-height-when-a-selected-node--95f90fca.json | 9 +++++++--\n ...-looked-disconnected-because-knowledge-graph-ge-bec25d3d.json | 9 +++++++--\n ..._fix-hosted-github-pages-viewer-must-be-tracked-8497f2eb.json | 9 +++++++--\n ...hosted-viewer-must-hydrate-compact-memory-graph-530c1dc5.json | 9 +++++++--\n ...y-code-relation-filter-excludes-path-only-edges-16ac4745.json | 9 +++++++--\n ...-viewer-bridges-path-level-memory-to-code-files-bafb4993.json | 9 +++++++--\n ...-mode-must-prioritize-visible-memory-code-links-a9eb1584.json | 9 +++++++--\n ...er-memory-page-keeps-scrollable-content-bounded-9c94491d.json | 9 +++++++--\n ...-not-map-file-path-aliases-to-arbitrary-symbols-1f76273b.json | 9 +++++++--\n ...node-inspector-shows-type-specific-code-details-f9763e07.json | 9 +++++++--\n ...use-document-scroll-not-nested-workspace-scroll-4ed18571.json | 9 +++++++--\n ...fix-viewer-qa-repairs-make-page-actions-visible-a307bede.json | 9 +++++++--\n ...ewer-selection-should-not-imply-page-navigation-0e41beca.json | 9 +++++++--\n ...-signal-mode-must-preserve-code-graph-endpoints-075ba83c.json | 9 +++++++--\n ...ation-3d-viewer-orb-keeps-2d-style-interactions-246bf75c.json | 9 +++++++--\n ...planation-3d-viewer-physics-and-edge-visibility-f9173468.json | 9 +++++++--\n ...e_explanation-viewer-3d-graph-mode-architecture-7402734e.json | 9 +++++++--\n ...e-viewer-ux-means-fewer-choices-not-more-labels-0f56c8d6.json | 9 +++++++--\n ...risk-page-must-explain-why-and-what-to-do-first-41b900df.json | 9 +++++++--\n .../decision-code-graph-calls-carry-confidence-31c3b0f2.json     | 9 +++++++--\n ...and-benchmark-gates-harden-kage-handoff-quality-80fea58c.json | 9 +++++++--\n ...ontributor-profiles-stay-local-git-intelligence-d97134d6.json | 9 +++++++--\n ...handoff-primary-action-as-the-top-review-signal-42ed1443.json | 9 +++++++--\n ...n-canvas-graph-must-stay-in-kage-terminal-theme-42ffb03b.json | 9 +++++++--\n ...cision-intelligence-is-kage-why-memory-coverage-3e1b0c37.json | 9 +++++++--\n ...-canvas-force-graph-for-interactive-exploration-16a751bc.json | 9 +++++++--\n ...ion-decision-viewer-hides-raw-full-graph-scopes-cafadd16.json | 9 +++++++--\n ...cision-viewer-must-default-to-high-signal-graph-24bfa4ff.json | 9 +++++++--\n ...r-search-accepts-natural-language-graph-queries-12214ae2.json | 9 +++++++--\n ...enerated-graph-artifacts-use-compact-references-4c4fb191.json | 9 +++++++--\n ...-needs-signal-metrics-and-artifacts-diagnostics-a4ff7f55.json | 9 +++++++--\n ...ed-viewer-loads-published-kage-repo-graph-first-a1a5bd82.json | 9 +++++++--\n ...ision-hosted-viewer-must-auto-load-a-demo-graph-29fd5e52.json | 9 +++++++--\n ...n-intel-page-uses-metric-highlight-action-cards-8ff95fa1.json | 9 +++++++--\n ...sessions-with-durable-distillation-candidates-a-fe0c7323.json | 9 +++++++--\n ...-include-a-proof-ledger-with-the-measured-metri-84cc8a4f.json | 9 +++++++--\n ...ecision-memory-access-recommends-review-actions-cdc98133.json | 9 +++++++--\n ...memory-audit-is-first-class-mutation-governance-ed50ecee.json | 9 +++++++--\n ...ion-memory-team-signals-into-kage-native-review-5f2d8c9e.json | 9 +++++++--\n ...on-memory-lifecycle-is-now-a-first-class-report-7e20a9b1.json | 9 +++++++--\n ...ineage-is-first-class-repo-knowledge-governance-f114895c.json | 9 +++++++--\n ...cision-memory-page-is-a-packet-to-code-workflow-24a597a5.json | 9 +++++++--\n ...ows-lifecycle-proof-for-captured-repo-knowledge-bf162515.json | 9 +++++++--\n ...ry-timeline-is-now-a-first-class-handoff-report-f285de3e.json | 9 +++++++--\n ...ext-slots-give-kage-small-always-on-repo-memory-85b0c930.json | 9 +++++++--\n ...t-profile-gives-agents-compact-repo-orientation-352a278d.json | 9 +++++++--\n ...e-ux-should-be-onboarding-first-and-task-scoped-8bbe8deb.json | 9 +++++++--\n ...-recall-access-tracking-stays-local-and-ignored-168c207d.json | 9 +++++++--\n ...ses-bm25-and-viewer-coalesces-memory-code-nodes-612d2efa.json | 9 +++++++--\n ...lease-1-1-14-bm25-and-memory-code-graph-package-dcea3799.json | 9 +++++++--\n ...ives-agents-and-users-a-first-use-structure-map-dc254fb7.json | 9 +++++++--\n ...ecision-scale-benchmark-is-now-package-callable-ade9d363.json | 9 +++++++--\n ...e-report-makes-observation-distillation-visible-b9ba759c.json | 9 +++++++--\n ...observed-agent-learning-without-raw-transcripts-485c0b38.json | 9 +++++++--\n ...ision-viewer-adopts-repo-dashboard-repo-sidebar-e3454461.json | 9 +++++++--\n ...ewer-cockpit-surfaces-repo-intelligence-reports-1c11099b.json | 9 +++++++--\n ...ewer-combined-mode-must-balance-memory-and-code-d7364ca2.json | 9 +++++++--\n ...wer-components-must-show-action-next-to-insight-400a902b.json | 9 +++++++--\n ...ion-viewer-dashboard-shows-setup-hook-readiness-3d18849c.json | 9 +++++++--\n ...aults-favor-focused-pages-over-diagnostic-walls-30e57baa.json | 9 +++++++--\n ...r-graph-ux-is-task-first-not-graph-engine-first-26fdaad6.json | 9 +++++++--\n .../decision-viewer-green-theme-includes-text-264312ce.json      | 9 +++++++--\n ...cision-viewer-metrics-should-be-action-oriented-bf76d7e5.json | 9 +++++++--\n ...parate-inbox-blockers-from-handoff-review-items-ea1b70e3.json | 9 +++++++--\n .../decision-viewer-needs-visible-kage-green-glow-bae85adf.json  | 9 +++++++--\n ...wer-opens-structural-code-graph-mode-by-default-242b6e41.json | 9 +++++++--\n ...on-viewer-pages-should-avoid-duplicate-controls-6a7f60dd.json | 9 +++++++--\n ...on-viewer-pages-should-lead-with-action-metrics-7a93ae5a.json | 9 +++++++--\n ...ion-viewer-proof-page-explains-source-diversity-34b4a299.json | 9 +++++++--\n .../decision-viewer-should-stay-graph-first-ed2ee06f.json        | 9 +++++++--\n ...surfaces-external-retrieval-benchmark-summaries-47662070.json | 9 +++++++--\n ...-surfaces-repo-dashboard-repo-intelligence-maps-16fd13d8.json | 9 +++++++--\n .../decision-viewer-uses-original-phosphor-green-a45fdbaa.json   | 9 +++++++--\n ...er-uses-overview-dashboard-plus-graph-workspace-be4b4d2c.json | 9 +++++++--\n ...er-uses-separate-pages-instead-of-drawer-panels-d6a906e3.json | 9 +++++++--\n .../decision-viewer-workflows-stay-action-first-8192db16.json    | 9 +++++++--\n ...ecision-viewer-workspace-map-exposes-repo-links-f29a4f27.json | 9 +++++++--\n .../decision-viewer-workspace-should-be-a-drawer-4bba52c3.json   | 9 +++++++--\n ...-dark-docs-style-reference-and-viewer-backlinks-d51ff0ca.json | 9 +++++++--\n ...ace-co-change-links-stay-local-git-intelligence-83cfaee4.json | 9 +++++++--\n ...on-workspace-topic-contracts-stay-deterministic-8ca85087.json | 9 +++++++--\n ...ges-serves-docs-statically-markdown-renders-raw-73ff264a.json | 9 +++++++--\n ...wer-performance-fix-must-preserve-graph-visuals-b422fc2a.json | 9 +++++++--\n ...ence-memory-tool-viewer-uses-canvas-force-graph-e5e7391a.json | 9 +++++++--\n ...iewer-labels-external-retrieval-benchmark-modes-31acf098.json | 9 +++++++--\n .agent_memory/packets/runbook-run-kage-mcp-tests-9b98df67.json   | 9 +++++++--\n .../packets/workflow-change-memory-master-23634276.json          | 3 +--\n 88 files changed, 610 insertions(+), 176 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "summary": "Repo-local context for 3 changed repo paths on master.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/bug_fix-bug-fix-viewer-memory-code-graphs-looked-disconnected-because-knowledge-graph-ge-bec25d3d.json\n- .agent_memory/packets/decision-kage-handoff-now-treats-observed-sessions-with-durable-distillation-candidates-a-fe0c7323.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n...hs-looked-disconnected-because-knowledge-graph-ge-bec25d3d.json | 7 ++++---\n ...d-sessions-with-durable-distillation-candidates-a-fe0c7323.json | 7 ++++---\n .agent_memory/packets/workflow-change-memory-master-23634276.json  | 3 +--\n 3 files changed, 9 insertions(+), 8 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -17,149 +17,27 @@
     "branch:master"
   ],
   "paths": [
-    ".agent_memory/packets/bug_fix-bug-fix-inspector-connected-relation-sections-need-their-own-scroll-containers-92bf3faa.json",
-    ".agent_memory/packets/bug_fix-bug-fix-the-viewer-inspector-could-explode-the-page-height-when-a-selected-node--95f90fca.json",
     ".agent_memory/packets/bug_fix-bug-fix-viewer-memory-code-graphs-looked-disconnected-because-knowledge-graph-ge-bec25d3d.json",
-    ".agent_memory/packets/bug_fix-hosted-github-pages-viewer-must-be-tracked-8497f2eb.json",
-    ".agent_memory/packets/bug_fix-hosted-viewer-must-hydrate-compact-memory-graph-530c1dc5.json",
-    ".agent_memory/packets/bug_fix-memory-code-relation-filter-excludes-path-only-edges-16ac4745.json",
-    ".agent_memory/packets/bug_fix-viewer-bridges-path-level-memory-to-code-files-bafb4993.json",
-    ".agent_memory/packets/bug_fix-viewer-combined-mode-must-prioritize-visible-memory-code-links-a9eb1584.json",
-    ".agent_memory/packets/bug_fix-viewer-memory-page-keeps-scrollable-content-bounded-9c94491d.json",
-    ".agent_memory/packets/bug_fix-viewer-must-not-map-file-path-aliases-to-arbitrary-symbols-1f76273b.json",
-    ".agent_memory/packets/bug_fix-viewer-node-inspector-shows-type-specific-code-details-f9763e07.json",
-    ".agent_memory/packets/bug_fix-viewer-normal-pages-use-document-scroll-not-nested-workspace-scroll-4ed18571.json",
-    ".agent_memory/packets/bug_fix-viewer-qa-repairs-make-page-actions-visible-a307bede.json",
-    ".agent_memory/packets/bug_fix-viewer-selection-should-not-imply-page-navigation-0e41beca.json",
-    ".agent_memory/packets/bug_fix-viewer-signal-mode-must-preserve-code-graph-endpoints-075ba83c.json",
-    ".agent_memory/packets/code_explanation-3d-viewer-orb-keeps-2d-style-interactions-246bf75c.json",
-    ".agent_memory/packets/code_explanation-3d-viewer-physics-and-edge-visibility-f9173468.json",
-    ".agent_memory/packets/code_explanation-viewer-3d-graph-mode-architecture-7402734e.json",
-    ".agent_memory/packets/decision-actionable-viewer-ux-means-fewer-choices-not-more-labels-0f56c8d6.json",
-    ".agent_memory/packets/decision-before-you-edit-risk-page-must-explain-why-and-what-to-do-first-41b900df.json",
-    ".agent_memory/packets/decision-code-graph-calls-carry-confidence-31c3b0f2.json",
-    ".agent_memory/packets/decision-code-index-inbox-and-benchmark-gates-harden-kage-handoff-quality-80fea58c.json",
-    ".agent_memory/packets/decision-contributor-profiles-stay-local-git-intelligence-d97134d6.json",
-    ".agent_memory/packets/decision-dashboard-uses-handoff-primary-action-as-the-top-review-signal-42ed1443.json",
-    ".agent_memory/packets/decision-decision-canvas-graph-must-stay-in-kage-terminal-theme-42ffb03b.json",
-    ".agent_memory/packets/decision-decision-intelligence-is-kage-why-memory-coverage-3e1b0c37.json",
-    ".agent_memory/packets/decision-decision-kage-viewer-uses-canvas-force-graph-for-interactive-exploration-16a751bc.json",
-    ".agent_memory/packets/decision-decision-viewer-hides-raw-full-graph-scopes-cafadd16.json",
-    ".agent_memory/packets/decision-decision-viewer-must-default-to-high-signal-graph-24bfa4ff.json",
-    ".agent_memory/packets/decision-decision-viewer-search-accepts-natural-language-graph-queries-12214ae2.json",
-    ".agent_memory/packets/decision-generated-graph-artifacts-use-compact-references-4c4fb191.json",
-    ".agent_memory/packets/decision-graph-page-needs-signal-metrics-and-artifacts-diagnostics-a4ff7f55.json",
-    ".agent_memory/packets/decision-hosted-viewer-loads-published-kage-repo-graph-first-a1a5bd82.json",
-    ".agent_memory/packets/decision-hosted-viewer-must-auto-load-a-demo-graph-29fd5e52.json",
-    ".agent_memory/packets/decision-intel-page-uses-metric-highlight-action-cards-8ff95fa1.json",
     ".agent_memory/packets/decision-kage-handoff-now-treats-observed-sessions-with-durable-distillation-candidates-a-fe0c7323.json",
-    ".agent_memory/packets/decision-kage-viewer-benchmark-reports-now-include-a-proof-ledger-with-the-measured-metri-84cc8a4f.json",
-    ".agent_memory/packets/decision-memory-access-recommends-review-actions-cdc98133.json",
-    ".agent_memory/packets/decision-memory-audit-is-first-class-mutation-governance-ed50ecee.json",
-    ".agent_memory/packets/decision-memory-handoff-combines-session-memory-team-signals-into-kage-native-review-5f2d8c9e.json"
+    ".agent_memory/packets/workflow-change-memory-master-23634276.json"
   ],
   "stack": [],
   "source_refs": [
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "5cfef00c4e953a6da0f4178e75e428cccbab3742",
-      "merge_base": "5cfef00c4e953a6da0f4178e75e428cccbab3742",
+      "head": "098a189b99b145a1ab8f2d523d1247d97d28d099",
+      "merge_base": "098a189b99b145a1ab8f2d523d1247d97d28d099",
       "changed_files": [
-        ".agent_memory/packets/bug_fix-bug-fix-inspector-connected-relation-sections-need-their-own-scroll-containers-92bf3faa.json",
-        ".agent_memory/packets/bug_fix-bug-fix-the-viewer-inspector-could-explode-the-page-height-when-a-selected-node--95f90fca.json",
         ".agent_memory/packets/bug_fix-bug-fix-viewer-memory-code-graphs-looked-disconnected-because-knowledge-graph-ge-bec25d3d.json",
-        ".agent_memory/packets/bug_fix-hosted-github-pages-viewer-must-be-tracked-8497f2eb.json",
-        ".agent_memory/packets/bug_fix-hosted-viewer-must-hydrate-compact-memory-graph-530c1dc5.json",
-        ".agent_memory/packets/bug_fix-memory-code-relation-filter-excludes-path-only-edges-16ac4745.json",
-        ".agent_memory/packets/bug_fix-viewer-bridges-path-level-memory-to-code-files-bafb4993.json",
-        ".agent_memory/packets/bug_fix-viewer-combined-mode-must-prioritize-visible-memory-code-links-a9eb1584.json",
-        ".agent_memory/packets/bug_fix-viewer-memory-page-keeps-scrollable-content-bounded-9c94491d.json",
-        ".agent_memory/packets/bug_fix-viewer-must-not-map-file-path-aliases-to-arbitrary-symbols-1f76273b.json",
-        ".agent_memory/packets/bug_fix-viewer-node-inspector-shows-type-specific-code-details-f9763e07.json",
-        ".agent_memory/packets/bug_fix-viewer-normal-pages-use-document-scroll-not-nested-workspace-scroll-4ed18571.json",
-        ".agent_memory/packets/bug_fix-viewer-qa-repairs-make-page-actions-visible-a307bede.json",
-        ".agent_memory/packets/bug_fix-viewer-selection-should-not-imply-page-navigation-0e41beca.json",
-        ".agent_memory/packets/bug_fix-viewer-signal-mode-must-preserve-code-graph-endpoints-075ba83c.json",
-        ".agent_memory/packets/code_explanation-3d-viewer-orb-keeps-2d-style-interactions-246bf75c.json",
-        ".agent_memory/packets/code_explanation-3d-viewer-physics-and-edge-visibility-f9173468.json",
-        ".agent_memory/packets/code_explanation-viewer-3d-graph-mode-architecture-7402734e.json",
-        ".agent_memory/packets/decision-actionable-viewer-ux-means-fewer-choices-not-more-labels-0f56c8d6.json",
-        ".agent_memory/packets/decision-before-you-edit-risk-page-must-explain-why-and-what-to-do-first-41b900df.json",
-        ".agent_memory/packets/decision-code-graph-calls-carry-confidence-31c3b0f2.json",
-        ".agent_memory/packets/decision-code-index-inbox-and-benchmark-gates-harden-kage-handoff-quality-80fea58c.json",
-        ".agent_memory/packets/decision-contributor-profiles-stay-local-git-intelligence-d97134d6.json",
-        ".agent_memory/packets/decision-dashboard-uses-handoff-primary-action-as-the-top-review-signal-42ed1443.json",
-        ".agent_memory/packets/decision-decision-canvas-graph-must-stay-in-kage-terminal-theme-42ffb03b.json",
-        ".agent_memory/packets/decision-decision-intelligence-is-kage-why-memory-coverage-3e1b0c37.json",
-        ".agent_memory/packets/decision-decision-kage-viewer-uses-canvas-force-graph-for-interactive-exploration-16a751bc.json",
-        ".agent_memory/packets/decision-decision-viewer-hides-raw-full-graph-scopes-cafadd16.json",
-        ".agent_memory/packets/decision-decision-viewer-must-default-to-high-signal-graph-24bfa4ff.json",
-        ".agent_memory/packets/decision-decision-viewer-search-accepts-natural-language-graph-queries-12214ae2.json",
-        ".agent_memory/packets/decision-generated-graph-artifacts-use-compact-references-4c4fb191.json",
-        ".agent_memory/packets/decision-graph-page-needs-signal-metrics-and-artifacts-diagnostics-a4ff7f55.json",
-        ".agent_memory/packets/decision-hosted-viewer-loads-published-kage-repo-graph-first-a1a5bd82.json",
-        ".agent_memory/packets/decision-hosted-viewer-must-auto-load-a-demo-graph-29fd5e52.json",
-        ".agent_memory/packets/decision-intel-page-uses-metric-highlight-action-cards-8ff95fa1.json",
         ".agent_memory/packets/decision-kage-handoff-now-treats-observed-sessions-with-durable-distillation-candidates-a-fe0c7323.json",
-        ".agent_memory/packets/decision-kage-viewer-benchmark-reports-now-include-a-proof-ledger-with-the-measured-metri-84cc8a4f.json",
-        ".agent_memory/packets/decision-memory-access-recommends-review-actions-cdc98133.json",
-        ".agent_memory/packets/decision-memory-audit-is-first-class-mutation-governance-ed50ecee.json",
-        ".agent_memory/packets/decision-memory-handoff-combines-session-memory-team-signals-into-kage-native-review-5f2d8c9e.json",
-        ".agent_memory/packets/decision-memory-lifecycle-is-now-a-first-class-report-7e20a9b1.json",
-        ".agent_memory/packets/decision-memory-lineage-is-first-class-repo-knowledge-governance-f114895c.json",
-        ".agent_memory/packets/decision-memory-page-is-a-packet-to-code-workflow-24a597a5.json",
-        ".agent_memory/packets/decision-memory-page-shows-lifecycle-proof-for-captured-repo-knowledge-bf162515.json",
-        ".agent_memory/packets/decision-memory-timeline-is-now-a-first-class-handoff-report-f285de3e.json",
-        ".agent_memory/packets/decision-pinned-context-slots-give-kage-small-always-on-repo-memory-85b0c930.json",
-        ".agent_memory/packets/decision-project-profile-gives-agents-compact-repo-orientation-352a278d.json",
-        ".agent_memory/packets/decision-public-site-ux-should-be-onboarding-first-and-task-scoped-8bbe8deb.json",
-        ".agent_memory/packets/decision-recall-access-tracking-stays-local-and-ignored-168c207d.json",
-        ".agent_memory/packets/decision-recall-ranking-uses-bm25-and-viewer-coalesces-memory-code-nodes-612d2efa.json",
-        ".agent_memory/packets/decision-release-1-1-14-bm25-and-memory-code-graph-package-dcea3799.json",
-        ".agent_memory/packets/decision-repo-x-ray-gives-agents-and-users-a-first-use-structure-map-dc254fb7.json",
-        ".agent_memory/packets/decision-scale-benchmark-is-now-package-callable-ade9d363.json",
-        ".agent_memory/packets/decision-session-capture-report-makes-observation-distillation-visible-b9ba759c.json",
-        ".agent_memory/packets/decision-session-replay-digest-proves-observed-agent-learning-without-raw-transcripts-485c0b38.json",
-        ".agent_memory/packets/decision-viewer-adopts-repo-dashboard-repo-sidebar-e3454461.json",
-        ".agent_memory/packets/decision-viewer-cockpit-surfaces-repo-intelligence-reports-1c11099b.json",
-        ".agent_memory/packets/decision-viewer-combined-mode-must-balance-memory-and-code-d7364ca2.json",
-        ".agent_memory/packets/decision-viewer-components-must-show-action-next-to-insight-400a902b.json",
-        ".agent_memory/packets/decision-viewer-dashboard-shows-setup-hook-readiness-3d18849c.json",
-        ".agent_memory/packets/decision-viewer-defaults-favor-focused-pages-over-diagnostic-walls-30e57baa.json",
-        ".agent_memory/packets/decision-viewer-graph-ux-is-task-first-not-graph-engine-first-26fdaad6.json",
-        ".agent_memory/packets/decision-viewer-green-theme-includes-text-264312ce.json",
-        ".agent_memory/packets/decision-viewer-metrics-should-be-action-oriented-bf76d7e5.json",
-        ".agent_memory/packets/decision-viewer-must-separate-inbox-blockers-from-handoff-review-items-ea1b70e3.json",
-        ".agent_memory/packets/decision-viewer-needs-visible-kage-green-glow-bae85adf.json",
-        ".agent_memory/packets/decision-viewer-opens-structural-code-graph-mode-by-default-242b6e41.json",
-        ".agent_memory/packets/decision-viewer-pages-should-avoid-duplicate-controls-6a7f60dd.json",
-        ".agent_memory/packets/decision-viewer-pages-should-lead-with-action-metrics-7a93ae5a.json",
-        ".agent_memory/packets/decision-viewer-proof-page-explains-source-diversity-34b4a299.json",
-        ".agent_memory/packets/decision-viewer-should-stay-graph-first-ed2ee06f.json",
-        ".agent_memory/packets/decision-viewer-surfaces-external-retrieval-benchmark-summaries-47662070.json",
-        ".agent_memory/packets/decision-viewer-surfaces-repo-dashboard-repo-intelligence-maps-16fd13d8.json",
-        ".agent_memory/packets/decision-viewer-uses-original-phosphor-green-a45fdbaa.json",
-        ".agent_memory/packets/decision-viewer-uses-overview-dashboard-plus-graph-workspace-be4b4d2c.json",
-        ".agent_memory/packets/decision-viewer-uses-separate-pages-instead-of-drawer-panels-d6a906e3.json",
-        ".agent_memory/packets/decision-viewer-workflows-stay-action-first-8192db16.json",
-        ".agent_memory/packets/decision-viewer-workspace-map-exposes-repo-links-f29a4f27.json",
-        ".agent_memory/packets/decision-viewer-workspace-should-be-a-drawer-4bba52c3.json",
-        ".agent_memory/packets/decision-website-docs-need-dark-docs-style-reference-and-viewer-backlinks-d51ff0ca.json",
-        ".agent_memory/packets/decision-workspace-co-change-links-stay-local-git-intelligence-83cfaee4.json",
-        ".agent_memory/packets/decision-workspace-topic-contracts-stay-deterministic-8ca85087.json",
-        ".agent_memory/packets/gotcha-github-pages-serves-docs-statically-markdown-renders-raw-73ff264a.json",
-        ".agent_memory/packets/gotcha-viewer-performance-fix-must-preserve-graph-visuals-b422fc2a.json",
-        ".agent_memory/packets/reference-reference-memory-tool-viewer-uses-canvas-force-graph-e5e7391a.json",
-        ".agent_memory/packets/reference-viewer-labels-external-retrieval-benchmark-modes-31acf098.json",
-        ".agent_memory/packets/runbook-run-kage-mcp-tests-9b98df67.json",
         ".agent_memory/packets/workflow-change-memory-master-23634276.json"
       ],
       "summary_path": ".agent_memory/review/branch-summary-master.json"
     }
   ],
   "context": {
-    "fact": "Current branch master changes 88 repo paths.",
+    "fact": "Current branch master changes 3 repo paths.",
     "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
     "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
     "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
@@ -168,7 +46,7 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-05T12:30:43.102Z",
+    "last_verified_at": "2026-06-05T12:44:17.011Z",
     "ttl_days": 180,
     "path_fingerprints": [],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -177,118 +55,34 @@
   "edges": [
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-bug-fix-inspector-connected-relation-sections-need-their-own-scroll-containers-92bf3faa.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-bug-fix-the-viewer-inspector-could-explode-the-page-height-when-a-selected-node--95f90fca.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
       "to": "path:.agent_memory/packets/bug_fix-bug-fix-viewer-memory-code-graphs-looked-disconnected-because-knowledge-graph-ge-bec25d3d.json",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-hosted-github-pages-viewer-must-be-tracked-8497f2eb.json",
+      "to": "path:.agent_memory/packets/decision-kage-handoff-now-treats-observed-sessions-with-durable-distillation-candidates-a-fe0c7323.json",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-hosted-viewer-must-hydrate-compact-memory-graph-530c1dc5.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-memory-code-relation-filter-excludes-path-only-edges-16ac4745.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-viewer-bridges-path-level-memory-to-code-files-bafb4993.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-viewer-combined-mode-must-prioritize-visible-memory-code-links-a9eb1584.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-viewer-memory-page-keeps-scrollable-content-bounded-9c94491d.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-viewer-must-not-map-file-path-aliases-to-arbitrary-symbols-1f76273b.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-viewer-node-inspector-shows-type-specific-code-details-f9763e07.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-viewer-normal-pages-use-document-scroll-not-nested-workspace-scroll-4ed18571.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-viewer-qa-repairs-make-page-actions-visible-a307bede.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-viewer-selection-should-not-imply-page-navigation-0e41beca.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-viewer-signal-mode-must-preserve-code-graph-endpoints-075ba83c.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/code_explanation-3d-viewer-orb-keeps-2d-style-interactions-246bf75c.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/code_explanation-3d-viewer-physics-and-edge-visibility-f9173468.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/code_explanation-viewer-3d-graph-mode-architecture-7402734e.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-actionable-viewer-ux-means-fewer-choices-not-more-labels-0f56c8d6.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-before-you-edit-risk-page-must-explain-why-and-what-to-do-first-41b900df.json",
+      "to": "path:.agent_memory/packets/workflow-change-memory-master-23634276.json",
       "evidence": "git_diff"
     }
   ],
   "quality": {
-    "score": 94,
+    "score": 100,
     "reasons": [
       "high-value memory type",
       "has source evidence",
       "grounded to repo paths",
       "tagged",
+      "concise but substantive",
       "actionable rationale or verification"
     ],
     "risks": [],
     "duplicate_candidates": [],
     "stale_reasons": [],
-    "estimated_tokens_saved": 2986,
+    "estimated_tokens_saved": 336,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -306,6 +100,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-06-05T12:30:43.102Z",
-  "updated_at": "2026-06-05T12:30:43.102Z"
+  "created_at": "2026-06-05T12:44:17.011Z",
+  "updated_at": "2026-06-05T12:44:17.011Z"
 }
