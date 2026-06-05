@@ -23,6 +23,7 @@ import {
   buildStructuralIndex,
   auditProject,
   capture,
+  kageActivity,
   catalogDomainNodeCount,
   createReviewArtifact,
   createPublicCandidate,
@@ -3599,4 +3600,36 @@ test("refresh prunes kageignore'd grounding and does not mark memory stale for i
   assert.equal(packet.paths.includes("viewer/app.js"), false);
   assert.equal(packet.paths.includes("src/a.js"), true);
   assert.notEqual(packet.quality?.stale, true);
+});
+
+test("kageActivity merges recorded recalls and captures into a chronological feed", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "auth.js"), "export function login() { return true; }\n", "utf8");
+  const cap = capture({
+    projectDir: project,
+    title: "Login returns a boolean",
+    body: "login() returns true on success. Verified in src/auth.js.",
+    type: "decision",
+    paths: ["src/auth.js"],
+  });
+  assert.equal(cap.ok, true);
+  buildIndexes(project);
+
+  // Before any recall: a capture event, zero recalls.
+  let activity = kageActivity(project);
+  assert.equal(activity.totals.captures >= 1, true);
+  assert.equal(activity.totals.recalls, 0);
+
+  // A real recall is recorded as activity.
+  recall(project, "does login return a boolean", 5, false);
+  activity = kageActivity(project);
+  assert.equal(activity.totals.recalls >= 1, true);
+  assert.equal(activity.events.some((e) => e.kind === "recall"), true);
+  assert.equal(activity.events.some((e) => e.kind === "capture"), true);
+  // Newest first.
+  for (let i = 1; i < activity.events.length; i += 1) {
+    assert.equal(Date.parse(activity.events[i - 1].at) >= Date.parse(activity.events[i].at), true);
+  }
 });

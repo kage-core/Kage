@@ -35,6 +35,7 @@ test("viewer dashboard is a CSP-safe multi-section page backed by external conso
   assert.match(indexHtml, /data-section="overview"/);
   assert.match(indexHtml, /data-section="graph"/);
   assert.match(indexHtml, /data-section="memory"/);
+  assert.match(indexHtml, /data-section="activity"/);
   assert.match(indexHtml, /data-section="insights"/);
   // Core surfaces: trust hero, stat tiles, the memory<->code graph canvas, the memory list, and insight charts.
   assert.match(indexHtml, /id="hero"/);
@@ -48,6 +49,8 @@ test("viewer dashboard is a CSP-safe multi-section page backed by external conso
   assert.match(consoleJs, /suppressed/);
   assert.match(consoleJs, /metrics/);
   assert.match(consoleJs, /buildGraph/);
+  assert.match(consoleJs, /renderActivity/);
+  assert.match(indexHtml, /id="activityFeed"/);
 });
 
 test("viewer benchmark report combines local gates with coding memory retrieval proof", () => {
