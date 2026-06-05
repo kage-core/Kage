@@ -8,7 +8,7 @@
   "scope": "repo",
   "visibility": "team",
   "sensitivity": "internal",
-  "status": "approved",
+  "status": "deprecated",
   "confidence": 0.62,
   "tags": [
     "change-memory",
@@ -113,8 +113,13 @@
     },
     "candidate_kind": "change_memory",
     "review_boundary": "git_or_pr",
-    "promotion_requires_review": true
+    "promotion_requires_review": true,
+    "stale": true,
+    "stale_reasons": [
+      "linked path changed since memory was verified: README.md, mcp/cli.ts"
+    ],
+    "suggested_action": "update"
   },
   "created_at": "2026-06-04T18:27:15.281Z",
-  "updated_at": "2026-06-04T18:27:46.890Z"
+  "updated_at": "2026-06-05T04:35:10.918Z"
 }
