@@ -130,16 +130,30 @@
       .chip { font: 500 12.5px/1 var(--sans); padding: 8px 13px; border-radius: 99px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; }
       .chip[aria-pressed="true"] { border-color: rgba(65,255,143,0.30); background: var(--green-soft); color: var(--ink); }
       .chip b { color: var(--faint); font-weight: 600; } .chip[aria-pressed="true"] b { color: var(--green); }
-      .row { display: grid; grid-template-columns: 9px 1fr auto; gap: 0 14px; align-items: start; padding: 14px 4px; border-top: 1px solid var(--line); }
-      .row:first-child { border-top: 0; }
-      .dot { width: 8px; height: 8px; border-radius: 99px; margin-top: 5px; background: var(--faint); }
+      .memcount { color: var(--faint); font: 500 12px/1 var(--mono); margin: 2px 0 10px; }
+      .grouphead { display: flex; align-items: center; gap: 11px; padding: 18px 4px 9px; }
+      .grouphead:first-child { padding-top: 4px; }
+      .grouphead .gl { color: var(--muted); font: 600 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .09em; }
+      .grouphead .gc { color: var(--faint); font: 600 11px/1 var(--mono); }
+      .grouphead .gline { flex: 1; height: 1px; background: var(--line); }
+      .row { display: grid; grid-template-columns: 9px 1fr auto; gap: 0 14px; align-items: center; padding: 12px 8px; border-top: 1px solid var(--line); border-radius: var(--r-control); }
+      .grouphead + .row { border-top: 0; }
+      .row:hover { background: rgba(255,255,255,0.025); }
+      .dot { width: 8px; height: 8px; border-radius: 99px; background: var(--faint); }
       .dot.hot { background: var(--green-strong); box-shadow: 0 0 9px rgba(135,247,181,.55); } .dot.healthy { background: var(--green); }
       .dot.cold { background: #2f4a3a; } .dot.stale, .dot.disputed, .dot.ungrounded { background: var(--warn); }
-      .row .title { font: 500 14px/1.35 var(--sans); } .row .meta { margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      .row .title { font: 500 14px/1.4 var(--sans); }
+      .row .meta { margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
       .type { color: var(--memory); font: 500 11px/1 var(--mono); padding: 3px 7px; border: 1px solid rgba(196,156,255,0.28); border-radius: var(--r-control); }
       .paths { color: var(--faint); font: 400 11px/1.3 var(--mono); overflow-wrap: anywhere; }
-      .row .right { text-align: right; color: var(--faint); font: 400 11px/1.5 var(--mono); white-space: nowrap; }
-      .health { font-weight: 600; } .health.stale, .health.disputed, .health.ungrounded { color: var(--warn); } .health.hot, .health.healthy { color: var(--green); }
+      .row .right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; white-space: nowrap; }
+      .pill { font: 600 10px/1 var(--mono); text-transform: uppercase; letter-spacing: .04em; padding: 4px 9px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+      .pill.hot, .pill.healthy { color: var(--green); border-color: rgba(65,255,143,0.30); background: var(--green-soft); }
+      .pill.cold { color: var(--faint); }
+      .pill.stale, .pill.disputed, .pill.ungrounded { color: var(--warn); border-color: rgba(255,209,102,0.30); background: rgba(255,209,102,0.08); }
+      .uses { color: var(--faint); font: 400 11px/1 var(--mono); }
+      .showmore { width: 100%; margin-top: 14px; padding: 12px; background: transparent; border: 1px solid var(--line); border-radius: var(--r-control); color: var(--muted); font: 500 13px/1 var(--sans); cursor: pointer; }
+      .showmore:hover { color: var(--ink); border-color: var(--line-strong); background: rgba(255,255,255,0.025); }
 
       /* insights */
       .ins-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -154,7 +168,9 @@
       .hbars { display: grid; gap: 11px; }
       .hbar { display: grid; grid-template-columns: 116px 1fr 34px; gap: 12px; align-items: center; font: 400 13px/1 var(--sans); }
       .hbar .n { color: var(--muted); } .hbar .t { height: 7px; border-radius: 99px; background: rgba(255,255,255,0.05); overflow: hidden; }
-      .hbar .t i { display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, #7d5bd0, var(--memory)); transition: width .9s cubic-bezier(.2,.7,.2,1); }
+      .hbar .t i { display: block; height: 100%; width: 0; min-width: 8px; border-radius: 99px; background: linear-gradient(90deg, #7d5bd0, var(--memory)); transition: width .9s cubic-bezier(.2,.7,.2,1); }
+      .hbar.code .t i { background: linear-gradient(90deg, #3a8db0, var(--code)); }
+      .hbar .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .hbar .c { text-align: right; color: var(--faint); font: 500 12px/1 var(--mono); }
       .facts { display: grid; gap: 13px; }
       .fact { display: flex; gap: 12px; align-items: flex-start; color: var(--ink); font: 400 13.5px/1.5 var(--sans); }
@@ -224,6 +240,7 @@
           <section class="section" id="section-memory">
             <div class="controls"><input id="search" type="search" placeholder="Search memory by title, file, or type…" /></div>
             <div class="chips" id="chips"></div>
+            <div class="memcount" id="memcount"></div>
             <div class="panel" style="padding:6px 22px;"><div id="list"></div></div>
           </section>
 
@@ -233,11 +250,14 @@
               <div class="panel"><h2>Memory by type</h2><div class="hbars" id="typeBars"></div></div>
             </div>
             <div class="panel"><h2>Codebase Kage has mapped</h2><div class="tiles" id="codeTiles" style="margin:0;"></div></div>
-            <div class="panel"><h2>Worth knowing</h2><div class="facts" id="facts"></div></div>
+            <div class="ins-grid">
+              <div class="panel"><h2>Most-grounded files <span class="sub">— code your memory is anchored to</span></h2><div class="hbars" id="groundedFiles"></div></div>
+              <div class="panel"><h2>Worth knowing</h2><div class="facts" id="facts"></div></div>
+            </div>
           </section>
         </div>
       </main>
     </div>
-    <script src="./console.js?v=7"></script>
+    <script src="./console.js?v=8"></script>
   </body>
 </html>
