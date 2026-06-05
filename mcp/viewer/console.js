@@ -460,9 +460,14 @@
     function neighbors(idx) { var s = {}; if (idx < 0) return null; s[idx] = 1; G.edges.forEach(function (e) { if (e[0] === idx) s[e[1]] = 1; if (e[1] === idx) s[e[0]] = 1; }); return s; }
     function categorySet() {
       if (G.filter === "all") return null;
+      // Seed = the matching memory nodes only. Expand to the files they touch, but
+      // gate on the immutable seed — never pull in other memories that merely share a
+      // hub file (that cascade made "Needs review" highlight ~everything).
+      var seed = {};
+      G.nodes.forEach(function (n, i) { if (n.kind === "memory" && (G.filter === "review" ? n.review : n.health === G.filter)) seed[i] = 1; });
       var set = {};
-      G.nodes.forEach(function (n, i) { if (n.kind === "memory" && (G.filter === "review" ? n.review : n.health === G.filter)) set[i] = 1; });
-      G.edges.forEach(function (e) { if (set[e[0]]) set[e[1]] = 1; if (set[e[1]]) set[e[0]] = 1; });
+      Object.keys(seed).forEach(function (k) { set[k] = 1; });
+      G.edges.forEach(function (e) { if (seed[e[0]]) set[e[1]] = 1; if (seed[e[1]]) set[e[0]] = 1; });
       return set;
     }
     function color(nd) { return nd.kind === "file" ? "#6ad7ff" : (nd.review ? "#ffd166" : "#c49cff"); }
