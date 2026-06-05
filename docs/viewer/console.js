@@ -69,6 +69,7 @@
   function render(trust, suppressed, lifecycle, metrics, activity) {
     state.items = (lifecycle && lifecycle.items) || [];
     state.metrics = metrics || {};
+    state.activity = activity || {};
     document.getElementById("repo").textContent = resolveRepoName(metrics, lifecycle);
     renderHero(trust);
     renderTiles(metrics, state.items);
@@ -183,14 +184,16 @@
     var c = {}; items.forEach(function (i) { c[i.health] = (c[i.health] || 0) + 1; }); return c;
   }
   function renderTiles(metrics, items) {
-    var mg = (metrics && metrics.memory_graph) || {}, cg = (metrics && metrics.code_graph) || {}, sv = (metrics && metrics.savings) || {};
+    var cg = (metrics && metrics.code_graph) || {};
+    var act = (state.activity && state.activity.totals) || {};
     var c = counts(items);
     var review = (c.stale || 0) + (c.disputed || 0) + (c.ungrounded || 0);
+    var r7 = act.recalls_7d || 0;
     var data = [
       { k: "Memory packets", v: fmt(items.length), s: (c.hot || 0) + " hot · " + (c.healthy || 0) + " healthy", cls: "memory" },
       { k: "Needs review", v: fmt(review), s: review ? "stale or ungrounded" : "all current", cls: review ? "warn" : "green" },
       { k: "Files mapped", v: fmt(cg.files), s: fmt(cg.symbols) + " symbols indexed", cls: "code" },
-      { k: "Saved per recall", v: fmt(sv.estimated_tokens_saved_per_recall), s: "tokens vs. re-reading source", cls: "green" },
+      { k: "Recalls (7 days)", v: fmt(r7), s: r7 ? fmt(act.recalls || 0) + " all-time" : "no recalls yet", cls: r7 ? "green" : "" },
     ];
     var box = document.getElementById("tiles"); box.textContent = "";
     data.forEach(function (d) {
