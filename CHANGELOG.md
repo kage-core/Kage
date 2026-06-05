@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.4.0 - live memory: grounding-aware, instrumented, and a real dashboard
+
+- **`.kageignore` now governs memory grounding, not just indexing.** A repo can
+  declare non-knowledge paths (e.g. a presentation/visualization layer); those
+  paths are dropped at capture, never mark memory stale on recall/refresh, and
+  are pruned from existing packets on `kage refresh`. Fixes spurious stale
+  cascades when a widely-cited non-knowledge file is deleted.
+- **Recall instrumentation + Activity.** Recalls are recorded as access
+  telemetry; new `kage activity` / activity report gives a chronological feed of
+  what agents recalled and captured, with per-day counts.
+- **Viewer rebuilt into a focused dashboard.** Overview (Memory Trust + live
+  stats), Memory map (interactive memory↔code graph: zoom/pan/drag/filter/focus),
+  Memory (grouped, searchable, click-through detail drawer to read a packet),
+  Activity (recall/capture feed), Insights (health donut, type bars, most-grounded
+  files). Single CSP-safe page; matches the site theme.
+- **Lifecycle items now carry `summary` + `body`** so the viewer can show a
+  packet's full content.
+- **Health donut reframed** to grounded-&-current vs needs-review (recall
+  frequency is shown separately, not as "unhealthy").
+- **Docs:** the packet journey and every score explained in the README and on the
+  site, with visual flow diagrams and a fresh animated `kage demo`.
+
 ## v1.3.0 - trust, governance & first-run
 
 - `kage demo` (and `npx -y @kage-core/kage-graph-mcp demo`): a 60-second,
