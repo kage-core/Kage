@@ -82,6 +82,11 @@ Prove it on your own repo: `kage benchmark --trust --project .` — it measures
 hallucinated-citation rejection, stale-memory exclusion, and live grounding.
 See [docs/TRUST.md](docs/TRUST.md).
 
+Comparing tools? Other agent memory remembers; Kage is the only one that can tell
+you whether what it remembers is still *true*. See
+[Kage vs agentmemory](docs/vs-agentmemory.md) — an honest, category-correct
+comparison.
+
 ## What you get
 
 - Repo memory packets (decisions, bug fixes, runbooks, gotchas, conventions,
