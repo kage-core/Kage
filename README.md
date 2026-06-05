@@ -83,6 +83,11 @@ kage setup windsurf    --project . --write     # Windsurf
 kage setup list                                # see every supported agent
 ```
 
+Or install the Kage skill into **70+ agents** in one command:
+```bash
+npx skills add kage-core/Kage
+```
+
 Then restart the agent once and confirm it's live:
 ```bash
 kage setup verify-agent --agent claude-code --project .
