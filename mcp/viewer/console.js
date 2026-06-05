@@ -111,10 +111,10 @@
     var c = counts(items);
     var review = (c.stale || 0) + (c.disputed || 0) + (c.ungrounded || 0);
     var data = [
-      { k: "Memory packets", v: fmt(mg.approved_packets || items.length), s: (c.hot || 0) + " hot · " + (c.healthy || 0) + " healthy", cls: "green" },
-      { k: "Needs review", v: fmt(review), s: review ? "stale or ungrounded" : "all current", cls: review ? "amber" : "" },
-      { k: "Files mapped", v: fmt(cg.files), s: fmt(cg.symbols) + " symbols indexed", cls: "cyan" },
-      { k: "Saved per recall", v: fmt(sv.estimated_tokens_saved_per_recall), s: "tokens vs. re-reading source", cls: "" },
+      { k: "Memory packets", v: fmt(mg.approved_packets || items.length), s: (c.hot || 0) + " hot · " + (c.healthy || 0) + " healthy", cls: "memory" },
+      { k: "Needs review", v: fmt(review), s: review ? "stale or ungrounded" : "all current", cls: review ? "warn" : "green" },
+      { k: "Files mapped", v: fmt(cg.files), s: fmt(cg.symbols) + " symbols indexed", cls: "code" },
+      { k: "Saved per recall", v: fmt(sv.estimated_tokens_saved_per_recall), s: "tokens vs. re-reading source", cls: "green" },
     ];
     var box = document.getElementById("tiles"); box.textContent = "";
     data.forEach(function (d) {
@@ -195,14 +195,14 @@
     var c = counts(items);
     // health donut
     var seg = [
-      { k: "Hot", v: c.hot || 0, col: "#41ff8f" }, { k: "Healthy", v: c.healthy || 0, col: "#2bbf6a" },
-      { k: "Cold", v: c.cold || 0, col: "#3a4842" }, { k: "Needs review", v: (c.stale || 0) + (c.disputed || 0) + (c.ungrounded || 0), col: "#f5c451" },
+      { k: "Hot", v: c.hot || 0, col: "#87f7b5" }, { k: "Healthy", v: c.healthy || 0, col: "#41ff8f" },
+      { k: "Cold", v: c.cold || 0, col: "#2f4a3a" }, { k: "Needs review", v: (c.stale || 0) + (c.disputed || 0) + (c.ungrounded || 0), col: "#ffd166" },
     ].filter(function (s) { return s.v > 0; });
     var total = seg.reduce(function (a, b) { return a + b.v; }, 0) || 1;
     var stops = [], acc = 0;
     seg.forEach(function (s) { var from = acc / total * 360, to = (acc + s.v) / total * 360; stops.push(s.col + " " + from + "deg " + to + "deg"); acc += s.v; });
     var donut = document.getElementById("donut");
-    donut.style.background = "conic-gradient(" + (stops.join(", ") || "#3a4842 0deg 360deg") + ")";
+    donut.style.background = "conic-gradient(" + (stops.join(", ") || "#2f4a3a 0deg 360deg") + ")";
     var dc = document.getElementById("donutCenter"); dc.textContent = ""; dc.appendChild(el("b", null, fmt(total))); dc.appendChild(el("span", null, "packets"));
     var leg = document.getElementById("healthLegend"); leg.textContent = "";
     seg.forEach(function (s) {
@@ -248,13 +248,14 @@
     var items = state.items.filter(function (i) { return i.paths && i.paths.length; });
     var rank = { hot: 0, healthy: 1, stale: 2, disputed: 2, ungrounded: 2, cold: 3 };
     items.sort(function (a, b) { var ra = rank[a.health] == null ? 4 : rank[a.health], rb = rank[b.health] == null ? 4 : rank[b.health]; return ra - rb || (b.total_uses || 0) - (a.total_uses || 0); });
-    items = items.slice(0, 42);
+    items = items.slice(0, 38);
     var nodes = [], edges = [], fileIdx = {};
     items.forEach(function (it, mi) {
       var review = ["stale", "disputed", "ungrounded"].indexOf(it.health) !== -1;
-      var mn = { id: "m" + mi, label: (it.title || "memory").slice(0, 26), kind: "memory", review: review, deg: 0, tip: it.title, sub: it.type || "memory" };
+      var label = (it.title || "memory"); if (label.length > 24) label = label.slice(0, 23) + "…";
+      var mn = { id: "m" + mi, label: label, kind: "memory", review: review, deg: 0, tip: it.title, sub: it.type || "memory" };
       nodes.push(mn); var mIndex = nodes.length - 1;
-      it.paths.slice(0, 4).forEach(function (p) {
+      it.paths.slice(0, 3).forEach(function (p) {
         var key = "f:" + p, fi = fileIdx[key];
         if (fi == null) { nodes.push({ id: key, label: base(p), kind: "file", deg: 0, tip: p, sub: "code file" }); fi = nodes.length - 1; fileIdx[key] = fi; }
         edges.push([mIndex, fi]); nodes[mIndex].deg++; nodes[fi].deg++;
@@ -276,12 +277,12 @@
       var n = G.nodes, e = G.edges, a = G.alpha;
       for (var i = 0; i < n.length; i++) for (var j = i + 1; j < n.length; j++) {
         var dx = n[i].x - n[j].x, dy = n[i].y - n[j].y, d2 = dx * dx + dy * dy + 0.01, d = Math.sqrt(d2);
-        var rep = 1400 / d2; var fx = dx / d * rep, fy = dy / d * rep;
+        var rep = 2800 / d2; var fx = dx / d * rep, fy = dy / d * rep;
         n[i].vx += fx; n[i].vy += fy; n[j].vx -= fx; n[j].vy -= fy;
       }
       for (var k = 0; k < e.length; k++) {
         var s = n[e[k][0]], t = n[e[k][1]], dx2 = t.x - s.x, dy2 = t.y - s.y, dd = Math.sqrt(dx2 * dx2 + dy2 * dy2) + 0.01;
-        var f = (dd - 70) * 0.012; var ux = dx2 / dd * f, uy = dy2 / dd * f;
+        var f = (dd - 92) * 0.013; var ux = dx2 / dd * f, uy = dy2 / dd * f;
         s.vx += ux; s.vy += uy; t.vx -= ux; t.vy -= uy;
       }
       for (var m = 0; m < n.length; m++) {
@@ -295,28 +296,40 @@
       G.raf = requestAnimationFrame(tick);
     }
     function neighbors(idx) { var s = {}; if (idx < 0) return s; s[idx] = 1; G.edges.forEach(function (e) { if (e[0] === idx) s[e[1]] = 1; if (e[1] === idx) s[e[0]] = 1; }); return s; }
+    function color(nd) { return nd.kind === "file" ? "#6ad7ff" : (nd.review ? "#ffd166" : "#c49cff"); }
     function draw() {
       var n = G.nodes, hl = neighbors(G.hover), active = G.hover >= 0;
       ctx.clearRect(0, 0, W, H);
       ctx.lineWidth = 1;
       G.edges.forEach(function (e) {
-        var on = active && (hl[e[0]] && hl[e[1]]);
-        ctx.strokeStyle = on ? "rgba(106,215,255,0.55)" : (active ? "rgba(220,255,235,0.04)" : "rgba(220,255,235,0.10)");
+        var on = active && hl[e[0]] && hl[e[1]];
+        ctx.strokeStyle = on ? "rgba(106,215,255,0.6)" : (active ? "rgba(147,175,160,0.05)" : "rgba(147,175,160,0.14)");
         ctx.beginPath(); ctx.moveTo(n[e[0]].x, n[e[0]].y); ctx.lineTo(n[e[1]].x, n[e[1]].y); ctx.stroke();
       });
+      // nodes
       n.forEach(function (nd, i) {
-        var r = Math.min(11, 4 + nd.deg * 1.1);
-        var col = nd.kind === "file" ? "#6ad7ff" : (nd.review ? "#f5c451" : "#41ff8f");
-        var dim = active && !hl[i];
-        ctx.globalAlpha = dim ? 0.18 : 1;
+        var r = Math.min(12, 4.5 + nd.deg * 1.1), dim = active && !hl[i], col = color(nd);
+        ctx.globalAlpha = dim ? 0.16 : 1;
+        if (!dim && (i === G.hover || nd.deg >= 4)) { ctx.beginPath(); ctx.arc(nd.x, nd.y, r + 5, 0, 6.2832); ctx.fillStyle = col + "22"; ctx.fill(); }
         ctx.beginPath(); ctx.arc(nd.x, nd.y, r, 0, 6.2832); ctx.fillStyle = col; ctx.fill();
-        if (!dim && (nd.deg > 1 || nd.kind === "memory" || i === G.hover)) {
-          ctx.globalAlpha = dim ? 0.18 : 0.82; ctx.fillStyle = "#cfe0d7"; ctx.font = "11px ui-sans-serif, system-ui";
-          ctx.fillText(nd.label, nd.x + r + 3, nd.y + 3);
-        }
+        ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(5,8,6,0.85)"; ctx.stroke(); ctx.lineWidth = 1;
+      });
+      // labels on top, only where they won't clutter
+      ctx.font = "600 11px Inter, ui-sans-serif, system-ui";
+      n.forEach(function (nd, i) {
+        if (active && !hl[i]) return;
+        var labelIt = active ? true : nd.deg >= 3;
+        if (!labelIt) return;
+        var r = Math.min(12, 4.5 + nd.deg * 1.1), tx = nd.x + r + 5, ty = nd.y + 3.5;
+        var w = ctx.measureText(nd.label).width;
+        ctx.globalAlpha = 0.85; ctx.fillStyle = "rgba(5,8,6,0.72)";
+        roundRect(tx - 4, ty - 11, w + 8, 16, 3); ctx.fill();
+        ctx.globalAlpha = 1; ctx.fillStyle = nd.kind === "file" ? "#9cd9f0" : "#d7c7f5";
+        ctx.fillText(nd.label, tx, ty);
       });
       ctx.globalAlpha = 1;
     }
+    function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
     function pick(mx, my) {
       var best = -1, bd = 18 * 18;
       for (var i = 0; i < G.nodes.length; i++) { var dx = G.nodes[i].x - mx, dy = G.nodes[i].y - my, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = i; } }
