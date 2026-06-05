@@ -198,7 +198,7 @@
       .donut { width: 132px; height: 132px; border-radius: 99px; flex: none; position: relative; }
       .donut::after { content: ""; position: absolute; inset: 21px; border-radius: 99px; background: var(--paper); }
       .donut .center { position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; text-align: center; }
-      .donut .center b { font: 800 26px/1 var(--sans); color: var(--green); } .donut .center b.warn { color: var(--warn); } .donut .center span { display: block; margin-top: 4px; color: var(--faint); font: 600 9px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .04em; }
+      .donut .center b { font: 800 26px/1 var(--sans); color: var(--green); } .donut .center b.warn { color: var(--warn); } .donut .center b.danger { color: var(--danger); } .donut .center span { display: block; margin-top: 4px; color: var(--faint); font: 600 9px/1 var(--mono); text-transform: uppercase; letter-spacing: .04em; }
       .donut-cap { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font: 400 12.5px/1.5 var(--sans); }
       .donut-cap b { color: var(--ink); font-weight: 600; }
       .legend2 { display: grid; gap: 10px; flex: 1; }
@@ -306,6 +306,6 @@
     </div>
     <div class="drawer-backdrop" id="detailBackdrop"></div>
     <aside class="drawer" id="detail" aria-hidden="true"></aside>
-    <script src="./console.js?v=12"></script>
+    <script src="./console.js?v=13"></script>
   </body>
 </html>
