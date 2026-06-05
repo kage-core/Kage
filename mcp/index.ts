@@ -10,6 +10,7 @@ import {
   auditProject,
   benchmarkCodingMemoryQuality,
   benchmarkMemoryScale,
+  benchmarkTrust,
   benchmarkTaskComparison,
   benchmarkProject,
   buildGlobalCdnBundle,
@@ -742,7 +743,7 @@ export function listTools() {
         type: "object",
         properties: {
           project_dir: { type: "string" },
-          mode: { type: "string", enum: ["project", "memory_quality", "memory_scale"] },
+          mode: { type: "string", enum: ["project", "trust", "memory_quality", "memory_scale"] },
           sizes: { type: "array", items: { type: "number" } },
           top_k: { type: "number" },
         },
@@ -1638,14 +1639,16 @@ export async function callTool(name: string, args: Record<string, unknown> | und
 
   if (name === "kage_benchmark") {
     const mode = String(args?.mode ?? "project");
-    const result = mode === "memory_quality"
-      ? benchmarkCodingMemoryQuality({ topK: Number(args?.top_k ?? 10) })
-      : mode === "memory_scale"
-        ? benchmarkMemoryScale({
-            sizes: Array.isArray(args?.sizes) ? args.sizes.map(Number) : undefined,
-            topK: Number(args?.top_k ?? 10),
-          })
-        : benchmarkProject(String(args?.project_dir ?? ""));
+    const result = mode === "trust"
+      ? benchmarkTrust(String(args?.project_dir ?? ""))
+      : mode === "memory_quality"
+        ? benchmarkCodingMemoryQuality({ topK: Number(args?.top_k ?? 10) })
+        : mode === "memory_scale"
+          ? benchmarkMemoryScale({
+              sizes: Array.isArray(args?.sizes) ? args.sizes.map(Number) : undefined,
+              topK: Number(args?.top_k ?? 10),
+            })
+          : benchmarkProject(String(args?.project_dir ?? ""));
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };

@@ -12143,6 +12143,124 @@ export function qualityReport(projectDir: string): QualityReport {
   };
 }
 
+export interface TrustBenchmarkReport {
+  schema_version: 1;
+  generated_at: string;
+  ok: boolean;
+  trust_score: number;
+  gates: Array<{ name: string; target: number; actual: number; unit: "percent"; pass: boolean }>;
+  metrics: {
+    hallucinated_citation_rejection_rate: number;
+    stale_memory_exclusion_rate: number;
+    live_grounding_rate: number;
+    wrong_advice_prevented_rate: number;
+  };
+  detail: {
+    hallucination: { attempted: number; rejected: number };
+    staleness: { recallable_before: number; excluded_after: number };
+    live_memory: { checked: number; grounded: number; stale: number };
+  };
+}
+
+// The Trust Benchmark measures what retrieval benchmarks cannot: whether the memory
+// system can be TRUSTED — does it refuse to store hallucinated citations, does it
+// withhold memory whose evidence was deleted, and is live repo memory actually grounded.
+// Controlled gates run in an isolated sandbox; the grounding gate runs on the real repo.
+export function benchmarkTrust(projectDir: string): TrustBenchmarkReport {
+  const runDir = mkdtempSync(join(tmpdir(), "kage-trust-"));
+  const sandbox = join(runDir, "project");
+  try {
+    ensureMemoryDirs(sandbox);
+    mkdirSync(join(sandbox, "src"), { recursive: true });
+
+    // Gate 1 — Hallucinated-citation rejection: a strict capture whose every cited path
+    // is missing must be rejected. (No competitor validates citations at write time.)
+    const hallucinationAttempts = 8;
+    let rejected = 0;
+    for (let i = 0; i < hallucinationAttempts; i += 1) {
+      const result = capture({
+        projectDir: sandbox,
+        title: `Hallucinated rule ${i}`,
+        body: `Use the helper in src/ghost-${i}.ts for retry handling.`,
+        type: "decision",
+        paths: [`src/ghost-${i}.ts`],
+        strictCitations: true,
+      });
+      if (!result.ok) rejected += 1;
+    }
+
+    // Gate 2 — Stale-memory exclusion: memory grounded in real files at capture time
+    // must be withheld from recall once those files are deleted (the "deleted since
+    // capture" signal). We only count memories that were recallable BEFORE deletion.
+    const staleAttempts = 8;
+    const recallableBefore: boolean[] = [];
+    for (let i = 0; i < staleAttempts; i += 1) {
+      writeFileSync(join(sandbox, "src", `widget-${i}.ts`), `export const widget${i} = ${i};\n`, "utf8");
+      capture({
+        projectDir: sandbox,
+        title: `Widget ${i} retry invariant`,
+        body: `Widget ${i} retries use idempotency token zeta${i} in src/widget-${i}.ts to avoid duplicate charges.`,
+        type: "decision",
+        paths: [`src/widget-${i}.ts`],
+      });
+    }
+    for (let i = 0; i < staleAttempts; i += 1) {
+      const before = recall(sandbox, `widget ${i} retry idempotency token zeta${i}`, 5, false, { trackAccess: false });
+      recallableBefore[i] = before.results.some((entry) => entry.packet.title === `Widget ${i} retry invariant`);
+    }
+    for (let i = 0; i < staleAttempts; i += 1) {
+      rmSync(join(sandbox, "src", `widget-${i}.ts`), { force: true });
+    }
+    let recallableCount = 0;
+    let excludedAfter = 0;
+    for (let i = 0; i < staleAttempts; i += 1) {
+      if (!recallableBefore[i]) continue;
+      recallableCount += 1;
+      const after = recall(sandbox, `widget ${i} retry idempotency token zeta${i}`, 5, false, { trackAccess: false });
+      const surfaced = after.results.some((entry) => entry.packet.title === `Widget ${i} retry invariant`);
+      if (!surfaced) excludedAfter += 1;
+    }
+
+    // Gate 3 — Live grounding: how much of the real repo's approved memory is grounded
+    // (cited files exist) and not stale.
+    const verify = verifyCitations(projectDir);
+    const liveChecked = verify.checked;
+    const grounded = verify.packets.filter((entry) => entry.grounded && !entry.stale).length;
+
+    const hallucinationRate = percent(rejected, hallucinationAttempts);
+    const staleRate = percent(excludedAfter, recallableCount || staleAttempts);
+    const liveGroundingRate = liveChecked > 0 ? percent(grounded, liveChecked) : 100;
+    const wrongAdvicePrevented = percent(rejected + excludedAfter, hallucinationAttempts + (recallableCount || staleAttempts));
+
+    const gates: TrustBenchmarkReport["gates"] = [
+      { name: "hallucinated_citation_rejection", target: 100, actual: hallucinationRate, unit: "percent", pass: hallucinationRate >= 100 },
+      { name: "stale_memory_exclusion", target: 100, actual: staleRate, unit: "percent", pass: staleRate >= 100 },
+      { name: "live_grounding_rate", target: 80, actual: liveGroundingRate, unit: "percent", pass: liveGroundingRate >= 80 },
+    ];
+    const trustScore = Math.round((hallucinationRate + staleRate + liveGroundingRate) / 3);
+    return {
+      schema_version: 1,
+      generated_at: nowIso(),
+      ok: gates.every((gate) => gate.pass),
+      trust_score: trustScore,
+      gates,
+      metrics: {
+        hallucinated_citation_rejection_rate: hallucinationRate,
+        stale_memory_exclusion_rate: staleRate,
+        live_grounding_rate: liveGroundingRate,
+        wrong_advice_prevented_rate: wrongAdvicePrevented,
+      },
+      detail: {
+        hallucination: { attempted: hallucinationAttempts, rejected },
+        staleness: { recallable_before: recallableCount, excluded_after: excludedAfter },
+        live_memory: { checked: liveChecked, grounded, stale: verify.stale },
+      },
+    };
+  } finally {
+    rmSync(runDir, { recursive: true, force: true });
+  }
+}
+
 export function benchmarkProject(projectDir: string, inputs: GraphInputs = {}): BenchmarkReport {
   ensureMemoryDirs(projectDir);
   const built = inputs.codeGraph && inputs.knowledgeGraph ? null : currentOrBuildGraphs(projectDir);
