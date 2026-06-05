@@ -81,6 +81,7 @@ import {
   gcProject,
   compactProject,
   verifyCitations,
+  kageSuppressedMemory,
   refreshProject,
   rejectPending,
   registryRecommendations,
@@ -122,6 +123,7 @@ Usage:
   kage gc --project <dir> [--dry-run] [--force] [--json]
   kage compact --project <dir> [--dry-run] [--json]
   kage verify --project <dir> [--id <packet-id>] [--json]
+  kage suppressed --project <dir> [--json]
   kage pr summarize --project <dir> [--json]
   kage pr check --project <dir> [--json]
   kage upgrade [--dry-run]
@@ -530,6 +532,21 @@ async function main(): Promise<void> {
       if (entry.missing_paths.length) console.log(`      missing: ${entry.missing_paths.join(", ")}`);
       for (const reason of entry.stale_reasons) console.log(`      - ${reason}`);
     }
+    return;
+  }
+
+  if (command === "suppressed") {
+    const result = kageSuppressedMemory(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage suppressed memory — ${result.count} packet(s) currently withheld from recall`);
+    for (const item of result.items) {
+      console.log(`  ⊘ ${item.title}`);
+      console.log(`      ${item.reason}`);
+    }
+    if (!result.count) console.log("  (none — all recallable memory is grounded and current)");
     return;
   }
 
