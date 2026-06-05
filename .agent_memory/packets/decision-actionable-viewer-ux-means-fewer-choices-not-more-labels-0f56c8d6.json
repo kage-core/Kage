@@ -8,7 +8,7 @@
   "scope": "repo",
   "visibility": "team",
   "sensitivity": "internal",
-  "status": "approved",
+  "status": "deprecated",
   "confidence": 0.7,
   "tags": [
     "session-learning"
@@ -49,8 +49,13 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 85
+    "estimated_tokens_saved": 85,
+    "stale": true,
+    "stale_reasons": [
+      "packet status is deprecated"
+    ],
+    "suggested_action": "mark_stale"
   },
   "created_at": "2026-05-15T10:29:18.140Z",
-  "updated_at": "2026-06-05T14:03:30.154Z"
+  "updated_at": "2026-06-05T14:45:40.999Z"
 }

@@ -9,7 +9,7 @@
     suppressed: src("suppressed", root + "suppressed.json"),
     metrics: src("metrics", "./data/kage/metrics.json"),
   };
-  var state = { items: [], filter: "all", q: "", metrics: null, graphReady: false };
+  var state = { items: [], filter: "all", q: "", metrics: null, graphReady: false, showAll: false };
 
   function getJSON(p) { return fetch(p).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
@@ -111,7 +111,7 @@
     var c = counts(items);
     var review = (c.stale || 0) + (c.disputed || 0) + (c.ungrounded || 0);
     var data = [
-      { k: "Memory packets", v: fmt(mg.approved_packets || items.length), s: (c.hot || 0) + " hot · " + (c.healthy || 0) + " healthy", cls: "memory" },
+      { k: "Memory packets", v: fmt(items.length), s: (c.hot || 0) + " hot · " + (c.healthy || 0) + " healthy", cls: "memory" },
       { k: "Needs review", v: fmt(review), s: review ? "stale or ungrounded" : "all current", cls: review ? "warn" : "green" },
       { k: "Files mapped", v: fmt(cg.files), s: fmt(cg.symbols) + " symbols indexed", cls: "code" },
       { k: "Saved per recall", v: fmt(sv.estimated_tokens_saved_per_recall), s: "tokens vs. re-reading source", cls: "green" },
@@ -156,9 +156,29 @@
       if (k !== "all" && !c[k]) return;
       var b = el("button", "chip"); b.setAttribute("aria-pressed", state.filter === k ? "true" : "false");
       b.innerHTML = (k === "all" ? "All" : k[0].toUpperCase() + k.slice(1)) + " <b>" + (c[k] || 0) + "</b>";
-      b.onclick = function () { state.filter = k; renderChips(); renderList(); };
+      b.onclick = function () { state.filter = k; state.showAll = false; renderChips(); renderList(); };
       box.appendChild(b);
     });
+  }
+  var LIST_CAP = 50;
+  var HEALTH_LABEL = { hot: "Hot", healthy: "Healthy", cold: "Cold", stale: "Stale", disputed: "Disputed", ungrounded: "Ungrounded", generated: "Generated" };
+  function fileSummary(paths) {
+    var seen = {}, bases = [];
+    (paths || []).forEach(function (p) { var b = base(p); if (!seen[b]) { seen[b] = 1; bases.push(b); } });
+    if (!bases.length) return null;
+    if (bases.length === 1) return bases[0];
+    return bases[0] + "  +" + (bases.length - 1);
+  }
+  function memoryRow(i) {
+    var row = el("div", "row"); row.appendChild(el("span", "dot " + (i.health || "")));
+    var body = el("div"); body.appendChild(el("div", "title", i.title));
+    var meta = el("div", "meta"); meta.appendChild(el("span", "type", i.type || "memory"));
+    var fs = fileSummary(i.paths); if (fs) meta.appendChild(el("span", "paths", fs));
+    body.appendChild(meta); row.appendChild(body);
+    var right = el("div", "right");
+    right.appendChild(el("span", "pill " + (i.health || ""), HEALTH_LABEL[i.health] || i.health || "memory"));
+    if (i.total_uses) right.appendChild(el("span", "uses", "used " + i.total_uses + "×"));
+    row.appendChild(right); return row;
   }
   function renderList() {
     var list = document.getElementById("list"); list.textContent = "";
@@ -174,20 +194,33 @@
       var ra = rank[a.health]; if (ra == null) ra = 5; var rb = rank[b.health]; if (rb == null) rb = 5;
       return ra - rb || (b.total_uses || 0) - (a.total_uses || 0);
     });
+    var countEl = document.getElementById("memcount");
+    if (countEl) countEl.textContent = rows.length === state.items.length ? rows.length + " packets" : rows.length + " of " + state.items.length + " packets";
     if (!rows.length) { list.appendChild(el("div", "empty", "No memory matches.")); return; }
-    rows.forEach(function (i) {
-      var row = el("div", "row"); row.appendChild(el("span", "dot " + (i.health || "")));
-      var body = el("div"); body.appendChild(el("div", "title", i.title));
-      var meta = el("div", "meta"); meta.appendChild(el("span", "type", i.type || "memory"));
-      if (i.paths && i.paths.length) meta.appendChild(el("span", "paths", i.paths.slice(0, 3).map(base).join("  ·  ")));
-      body.appendChild(meta); row.appendChild(body);
-      var right = el("div", "right"); var h = el("span", "health " + (i.health || ""), i.health || ""); right.appendChild(h);
-      if (i.total_uses) { right.appendChild(document.createElement("br")); right.appendChild(document.createTextNode("used " + i.total_uses + "×")); }
-      row.appendChild(right); list.appendChild(row);
-    });
+
+    var grouped = state.filter === "all" && !q;
+    var cap = state.showAll ? Infinity : LIST_CAP, shown = 0;
+    if (grouped) {
+      var buckets = [["Needs review", ["stale", "disputed", "ungrounded"]], ["Hot", ["hot"]], ["Healthy", ["healthy"]], ["Cold", ["cold"]], ["Other", ["generated"]]];
+      buckets.forEach(function (bk) {
+        var brows = rows.filter(function (r) { return bk[1].indexOf(r.health) !== -1; });
+        if (!brows.length || shown >= cap) return;
+        var head = el("div", "grouphead");
+        head.appendChild(el("span", "gl", bk[0])); head.appendChild(el("span", "gc", String(brows.length))); head.appendChild(el("span", "gline"));
+        list.appendChild(head);
+        brows.forEach(function (r) { if (shown < cap) { list.appendChild(memoryRow(r)); shown++; } });
+      });
+    } else {
+      rows.forEach(function (r) { if (shown < cap) { list.appendChild(memoryRow(r)); shown++; } });
+    }
+    if (!state.showAll && rows.length > shown) {
+      var more = el("button", "showmore", "Show all " + rows.length + " packets");
+      more.onclick = function () { state.showAll = true; renderList(); };
+      list.appendChild(more);
+    }
   }
   var searchEl = document.getElementById("search");
-  if (searchEl) searchEl.addEventListener("input", function (e) { state.q = e.target.value; renderList(); });
+  if (searchEl) searchEl.addEventListener("input", function (e) { state.q = e.target.value; state.showAll = false; renderList(); });
 
   // ---- insights ----
   function renderInsights(metrics, items) {
@@ -219,6 +252,22 @@
       var t = el("span", "t"), f = el("i"); t.appendChild(f); row.appendChild(t); row.appendChild(el("span", "c", String(p[1])));
       tb.appendChild(row); setTimeout(function () { f.style.width = (p[1] / max * 100) + "%"; }, 80);
     });
+    // most-grounded files: which code carries the most institutional memory
+    var fileCounts = {};
+    items.forEach(function (i) { (i.paths || []).forEach(function (p) { fileCounts[p] = (fileCounts[p] || 0) + 1; }); });
+    var gf = Object.keys(fileCounts).map(function (k) { return [k, fileCounts[k]]; }).sort(function (a, b) { return b[1] - a[1]; }).slice(0, 8);
+    var gmax = gf.length ? gf[0][1] : 1;
+    var gfb = document.getElementById("groundedFiles"); if (gfb) {
+      gfb.textContent = "";
+      if (!gf.length) { gfb.appendChild(el("div", "empty", "No memory is grounded to code yet.")); }
+      var baseSeen = {}; gf.forEach(function (p) { var b = base(p[0]); baseSeen[b] = (baseSeen[b] || 0) + 1; });
+      gf.forEach(function (p) {
+        var b = base(p[0]), label = baseSeen[b] > 1 ? p[0].split("/").slice(-2).join("/") : b;
+        var row = el("div", "hbar code"); var n = el("span", "n", label); n.title = p[0]; row.appendChild(n);
+        var t = el("span", "t"), f = el("i"); t.appendChild(f); row.appendChild(t); row.appendChild(el("span", "c", String(p[1])));
+        gfb.appendChild(row); setTimeout(function () { f.style.width = (p[1] / gmax * 100) + "%"; }, 80);
+      });
+    }
     // code tiles
     var langs = Object.keys(cg.languages || {}).length;
     var ct = [
