@@ -1,0 +1,16 @@
+{
+  "name": "kage",
+  "displayName": "Kage — trustworthy repo memory",
+  "version": "1.3.0",
+  "description": "Trustworthy, code-grounded memory for coding agents. Recall grounded repo knowledge before acting, capture durable learnings, and never act on stale or hallucinated memory.",
+  "author": {
+    "name": "Kage",
+    "url": "https://github.com/kage-core/Kage"
+  },
+  "homepage": "https://kage-core.github.io/Kage/",
+  "repository": "https://github.com/kage-core/Kage",
+  "license": "GPL-3.0-only",
+  "keywords": ["memory", "mcp", "trust", "code-graph", "agent"],
+  "mcpServers": "./.mcp.json",
+  "skills": "./skills/"
+}
