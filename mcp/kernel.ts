@@ -7741,6 +7741,28 @@ export interface CitationVerificationResult {
 
 // On-demand citation/freshness check the agent can call before trusting a memory.
 // Pass an id to verify one packet, or omit to audit all approved memory.
+export interface SuppressedMemoryReport {
+  schema_version: 1;
+  generated_at: string;
+  count: number;
+  items: Array<{ id: string; title: string; type: MemoryType; reason: string; paths: string[] }>;
+}
+
+// The memory recall is actively WITHHOLDING from agents right now (hard-stale:
+// cited files deleted, ttl expired, or reported stale). This is the human-facing
+// counterpart to the silent recall-time exclusion — surfaced, never hidden.
+export function kageSuppressedMemory(projectDir: string): SuppressedMemoryReport {
+  ensureMemoryDirs(projectDir);
+  const cache = new Map<string, MemoryPathFingerprint | null>();
+  const items = loadApprovedPackets(projectDir)
+    .map((packet) => {
+      const reason = recallHardStaleReason(projectDir, packet, cache);
+      return reason ? { id: packet.id, title: packet.title, type: packet.type, reason, paths: packet.paths } : null;
+    })
+    .filter((entry): entry is SuppressedMemoryReport["items"][number] => entry !== null);
+  return { schema_version: 1, generated_at: nowIso(), count: items.length, items };
+}
+
 export function verifyCitations(projectDir: string, options: { id?: string } = {}): CitationVerificationResult {
   ensureMemoryDirs(projectDir);
   const approved = loadApprovedPackets(projectDir);

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Kage viewer</title>
-    <link rel="stylesheet" href="./styles.css?v=38">
+    <link rel="stylesheet" href="./styles.css?v=39">
   </head>
   <body>
     <div class="viewer-shell">
@@ -55,6 +55,7 @@
         <main class="layout">
       <section class="dashboard-panel" aria-label="Kage repo dashboard">
         <div id="trustHero" class="trust-hero" aria-label="Memory trust score"></div>
+        <div id="suppressionShelf" class="suppression-shelf" aria-label="Memory withheld from recall" hidden></div>
         <div id="dashboardStats" class="dashboard-stats" aria-label="Repo dashboard stats"></div>
         <section id="repoXray" class="repo-xray" aria-label="Repository map">
           <div class="repo-xray-head">
@@ -303,6 +304,6 @@
       </section>
     </div>
 
-    <script src="./app.js?v=52"></script>
+    <script src="./app.js?v=53"></script>
   </body>
 </html>

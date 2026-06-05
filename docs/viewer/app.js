@@ -48,7 +48,8 @@
       timeline: null,
       lineage: null,
       setup: null,
-      trust: null
+      trust: null,
+      suppressed: null
     },
     pendingPackets: [],
     reviewText: "",
@@ -185,6 +186,7 @@
     reviewCount: document.getElementById("reviewCount"),
     dashboardStats: document.getElementById("dashboardStats"),
     trustHero: document.getElementById("trustHero"),
+    suppressionShelf: document.getElementById("suppressionShelf"),
     repoXray: document.getElementById("repoXray"),
     repoXrayStatus: document.getElementById("repoXrayStatus"),
     repoXrayScript: document.getElementById("repoXrayScript"),
@@ -625,6 +627,7 @@
     var lineagePath = params.get("lineage") || params.get("memoryLineage") || params.get("memory-lineage");
     var setupPath = params.get("setup") || params.get("setupDoctor") || params.get("setup-doctor");
     var trustPath = params.get("trust") || params.get("trustBenchmark") || params.get("trust-benchmark");
+    var suppressedPath = params.get("suppressed") || params.get("suppressedMemory") || params.get("suppressed-memory");
     var inferredRoot = inferMemoryRoot(graphPaths[0] || "");
     if (!inboxPath && inferredRoot) inboxPath = inferredRoot + "/inbox.json";
     if (!reviewPath && inferredRoot) reviewPath = inferredRoot + "/review/memory-review.md";
@@ -652,6 +655,7 @@
       if (!lineagePath) lineagePath = inferredRoot + "/reports/lineage.json";
       if (!setupPath) setupPath = inferredRoot + "/reports/setup.json";
       if (!trustPath) trustPath = inferredRoot + "/reports/trust.json";
+      if (!suppressedPath) suppressedPath = inferredRoot + "/reports/suppressed.json";
     }
     var jobs = [];
     if (metricsPath) jobs.push(fetchJson(metricsPath).then(function (metrics) { state.metrics = metrics; }));
@@ -680,6 +684,7 @@
     if (lineagePath) jobs.push(fetchJson(lineagePath).then(function (report) { state.reports.lineage = report; }).catch(function () { state.reports.lineage = null; }));
     if (setupPath) jobs.push(fetchJson(setupPath).then(function (report) { state.reports.setup = report; }).catch(function () { state.reports.setup = null; }));
     if (trustPath) jobs.push(fetchJson(trustPath).then(function (report) { state.reports.trust = report; }).catch(function () { state.reports.trust = null; }));
+    if (suppressedPath) jobs.push(fetchJson(suppressedPath).then(function (report) { state.reports.suppressed = report; }).catch(function () { state.reports.suppressed = null; }));
     if (!graphPaths.length && !jobs.length) {
       loadHostedDefault();
       return;
@@ -729,7 +734,8 @@
       fetchJson("./data/kage/reports/timeline.json").catch(function () { return null; }),
       fetchJson("./data/kage/reports/lineage.json").catch(function () { return null; }),
       fetchJson("./data/kage/reports/setup.json").catch(function () { return null; }),
-      fetchJson("./data/kage/reports/trust.json").catch(function () { return null; })
+      fetchJson("./data/kage/reports/trust.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/suppressed.json").catch(function () { return null; })
     ]).then(function (items) {
       var merged = mergeNormalizedGraphs([normalizeGraph(items[0]), normalizeGraph(items[1])]);
       state.metrics = items[2];
@@ -754,6 +760,7 @@
       state.reports.lineage = items[21];
       state.reports.setup = items[22];
       state.reports.trust = items[23];
+      state.reports.suppressed = items[24];
       loadNormalizedGraph(merged, "Kage repo graph");
       setAutoLoad("Kage repo graph loaded", true);
     }).catch(function () {
@@ -3028,6 +3035,37 @@
     for (var i = 0; i < labelEls.length; i += 1) labelEls[i].textContent = bars[i][0];
   }
 
+  function renderSuppressionShelf(report) {
+    if (!els.suppressionShelf) return;
+    var items = (report && report.items) || [];
+    if (!items.length) {
+      els.suppressionShelf.innerHTML = "";
+      els.suppressionShelf.hidden = true;
+      return;
+    }
+    els.suppressionShelf.hidden = false;
+    var plural = items.length === 1 ? "memory is" : "memories are";
+    els.suppressionShelf.innerHTML =
+      '<div class="suppression-head">'
+      + '<div><span class="suppression-eyebrow">Withheld from recall</span>'
+      + '<h2>' + items.length + ' ' + plural + ' being withheld from your agents</h2></div>'
+      + '<strong class="suppression-flag">Needs review</strong>'
+      + '</div>'
+      + '<p class="suppression-sub">Recall is hiding these because their cited evidence was deleted or expired. Verify, update, or supersede each before agents should trust them.</p>'
+      + '<div class="suppression-list">'
+      + items.slice(0, 8).map(function () {
+        return '<div class="suppression-item"><span class="suppression-item-title"></span><span class="suppression-item-reason"></span></div>';
+      }).join("")
+      + '</div>'
+      + (items.length > 8 ? '<p class="suppression-more">+ ' + (items.length - 8) + ' more — run <code>kage suppressed</code></p>' : '');
+    var titleEls = els.suppressionShelf.querySelectorAll(".suppression-item-title");
+    var reasonEls = els.suppressionShelf.querySelectorAll(".suppression-item-reason");
+    for (var i = 0; i < titleEls.length; i += 1) {
+      titleEls[i].textContent = items[i].title;
+      reasonEls[i].textContent = items[i].reason;
+    }
+  }
+
   function renderDashboard() {
     if (!els.dashboardStats) return;
     var metrics = state.metrics || {};
@@ -3055,6 +3093,7 @@
     var memoryCoverage = dashboardMemoryCoverage(reports, memoryCodeEdges, memoryGraph, memoryNodes);
     var riskHealth = riskTargets.length || hotspots ? (riskTargets.length + hotspots) + " checks" : "No flags";
     renderTrustHero(reports.trust);
+    renderSuppressionShelf(reports.suppressed);
     var statRows = [
       ["Handoff", readiness.label, readiness.detail, readiness.status],
       ["Memory", memoryCoverage.label, memoryCoverage.detail, memoryCoverage.status],

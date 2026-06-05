@@ -40,6 +40,7 @@ import {
   observe,
   qualityReport,
   benchmarkTrust,
+  kageSuppressedMemory,
   queryGraph,
   recall,
   recordFeedback,
@@ -670,6 +671,7 @@ export async function startViewer(projectDir: string, options: { host?: string; 
   const lineagePath = join(reportsDir, "lineage.json");
   const setupPath = join(reportsDir, "setup.json");
   const trustPath = join(reportsDir, "trust.json");
+  const suppressedPath = join(reportsDir, "suppressed.json");
 
   // Pre-generate lightweight JSON reports so the viewer can load them directly.
   try {
@@ -700,11 +702,12 @@ export async function startViewer(projectDir: string, options: { host?: string; 
     writeFileSync(lineagePath, JSON.stringify(kageMemoryLineage(projectDir), null, 2));
     writeFileSync(setupPath, JSON.stringify(setupDoctor(projectDir), null, 2));
     writeFileSync(trustPath, JSON.stringify(benchmarkTrust(projectDir), null, 2));
+    writeFileSync(suppressedPath, JSON.stringify(kageSuppressedMemory(projectDir), null, 2));
   } catch {
     // non-fatal: viewer will show 404 for reports if generation fails
   }
 
-  const url = `http://${host}:${port}/viewer/index.html?graph=${encodeURIComponent(graphPath)}&code=${encodeURIComponent(codePath)}&metrics=${encodeURIComponent(metricsPath)}&inbox=${encodeURIComponent(inboxPath)}&review=${encodeURIComponent(reviewPath)}&pending=${encodeURIComponent(pendingDir)}&quality=${encodeURIComponent(qualityPath)}&benchmark=${encodeURIComponent(benchmarkPath)}&contributors=${encodeURIComponent(contributorsPath)}&profile=${encodeURIComponent(profilePath)}&xray=${encodeURIComponent(xrayPath)}&capabilities=${encodeURIComponent(capabilitiesPath)}&slots=${encodeURIComponent(slotsPath)}&decisions=${encodeURIComponent(decisionsPath)}&risk=${encodeURIComponent(riskPath)}&moduleHealth=${encodeURIComponent(moduleHealthPath)}&graphInsights=${encodeURIComponent(graphInsightsPath)}&workspace=${encodeURIComponent(workspacePath)}&sessions=${encodeURIComponent(sessionsPath)}&replay=${encodeURIComponent(replayPath)}&memoryAccess=${encodeURIComponent(memoryAccessPath)}&memoryAudit=${encodeURIComponent(memoryAuditPath)}&handoff=${encodeURIComponent(handoffPath)}&lifecycle=${encodeURIComponent(lifecyclePath)}&timeline=${encodeURIComponent(timelinePath)}&lineage=${encodeURIComponent(lineagePath)}&setup=${encodeURIComponent(setupPath)}&trust=${encodeURIComponent(trustPath)}&view=code`;
+  const url = `http://${host}:${port}/viewer/index.html?graph=${encodeURIComponent(graphPath)}&code=${encodeURIComponent(codePath)}&metrics=${encodeURIComponent(metricsPath)}&inbox=${encodeURIComponent(inboxPath)}&review=${encodeURIComponent(reviewPath)}&pending=${encodeURIComponent(pendingDir)}&quality=${encodeURIComponent(qualityPath)}&benchmark=${encodeURIComponent(benchmarkPath)}&contributors=${encodeURIComponent(contributorsPath)}&profile=${encodeURIComponent(profilePath)}&xray=${encodeURIComponent(xrayPath)}&capabilities=${encodeURIComponent(capabilitiesPath)}&slots=${encodeURIComponent(slotsPath)}&decisions=${encodeURIComponent(decisionsPath)}&risk=${encodeURIComponent(riskPath)}&moduleHealth=${encodeURIComponent(moduleHealthPath)}&graphInsights=${encodeURIComponent(graphInsightsPath)}&workspace=${encodeURIComponent(workspacePath)}&sessions=${encodeURIComponent(sessionsPath)}&replay=${encodeURIComponent(replayPath)}&memoryAccess=${encodeURIComponent(memoryAccessPath)}&memoryAudit=${encodeURIComponent(memoryAuditPath)}&handoff=${encodeURIComponent(handoffPath)}&lifecycle=${encodeURIComponent(lifecyclePath)}&timeline=${encodeURIComponent(timelinePath)}&lineage=${encodeURIComponent(lineagePath)}&setup=${encodeURIComponent(setupPath)}&trust=${encodeURIComponent(trustPath)}&suppressed=${encodeURIComponent(suppressedPath)}&view=code`;
 
   const server = createServer((req, res) => {
     const requestUrl = new URL(req.url ?? "/", `http://${host}:${port}`);

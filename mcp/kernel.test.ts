@@ -37,6 +37,7 @@ import {
   compactProject,
   verifyCitations,
   benchmarkTrust,
+  kageSuppressedMemory,
   initProject,
   indexProject,
   installAgentPolicy,
@@ -3684,6 +3685,23 @@ test("recall assembles a bounded structural blast radius from the recalled memor
   const traversed = recall(project, "core retry idempotent payment", 5, false, { structuralHops: 2 });
   assert.match(traversed.context_block, /Structural Blast Radius \(2-hop\)/);
   assert.match(traversed.context_block, /src\/app\.js/); // app.js depends on the recalled core.js
+});
+
+test("kageSuppressedMemory lists memory recall is withholding", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "gone.ts"), "export const gone = 1;\n", "utf8");
+  writeFileSync(join(project, "src", "kept.ts"), "export const kept = 1;\n", "utf8");
+  const gone = capture({ projectDir: project, title: "Gone rule", body: "About src/gone.ts retries.", type: "decision", paths: ["src/gone.ts"] });
+  capture({ projectDir: project, title: "Kept rule", body: "About src/kept.ts retries.", type: "decision", paths: ["src/kept.ts"] });
+  assert.equal(gone.ok, true);
+  unlinkSync(join(project, "src", "gone.ts"));
+
+  const report = kageSuppressedMemory(project);
+  assert.equal(report.count >= 1, true);
+  assert.equal(report.items.some((item) => item.title === "Gone rule"), true);
+  assert.equal(report.items.some((item) => item.title === "Kept rule"), false);
+  assert.equal(report.items.every((item) => typeof item.reason === "string" && item.reason.length > 0), true);
 });
 
 test("trust benchmark proves citation rejection, stale exclusion, and grounding", () => {
