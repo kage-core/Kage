@@ -269,22 +269,36 @@
   function renderInsights(metrics, items) {
     var cg = (metrics && metrics.code_graph) || {}, mg = (metrics && metrics.memory_graph) || {}, sv = (metrics && metrics.savings) || {};
     var c = counts(items);
-    // health donut
+    // Health donut = trustworthiness, not recall frequency. "Cold" (not yet recalled)
+    // is grounded & current, so it counts as healthy — coloring it grey made a perfectly
+    // trustworthy store look dead. Segments: grounded & current vs needs review.
+    var needsReview = (c.stale || 0) + (c.disputed || 0) + (c.ungrounded || 0);
+    var generated = c.generated || 0;
+    var groundedCurrent = items.length - needsReview - generated;
     var seg = [
-      { k: "Hot", v: c.hot || 0, col: "#87f7b5" }, { k: "Healthy", v: c.healthy || 0, col: "#41ff8f" },
-      { k: "Cold", v: c.cold || 0, col: "#2f4a3a" }, { k: "Needs review", v: (c.stale || 0) + (c.disputed || 0) + (c.ungrounded || 0), col: "#ffd166" },
+      { k: "Grounded & current", v: groundedCurrent, col: "#41ff8f" },
+      { k: "Needs review", v: needsReview, col: "#ffd166" },
+      { k: "Generated", v: generated, col: "#3a8db0" },
     ].filter(function (s) { return s.v > 0; });
-    var total = seg.reduce(function (a, b) { return a + b.v; }, 0) || 1;
+    var total = items.length || 1;
     var stops = [], acc = 0;
     seg.forEach(function (s) { var from = acc / total * 360, to = (acc + s.v) / total * 360; stops.push(s.col + " " + from + "deg " + to + "deg"); acc += s.v; });
     var donut = document.getElementById("donut");
-    donut.style.background = "conic-gradient(" + (stops.join(", ") || "#2f4a3a 0deg 360deg") + ")";
-    var dc = document.getElementById("donutCenter"); dc.textContent = ""; dc.appendChild(el("b", null, fmt(total))); dc.appendChild(el("span", null, "packets"));
+    donut.style.background = "conic-gradient(" + (stops.join(", ") || "#41ff8f 0deg 360deg") + ")";
+    var pct = Math.round(groundedCurrent / total * 100);
+    var dc = document.getElementById("donutCenter"); dc.textContent = "";
+    dc.appendChild(el("b", needsReview ? "warn" : null, pct + "%")); dc.appendChild(el("span", null, "grounded & current"));
     var leg = document.getElementById("healthLegend"); leg.textContent = "";
     seg.forEach(function (s) {
       var li = el("div", "li"); var i = el("i"); i.style.background = s.col; li.appendChild(i);
       li.appendChild(document.createTextNode(s.k)); li.appendChild(el("b", null, s.v + " · " + Math.round(s.v / total * 100) + "%")); leg.appendChild(li);
     });
+    var cap = document.getElementById("healthCap");
+    if (cap) {
+      var recalled = items.filter(function (i) { return (i.total_uses || 0) > 0; }).length;
+      cap.innerHTML = "<b>" + total + "</b> packets · <b>" + recalled + "</b> recalled by agents so far" +
+        (needsReview ? " · <b>" + needsReview + "</b> need review" : " · all current");
+    }
     // type bars
     var types = {}; items.forEach(function (i) { var t = i.type || "memory"; types[t] = (types[t] || 0) + 1; });
     var arr = Object.keys(types).map(function (k) { return [k, types[k]]; }).sort(function (a, b) { return b[1] - a[1]; }).slice(0, 7);
