@@ -38,7 +38,7 @@ jobs:
         run: |
           npm ci --prefix mcp
           npm run build --prefix mcp
-          node mcp/dist/cli.js refresh --project .
+          node mcp/dist/cli.js refresh --project "$GITHUB_WORKSPACE"
           # Seed the public demo with REAL recalls against this repo's own memory so
           # the Activity feed, recall counts, and hot/healthy memory render populated
           # (recall telemetry is local + gitignored, so a fresh CI checkout has none).
@@ -62,16 +62,16 @@ jobs:
           )
           # Repeat the core queries so frequently-useful packets become "hot".
           for round in 1 2 3 4; do
-            for q in "${queries[@]:0:6}"; do node mcp/dist/cli.js recall "$q" --project . >/dev/null 2>&1 || true; done
+            for q in "${queries[@]:0:6}"; do node mcp/dist/cli.js recall "$q" --project "$GITHUB_WORKSPACE" >/dev/null 2>&1 || true; done
           done
           # Long tail once, for breadth in the feed.
-          for q in "${queries[@]:6}"; do node mcp/dist/cli.js recall "$q" --project . >/dev/null 2>&1 || true; done
-          node mcp/dist/cli.js metrics --project . --json > .agent_memory/metrics.json
-          node mcp/dist/cli.js inbox --project . --json > .agent_memory/inbox.json
-          node mcp/dist/cli.js benchmark --trust --project . --json > .agent_memory/reports/trust.json || true
-          node mcp/dist/cli.js suppressed --project . --json > .agent_memory/reports/suppressed.json || true
-          node mcp/dist/cli.js lifecycle --project . --json > .agent_memory/reports/lifecycle.json || true
-          node mcp/dist/cli.js activity --project . --json > .agent_memory/reports/activity.json || true
+          for q in "${queries[@]:6}"; do node mcp/dist/cli.js recall "$q" --project "$GITHUB_WORKSPACE" >/dev/null 2>&1 || true; done
+          node mcp/dist/cli.js metrics --project "$GITHUB_WORKSPACE" --json > .agent_memory/metrics.json
+          node mcp/dist/cli.js inbox --project "$GITHUB_WORKSPACE" --json > .agent_memory/inbox.json
+          node mcp/dist/cli.js benchmark --trust --project "$GITHUB_WORKSPACE" --json > .agent_memory/reports/trust.json || true
+          node mcp/dist/cli.js suppressed --project "$GITHUB_WORKSPACE" --json > .agent_memory/reports/suppressed.json || true
+          node mcp/dist/cli.js lifecycle --project "$GITHUB_WORKSPACE" --json > .agent_memory/reports/lifecycle.json || true
+          node mcp/dist/cli.js activity --project "$GITHUB_WORKSPACE" --json > .agent_memory/reports/activity.json || true
       - uses: actions/configure-pages@v5
         with:
           enablement: true
