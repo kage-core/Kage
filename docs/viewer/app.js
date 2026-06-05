@@ -37,6 +37,7 @@
       risk: null,
       moduleHealth: null,
       graphInsights: null,
+      xray: null,
       workspace: null,
       sessions: null,
       replay: null,
@@ -46,7 +47,8 @@
       lifecycle: null,
       timeline: null,
       lineage: null,
-      setup: null
+      setup: null,
+      trust: null
     },
     pendingPackets: [],
     reviewText: "",
@@ -182,6 +184,10 @@
     edgeCount: document.getElementById("edgeCount"),
     reviewCount: document.getElementById("reviewCount"),
     dashboardStats: document.getElementById("dashboardStats"),
+    repoXray: document.getElementById("repoXray"),
+    repoXrayStatus: document.getElementById("repoXrayStatus"),
+    repoXrayScript: document.getElementById("repoXrayScript"),
+    repoXrayLayers: document.getElementById("repoXrayLayers"),
     dashboardCharts: document.getElementById("dashboardCharts"),
     memoryStatus: document.getElementById("memoryStatus"),
     memoryStats: document.getElementById("memoryStats"),
@@ -242,9 +248,9 @@
       summary: "Find repo lore by file, feature, bug, command, or decision. Pick a packet to see linked code."
     },
     intel: {
-      eyebrow: "kage://risks",
-      title: "Risks",
-      summary: "Files, owners, and modules to inspect before changes. Each card links into the graph."
+      eyebrow: "kage://before-edit",
+      title: "Before You Edit",
+      summary: "What can go wrong, why it matters, and the first safety step before an agent changes code."
     },
     review: {
       eyebrow: "kage://review",
@@ -606,6 +612,7 @@
     var riskPath = params.get("risk");
     var moduleHealthPath = params.get("moduleHealth") || params.get("module-health");
     var graphInsightsPath = params.get("graphInsights") || params.get("graph-insights");
+    var xrayPath = params.get("xray") || params.get("repoXray") || params.get("repo-xray");
     var workspacePath = params.get("workspace");
     var sessionsPath = params.get("sessions");
     var replayPath = params.get("replay") || params.get("sessionReplay") || params.get("session-replay");
@@ -616,6 +623,7 @@
     var timelinePath = params.get("timeline") || params.get("memoryTimeline") || params.get("memory-timeline");
     var lineagePath = params.get("lineage") || params.get("memoryLineage") || params.get("memory-lineage");
     var setupPath = params.get("setup") || params.get("setupDoctor") || params.get("setup-doctor");
+    var trustPath = params.get("trust") || params.get("trustBenchmark") || params.get("trust-benchmark");
     var inferredRoot = inferMemoryRoot(graphPaths[0] || "");
     if (!inboxPath && inferredRoot) inboxPath = inferredRoot + "/inbox.json";
     if (!reviewPath && inferredRoot) reviewPath = inferredRoot + "/review/memory-review.md";
@@ -631,6 +639,7 @@
       if (!riskPath) riskPath = inferredRoot + "/reports/risk.json";
       if (!moduleHealthPath) moduleHealthPath = inferredRoot + "/reports/module-health.json";
       if (!graphInsightsPath) graphInsightsPath = inferredRoot + "/reports/graph-insights.json";
+      if (!xrayPath) xrayPath = inferredRoot + "/reports/xray.json";
       if (!workspacePath) workspacePath = inferredRoot + "/reports/workspace.json";
       if (!sessionsPath) sessionsPath = inferredRoot + "/reports/sessions.json";
       if (!replayPath) replayPath = inferredRoot + "/reports/replay.json";
@@ -641,6 +650,7 @@
       if (!timelinePath) timelinePath = inferredRoot + "/reports/timeline.json";
       if (!lineagePath) lineagePath = inferredRoot + "/reports/lineage.json";
       if (!setupPath) setupPath = inferredRoot + "/reports/setup.json";
+      if (!trustPath) trustPath = inferredRoot + "/reports/trust.json";
     }
     var jobs = [];
     if (metricsPath) jobs.push(fetchJson(metricsPath).then(function (metrics) { state.metrics = metrics; }));
@@ -657,6 +667,7 @@
     if (riskPath) jobs.push(fetchJson(riskPath).then(function (report) { state.reports.risk = report; }).catch(function () { state.reports.risk = null; }));
     if (moduleHealthPath) jobs.push(fetchJson(moduleHealthPath).then(function (report) { state.reports.moduleHealth = report; }).catch(function () { state.reports.moduleHealth = null; }));
     if (graphInsightsPath) jobs.push(fetchJson(graphInsightsPath).then(function (report) { state.reports.graphInsights = report; }).catch(function () { state.reports.graphInsights = null; }));
+    if (xrayPath) jobs.push(fetchJson(xrayPath).then(function (report) { state.reports.xray = report; }).catch(function () { state.reports.xray = null; }));
     if (workspacePath) jobs.push(fetchJson(workspacePath).then(function (report) { state.reports.workspace = report; }).catch(function () { state.reports.workspace = null; }));
     if (sessionsPath) jobs.push(fetchJson(sessionsPath).then(function (report) { state.reports.sessions = report; }).catch(function () { state.reports.sessions = null; }));
     if (replayPath) jobs.push(fetchJson(replayPath).then(function (report) { state.reports.replay = report; }).catch(function () { state.reports.replay = null; }));
@@ -667,6 +678,7 @@
     if (timelinePath) jobs.push(fetchJson(timelinePath).then(function (report) { state.reports.timeline = report; }).catch(function () { state.reports.timeline = null; }));
     if (lineagePath) jobs.push(fetchJson(lineagePath).then(function (report) { state.reports.lineage = report; }).catch(function () { state.reports.lineage = null; }));
     if (setupPath) jobs.push(fetchJson(setupPath).then(function (report) { state.reports.setup = report; }).catch(function () { state.reports.setup = null; }));
+    if (trustPath) jobs.push(fetchJson(trustPath).then(function (report) { state.reports.trust = report; }).catch(function () { state.reports.trust = null; }));
     if (!graphPaths.length && !jobs.length) {
       loadHostedDefault();
       return;
@@ -705,6 +717,7 @@
       fetchJson("./data/kage/reports/decisions.json").catch(function () { return null; }),
       fetchJson("./data/kage/reports/module-health.json").catch(function () { return null; }),
       fetchJson("./data/kage/reports/graph-insights.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/xray.json").catch(function () { return null; }),
       fetchJson("./data/kage/reports/workspace.json").catch(function () { return null; }),
       fetchJson("./data/kage/reports/sessions.json").catch(function () { return null; }),
       fetchJson("./data/kage/reports/replay.json").catch(function () { return null; }),
@@ -714,7 +727,8 @@
       fetchJson("./data/kage/reports/lifecycle.json").catch(function () { return null; }),
       fetchJson("./data/kage/reports/timeline.json").catch(function () { return null; }),
       fetchJson("./data/kage/reports/lineage.json").catch(function () { return null; }),
-      fetchJson("./data/kage/reports/setup.json").catch(function () { return null; })
+      fetchJson("./data/kage/reports/setup.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/trust.json").catch(function () { return null; })
     ]).then(function (items) {
       var merged = mergeNormalizedGraphs([normalizeGraph(items[0]), normalizeGraph(items[1])]);
       state.metrics = items[2];
@@ -727,16 +741,18 @@
       state.reports.decisions = items[9];
       state.reports.moduleHealth = items[10];
       state.reports.graphInsights = items[11];
-      state.reports.workspace = items[12];
-      state.reports.sessions = items[13];
-      state.reports.replay = items[14];
-      state.reports.memoryAccess = items[15];
-      state.reports.memoryAudit = items[16];
-      state.reports.handoff = items[17];
-      state.reports.lifecycle = items[18];
-      state.reports.timeline = items[19];
-      state.reports.lineage = items[20];
-      state.reports.setup = items[21];
+      state.reports.xray = items[12];
+      state.reports.workspace = items[13];
+      state.reports.sessions = items[14];
+      state.reports.replay = items[15];
+      state.reports.memoryAccess = items[16];
+      state.reports.memoryAudit = items[17];
+      state.reports.handoff = items[18];
+      state.reports.lifecycle = items[19];
+      state.reports.timeline = items[20];
+      state.reports.lineage = items[21];
+      state.reports.setup = items[22];
+      state.reports.trust = items[23];
       loadNormalizedGraph(merged, "Kage repo graph");
       setAutoLoad("Kage repo graph loaded", true);
     }).catch(function () {
@@ -2987,7 +3003,7 @@
     var reports = state.reports || {};
     var reportCount = Object.keys(reports).filter(function (key) { return reports[key]; }).length;
     var risk = reports.risk || {};
-    var riskTargets = Array.isArray(risk.targets) ? risk.targets : Object.keys(risk.targets || {});
+    var riskTargets = userFacingRiskTargets(risk);
     var inboxCounts = state.inbox && state.inbox.counts ? state.inbox.counts : {};
     var handoff = memoryHandoffSummary(reports.handoff);
     var pendingReview = Number(firstNumber(inboxCounts.pending, memoryGraph.pending_packets, (state.pendingPackets || []).length, 0));
@@ -2995,14 +3011,21 @@
     var duplicateFlags = Number(firstNumber(inboxCounts.duplicates, memoryGraph.duplicate_candidate_pairs, 0));
     var missingContext = Number(firstNumber(inboxCounts.missing_context, 0));
     var ownerSilos = Array.isArray(risk.ownership_silos) ? risk.ownership_silos.length : 0;
-    var hotspots = Array.isArray(risk.global_hotspots) ? risk.global_hotspots.length : 0;
+    var hotspots = userFacingRiskHotspots(risk).length;
     var readiness = handoff || dashboardReadiness(metrics, pendingReview, staleFlags, duplicateFlags, missingContext);
     var memoryCoverage = dashboardMemoryCoverage(reports, memoryCodeEdges, memoryGraph, memoryNodes);
-    var riskHealth = riskTargets.length || hotspots ? (riskTargets.length + hotspots) + " signals" : "No flags";
+    var riskHealth = riskTargets.length || hotspots ? (riskTargets.length + hotspots) + " checks" : "No flags";
+    var trust = reports.trust || {};
+    var trustMetrics = trust.metrics || {};
+    var trustScore = typeof trust.trust_score === "number" ? trust.trust_score : null;
+    var trustDetail = trustScore == null
+      ? "run kage benchmark --trust"
+      : "reject " + numOrDash(trustMetrics.hallucinated_citation_rejection_rate) + "% · stale-excl " + numOrDash(trustMetrics.stale_memory_exclusion_rate) + "% · grounded " + numOrDash(trustMetrics.live_grounding_rate) + "%";
     var statRows = [
+      ["Trust", trustScore == null ? "—" : trustScore + "/100", trustDetail, trustScore == null ? "" : (trustScore >= 90 ? "ok" : "warn")],
       ["Handoff", readiness.label, readiness.detail, readiness.status],
       ["Memory", memoryCoverage.label, memoryCoverage.detail, memoryCoverage.status],
-      ["Risk", riskHealth, riskTargets.length + " targets, " + ownerSilos + " ownership silos", riskTargets.length || ownerSilos || hotspots ? "warn" : "ok"]
+      ["Before edit", riskHealth, riskTargets.length + " edit areas, " + ownerSilos + " ownership silos", riskTargets.length || ownerSilos || hotspots ? "warn" : "ok"]
     ];
     els.dashboardStats.textContent = "";
     statRows.forEach(function (row) {
@@ -3026,7 +3049,7 @@
       ["Coverage", codeGraph.indexer_coverage_percent != null ? codeGraph.indexer_coverage_percent + "%" : "not loaded"]
     ]);
     setDashboardRows("dashboardIntel", [
-      ["Risk targets", riskTargets.length || "none"],
+      ["Edit checks", riskTargets.length || "none"],
       ["Ownership silos", ownerSilos || "none"],
       ["Decision coverage", reports.decisions && reports.decisions.coverage_percent != null ? reports.decisions.coverage_percent + "%" : "not loaded"]
     ]);
@@ -3042,6 +3065,7 @@
       ["Stale / duplicate", staleFlags + " / " + duplicateFlags],
       ["Missing context", missingContext || "none"]
     ]);
+    renderRepoXray(reports.xray);
     renderDashboardCharts({
       metrics: metrics,
       reports: reports,
@@ -3058,6 +3082,61 @@
       ownerSilos: ownerSilos,
       hotspots: hotspots,
       handoff: handoff
+    });
+  }
+
+  function renderRepoXray(report) {
+    if (!els.repoXray || !els.repoXrayLayers) return;
+    if (!report || !Array.isArray(report.layers)) {
+      if (els.repoXrayStatus) els.repoXrayStatus.textContent = "not loaded";
+      if (els.repoXrayScript) els.repoXrayScript.textContent = "Open with `kage viewer --project <repo>` after refresh to see the first-use repo map.";
+      els.repoXrayLayers.textContent = "";
+      return;
+    }
+    var layers = report.layers.filter(function (layer) { return Array.isArray(layer.items) && layer.items.length; });
+    if (els.repoXrayStatus) els.repoXrayStatus.textContent = layers.length ? layers.length + " layers" : "empty";
+    if (els.repoXrayScript) {
+      var script = Array.isArray(report.first_use_script) ? report.first_use_script : [];
+      els.repoXrayScript.textContent = script[0] || report.summary || "Kage mapped the repo structure.";
+    }
+    els.repoXrayLayers.textContent = "";
+    if (!layers.length) {
+      els.repoXrayLayers.className = "repo-xray-layers details-empty";
+      els.repoXrayLayers.textContent = "No X-Ray layers have items yet. Run kage refresh so code graph, risk, tests, and memory links are current.";
+      return;
+    }
+    els.repoXrayLayers.className = "repo-xray-layers";
+    layers.slice(0, 6).forEach(function (layer) {
+      var card = document.createElement("article");
+      card.className = "repo-xray-layer";
+      card.innerHTML = [
+        "<div class=\"repo-xray-layer-head\"><div><strong></strong><span></span></div><em></em></div>",
+        "<div class=\"repo-xray-items\"></div>"
+      ].join("");
+      card.querySelector("strong").textContent = layer.title || layer.id || "Layer";
+      card.querySelector("span").textContent = layer.summary || "";
+      card.querySelector("em").textContent = String(layer.items.length || 0);
+      var list = card.querySelector(".repo-xray-items");
+      layer.items.slice(0, 3).forEach(function (item) {
+        var button = document.createElement("button");
+        button.type = "button";
+        button.className = classNames("repo-xray-item", item.status && "repo-xray-item-" + safeCssName(item.status));
+        button.innerHTML = [
+          "<span><strong></strong><em></em></span>",
+          "<i></i>"
+        ].join("");
+        button.querySelector("strong").textContent = item.label || item.path || "signal";
+        button.querySelector("em").textContent = Array.isArray(item.evidence) && item.evidence.length ? item.evidence.slice(0, 2).join("; ") : item.action || "";
+        button.querySelector("i").style.width = clamp(Number(item.strength || 0), 4, 100) + "%";
+        if (item.path) {
+          button.title = "Focus " + item.path + " in the graph";
+          button.addEventListener("click", function () {
+            focusGraphPath(item.path);
+          });
+        }
+        list.appendChild(button);
+      });
+      els.repoXrayLayers.appendChild(card);
     });
   }
 
@@ -3190,11 +3269,11 @@
       ], blockers ? "Resolve Review before handing work to another agent." : "Memory is clean for handoff.", blockers ? "warn" : "ok"));
     }
     tailCards.push(
-      metricBars("Change risk", riskSignals ? riskSignals + " signals" : "none", [
-        { label: "Targets", value: data.riskTargets.length, score: Math.min(100, data.riskTargets.length * 18), status: data.riskTargets.length ? "warn" : "ok" },
+      metricBars("Before edit", riskSignals ? riskSignals + " checks" : "none", [
+        { label: "Edit areas", value: data.riskTargets.length, score: Math.min(100, data.riskTargets.length * 18), status: data.riskTargets.length ? "warn" : "ok" },
         { label: "Silos", value: data.ownerSilos, score: Math.min(100, data.ownerSilos * 18), status: data.ownerSilos ? "warn" : "ok" },
         { label: "Hotspots", value: data.hotspots, score: Math.min(100, data.hotspots * 18), status: data.hotspots ? "danger" : "ok" }
-      ], riskSignals ? "Open Intel or Owners before editing risky files." : "No loaded risk flags.", riskSignals ? "warn" : "ok")
+      ], riskSignals ? "Open Before Edit and do the listed safety step before changing code." : "No loaded risk flags.", riskSignals ? "warn" : "ok")
     );
     cards.concat(tailCards).slice(0, 3).forEach(function (card) { els.dashboardCharts.appendChild(card); });
   }
@@ -3479,6 +3558,10 @@
 
   function countEntitiesByType(type) {
     return state.entities.filter(function (entity) { return entity.type === type; }).length;
+  }
+
+  function numOrDash(value) {
+    return (value === null || value === undefined || isNaN(value)) ? "—" : value;
   }
 
   function formatDashboardValue(value) {
@@ -4373,9 +4456,8 @@
     var handoff = state.reports && state.reports.handoff;
     var handoffItems = handoff && Array.isArray(handoff.items) ? handoff.items : [];
     var counts = inbox && inbox.counts ? inbox.counts : {};
-    var openCount = reviewOpenCount(counts, packets, inboxItems);
-    if (handoff && handoff.totals) openCount = Number(firstNumber(handoff.totals.open_items, openCount));
-    els.reviewCount.textContent = String(openCount);
+    var openCount = reviewOpenCount(counts, packets);
+    els.reviewCount.textContent = openCount ? String(openCount) : "clear";
     els.reviewList.textContent = "";
     if (els.reviewOverview) renderReviewOverview(inbox, packets, inboxItems, handoff);
     renderMemoryHandoff(handoff, handoffItems);
@@ -4412,7 +4494,7 @@
       summary.querySelector(".review-summary").textContent = Array.isArray(inbox.recommendations) && inbox.recommendations.length
         ? inbox.recommendations.slice(0, 2).join(" ")
         : "No inbox recommendations.";
-      summary.querySelector(".review-risks").textContent = openCount ? "Resolve inbox items before merge" : "Ready for handoff";
+      summary.querySelector(".review-risks").textContent = openCount ? "Inbox needs review before merge" : "Inbox: clear";
       els.reviewList.appendChild(summary);
     }
     inboxItems.slice(0, 8).forEach(function (entry) {
@@ -4466,22 +4548,24 @@
     var stale = Number(firstNumber(counts.stale, 0));
     var duplicates = Number(firstNumber(counts.duplicates, 0));
     var missingContext = Number(firstNumber(counts.missing_context, 0));
-    var blockers = reviewOpenCount(counts, packets, inboxItems);
-    if (handoff && handoff.totals) blockers = Number(firstNumber(handoff.totals.open_items, blockers));
+    var inboxBlockers = reviewOpenCount(counts, packets);
+    var handoffReviews = handoffReviewCount(handoff);
+    var blockers = handoff ? handoffReviews : inboxBlockers;
     var mutations = handoff && handoff.totals ? Number(firstNumber(handoff.totals.recent_mutations, 0)) : 0;
     els.reviewOverview.appendChild(metricDonut(
       "Handoff readiness",
       blockers ? 0 : 100,
-      blockers ? blockers + " memory handoff item(s) need attention" : "No pending, stale, duplicate, or missing-context memory",
+      blockers ? blockers + " handoff review item(s) need attention" : "No pending, stale, or duplicate memory",
       blockers ? "Resolve the handoff queue before trusting branch memory." : "Ready to hand work to another agent or teammate.",
       blockers ? "warn" : "ok"
     ));
-    els.reviewOverview.appendChild(metricBars(handoff ? "Handoff queue" : "Inbox breakdown", blockers ? blockers + " open" : "clear", [
+    els.reviewOverview.appendChild(metricBars(handoff ? "Inbox and handoff" : "Inbox breakdown", inboxBlockers ? inboxBlockers + " inbox blocker(s)" : "Inbox: clear", [
+      { label: "Handoff review", value: handoffReviews || "none", score: Math.min(100, handoffReviews * 24), status: handoffReviews ? "warn" : "ok" },
       { label: "Pending", value: pending, score: Math.min(100, pending * 24), status: pending ? "warn" : "ok" },
       { label: "Stale", value: stale, score: Math.min(100, stale * 24), status: stale ? "warn" : "ok" },
       { label: "Duplicates", value: duplicates, score: Math.min(100, duplicates * 24), status: duplicates ? "warn" : "ok" },
       { label: "Mutations", value: mutations, score: Math.min(100, mutations * 16), status: mutations ? "ok" : "warn" }
-    ], handoff ? (handoff.summary || "Combined inbox, lifecycle, audit, timeline, and lineage.") : "These are the review metrics that should block merge or handoff.", blockers ? "warn" : "ok"));
+    ], handoff ? (handoff.summary || "Handoff review combines lifecycle, audit, timeline, and lineage.") : "These inbox metrics should block merge or handoff.", blockers ? "warn" : "ok"));
   }
 
   function renderMemoryHandoff(handoff, items) {
@@ -4537,14 +4621,15 @@
     return item;
   }
 
-  function reviewOpenCount(counts, packets, inboxItems) {
+  function handoffReviewCount(handoff) {
+    return handoff && handoff.totals ? Number(firstNumber(handoff.totals.open_items, 0)) : 0;
+  }
+
+  function reviewOpenCount(counts, packets) {
     var pending = Number(firstNumber(counts && counts.pending, packets && packets.length, 0));
     var stale = Number(firstNumber(counts && counts.stale, 0));
     var duplicates = Number(firstNumber(counts && counts.duplicates, 0));
-    var missingContext = Number(firstNumber(counts && counts.missing_context, 0));
-    var counted = pending + stale + duplicates + missingContext;
-    if (counted) return counted;
-    return Array.isArray(inboxItems) ? inboxItems.length : 0;
+    return pending + stale + duplicates;
   }
 
   function renderProof() {
@@ -4716,12 +4801,12 @@
     els.intelligenceStatus.textContent = cards.length ? cards.length + " loaded" : "not loaded";
     if (!cards.length) {
       els.intelligenceList.className = "intelligence-list details-empty";
-      els.intelligenceList.textContent = "No repo intelligence reports loaded. Launch with `kage viewer --project <repo>` to load risk, module health, graph insights, and workspace reports.";
+      els.intelligenceList.textContent = "No before-edit reports loaded. Launch with `kage viewer --project <repo>` to load risk, module health, graph insights, and workspace reports.";
       return;
     }
     els.intelligenceList.className = "intelligence-list";
     var normalizedCards = normalizeIntelCards(cards);
-    var riskFirst = new Set(["Change Risk", "Module Health", "Decision Memory", "Graph Insights", "Memory Quality"]);
+    var riskFirst = new Set(["Before You Edit", "Change Risk", "Module Health", "Decision Memory", "Graph Insights", "Memory Quality"]);
     var primaryCards = normalizedCards.filter(function (card) { return riskFirst.has(card.title); }).slice(0, 3);
     if (!primaryCards.length) primaryCards = normalizedCards.slice(0, 3);
     primaryCards.forEach(function (card) {
@@ -4741,11 +4826,11 @@
       item.querySelector(".intel-highlight").textContent = card.highlight || card.summary || "";
       item.querySelector(".intel-action span").textContent = card.action || "Review this signal before changing related code.";
       var list = item.querySelector("ul");
-      card.rows.slice(0, 2).forEach(function (row) {
+      card.rows.slice(0, Number(card.rowLimit || (card.title === "Before You Edit" ? 3 : 2))).forEach(function (row) {
         var li = document.createElement("li");
         li.innerHTML = "<strong></strong> <span></span>";
         li.querySelector("strong").textContent = row[0];
-        li.querySelector("span").textContent = trimIntelText(row[1], 92);
+        li.querySelector("span").textContent = card.title === "Before You Edit" ? row[1] : trimIntelText(row[1], 92);
         list.appendChild(li);
       });
       els.intelligenceList.appendChild(item);
@@ -4817,11 +4902,87 @@
 
   function intelligenceSectionPriority(section) {
     var title = String(section && section.title || "").toLowerCase();
+    if (title.indexOf("before you edit") !== -1 || title.indexOf("checklist") !== -1) return 0;
     if (title.indexOf("blast") !== -1 || title.indexOf("risk") !== -1) return 0;
     if (title.indexOf("onboarding") !== -1 || title.indexOf("decision") !== -1) return 1;
     if (title.indexOf("module") !== -1 || title.indexOf("health") !== -1) return 2;
     if (title.indexOf("owner") !== -1 || title.indexOf("contributor") !== -1) return 3;
     return 4;
+  }
+
+  function riskTargetList(risk) {
+    if (!risk) return [];
+    return Array.isArray(risk.targets)
+      ? risk.targets
+      : Object.keys(risk.targets || {}).map(function (key) { return risk.targets[key]; }).filter(Boolean);
+  }
+
+  function isGeneratedMemoryPathValue(path) {
+    var normalized = String(path || "").replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\/+/, "");
+    return normalized.indexOf(".agent_memory/") === 0 ||
+      normalized.indexOf("agent_memory/") === 0 ||
+      normalized.indexOf("/.agent_memory/") !== -1 ||
+      normalized.indexOf("/agent_memory/") !== -1;
+  }
+
+  function isUserFacingRiskPath(path) {
+    var normalized = String(path || "").replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\/+/, "");
+    if (!normalized || normalized === "." || normalized === "root") return false;
+    if (isGeneratedMemoryPathValue(normalized)) return false;
+    if (normalized.indexOf("node_modules/") !== -1 || normalized.indexOf("dist/") === 0 || normalized.indexOf("build/") === 0) return false;
+    return true;
+  }
+
+  function userFacingRiskTargets(risk) {
+    return riskTargetList(risk).filter(function (target) {
+      return target && isUserFacingRiskPath(target.target);
+    });
+  }
+
+  function userFacingRiskHotspots(risk) {
+    return Array.isArray(risk && risk.global_hotspots)
+      ? risk.global_hotspots.filter(function (hotspot) { return hotspot && isUserFacingRiskPath(hotspot.file_path); })
+      : [];
+  }
+
+  function riskExplanation(item) {
+    var dependents = Number(item && item.dependents_count || 0);
+    var commits = Number(item && item.git && item.git.commit_count_90d || 0);
+    var owner = item && item.git ? shortContributor(item.git.primary_owner || "") : "";
+    if (item && item.test_gap) {
+      return {
+        why: "changes here are not protected by a direct test signal",
+        action: "find or add the closest verification before handoff"
+      };
+    }
+    if (dependents >= 5) {
+      return {
+        why: "many other files depend on this path",
+        action: "inspect dependents and run the full related test suite"
+      };
+    }
+    if (item && item.risk_type === "single-owner") {
+      return {
+        why: owner ? "most history belongs to " + owner : "ownership is concentrated in one person",
+        action: "route review to the owner or write down assumptions before editing"
+      };
+    }
+    if (commits >= 20 || item && item.risk_type === "churn-heavy") {
+      return {
+        why: "this area changed " + commits + " time(s) in the last 90 days",
+        action: "recall recent memory and keep the change narrow"
+      };
+    }
+    if (dependents > 0) {
+      return {
+        why: dependents + " file(s) depend on this path",
+        action: "check the dependent paths before editing"
+      };
+    }
+    return {
+      why: item && item.risk_type ? "Kage sees a " + item.risk_type.replace(/-/g, " ") + " signal" : "Kage sees a local change-risk signal",
+      action: "state the expected behavior and verify it after editing"
+    };
   }
 
   function buildIntelligenceSections(reports) {
@@ -5012,13 +5173,14 @@
     }
 
     if (risk) {
-      var targets = Array.isArray(risk.targets) ? risk.targets : Object.keys(risk.targets || {}).map(function (key) { return risk.targets[key]; });
-      var hotspots = Array.isArray(risk.global_hotspots) ? risk.global_hotspots : [];
+      var targets = userFacingRiskTargets(risk);
+      var hotspots = userFacingRiskHotspots(risk);
       var riskRows = targets.slice(0, 6).map(function (item) {
+        var explanation = riskExplanation(item);
         return {
           label: item.target,
-          value: item.risk_type || "risk",
-          meta: item.risk_summary || "",
+          value: explanation.why,
+          meta: "Do first: " + explanation.action,
           score: Math.round(Number(item.hotspot_score || 0) * 100) || Math.min(100, Number(item.dependents_count || 0) * 12 + (item.test_gap ? 24 : 0)),
           status: item.test_gap || item.risk_type === "single-owner" ? "warn" : "",
           path: item.target,
@@ -5026,8 +5188,8 @@
       }).concat(hotspots.slice(0, 4).map(function (hotspot) {
         return {
           label: hotspot.file_path,
-          value: Math.round(Number(hotspot.hotspot_score || 0) * 100) + "% hot",
-          meta: (hotspot.commit_count_90d || 0) + " commits in 90d, owner " + shortContributor(hotspot.primary_owner || "unknown"),
+          value: "changed " + (hotspot.commit_count_90d || 0) + " time(s) in 90 days",
+          meta: "Do first: recall recent repo memory and run the closest tests after editing.",
           score: Math.round(Number(hotspot.hotspot_score || 0) * 100),
           status: "danger",
           path: hotspot.file_path,
@@ -5035,10 +5197,10 @@
       }));
       if (riskRows.length) {
         sections.push({
-          title: "Blast Radius",
-          kicker: "change impact",
-          stat: riskRows.length + " signals",
-          summary: "Action: review tests, owners, and dependents before editing these targets.",
+          title: "Before You Edit Checklist",
+          kicker: "why risky / do first",
+          stat: riskRows.length + " checks",
+          summary: "Each row explains what can go wrong and the first safety step before an agent edits it.",
           rows: riskRows,
           limit: 10,
         });
@@ -5100,16 +5262,24 @@
     }
     var risk = reports.risk;
     if (risk) {
-      var targets = Array.isArray(risk.targets) ? risk.targets : Object.keys(risk.targets || {}).map(function (key) { return risk.targets[key]; });
+      var targets = userFacingRiskTargets(risk);
       var silos = Array.isArray(risk.ownership_silos) ? risk.ownership_silos : [];
+      var hotspots = userFacingRiskHotspots(risk);
+      var riskRows = targets.slice(0, 4).map(function (item) {
+        var explanation = riskExplanation(item);
+        return [item.target || "edit area", "Why: " + explanation.why + " Do first: " + explanation.action];
+      }).concat(targets.length ? [] : hotspots.slice(0, 2).map(function (hotspot) {
+        return [hotspot.file_path || "hotspot", "Why: changed " + (hotspot.commit_count_90d || 0) + " time(s) in 90 days. Do first: recall recent memory and run closest tests after editing."];
+      }));
       cards.push({
-        title: "Change Risk",
-        kicker: "blast radius",
-        summary: risk.summary || "Local risk report from code graph and git history.",
-        rows: targets.slice(0, 5).map(function (item) {
-          return [item.target || "target", item.risk_summary || [item.risk_type, item.dependents_count != null ? item.dependents_count + " dependents" : ""].filter(Boolean).join(", ")];
-        }).concat(targets.length ? [] : [["Hotspots", Array.isArray(risk.global_hotspots) ? risk.global_hotspots.length + " global" : "none"]])
-          .concat(silos.length ? [["Silos", silos.length + " ownership concentration(s)"]] : [])
+        title: "Before You Edit",
+        kicker: "risk checklist",
+        summary: riskRows.length
+          ? "These are places where an agent is more likely to break behavior, miss tests, or rely on unstated knowledge."
+          : "No user-facing risky edit areas were found in the loaded report.",
+        rowLimit: 3,
+        rows: (riskRows.length ? riskRows : [["Risk", "No code-level risk checks loaded"]])
+          .concat(silos.length ? [["Reviewer signal", silos.length + " ownership concentration(s)"]] : [])
       });
     }
     var contributors = reports.contributors;
@@ -5253,13 +5423,13 @@
         normalized.metricLabel = "memory-code links";
         normalized.highlight = "Shows whether saved repo knowledge is tied to actual files, symbols, routes, and tests.";
         normalized.action = "If this is low, capture memory with concrete paths so agents can recall it during edits.";
-      } else if (card.title === "Change Risk") {
-        var siloText = row("Silos");
+      } else if (card.title === "Before You Edit" || card.title === "Change Risk") {
+        var siloText = row("Reviewer signal") || row("Silos");
         var siloMatch = siloText && String(siloText).match(/\d+/);
-        normalized.metric = siloMatch ? siloMatch[0] + " silos" : ((card.rows || []).length + " signals");
-        normalized.metricLabel = "risk signals";
-        normalized.highlight = "Flags files with blast radius, test gaps, or ownership concentration.";
-        normalized.action = "Use these rows to pick tests and reviewers before touching risky files.";
+        normalized.metric = (card.rows || []).length + " checks";
+        normalized.metricLabel = siloMatch ? siloMatch[0] + " reviewer silo(s)" : "pre-edit checklist";
+        normalized.highlight = card.summary || "Shows what can go wrong before an agent edits a file.";
+        normalized.action = "Start with the first row: read why it is risky, then do the listed safety step before editing.";
       } else if (card.title === "Contributors") {
         normalized.metric = (card.rows || []).length + " profiles";
         normalized.metricLabel = "review routing";

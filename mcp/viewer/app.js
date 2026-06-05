@@ -47,7 +47,8 @@
       lifecycle: null,
       timeline: null,
       lineage: null,
-      setup: null
+      setup: null,
+      trust: null
     },
     pendingPackets: [],
     reviewText: "",
@@ -622,6 +623,7 @@
     var timelinePath = params.get("timeline") || params.get("memoryTimeline") || params.get("memory-timeline");
     var lineagePath = params.get("lineage") || params.get("memoryLineage") || params.get("memory-lineage");
     var setupPath = params.get("setup") || params.get("setupDoctor") || params.get("setup-doctor");
+    var trustPath = params.get("trust") || params.get("trustBenchmark") || params.get("trust-benchmark");
     var inferredRoot = inferMemoryRoot(graphPaths[0] || "");
     if (!inboxPath && inferredRoot) inboxPath = inferredRoot + "/inbox.json";
     if (!reviewPath && inferredRoot) reviewPath = inferredRoot + "/review/memory-review.md";
@@ -648,6 +650,7 @@
       if (!timelinePath) timelinePath = inferredRoot + "/reports/timeline.json";
       if (!lineagePath) lineagePath = inferredRoot + "/reports/lineage.json";
       if (!setupPath) setupPath = inferredRoot + "/reports/setup.json";
+      if (!trustPath) trustPath = inferredRoot + "/reports/trust.json";
     }
     var jobs = [];
     if (metricsPath) jobs.push(fetchJson(metricsPath).then(function (metrics) { state.metrics = metrics; }));
@@ -675,6 +678,7 @@
     if (timelinePath) jobs.push(fetchJson(timelinePath).then(function (report) { state.reports.timeline = report; }).catch(function () { state.reports.timeline = null; }));
     if (lineagePath) jobs.push(fetchJson(lineagePath).then(function (report) { state.reports.lineage = report; }).catch(function () { state.reports.lineage = null; }));
     if (setupPath) jobs.push(fetchJson(setupPath).then(function (report) { state.reports.setup = report; }).catch(function () { state.reports.setup = null; }));
+    if (trustPath) jobs.push(fetchJson(trustPath).then(function (report) { state.reports.trust = report; }).catch(function () { state.reports.trust = null; }));
     if (!graphPaths.length && !jobs.length) {
       loadHostedDefault();
       return;
@@ -723,7 +727,8 @@
       fetchJson("./data/kage/reports/lifecycle.json").catch(function () { return null; }),
       fetchJson("./data/kage/reports/timeline.json").catch(function () { return null; }),
       fetchJson("./data/kage/reports/lineage.json").catch(function () { return null; }),
-      fetchJson("./data/kage/reports/setup.json").catch(function () { return null; })
+      fetchJson("./data/kage/reports/setup.json").catch(function () { return null; }),
+      fetchJson("./data/kage/reports/trust.json").catch(function () { return null; })
     ]).then(function (items) {
       var merged = mergeNormalizedGraphs([normalizeGraph(items[0]), normalizeGraph(items[1])]);
       state.metrics = items[2];
@@ -747,6 +752,7 @@
       state.reports.timeline = items[20];
       state.reports.lineage = items[21];
       state.reports.setup = items[22];
+      state.reports.trust = items[23];
       loadNormalizedGraph(merged, "Kage repo graph");
       setAutoLoad("Kage repo graph loaded", true);
     }).catch(function () {
@@ -3009,7 +3015,14 @@
     var readiness = handoff || dashboardReadiness(metrics, pendingReview, staleFlags, duplicateFlags, missingContext);
     var memoryCoverage = dashboardMemoryCoverage(reports, memoryCodeEdges, memoryGraph, memoryNodes);
     var riskHealth = riskTargets.length || hotspots ? (riskTargets.length + hotspots) + " checks" : "No flags";
+    var trust = reports.trust || {};
+    var trustMetrics = trust.metrics || {};
+    var trustScore = typeof trust.trust_score === "number" ? trust.trust_score : null;
+    var trustDetail = trustScore == null
+      ? "run kage benchmark --trust"
+      : "reject " + numOrDash(trustMetrics.hallucinated_citation_rejection_rate) + "% · stale-excl " + numOrDash(trustMetrics.stale_memory_exclusion_rate) + "% · grounded " + numOrDash(trustMetrics.live_grounding_rate) + "%";
     var statRows = [
+      ["Trust", trustScore == null ? "—" : trustScore + "/100", trustDetail, trustScore == null ? "" : (trustScore >= 90 ? "ok" : "warn")],
       ["Handoff", readiness.label, readiness.detail, readiness.status],
       ["Memory", memoryCoverage.label, memoryCoverage.detail, memoryCoverage.status],
       ["Before edit", riskHealth, riskTargets.length + " edit areas, " + ownerSilos + " ownership silos", riskTargets.length || ownerSilos || hotspots ? "warn" : "ok"]
@@ -3545,6 +3558,10 @@
 
   function countEntitiesByType(type) {
     return state.entities.filter(function (entity) { return entity.type === type; }).length;
+  }
+
+  function numOrDash(value) {
+    return (value === null || value === undefined || isNaN(value)) ? "—" : value;
   }
 
   function formatDashboardValue(value) {
