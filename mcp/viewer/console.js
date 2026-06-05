@@ -242,7 +242,7 @@
   function escapeHtml(s) { var d = el("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
 
   // ---- memory <-> code graph (interactive canvas) ----
-  var G = { nodes: [], edges: [], hover: -1, focus: -1, raf: 0, alpha: 1, filter: "all", view: { s: 1, tx: 0, ty: 0 }, drag: null, pan: null };
+  var G = { nodes: [], edges: [], hover: -1, focus: -1, raf: 0, alpha: 1, filter: "all", view: { s: 1, tx: 0, ty: 0 }, drag: null, pan: null, tween: null };
   function seeded(n) { var x = Math.sin(n * 999.137) * 43758.5453; return x - Math.floor(x); }
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function nodeR(nd) { return Math.min(13, 4.5 + nd.deg * 1.1); }
@@ -255,7 +255,7 @@
     items.forEach(function (it, mi) {
       var review = ["stale", "disputed", "ungrounded"].indexOf(it.health) !== -1;
       var label = (it.title || "memory"); if (label.length > 26) label = label.slice(0, 25) + "…";
-      nodes.push({ id: "m" + mi, label: label, kind: "memory", review: review, health: it.health, deg: 0, tip: it.title, sub: it.type || "memory" });
+      nodes.push({ id: "m" + mi, label: label, kind: "memory", review: review, health: it.health, deg: 0, tip: it.title, sub: it.type || "memory", uses: it.total_uses || 0, files: (it.paths || []).map(base) });
       var mIndex = nodes.length - 1;
       it.paths.slice(0, 3).forEach(function (p) {
         var key = "f:" + p, fi = fileIdx[key];
@@ -292,9 +292,21 @@
       return set;
     }
     function color(nd) { return nd.kind === "file" ? "#6ad7ff" : (nd.review ? "#ffd166" : "#c49cff"); }
+    function bodyColor(nd) { return nd.kind === "file" ? "rgba(6,18,22,0.92)" : (nd.review ? "rgba(26,21,7,0.92)" : "rgba(19,12,28,0.92)"); }
+    var DIAMOND = { decision: 1, bug_fix: 1, test: 1, gotcha: 1 };
+    function shapePath(x, y, r, nd) {
+      if (nd.kind === "file") { roundRect(x - r * 1.3, y - r * 0.78, r * 2.6, r * 1.56, 3); return; }
+      if (DIAMOND[nd.sub]) { ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y); ctx.closePath(); return; }
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+    }
 
     function tick() {
       var n = G.nodes, e = G.edges, a = G.alpha;
+      if (G.tween) {
+        var tw = G.tween, v = G.view;
+        v.s += (tw.s - v.s) * 0.2; v.tx += (tw.tx - v.tx) * 0.2; v.ty += (tw.ty - v.ty) * 0.2;
+        if (Math.abs(tw.s - v.s) < 0.01 && Math.abs(tw.tx - v.tx) < 0.6 && Math.abs(tw.ty - v.ty) < 0.6) { v.s = tw.s; v.tx = tw.tx; v.ty = tw.ty; G.tween = null; }
+      }
       if (a > 0.03) {
         for (var i = 0; i < n.length; i++) for (var j = i + 1; j < n.length; j++) {
           var dx = n[i].x - n[j].x, dy = n[i].y - n[j].y, d2 = dx * dx + dy * dy + 0.01, d = Math.sqrt(d2);
@@ -331,24 +343,36 @@
         ctx.beginPath(); ctx.moveTo(n[e[0]].x, n[e[0]].y); ctx.lineTo(n[e[1]].x, n[e[1]].y); ctx.stroke();
       });
       n.forEach(function (nd, i) {
-        var r = nodeR(nd), dim = active && !emph[i], col = color(nd);
+        var r = nodeR(nd), dim = active && !emph[i], col = color(nd), strong = i === G.hover || i === G.focus;
+        ctx.save();
         ctx.globalAlpha = dim ? 0.14 : 1;
-        if (!dim && (i === G.hover || i === G.focus || nd.deg >= 4)) { ctx.beginPath(); ctx.arc(nd.x, nd.y, r + 6, 0, 6.2832); ctx.fillStyle = col + "22"; ctx.fill(); }
-        ctx.beginPath(); ctx.arc(nd.x, nd.y, r, 0, 6.2832); ctx.fillStyle = col; ctx.fill();
-        ctx.lineWidth = (i === G.focus ? 2.5 : 1.5) / v.s; ctx.strokeStyle = i === G.focus ? "#e4f7e9" : "rgba(5,8,6,0.85)"; ctx.stroke();
+        // glowing rim over a dark body
+        if (!dim) { ctx.shadowColor = col; ctx.shadowBlur = (strong ? 16 : (nd.kind === "memory" ? 9 : 10)); }
+        shapePath(nd.x, nd.y, r, nd); ctx.fillStyle = bodyColor(nd); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.lineWidth = (strong ? 2.4 : 1.3) / v.s; ctx.strokeStyle = col; ctx.stroke();
+        // inner dot for memory nodes
+        if (nd.kind === "memory") { ctx.globalAlpha = (dim ? 0.14 : 1) * 0.9; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(nd.x, nd.y, Math.max(2.2, r * 0.2), 0, 6.2832); ctx.fill(); }
+        ctx.restore();
+        // halo on hover/focus
+        if (!dim && strong) { ctx.save(); shapePath(nd.x, nd.y, r + 5, nd); ctx.strokeStyle = i === G.focus ? "#e4f7e9" : col; ctx.lineWidth = 1.8 / v.s; ctx.shadowColor = col; ctx.shadowBlur = 9; ctx.stroke(); ctx.restore(); }
       });
-      // labels in screen space so they stay crisp at any zoom
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.font = "600 11px Inter, ui-sans-serif, system-ui";
+      // labels in screen space (mono pill, centered below) so they stay crisp at any zoom
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       n.forEach(function (nd, i) {
         if (active && !emph[i]) return;
-        if (!(active || nd.deg >= 3 || i === G.hover)) return;
+        var strong = i === G.hover || i === G.focus;
+        if (!(active || strong || nd.deg >= 3)) return;
         var sx = nd.x * v.s + v.tx, sy = nd.y * v.s + v.ty, r = nodeR(nd) * v.s;
-        if (sx < -40 || sx > W + 40 || sy < 0 || sy > H) return;
-        var tx = sx + r + 5, ty = sy + 3.5, w = ctx.measureText(nd.label).width;
-        ctx.globalAlpha = 0.88; ctx.fillStyle = "rgba(5,8,6,0.74)"; roundRect(tx - 4, ty - 11, w + 8, 16, 3); ctx.fill();
-        ctx.globalAlpha = 1; ctx.fillStyle = nd.kind === "file" ? "#9cd9f0" : "#d7c7f5"; ctx.fillText(nd.label, tx, ty);
+        if (sx < -60 || sx > W + 60 || sy < -20 || sy > H + 20) return;
+        ctx.font = (strong ? "700 " : "600 ") + "11px ui-monospace, Menlo, monospace";
+        var w = ctx.measureText(nd.label).width, pw = w + 14, ph = 18, lx = sx - pw / 2, ly = sy + r + 7;
+        ctx.globalAlpha = 0.92; ctx.fillStyle = "rgba(5,8,6,0.92)"; roundRect(lx, ly, pw, ph, 4); ctx.fill();
+        ctx.lineWidth = 1; ctx.strokeStyle = strong ? "rgba(65,255,143,0.42)" : "rgba(65,255,143,0.12)"; ctx.stroke();
+        ctx.globalAlpha = 1; ctx.fillStyle = strong ? "#e4f7e9" : "#9cb0a4"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(nd.label, sx, ly + ph / 2);
       });
-      ctx.globalAlpha = 1;
+      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; ctx.globalAlpha = 1;
     }
     function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
     function pick(p) {
@@ -366,14 +390,38 @@
       tip.innerHTML = "<b>" + escapeHtml(nd.tip) + "</b><div class='p'>" + escapeHtml(nd.sub) + " · " + nd.deg + " link" + (nd.deg === 1 ? "" : "s") + "</div>";
     }
     function zoomAt(p, factor) {
+      G.tween = null;
       var ns = clamp(G.view.s * factor, 0.3, 4), w = s2w(p.x, p.y);
       G.view.s = ns; G.view.tx = p.x - w.x * ns; G.view.ty = p.y - w.y * ns;
     }
+    var detail = document.getElementById("gdetail");
+    function updateDetail() {
+      if (!detail) return;
+      if (G.focus < 0) { detail.style.display = "none"; return; }
+      var nd = G.nodes[G.focus], html;
+      if (nd.kind === "file") {
+        html = "<div class='gd-k' style='color:#6ad7ff'>code file</div><b class='gd-t'>" + escapeHtml(nd.tip) + "</b>" +
+          "<div class='gd-row'>cited by <b>" + nd.deg + "</b> memor" + (nd.deg === 1 ? "y" : "ies") + "</div>";
+      } else {
+        html = "<div class='gd-k' style='color:#c49cff'>" + escapeHtml(nd.sub) + "</div><b class='gd-t'>" + escapeHtml(nd.tip) + "</b>" +
+          "<div class='gd-row'>health <b class='" + (nd.health || "") + "'>" + (nd.health || "—") + "</b>" + (nd.uses ? " · used " + nd.uses + "×" : "") + " · " + nd.deg + " file" + (nd.deg === 1 ? "" : "s") + "</div>" +
+          (nd.files && nd.files.length ? "<div class='gd-files'>" + nd.files.map(escapeHtml).join(" · ") + "</div>" : "");
+      }
+      detail.innerHTML = "<button class='gd-x' id='gdClose'>×</button>" + html; detail.style.display = "block";
+      var x = document.getElementById("gdClose"); if (x) x.onclick = function () { G.focus = -1; updateDetail(); };
+    }
+    function focusNode(idx) { G.focus = idx; updateDetail(); }
 
     canvas.addEventListener("mousedown", function (ev) {
+      G.tween = null;
       var p = xy(ev), idx = pick(p);
       if (idx >= 0) { G.drag = { idx: idx, moved: false }; G.nodes[idx].fixed = true; canvas.style.cursor = "grabbing"; }
       else { G.pan = { x: p.x, y: p.y, tx: G.view.tx, ty: G.view.ty, moved: false }; canvas.style.cursor = "grabbing"; }
+    });
+    canvas.addEventListener("dblclick", function (ev) {
+      var p = xy(ev), idx = pick(p); if (idx < 0) return;
+      var nd = G.nodes[idx], ns = clamp(Math.max(G.view.s, 1.6), 0.3, 4);
+      G.tween = { s: ns, tx: W / 2 - nd.x * ns, ty: H / 2 - nd.y * ns }; focusNode(idx);
     });
     window.addEventListener("mousemove", function (ev) {
       if (G.drag) { var p = xy(ev), w = s2w(p.x, p.y), nd = G.nodes[G.drag.idx]; nd.x = w.x; nd.y = w.y; nd.vx = nd.vy = 0; G.drag.moved = true; G.hover = G.drag.idx; G.alpha = Math.max(G.alpha, 0.3); showTip(nd, p); return; }
@@ -383,8 +431,8 @@
       if (id >= 0) showTip(G.nodes[id], pp); else tip.style.display = "none";
     });
     window.addEventListener("mouseup", function () {
-      if (G.drag) { if (!G.drag.moved) { var i = G.drag.idx; G.focus = G.focus === i ? -1 : i; G.nodes[i].fixed = false; } G.drag = null; }
-      else if (G.pan) { if (!G.pan.moved) G.focus = -1; G.pan = null; }
+      if (G.drag) { if (!G.drag.moved) { var i = G.drag.idx; focusNode(G.focus === i ? -1 : i); G.nodes[i].fixed = false; } G.drag = null; }
+      else if (G.pan) { if (!G.pan.moved) focusNode(-1); G.pan = null; }
       canvas.style.cursor = "grab";
     });
     canvas.addEventListener("mouseleave", function () { if (!G.drag && !G.pan) { G.hover = -1; tip.style.display = "none"; } });
@@ -393,7 +441,7 @@
     var zin = document.getElementById("zoomIn"), zout = document.getElementById("zoomOut"), zr = document.getElementById("resetView");
     if (zin) zin.onclick = function () { zoomAt({ x: W / 2, y: H / 2 }, 1.25); };
     if (zout) zout.onclick = function () { zoomAt({ x: W / 2, y: H / 2 }, 0.8); };
-    if (zr) zr.onclick = function () { G.focus = -1; G.nodes.forEach(function (n) { n.fixed = false; }); G.alpha = 0.5; fitView(); };
+    if (zr) zr.onclick = function () { G.tween = null; focusNode(-1); G.nodes.forEach(function (n) { n.fixed = false; }); G.alpha = 0.5; fitView(); };
     var fbar = document.getElementById("gfilters");
     if (fbar) fbar.addEventListener("click", function (ev) {
       var b = ev.target.closest("button[data-gfilter]"); if (!b) return;
