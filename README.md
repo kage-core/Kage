@@ -47,7 +47,7 @@ Goose · Roo Code · Kilo Code · OpenCode · Aider · Claude Desktop · any MCP
 
 ---
 
-![Kage viewer — Memory Trust score and the Suppression Shelf showing memory withheld from recall](docs/assets/kage-viewer-demo-poster.png)
+![Kage viewer — the Memory Trust score, live recall stats, and the memory that needs review, at a glance](docs/assets/kage-viewer-demo-poster.png)
 
 <div align="center"><sub>The viewer leads with one question: <b>can you trust this memory?</b> — trust score, and the memories recall is withholding right now.</sub></div>
 

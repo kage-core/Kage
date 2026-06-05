@@ -24,15 +24,21 @@ Kage is built around trust instead of volume:
 
 There's a benchmark for it: `kage benchmark --trust` measures hallucinated-
 citation rejection, stale-memory exclusion, and live grounding. On standard
-retrieval (LongMemEval-S) it's competitive too — 96% R@5, dependency-free — but
-I'm deliberately not leading with that; the field is saturated there.
+retrieval (LongMemEval-S) it scores 96% R@5, dependency-free — but I'm not
+leading with that; recall is saturated across the whole field.
 
-Try it in 30 seconds, no setup:
+There's also a viewer: a dashboard (runs locally, also hosted) showing your
+repo's Memory Trust score, a memory↔code map, a memory list you can read
+packet-by-packet, and a live feed of what agents actually recalled.
+
+See it live, nothing to install: https://kage-core.com/viewer
+
+Or run it on a real repo in 30 seconds:
 
     npx -y @kage-core/kage-graph-mcp demo
 
 It seeds a tiny repo, then shows Kage reject a hallucinated memory, withhold a
-stale one, and recall only grounded memory.
+stale one, and recall only grounded memory — and opens the viewer on it.
 
 Works with Claude Code, Codex, Cursor, Windsurf, and any MCP agent
 (`npx skills add kage-core/Kage` installs it across 70+).

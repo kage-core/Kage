@@ -58,7 +58,9 @@ never checked, or withhold a memory whose grounding you never tracked.
 - **Governed like code** — memory is plain files in your repo, reviewed in the
   same PR. Zero dependencies, no API key.
 
-See it in 30 seconds: `npx -y @kage-core/kage-graph-mcp demo`
+See the trust score, the memory↔code map, and a live recall feed in the viewer:
+https://kage-core.com/viewer — or run it on your own repo in 30 seconds:
+`npx -y @kage-core/kage-graph-mcp demo`
 
 Memory that remembers is table stakes. Memory you can *trust* — and prove —
 is the actual unsolved problem. That's the one worth building.

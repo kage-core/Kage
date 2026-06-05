@@ -25,9 +25,15 @@ Kage is the memory you can trust:
 • Governed like code — plain files in your repo, reviewed in the same PR
 
 Zero dependencies, no API key. Works with Claude Code, Codex, Cursor, Windsurf,
-and any MCP agent. And it's measurable: `kage benchmark --trust` → 100/100.
+and any MCP agent. And it's measurable: run `kage benchmark --trust` on your repo
+(the demo repo scores 100/100).
 
-Try it in 30 seconds: `npx -y @kage-core/kage-graph-mcp demo`
+It ships with a viewer, too — a dashboard with your Memory Trust score, a
+memory↔code map, a browsable memory list, and a live feed of what agents
+recalled.
+
+See it live (no install): https://kage-core.com/viewer
+Try it on a real repo in 30 seconds: `npx -y @kage-core/kage-graph-mcp demo`
 
 **First comment (maker):**
 
@@ -41,5 +47,7 @@ own code. It's open source, zero-dependency, no API key. Would love feedback —
 especially: run `kage benchmark --trust` on your repo and tell me what you see.
 
 **Gallery assets:**
+- `docs/assets/kage-viewer-demo-poster.png` (viewer Overview: Memory Trust score + live stats)
+- `docs/assets/kage-viewer-graph.png` (viewer Memory map: memory↔code graph)
 - `docs/assets/kage-demo.gif` (terminal demo)
-- `docs/assets/kage-viewer-demo-poster.png` (viewer: trust score + suppression shelf)
+- Live demo to screen-record: https://kage-core.com/viewer
