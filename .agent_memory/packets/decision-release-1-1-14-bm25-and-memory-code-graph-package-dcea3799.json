@@ -63,8 +63,13 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 215
+    "estimated_tokens_saved": 215,
+    "stale": true,
+    "stale_reasons": [
+      "some referenced paths are missing: mcp/viewer/app.js"
+    ],
+    "suggested_action": "update"
   },
   "created_at": "2026-05-06T06:01:23.391Z",
-  "updated_at": "2026-05-19T04:53:22.458Z"
+  "updated_at": "2026-06-05T12:30:37.729Z"
 }

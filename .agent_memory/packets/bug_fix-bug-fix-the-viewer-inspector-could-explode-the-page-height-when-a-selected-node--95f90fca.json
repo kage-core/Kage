@@ -57,8 +57,13 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 140
+    "estimated_tokens_saved": 140,
+    "stale": true,
+    "stale_reasons": [
+      "some referenced paths are missing: mcp/viewer/styles.css"
+    ],
+    "suggested_action": "update"
   },
   "created_at": "2026-05-09T09:52:17.555Z",
-  "updated_at": "2026-05-19T04:50:14.870Z"
+  "updated_at": "2026-06-05T12:30:37.720Z"
 }

@@ -66,9 +66,14 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 68
+    "estimated_tokens_saved": 68,
+    "stale": true,
+    "stale_reasons": [
+      "linked path changed since memory was verified: .github/workflows/pages.yml"
+    ],
+    "suggested_action": "update"
   },
   "created_at": "2026-06-05T11:54:06.532Z",
-  "updated_at": "2026-06-05T11:54:23.342Z",
+  "updated_at": "2026-06-05T12:30:37.734Z",
   "author_branch": "chore/dogfood"
 }
