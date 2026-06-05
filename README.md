@@ -80,12 +80,9 @@ worse than one with none. Kage is built around that:
 
 Prove it on your own repo: `kage benchmark --trust --project .` — it measures
 hallucinated-citation rejection, stale-memory exclusion, and live grounding.
-See [docs/TRUST.md](docs/TRUST.md).
 
-Comparing tools? Other agent memory remembers; Kage is the only one that can tell
-you whether what it remembers is still *true*. See
-[Kage vs agentmemory](docs/vs-agentmemory.md) — an honest, category-correct
-comparison.
+Numbers and how to reproduce them: [docs/BENCHMARKS.md](docs/BENCHMARKS.md)
+(trust 100/100; competitive dependency-free retrieval on LongMemEval-S).
 
 ## What you get
 
