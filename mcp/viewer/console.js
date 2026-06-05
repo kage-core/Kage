@@ -355,7 +355,7 @@
     // grounded share is green, not a warning. (Amber/red only when it's actually low.)
     var pctClass = pct >= 85 ? "" : pct >= 60 ? "warn" : "danger";
     var dc = document.getElementById("donutCenter"); dc.textContent = "";
-    dc.appendChild(el("b", pctClass, pct + "%")); dc.appendChild(el("span", null, "grounded"));
+    dc.appendChild(el("b", pctClass, pct + "%"));
     var leg = document.getElementById("healthLegend"); leg.textContent = "";
     seg.forEach(function (s) {
       var li = el("div", "li"); var i = el("i"); i.style.background = s.col; li.appendChild(i);
