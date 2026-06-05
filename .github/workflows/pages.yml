@@ -39,6 +39,33 @@ jobs:
           npm ci --prefix mcp
           npm run build --prefix mcp
           node mcp/dist/cli.js refresh --project .
+          # Seed the public demo with REAL recalls against this repo's own memory so
+          # the Activity feed, recall counts, and hot/healthy memory render populated
+          # (recall telemetry is local + gitignored, so a fresh CI checkout has none).
+          # These are genuine recall operations — not fabricated numbers.
+          queries=(
+            "how does trust scoring work"
+            "how do I run the tests"
+            "viewer grounding and kageignore"
+            "pr check stale memory gate"
+            "recall instrumentation and activity feed"
+            "memory packet lifecycle and health states"
+            "code graph indexing and symbols"
+            "benchmark trust gates and score"
+            "how to capture a decision packet"
+            "supersede and deprecate memory"
+            "github pages deploy workflow"
+            "dense embeddings recall ranking"
+            "interactive graph viewer controls"
+            "memory health donut grounded"
+            "claude code setup hooks"
+          )
+          # Repeat the core queries so frequently-useful packets become "hot".
+          for round in 1 2 3 4; do
+            for q in "${queries[@]:0:6}"; do node mcp/dist/cli.js recall "$q" --project . >/dev/null 2>&1 || true; done
+          done
+          # Long tail once, for breadth in the feed.
+          for q in "${queries[@]:6}"; do node mcp/dist/cli.js recall "$q" --project . >/dev/null 2>&1 || true; done
           node mcp/dist/cli.js metrics --project . --json > .agent_memory/metrics.json
           node mcp/dist/cli.js inbox --project . --json > .agent_memory/inbox.json
           node mcp/dist/cli.js benchmark --trust --project . --json > .agent_memory/reports/trust.json || true
