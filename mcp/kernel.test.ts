@@ -3407,7 +3407,7 @@ test("memory reconciliation makes changed linked memory an agent responsibility"
   assert.doesNotMatch(report.agent_instruction, /ask the user/i);
 });
 
-test("pr check blocks unresolved memory reconciliation", () => {
+test("pr check warns but does not block on soft memory reconciliation", () => {
   const project = tempProject();
   execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
   mkdirSync(join(project, "src"), { recursive: true });
@@ -3433,12 +3433,25 @@ test("pr check blocks unresolved memory reconciliation", () => {
   assert.equal(refresh.stale_packets.length, 1);
 
   const check = prCheck(project);
-  assert.equal(check.ok, false);
-  assert.match(check.errors.join("\n"), /memory reconciliation/i);
-  assert.ok(check.required_actions.some((action) => action.includes("kage learn") || action.includes("kage supersede")));
+  assert.equal(check.ok, true); // code changed since capture is soft drift — warn, don't block the PR
+  assert.match(check.warnings.join("\n"), /reconciliation|changed since capture/i);
 });
 
-test("pr check blocks when observed session learnings still need distillation", () => {
+test("pr check blocks on hard-stale memory (cited file deleted)", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "gone.ts"), "export const gone = 1;\n", "utf8");
+  assert.equal(capture({ projectDir: project, title: "Gone rule", body: "All about src/gone.ts retries.", type: "decision", paths: ["src/gone.ts"] }).ok, true);
+  commitAll(project, "seed gone");
+  unlinkSync(join(project, "src", "gone.ts"));
+  refreshProject(project);
+  const check = prCheck(project);
+  assert.equal(check.ok, false);
+  assert.match(check.errors.join("\n"), /hard-stale/i);
+});
+
+test("pr check warns but does not block on distillable session learnings", () => {
   const project = tempProject();
   execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
   writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
@@ -3456,9 +3469,8 @@ test("pr check blocks when observed session learnings still need distillation", 
   assert.equal(refresh.ok, true);
   const check = prCheck(project);
 
-  assert.equal(check.ok, false);
-  assert.match(check.errors.join("\n"), /distillable session/);
-  assert.ok(check.required_actions.some((action) => action.includes("kage distill --project . --session pr-session")));
+  assert.equal(check.ok, true); // distillable sessions are advisory — warn, don't block
+  assert.match(check.warnings.join("\n"), /distillable session/);
 });
 
 test("pr check ignores stale packets that were already superseded", () => {

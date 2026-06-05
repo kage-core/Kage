@@ -14947,11 +14947,14 @@ export function prCheck(projectDir: string): PrCheckResult {
   const tree = gitTree(projectDir);
   const codeInputHash = currentCodeGraphInputHash(projectDir);
   const memoryInputHash = knowledgeGraphInputHash(projectDir, codeInputHash);
-  const stalePackets = loadPacketsFromDir(packetsDir(projectDir))
+  const fpCache = new Map<string, MemoryPathFingerprint | null>();
+  const staleEntries = loadPacketsFromDir(packetsDir(projectDir))
     .filter((packet) => packet.status === "approved" || packet.status === "pending")
-    .map((packet) => ({ packet, reasons: staleMemoryReasons(projectDir, packet) }))
-    .filter((entry) => entry.reasons.length)
-    .map((entry) => staleFinding(entry.packet, entry.reasons));
+    .map((packet) => ({ packet, reasons: staleMemoryReasons(projectDir, packet, fpCache), hard: recallHardStaleReason(projectDir, packet, fpCache) !== null }))
+    .filter((entry) => entry.reasons.length);
+  const stalePackets = staleEntries.map((entry) => staleFinding(entry.packet, entry.reasons));
+  const hardStaleCount = staleEntries.filter((entry) => entry.hard).length;
+  const softStaleCount = staleEntries.length - hardStaleCount;
   const memoryPacketChanges = unique(
     rawStatus
       .split(/\r?\n/)
@@ -14967,13 +14970,18 @@ export function prCheck(projectDir: string): PrCheckResult {
   const warnings = [...validation.warnings];
   const requiredActions: string[] = [];
 
-  if (stalePackets.length) {
-    errors.push(`${stalePackets.length} stale memory packet(s) require update, verification, or supersession.`);
-    requiredActions.push("Run kage refresh, then update or supersede stale packets.");
+  // Block only on hard-stale memory (cited files deleted, ttl expired, reported
+  // stale). Soft-stale ("linked code changed since capture") is normal during
+  // active development — surface it as a warning, don't fail the gate.
+  if (hardStaleCount) {
+    errors.push(`${hardStaleCount} memory packet(s) are hard-stale (deleted citations, expired ttl, or reported) and must be updated or superseded.`);
+    requiredActions.push("Run kage compact (or kage gc), then update or supersede the affected packets.");
+  }
+  if (softStaleCount) {
+    warnings.push(`${softStaleCount} memory packet(s) reference code that changed since capture — review with kage verify (not blocking).`);
   }
   if (reconciliation.unresolved_count > 0) {
-    errors.push(`${reconciliation.unresolved_count} memory reconciliation item(s) require agent update or supersession.`);
-    requiredActions.push(...reconciliation.items.slice(0, 5).map((item) => item.next_action));
+    warnings.push(`${reconciliation.unresolved_count} memory reconciliation item(s) may need update after recent code changes (review on handoff; not blocking).`);
   }
   if (!codeGraphCurrent || !memoryGraphCurrent) {
     errors.push("Generated graph artifacts are missing or not current for this working tree content.");
@@ -14981,8 +14989,7 @@ export function prCheck(projectDir: string): PrCheckResult {
   }
   const distillableSessions = sessions.sessions.filter((session) => session.durable_observations > 0);
   if (distillableSessions.length) {
-    errors.push(`${distillableSessions.length} distillable session learning${distillableSessions.length === 1 ? "" : "s"} require review before merge.`);
-    requiredActions.push(...distillableSessions.slice(0, 5).map((session) => session.next_action));
+    warnings.push(`${distillableSessions.length} distillable session learning${distillableSessions.length === 1 ? "" : "s"} pending review (run kage distill; not blocking).`);
   }
   if (!memoryPacketChanges.length && overlay.changed_files.some((path) => !path.startsWith(".agent_memory/"))) {
     warnings.push("No repo memory packet changed for this branch. If durable knowledge was learned, run kage propose --from-diff or kage learn.");
