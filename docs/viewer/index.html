@@ -1,309 +1,123 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Kage viewer</title>
-    <link rel="stylesheet" href="./styles.css?v=39">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kage — memory console</title>
+    <style>
+      :root {
+        --bg: #0a0e0c; --panel: #111714; --line: rgba(220,255,235,0.08);
+        --line-strong: rgba(220,255,235,0.16);
+        --text: #e7f0ea; --muted: #8a9b91; --faint: #5f6f66;
+        --green: #41ff8f; --green-dim: #2bbf6a; --amber: #f5c451; --red: #ff6b6b; --cyan: #6ad7ff;
+        --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+        --sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+      a { color: var(--cyan); text-decoration: none; }
+      .shell { max-width: 880px; margin: 0 auto; padding: 0 24px 96px; }
+
+      .topbar { display: flex; align-items: center; gap: 12px; padding: 22px 0 28px; }
+      .mark { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center;
+        background: rgba(65,255,143,0.12); border: 1px solid rgba(65,255,143,0.28); color: var(--green);
+        font-weight: 800; font-size: 14px; }
+      .topbar b { font-weight: 700; letter-spacing: -0.01em; }
+      .topbar .repo { color: var(--muted); font-size: 13px; }
+      .topbar .spacer { flex: 1; }
+      .topbar a.gh { color: var(--muted); font-size: 13px; }
+
+      .hero { border: 1px solid var(--line); border-radius: 16px; padding: 28px 30px;
+        background: radial-gradient(120% 140% at 0% 0%, rgba(65,255,143,0.07), transparent 60%), var(--panel);
+        display: grid; grid-template-columns: auto 1fr; gap: 36px; align-items: center; }
+      .hero[data-status="warn"] { border-color: rgba(245,196,81,0.28); }
+      .hero[data-status="alert"] { border-color: rgba(255,107,107,0.30); }
+      .hero .eyebrow { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--faint); }
+      .hero .score { display: flex; align-items: baseline; gap: 4px; margin-top: 8px; }
+      .hero .score b { font-size: 64px; line-height: 0.9; font-weight: 800; letter-spacing: -0.03em; color: var(--green); }
+      .hero[data-status="warn"] .score b { color: var(--amber); }
+      .hero[data-status="alert"] .score b { color: var(--red); }
+      .hero .score span { font-size: 18px; color: var(--faint); }
+      .hero .verdict { margin-top: 12px; color: var(--muted); font-size: 13px; max-width: 220px; line-height: 1.5; }
+      .bars { display: grid; gap: 16px; }
+      .bar { display: grid; grid-template-columns: 1fr auto; gap: 4px 14px; align-items: center; }
+      .bar .lbl { font-size: 13.5px; color: var(--text); }
+      .bar .val { font-size: 14px; font-weight: 700; color: var(--green); font-variant-numeric: tabular-nums; }
+      .bar .track { grid-column: 1 / 2; height: 6px; border-radius: 99px; background: rgba(255,255,255,0.06); overflow: hidden; }
+      .bar .track i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--green-dim), var(--green)); }
+
+      .sec { margin-top: 40px; }
+      .sec-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+      .sec-head h2 { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: 0.02em; }
+      .sec-head .count { font-size: 12px; color: var(--faint); }
+
+      .alert-card { border: 1px solid rgba(245,196,81,0.30); border-radius: 14px; overflow: hidden;
+        background: linear-gradient(135deg, rgba(28,22,8,0.6), rgba(17,23,20,0.6)); }
+      .att { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; padding: 14px 18px; border-top: 1px solid var(--line); }
+      .att:first-child { border-top: none; }
+      .att .t { font-size: 14px; font-weight: 600; }
+      .att .why { grid-column: 1 / 2; font-size: 12.5px; color: var(--amber); opacity: 0.9; }
+      .att .tag { align-self: center; font-size: 11px; color: var(--faint); font-family: var(--mono); }
+
+      .controls { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+      .controls input { flex: 1; min-width: 200px; background: var(--panel); border: 1px solid var(--line);
+        color: var(--text); border-radius: 10px; padding: 11px 14px; font: inherit; font-size: 14px; }
+      .controls input::placeholder { color: var(--faint); }
+      .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+      .chip { font-size: 12.5px; padding: 8px 12px; border-radius: 99px; border: 1px solid var(--line);
+        background: transparent; color: var(--muted); cursor: pointer; font: inherit; }
+      .chip[aria-pressed="true"] { border-color: var(--line-strong); background: rgba(255,255,255,0.04); color: var(--text); }
+      .chip b { color: var(--faint); font-weight: 600; }
+
+      .row { display: grid; grid-template-columns: 10px 1fr auto; gap: 0 14px; align-items: start;
+        padding: 14px 4px; border-top: 1px solid var(--line); }
+      .row:first-child { border-top: none; }
+      .dot { width: 8px; height: 8px; border-radius: 99px; margin-top: 6px; background: var(--faint); }
+      .dot.hot { background: var(--green); box-shadow: 0 0 8px rgba(65,255,143,0.5); }
+      .dot.healthy { background: var(--green-dim); }
+      .dot.cold { background: #3a4842; }
+      .dot.stale, .dot.disputed, .dot.ungrounded { background: var(--amber); }
+      .row .body .title { font-size: 14px; font-weight: 600; line-height: 1.35; }
+      .row .body .meta { margin-top: 4px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      .type { font-size: 11px; color: var(--muted); text-transform: lowercase; padding: 2px 7px; border: 1px solid var(--line); border-radius: 6px; }
+      .paths { font-family: var(--mono); font-size: 11.5px; color: var(--faint); overflow-wrap: anywhere; }
+      .row .right { text-align: right; font-size: 11.5px; color: var(--faint); white-space: nowrap; }
+      .health { font-weight: 700; }
+      .health.stale, .health.disputed, .health.ungrounded { color: var(--amber); }
+      .health.hot, .health.healthy { color: var(--green-dim); }
+      .empty { color: var(--faint); padding: 24px 4px; font-size: 14px; }
+      .loading { color: var(--muted); padding: 40px 0; }
+    </style>
   </head>
   <body>
-    <div class="viewer-shell">
-      <aside class="repo-sidebar" aria-label="Repository navigation">
-        <a class="sidebar-brand" href="../">
-          <span class="brand-mark">K</span>
-          <span>Kage</span>
-        </a>
-        <div class="repo-card">
-          <span>Repository</span>
-          <strong>kage-core/Kage</strong>
-        </div>
-        <nav class="viewer-sections" aria-label="Kage viewer sections">
-          <a class="viewer-section active" href="./" data-viewer-page="overview" aria-current="page">Overview</a>
-          <a class="viewer-section" href="./graph.html" data-viewer-page="graph">Graph</a>
-          <a class="viewer-section" href="./memory.html" data-viewer-page="memory">Memory</a>
-          <a class="viewer-section" href="./intel.html" data-viewer-page="intel">Before You Edit</a>
-          <a class="viewer-section" href="./review.html" data-viewer-page="review">Review</a>
-        </nav>
-        <nav class="sidebar-secondary" aria-label="Diagnostics">
-          <span class="sidebar-secondary-label">Diagnostics</span>
-          <a href="./owners.html" data-viewer-page="owners">Owners</a>
-          <a href="./data.html" data-viewer-page="data">Artifacts</a>
-        </nav>
-        <nav class="sidebar-links" aria-label="Kage links">
-          <a href="https://kage-core.com/">Home</a>
-          <a href="https://kage-core.com/guide.html">Docs</a>
-          <a href="https://kage-core.com/releases.html">Releases</a>
-          <a href="https://github.com/kage-core/Kage">GitHub</a>
-        </nav>
-      </aside>
+    <div class="shell">
+      <div class="topbar">
+        <span class="mark">K</span>
+        <b>Kage</b>
+        <span class="repo" id="repo">memory console</span>
+        <span class="spacer"></span>
+        <a class="gh" href="https://github.com/kage-core/Kage">GitHub ↗</a>
+      </div>
 
-      <section class="viewer-main">
-        <header class="app-header">
-          <div class="brand-block">
-            <span class="eyebrow" id="pageEyebrow">kage://overview</span>
-            <h1 id="pageTitle">Repo dashboard</h1>
-            <p id="graphSummary">What is safe to change next, what needs attention, and what is ready to hand off.</p>
-          </div>
-          <div id="statusStrip" class="status-strip" aria-label="Graph health"></div>
-          <div id="autoLoadStatus" class="autoload-status">auto-load: waiting</div>
-          <label class="file-picker">
-            <span>Manual JSON</span>
-            <input id="graphFile" type="file" accept=".json,application/json" multiple>
-          </label>
-        </header>
+      <div id="hero" class="hero" data-status="idle">
+        <div class="loading">Loading memory…</div>
+      </div>
 
-        <main class="layout">
-      <section class="dashboard-panel" aria-label="Kage repo dashboard">
-        <div id="trustHero" class="trust-hero" aria-label="Memory trust score"></div>
-        <div id="suppressionShelf" class="suppression-shelf" aria-label="Memory withheld from recall" hidden></div>
-        <div id="dashboardStats" class="dashboard-stats" aria-label="Repo dashboard stats"></div>
-        <section id="repoXray" class="repo-xray" aria-label="Repository map">
-          <div class="repo-xray-head">
-            <div>
-              <span>Repository map</span>
-              <h2>What Kage understands about this repo</h2>
-            </div>
-            <strong id="repoXrayStatus">waiting</strong>
-          </div>
-          <p id="repoXrayScript">Entry points, core modules, change risk, tests, and memory overlays — mapped from the code graph.</p>
-          <div id="repoXrayLayers" class="repo-xray-layers"></div>
-        </section>
-        <div id="dashboardCharts" class="dashboard-charts" aria-label="Repo health charts"></div>
-        <div class="dashboard-grid">
-          <article class="dashboard-card primary" id="dashboardMemory">
-            <div class="dashboard-card-head"><span>Memory</span><strong>repo lore</strong></div>
-            <h3>Reusable repo context</h3>
-            <ul></ul>
-            <a href="./memory.html" data-viewer-page="memory">Open memory</a>
-          </article>
-          <article class="dashboard-card primary" id="dashboardGraph">
-            <div class="dashboard-card-head"><span>Graph</span><strong>source map</strong></div>
-            <h3>What to inspect before editing</h3>
-            <ul></ul>
-            <a href="./graph.html" data-viewer-page="graph">Explore graph</a>
-          </article>
-          <article class="dashboard-card primary" id="dashboardIntel">
-            <div class="dashboard-card-head"><span>Before You Edit</span><strong>checklist</strong></div>
-            <h3>What needs attention</h3>
-            <ul></ul>
-            <a href="./intel.html" data-viewer-page="intel">Open edit checklist</a>
-          </article>
-          <article class="dashboard-card primary" id="dashboardReview">
-            <div class="dashboard-card-head"><span>Review</span><strong>handoff</strong></div>
-            <h3>Ready for handoff?</h3>
-            <ul></ul>
-            <a href="./review.html" data-viewer-page="review">Open review</a>
-          </article>
-        </div>
+      <section class="sec" id="attentionSec" hidden>
+        <div class="sec-head"><h2>Needs your attention</h2><span class="count" id="attentionCount"></span></div>
+        <div class="alert-card" id="attention"></div>
       </section>
 
-      <section class="graph-panel" aria-label="Graph rendering">
-        <div class="graph-toolbar">
-          <div>
-            <h2>Dependency Graph</h2>
-            <p id="graphSubhead">Combined repo memory and source graph.</p>
-          </div>
-          <div class="graph-actions" aria-label="Graph view controls">
-            <span id="interactionHint" class="interaction-hint">drag canvas / wheel zoom / click node</span>
-            <button id="zoomOut" type="button">-</button>
-            <button id="fitView" type="button">Fit</button>
-            <button id="zoomIn" type="button">+</button>
-          </div>
+      <section class="sec">
+        <div class="sec-head"><h2>Memory</h2><span class="count" id="memCount"></span></div>
+        <div class="controls">
+          <input id="search" type="search" placeholder="Search memory by title, file, or type…" />
         </div>
-        <div id="graphCanvasWrap" class="graph-canvas-wrap">
-          <canvas id="graphCanvas" aria-label="Interactive Kage memory and code graph"></canvas>
-          <div id="threeGraph" class="three-graph" aria-label="Interactive 3D Kage memory and code graph"></div>
-          <div id="graphTooltip" class="graph-tooltip" role="status"></div>
-        </div>
-        <svg id="graphSvg" class="fallback-graph" viewBox="0 0 1000 660" role="img" aria-labelledby="graphTitle graphDescription">
-          <title id="graphTitle">Kage local memory and code graph terminal view</title>
-          <desc id="graphDescription">Entities and relationships from loaded Kage memory and code graph JSON files.</desc>
-          <defs>
-            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z"></path>
-            </marker>
-          </defs>
-          <g id="edgeLayer"></g>
-          <g id="nodeLayer"></g>
-        </svg>
-        <div id="emptyState" class="empty-state">
-          <strong>No graph loaded</strong>
-          <span>Choose Kage graph JSON files or open with graph, code, and metrics URL params.</span>
-        </div>
-      </section>
-
-      <section class="workspace-shell" aria-label="Viewer workspace">
-        <div class="workspace-body">
-          <aside class="control-panel" aria-label="Graph controls">
-            <div class="panel-heading compact">
-              <h2>Find Context</h2>
-              <span id="workspaceMode">Combined</span>
-            </div>
-            <div id="metricsSummary" class="metrics-grid"></div>
-            <label>
-              <span>File, symbol, route, test, or memory</span>
-              <input id="searchInput" type="search" placeholder="Search before changing code...">
-            </label>
-            <div class="journey-actions" aria-label="Graph journeys">
-              <button id="showUntrusted" type="button">Show untrusted edges</button>
-              <button id="showUncovered" type="button">Show code without memory</button>
-              <button id="showMemoryCode" type="button">Show memory-code links</button>
-            </div>
-            <details class="advanced-controls">
-              <summary>More filters</summary>
-              <label>
-                <span>View</span>
-                <select id="viewMode">
-                  <option value="combined">Combined</option>
-                  <option value="memory">Memory</option>
-                  <option value="code">Code</option>
-                </select>
-              </label>
-              <label>
-                <span>Node Type</span>
-                <select id="typeFilter">
-                  <option value="">All types</option>
-                </select>
-              </label>
-              <label>
-                <span>Relation</span>
-                <select id="relationFilter">
-                  <option value="">All relations</option>
-                </select>
-              </label>
-              <label>
-                <span>Max Nodes</span>
-                <select id="maxNodes">
-                  <option value="60">60</option>
-                  <option value="90" selected>90</option>
-                  <option value="140">140</option>
-                  <option value="220">220</option>
-                </select>
-              </label>
-              <label class="toggle-control">
-                <input id="showDependencies" type="checkbox">
-                <span>Include external dependencies</span>
-              </label>
-              <button id="resetView" type="button">Reset filters</button>
-            </details>
-            <input id="scopeFilter" type="hidden" value="signal">
-            <div class="legend" aria-label="Legend">
-              <span><i class="dot memory-dot"></i>memory packet</span>
-              <span><i class="dot code-dot"></i>code artifact</span>
-              <span><i class="line sample-line"></i>relation</span>
-            </div>
-          </aside>
-
-          <aside class="graph-insights-panel" aria-label="Graph insights">
-            <div class="panel-heading compact">
-              <h2>Before You Change</h2>
-              <span id="graphInsightStatus">signals</span>
-            </div>
-            <div id="graphInsights" class="graph-insights"></div>
-          </aside>
-
-          <aside class="details-panel" aria-label="Selection details">
-            <div class="panel-heading compact">
-              <h2>Inspector</h2>
-              <span id="selectionStatus">No selection</span>
-            </div>
-            <div id="selectionDetails" class="details-empty">Select an entity or edge.</div>
-            <div class="path-finder inspector-path-finder" aria-label="Dependency path finder">
-              <div class="path-finder-header">
-                <span>Trace Code Path</span>
-                <button id="clearPath" type="button">Clear</button>
-              </div>
-              <div class="path-finder-inputs">
-                <input id="pathFromInput" type="search" list="pathNodeOptions" placeholder="From selected file or symbol...">
-                <input id="pathToInput" type="search" list="pathNodeOptions" placeholder="To related test, route, or symbol...">
-                <button id="findPath" type="button">Trace</button>
-              </div>
-              <datalist id="pathNodeOptions"></datalist>
-              <div id="pathStatus" class="path-status">Select a code node, then trace to another code node when you need impact proof.</div>
-              <div id="pathResult" class="path-result"></div>
-            </div>
-          </aside>
-
-          <section class="memory-panel" aria-label="Memory library">
-            <div class="panel-heading">
-              <h2>Memory</h2>
-              <span id="memoryStatus">packets</span>
-            </div>
-            <div id="memoryStats" class="memory-stats" aria-label="Memory summary"></div>
-            <div id="memoryOverview" class="memory-overview" aria-label="Memory coverage chart"></div>
-            <div class="memory-toolbar">
-              <input id="memorySearch" type="search" placeholder="Search memory, path, command, bug, decision...">
-              <select id="memoryFilter" aria-label="Memory filter">
-                <option value="all">All memory</option>
-                <option value="linked">Linked to code</option>
-                <option value="needs-paths">Needs paths</option>
-                <option value="decision">Decisions</option>
-                <option value="runbook">Runbooks</option>
-                <option value="bug_fix">Bug fixes</option>
-              </select>
-            </div>
-            <div id="memoryList" class="memory-list"></div>
-          </section>
-
-          <section class="owners-panel" aria-label="Owners and contributors">
-            <div class="panel-heading">
-              <h2>Owners</h2>
-              <span id="ownersStatus">git signals</span>
-            </div>
-            <div id="ownersSummary" class="owners-summary"></div>
-            <div id="ownersList" class="owners-list"></div>
-          </section>
-
-          <section class="review-panel" aria-label="Review queue">
-            <div class="panel-heading">
-              <h2>Memory Inbox</h2>
-              <span id="reviewCount">0</span>
-            </div>
-            <div id="reviewOverview" class="review-overview"></div>
-            <div id="reviewList" class="review-list"></div>
-          </section>
-
-          <section class="proof-panel" aria-label="Quality and benchmark">
-            <div class="panel-heading">
-              <h2>Proof</h2>
-              <span id="proofStatus">metrics</span>
-            </div>
-            <div id="proofOverview" class="proof-overview"></div>
-            <div id="proofList" class="proof-list"></div>
-          </section>
-
-          <section class="intelligence-panel" aria-label="Before edit risks and reports">
-            <div class="panel-heading">
-              <h2>Before You Edit</h2>
-              <span id="intelligenceStatus">reports</span>
-            </div>
-            <div id="intelligenceList" class="intelligence-list"></div>
-          </section>
-
-          <section class="table-panel entities-panel" aria-label="Nodes">
-            <div class="panel-heading">
-              <h2>Artifact Nodes</h2>
-              <span id="entityCount">0</span>
-            </div>
-            <div id="debugOverview" class="debug-overview"></div>
-            <div class="debug-guide">Use artifacts when the graph or recall output looks wrong. Normal repo work starts from Overview, Graph, Memory, Before You Edit, or Review.</div>
-            <div id="entityList" class="list"></div>
-          </section>
-
-          <section class="table-panel edges-panel" aria-label="Relations">
-            <div class="panel-heading">
-              <h2>Artifact Relations</h2>
-              <span id="edgeCount">0</span>
-            </div>
-            <div class="debug-guide">Relations expose generation quality: evidence, confidence, invalidation, and memory-code linking.</div>
-            <div id="edgeList" class="list"></div>
-          </section>
-        </div>
-      </section>
-        </main>
+        <div class="chips" id="chips"></div>
+        <div id="list"></div>
       </section>
     </div>
 
-    <script src="./app.js?v=53"></script>
+    <script src="./console.js?v=1"></script>
   </body>
 </html>
