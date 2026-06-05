@@ -178,22 +178,22 @@ kage setup claude-code --project . --write   # or: codex, cursor, windsurf…</p
       <section class="section">
         <div class="wrap">
           <div class="section-head">
-            <span class="eyebrow">Why agents need Kage</span>
-            <h2>Agents forget the context teams keep relearning.</h2>
-            <p class="lede">Every repo has commands, gotchas, conventions, and decisions that take hours to rediscover. Kage gives that knowledge a durable, source-backed place to live.</p>
+            <span class="eyebrow">Why Kage</span>
+            <h2>Three guarantees no other agent memory makes.</h2>
+            <p class="lede">Every agent remembers now — the danger is acting on memory that's wrong. An agent that trusts a stale or hallucinated memory is worse than one with none. Kage is built so it can't.</p>
           </div>
           <div class="why-grid">
             <div class="why-card">
-              <h3>Without Kage</h3>
-              <p>Every session asks the same setup questions, scans the same files, and repeats the same mistakes.</p>
+              <h3>✓ Validated on write</h3>
+              <p>A memory that cites a file which doesn't exist is <b>rejected</b> — hallucinated knowledge never enters the store.</p>
             </div>
             <div class="why-card">
-              <h3>With Kage</h3>
-              <p>Agents recall source-backed memory before they act: commands, decisions, known bugs, and path-specific workflows.</p>
+              <h3>✓ Withheld on recall</h3>
+              <p>When the code a memory cites is deleted or refactored, Kage <b>withholds it from the agent</b> and shows you on the Suppression Shelf.</p>
             </div>
             <div class="why-card">
-              <h3>For teams</h3>
-              <p>Memory travels with the repo, so teammates and different agents start from the same reviewed context.</p>
+              <h3>✓ Grounded to your code</h3>
+              <p>Memory links to your code graph, so recall returns the <b>bounded blast radius</b> of a change — not just matching text.</p>
             </div>
           </div>
         </div>
@@ -217,14 +217,38 @@ kage setup claude-code --project . --write   # or: codex, cursor, windsurf…</p
       <section class="section">
         <div class="wrap">
           <div class="section-head">
+            <span class="eyebrow">Proof</span>
+            <h2>Trust you can measure — on your own repo.</h2>
+            <p class="lede">Most memory tools benchmark recall. Kage benchmarks the thing that matters when an agent acts: whether the memory can be trusted.</p>
+          </div>
+          <div class="terminal">
+            <div class="terminal-head">
+              <span>kage benchmark --trust</span>
+              <span>0 deps · no API key</span>
+            </div>
+            <pre>Trust score: 100/100  (PASS)
+  Hallucinated-citation rejection: 100%
+  Stale-memory exclusion:          100%
+  Live grounding rate:              99%</pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="wrap">
+          <div class="section-head">
             <span class="eyebrow">Works with your agent</span>
             <h2>One package. Any MCP-capable coding agent.</h2>
-            <p class="lede">Kage ships a stdio MCP server and a CLI. Run <code>kage setup &lt;agent&gt;</code> once per repo.</p>
+            <p class="lede">Kage ships a stdio MCP server and a CLI. Run <code>kage setup &lt;agent&gt; --write</code> once per repo.</p>
           </div>
           <div class="agents">
-            <div class="agent"><strong>Codex</strong><span>kage setup codex</span></div>
             <div class="agent"><strong>Claude Code</strong><span>kage setup claude-code</span></div>
+            <div class="agent"><strong>Codex</strong><span>kage setup codex</span></div>
             <div class="agent"><strong>Cursor</strong><span>kage setup cursor</span></div>
+            <div class="agent"><strong>Windsurf</strong><span>kage setup windsurf</span></div>
+            <div class="agent"><strong>Gemini CLI</strong><span>kage setup gemini-cli</span></div>
+            <div class="agent"><strong>Cline</strong><span>kage setup cline</span></div>
+            <div class="agent"><strong>Goose</strong><span>kage setup goose</span></div>
             <div class="agent"><strong>Any MCP client</strong><span>kage setup generic-mcp</span></div>
           </div>
         </div>
@@ -276,14 +300,14 @@ kage setup claude-code --project . --write   # or: codex, cursor, windsurf…</p
               <span>quickstart</span>
               <span>npm</span>
             </div>
-            <pre>npm install -g @kage-core/kage-graph-mcp
-cd your-repo
+            <pre># see the trust wedge in 30 seconds — no setup, no API key
+npx -y @kage-core/kage-graph-mcp demo
+
+# then wire it into your repo + agent
+npm install -g @kage-core/kage-graph-mcp
 kage init --project .
-kage setup codex --project . --write
-# or: kage setup claude-code --project . --write
-# restart the agent once
-kage setup verify-agent --agent codex --project .
-kage recall "how do I run tests" --project .</pre>
+kage setup claude-code --project . --write   # or codex, cursor, windsurf…
+kage setup verify-agent --agent claude-code --project .</pre>
           </div>
           <div class="actions">
             <a class="button primary" href="guide.html">Read the docs</a>
@@ -295,7 +319,7 @@ kage recall "how do I run tests" --project .</pre>
 
     <footer class="footer">
       <div class="wrap footer-inner">
-        <span>Kage &middot; shared memory for AI coding agents</span>
+        <span>Kage &middot; the agent memory you can trust</span>
         <span>
           <a href="guide.html">Docs</a> &middot;
           <a href="viewer/">Viewer</a> &middot;
