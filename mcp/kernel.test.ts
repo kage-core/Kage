@@ -38,6 +38,7 @@ import {
   verifyCitations,
   benchmarkTrust,
   kageSuppressedMemory,
+  runDemo,
   initProject,
   indexProject,
   installAgentPolicy,
@@ -3685,6 +3686,17 @@ test("recall assembles a bounded structural blast radius from the recalled memor
   const traversed = recall(project, "core retry idempotent payment", 5, false, { structuralHops: 2 });
   assert.match(traversed.context_block, /Structural Blast Radius \(2-hop\)/);
   assert.match(traversed.context_block, /src\/app\.js/); // app.js depends on the recalled core.js
+});
+
+test("kage demo proves the trust wedge: reject, withhold, recall", () => {
+  const project = tempProject();
+  const r = runDemo(join(project, "demo"));
+  assert.equal(r.ok, true);
+  assert.equal(r.captured.length >= 2, true);
+  assert.equal(r.rejected_hallucination !== null, true);
+  assert.equal(r.withheld.some((w) => /Legacy/i.test(w.title)), true);
+  assert.equal(r.recalled.some((t) => /Auth|Payments/i.test(t)), true);
+  assert.equal(r.recalled.some((t) => /Legacy/i.test(t)), false);
 });
 
 test("kageSuppressedMemory lists memory recall is withholding", () => {

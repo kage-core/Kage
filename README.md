@@ -22,7 +22,23 @@ Works with Codex, Claude Code, Cursor, Windsurf, and any MCP agent.
   <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a>
 </p>
 
+<p>
+  <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp"><img src="https://img.shields.io/npm/v/@kage-core/kage-graph-mcp?color=41ff8f&label=npm" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp"><img src="https://img.shields.io/npm/dm/@kage-core/kage-graph-mcp?color=41ff8f" alt="downloads"></a>
+  <img src="https://img.shields.io/badge/license-MIT-41ff8f" alt="license">
+  <img src="https://img.shields.io/badge/dependencies-0-41ff8f" alt="zero dependencies">
+  <img src="https://img.shields.io/badge/trust%20benchmark-100%2F100-41ff8f" alt="trust 100/100">
+  <img src="https://img.shields.io/badge/code--grounded-yes-6ad7ff" alt="code grounded">
+</p>
+
 ![Kage Memory Terminal demo](docs/assets/kage-demo.gif)
+
+> **See it in 30 seconds — no setup, no API key:**
+> ```bash
+> npx -y @kage-core/kage-graph-mcp demo
+> ```
+> Watch Kage reject a hallucinated memory, withhold a stale one, and recall only
+> grounded memory — then open the viewer.
 
 </div>
 

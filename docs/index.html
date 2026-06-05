@@ -7,7 +7,7 @@
       name="description"
       content="Kage is shared repo memory for AI coding agents. Save what your agent learns, connect it to code, recall it next session."
     />
-    <title>Kage - Shared repo memory for AI coding agents</title>
+    <title>Kage — the agent memory you can trust</title>
     <link rel="stylesheet" href="assets/site.css?v=1" />
     <style>
       /* Page-specific layout */
@@ -130,11 +130,13 @@
       <section class="hero">
         <div class="wrap hero-grid">
           <div>
-            <span class="eyebrow">CLI + MCP memory for coding agents</span>
-            <h1>Shared repo memory for AI coding agents.</h1>
+            <span class="eyebrow">Trustworthy memory for coding agents</span>
+            <h1>The agent memory you can trust.</h1>
             <p class="hero-copy">
-              Kage lets Codex, Claude Code, Cursor, and other MCP agents save what they learn about a repo,
-              connect it to code, and recall it next session.
+              Every coding agent remembers now. Kage is the one you can trust: it rejects
+              hallucinated citations, withholds memory whose code was deleted, and is
+              grounded to your actual code graph — stored as plain files you review in the
+              same PR as the code. Git-native, zero dependencies, no API key.
             </p>
             <div class="actions">
               <a class="button primary" href="guide.html#quickstart">Install Kage</a>
@@ -150,15 +152,16 @@
 
           <div class="terminal" aria-label="Install Kage">
             <div class="terminal-head">
-              <span>install</span>
+              <span>try it — no setup, no API key</span>
               <span>Node 18+</span>
             </div>
-            <pre>npm install -g @kage-core/kage-graph-mcp
-cd your-repo
+            <pre># see the trust wedge in 30 seconds
+npx -y @kage-core/kage-graph-mcp demo
+
+# then wire it into your repo + agent
+npm install -g @kage-core/kage-graph-mcp
 kage init --project .
-kage setup codex --project . --write
-# restart your agent once
-kage setup verify-agent --agent codex --project .</pre>
+kage setup claude-code --project . --write   # or: codex, cursor, windsurf…</pre>
           </div>
         </div>
 
