@@ -25,23 +25,30 @@ Kage measures the category-correct thing:
 Recalling a fact fast is worthless if the fact is no longer true. **We benchmark
 truth; they benchmark recall.**
 
-### …and we still win their benchmark
+### We ran their benchmark — honestly
 
-We ran LongMemEval-S anyway — all 470 non-abstention questions — to remove any
-"you're dodging it" objection:
+We ran LongMemEval-S (470 non-abstention questions) so we're not accused of
+dodging it. Kage strict, dependency-free recall scores **96.17% R@5 / 98.72%
+R@10** (209ms median).
 
-| System | R@5 | R@10 | R@20 | MRR |
-|---|---:|---:|---:|---:|
-| **Kage** (strict, **zero deps** — no vector DB, no LLM, no API key) | **96.17%** | **98.72%** | 99.79% | 0.909 |
-| agentmemory (published) | 95.2% | 98.6% | — | 0.882 |
+**This is not a clean head-to-head, and we won't pretend it is.** Two caveats
+that prevent any "we beat them" claim:
 
-Kage edges them on R@5 and R@10 — **dependency-free**, while they need a vector
-index. Reproduce it: `node benchmarks/longmemeval-kage-retrieval.mjs --data
-longmemeval_s_cleaned.json --limit 470 --top-k 20` (see
-[benchmarks/LONGMEMEVAL.md](../benchmarks/LONGMEMEVAL.md)).
+- **Plain BM25 scores 96.60% R@5 in our own harness — higher than Kage.** So 96%
+  here reflects an *easy, lexically-tractable protocol*, not a Kage retrieval
+  edge. Kage is roughly at the BM25 level on this task.
+- **Our BM25 baseline is 96.6%; agentmemory reports a BM25 baseline of 86.2%** —
+  a ~10-point gap that proves the **protocols differ**. We retrieve at the
+  *session* level (~53 candidate documents/question) on the *cleaned* dataset;
+  their harder setup (finer granularity and/or original data) is why their
+  vector system's edge over BM25 is larger.
 
-So: we match them on *their* benchmark, **and** we win the one that matters for
-coding memory (truth + grounding) that they can't run at all.
+**What we can honestly say:** Kage does strong, dependency-free retrieval on
+LongMemEval-S session-level evidence. **What we cannot say:** that Kage beats
+agentmemory — that needs their exact protocol (same granularity + dataset), and
+they're far faster (14ms vs our 209ms). Reproduce ours:
+`node benchmarks/longmemeval-kage-retrieval.mjs --data longmemeval_s_cleaned.json
+--limit 470 --top-k 20` (see [benchmarks/LONGMEMEVAL.md](../benchmarks/LONGMEMEVAL.md)).
 
 ## Feature-by-feature (honest)
 
@@ -49,7 +56,7 @@ coding memory (truth + grounding) that they can't run at all.
 |---|---|---|
 | Automatic capture | ✅ 9 lifecycle hooks | ✅ 12 hooks (slight edge) |
 | Retrieval | BM25 + local sparse-vector, **zero deps** | BM25 + vector + KG, RRF + rerank |
-| LongMemEval-S (their benchmark) | **96.17% R@5 / 98.72% R@10** (no deps) | 95.2% / 98.6% (needs vector index) |
+| LongMemEval-S | 96.17% R@5 (session-level, cleaned data; ≈ plain BM25) | 95.2% R@5 (different, harder protocol — *not* directly comparable) |
 | Coding-correct benchmark | **SWE-bench ablation + Trust 100/100** | none (LongMemEval is conversational) |
 | **Code graph + blast radius** | ✅ native | ❌ "no explicit code graph" (external tools) |
 | **Write-time citation validation** | ✅ rejects hallucinated citations | ❌ "no validation layer" |
