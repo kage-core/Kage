@@ -116,6 +116,10 @@
       }
 
       .split-list { columns: 2; column-gap: 28px; }
+      .split-list li { break-inside: avoid; margin-bottom: 4px; }
+      .split-list li strong, .steps li strong { color: var(--ink); font-weight: 600; }
+      ol.steps { margin: 12px 0 0; padding-left: 22px; }
+      ol.steps li { color: var(--muted); font: 400 15px/1.7 var(--sans); margin-bottom: 6px; padding-left: 4px; }
 
       pre { margin-top: 12px; }
 
@@ -153,6 +157,7 @@
         <a href="#first-day">First-day workflow</a>
         <strong>Concepts</strong>
         <a href="#concepts">Core concepts</a>
+        <a href="#lifecycle">Packet journey &amp; scores</a>
         <a href="#what-to-commit">What to commit</a>
         <a href="#good-memory">Good memory examples</a>
         <strong>Reference</strong>
@@ -292,6 +297,61 @@ kage hook status --project .</pre>
           </div>
           <h3 class="section-sub">Memory graph vs code graph</h3>
           <p>Two graph surfaces: a memory graph generated from approved packets, and a source-derived code graph generated from your code. The viewer overlays them so humans can see what was recalled, why it matters, and what signals are attached.</p>
+        </section>
+
+        <section id="lifecycle">
+          <h2>The packet journey &amp; the scores</h2>
+          <p>Every memory packet moves through a fixed lifecycle, and every number Kage shows you is derived from where packets sit in it. Here is the whole journey, and exactly what each score means.</p>
+
+          <h3 class="section-sub">1. The journey of a packet</h3>
+          <ol class="steps">
+            <li><strong>Capture</strong> &mdash; an agent records a learning with <code>kage_learn</code> (or <code>kage propose-from-diff</code>): a title, body, type, and the source paths it is about.</li>
+            <li><strong>Citation check</strong> &mdash; Kage rejects a strict capture whose cited paths don't exist. Memory can't be grounded to files that aren't there &mdash; this is the anti-hallucination gate. Paths your repo declares non-knowledge in <code>.kageignore</code> are dropped here, never stored as grounding.</li>
+            <li><strong>Grounding</strong> &mdash; the surviving paths are fingerprinted (content hashes). This is the link between a memory and the code it describes.</li>
+            <li><strong>Approve</strong> &mdash; repo-local captures are written as git-tracked JSON in <code>.agent_memory/packets/</code>. Org/public promotion is separate and human-gated.</li>
+            <li><strong>Recall</strong> &mdash; when an agent asks, Kage ranks packets and returns them &mdash; but excludes any that have gone stale, so agents never act on memory that no longer matches the code.</li>
+            <li><strong>Refresh</strong> &mdash; <code>kage refresh</code> re-checks every packet's grounding, flags stale ones, prunes dead or ignored paths, and rebuilds the graphs.</li>
+            <li><strong>Supersede / retire</strong> &mdash; when a learning is replaced or no longer true, it is superseded or deprecated and stops being recalled.</li>
+          </ol>
+
+          <h3 class="section-sub">When a packet is "stale"</h3>
+          <ul class="split-list">
+            <li><strong>A cited path is missing</strong> &mdash; a grounded file was deleted or renamed.</li>
+            <li><strong>A linked path changed</strong> &mdash; a cited file's hash no longer matches the fingerprint taken when it was verified.</li>
+            <li><strong>Freshness expired</strong> &mdash; it passed its time-to-live (365 days by default) without re-verification.</li>
+            <li><strong>It was reported</strong> &mdash; a human or agent flagged it, or it was deprecated/superseded.</li>
+          </ul>
+          <p>Paths listed in <code>.kageignore</code> (e.g. a presentation/visualization layer) never count as grounding and never trigger staleness &mdash; they aren't knowledge-bearing.</p>
+
+          <h3 class="section-sub">Health &mdash; the colored states</h3>
+          <p>The viewer's Memory list and health donut classify every packet:</p>
+          <ul class="split-list">
+            <li><strong>Hot</strong> &mdash; recalled 3+ times in the last 30 days. High-value repo lore.</li>
+            <li><strong>Healthy</strong> &mdash; approved, grounded, non-stale, and recalled at least once.</li>
+            <li><strong>Cold</strong> &mdash; approved and durable, but not recalled yet (or still pending review).</li>
+            <li><strong>Stale</strong> &mdash; a staleness condition above is true; verify, update, or supersede before trusting it.</li>
+            <li><strong>Disputed</strong> &mdash; stale and also reported or voted down.</li>
+            <li><strong>Ungrounded</strong> &mdash; approved but with no concrete code-path grounding; add files/symbols so agents know when to recall it.</li>
+            <li><strong>Generated</strong> &mdash; branch/change handoff context, useful now but not durable lore.</li>
+          </ul>
+
+          <h3 class="section-sub">Memory Trust &mdash; the 0&ndash;100 score</h3>
+          <p>Trust is not a vanity metric. It is produced by a reproducible local benchmark (<code>kage benchmark --trust</code>) that runs three gates, and the score is their average:</p>
+          <ul class="split-list">
+            <li><strong>Hallucinated citations rejected</strong> (target 100%) &mdash; in a throwaway sandbox repo, Kage attempts to store memory citing files that don't exist; this measures how many it refuses.</li>
+            <li><strong>Stale memory excluded from recall</strong> (target 100%) &mdash; memory is grounded to real files, the files are deleted, and this measures how much Kage withholds from recall afterward.</li>
+            <li><strong>Live memory grounded to code</strong> (target 80%+) &mdash; of your real repo's approved memory, how much is grounded (cited files exist) and not stale.</li>
+          </ul>
+          <p>A fourth figure, <strong>wrong advice prevented</strong>, combines the rejection and exclusion gates. Gates 1&ndash;2 run in an isolated sandbox so the number can't be gamed; gate 3 measures your actual repo, so it moves as memory drifts from or re-aligns with the code.</p>
+
+          <h3 class="section-sub">The other dashboard numbers</h3>
+          <ul class="split-list">
+            <li><strong>Memory packets</strong> &mdash; approved durable packets in this repo.</li>
+            <li><strong>Saved per recall</strong> &mdash; estimated tokens an agent avoids by recalling a grounded packet instead of re-reading source.</li>
+            <li><strong>Evidence coverage</strong> &mdash; share of memory-graph edges backed by concrete evidence.</li>
+            <li><strong>Average quality</strong> &mdash; mean packet quality score across the repo.</li>
+            <li><strong>Files / symbols / routes / tests</strong> &mdash; what Kage's source-derived code graph has mapped: the surface memory is grounded against.</li>
+          </ul>
         </section>
 
         <section id="what-to-commit">

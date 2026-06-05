@@ -231,6 +231,49 @@ download a local model, and create a larger rebuildable artifact at
 `.agent_memory/indexes/embeddings-local.json`. Normal recall stays
 dependency-free.
 
+## The packet journey, and the scores
+
+Kage stores each learning as a **packet** and moves it through a fixed lifecycle.
+Every number the viewer shows comes from where packets sit in that journey.
+
+**The journey:** capture → citation check (reject memory citing files that don't
+exist) → grounding (fingerprint the cited files) → approve (git-tracked JSON) →
+recall (stale memory is excluded) → `kage refresh` (re-check grounding, flag
+stale, prune dead/ignored paths) → supersede or retire.
+
+**A packet is stale** when a cited file is missing, a cited file's content changed
+since it was verified, its freshness TTL (365 days) lapsed, or it was reported /
+deprecated. Paths in `.kageignore` (e.g. a visualization layer) never count as
+grounding and never trigger staleness — they aren't knowledge.
+
+**Health states** (viewer Memory list + health donut):
+
+| State | Meaning |
+|---|---|
+| Hot | recalled 3+ times in the last 30 days |
+| Healthy | approved, grounded, non-stale, recalled at least once |
+| Cold | approved and durable, but not recalled yet (or still pending) |
+| Stale | a staleness condition is true — verify, update, or supersede |
+| Disputed | stale and also reported / voted down |
+| Ungrounded | approved but with no concrete code-path grounding |
+| Generated | branch/change handoff context, not durable lore |
+
+**Memory Trust (0–100)** is the average of three gates from
+`kage benchmark --trust` — not a vanity number:
+
+| Gate | Target | What it proves |
+|---|---|---|
+| Hallucinated citations rejected | 100% | won't store memory citing files that don't exist (sandbox) |
+| Stale memory excluded from recall | 100% | withholds memory whose grounding was deleted (sandbox) |
+| Live memory grounded to code | 80%+ | how much of *your* approved memory is grounded and current |
+
+Gates 1–2 run in an isolated throwaway repo so the score can't be gamed; gate 3
+measures your real repo, so it moves as memory drifts from or re-aligns with the
+code. A fourth figure, *wrong advice prevented*, combines gates 1–2. The other
+dashboard numbers — packets, tokens saved per recall, evidence coverage, average
+quality, and the mapped files/symbols/routes/tests — describe the memory and the
+code surface it is grounded against.
+
 ## Daily commands
 
 ```bash
