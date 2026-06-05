@@ -95,7 +95,7 @@
 
       /* graph */
       .graphwrap { position: relative; border: 1px solid var(--line); border-radius: var(--r-card); overflow: hidden;
-        background: radial-gradient(120% 120% at 50% 0%, rgba(13,25,19,0.9), var(--code-bg)); }
+        background: radial-gradient(52% 44% at 50% 46%, rgba(65,255,143,0.10), transparent 72%), radial-gradient(120% 120% at 50% 0%, rgba(13,25,19,0.85), var(--code-bg)); }
       #graph { display: block; width: 100%; height: 580px; }
       .glegend { position: absolute; left: 16px; bottom: 14px; display: flex; gap: 16px; color: var(--muted); font: 500 12px/1 var(--sans);
         background: rgba(5,8,6,0.72); padding: 9px 13px; border-radius: var(--r-control); border: 1px solid var(--line); backdrop-filter: blur(8px); }
@@ -103,6 +103,16 @@
       .gtip { position: absolute; pointer-events: none; background: #07130d; border: 1px solid var(--line-strong); border-radius: var(--r-control);
         padding: 8px 11px; font: 400 12.5px/1.4 var(--sans); max-width: 270px; display: none; z-index: 5; box-shadow: 0 10px 30px rgba(0,0,0,.6); }
       .gtip b { color: var(--ink); font-weight: 600; } .gtip .p { margin-top: 3px; color: var(--faint); font: 400 11px/1.3 var(--mono); }
+      .gdetail { position: absolute; right: 14px; top: 58px; width: 250px; display: none; z-index: 6; background: rgba(7,16,11,0.94);
+        border: 1px solid var(--line-strong); border-radius: var(--r-card); padding: 14px 15px; box-shadow: 0 12px 34px rgba(0,0,0,.55); backdrop-filter: blur(8px); }
+      .gdetail .gd-k { font: 600 10px/1 var(--mono); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 7px; }
+      .gdetail b.gd-t { display: block; color: var(--ink); font: 600 13.5px/1.4 var(--sans); padding-right: 16px; }
+      .gdetail .gd-row { margin-top: 9px; color: var(--muted); font: 400 12px/1.4 var(--sans); }
+      .gdetail .gd-row b { color: var(--ink); } .gdetail .gd-row b.hot, .gdetail .gd-row b.healthy { color: var(--green); }
+      .gdetail .gd-row b.stale, .gdetail .gd-row b.disputed, .gdetail .gd-row b.ungrounded { color: var(--warn); }
+      .gdetail .gd-files { margin-top: 8px; padding-top: 9px; border-top: 1px solid var(--line); color: var(--faint); font: 400 11px/1.6 var(--mono); overflow-wrap: anywhere; }
+      .gdetail .gd-x { position: absolute; right: 8px; top: 6px; cursor: pointer; background: transparent; border: 0; color: var(--faint); font-size: 16px; line-height: 1; padding: 2px 5px; }
+      .gdetail .gd-x:hover { color: var(--ink); }
       .ghint { position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; pointer-events: none; color: var(--faint); font: 400 11.5px/1 var(--sans); }
       .gtoolbar { position: absolute; left: 14px; top: 14px; right: 14px; display: flex; justify-content: space-between; gap: 10px; }
       .gfilters, .gzoom { display: flex; gap: 4px; background: rgba(5,8,6,0.72); border: 1px solid var(--line); border-radius: var(--r-control); padding: 4px; backdrop-filter: blur(8px); }
@@ -203,9 +213,10 @@
                     <button id="resetView" title="Reset view">⤢</button>
                   </div>
                 </div>
-                <div class="ghint">scroll to zoom · drag a node to pin · drag canvas to pan · click to focus</div>
+                <div class="ghint">scroll to zoom · drag a node to pin · click to focus · double-click to zoom in</div>
                 <div class="glegend"><span><i style="background:#c49cff"></i>memory</span><span><i style="background:#6ad7ff"></i>code file</span><span><i style="background:#ffd166"></i>needs review</span></div>
                 <div class="gtip" id="gtip"></div>
+                <div class="gdetail" id="gdetail"></div>
               </div>
             </div>
           </section>
@@ -227,6 +238,6 @@
         </div>
       </main>
     </div>
-    <script src="./console.js?v=4"></script>
+    <script src="./console.js?v=7"></script>
   </body>
 </html>
