@@ -103,7 +103,13 @@
       .gtip { position: absolute; pointer-events: none; background: #07130d; border: 1px solid var(--line-strong); border-radius: var(--r-control);
         padding: 8px 11px; font: 400 12.5px/1.4 var(--sans); max-width: 270px; display: none; z-index: 5; box-shadow: 0 10px 30px rgba(0,0,0,.6); }
       .gtip b { color: var(--ink); font-weight: 600; } .gtip .p { margin-top: 3px; color: var(--faint); font: 400 11px/1.3 var(--mono); }
-      .ghint { position: absolute; right: 16px; top: 14px; color: var(--faint); font: 400 11.5px/1 var(--sans); }
+      .ghint { position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; pointer-events: none; color: var(--faint); font: 400 11.5px/1 var(--sans); }
+      .gtoolbar { position: absolute; left: 14px; top: 14px; right: 14px; display: flex; justify-content: space-between; gap: 10px; }
+      .gfilters, .gzoom { display: flex; gap: 4px; background: rgba(5,8,6,0.72); border: 1px solid var(--line); border-radius: var(--r-control); padding: 4px; backdrop-filter: blur(8px); }
+      .gtoolbar button { cursor: pointer; background: transparent; border: 1px solid transparent; color: var(--muted); border-radius: 3px; font: 500 12px/1 var(--sans); padding: 6px 10px; }
+      .gtoolbar button:hover { color: var(--ink); background: rgba(255,255,255,0.04); }
+      .gfilters button[aria-pressed="true"] { color: var(--ink); background: var(--green-soft); border-color: rgba(65,255,143,0.30); }
+      .gzoom button { width: 30px; padding: 6px 0; text-align: center; font-size: 14px; color: var(--ink); }
 
       /* memory list */
       .controls { margin-bottom: 12px; }
@@ -185,7 +191,19 @@
               <h2>Memory ↔ code map <span class="sub">— every memory packet linked to the files it's grounded in</span></h2>
               <div class="graphwrap">
                 <canvas id="graph"></canvas>
-                <div class="ghint">hover a node to inspect</div>
+                <div class="gtoolbar">
+                  <div class="gfilters" id="gfilters">
+                    <button data-gfilter="all" aria-pressed="true">All</button>
+                    <button data-gfilter="review">Needs review</button>
+                    <button data-gfilter="hot">Hot</button>
+                  </div>
+                  <div class="gzoom">
+                    <button id="zoomOut" title="Zoom out">−</button>
+                    <button id="zoomIn" title="Zoom in">+</button>
+                    <button id="resetView" title="Reset view">⤢</button>
+                  </div>
+                </div>
+                <div class="ghint">scroll to zoom · drag a node to pin · drag canvas to pan · click to focus</div>
                 <div class="glegend"><span><i style="background:#c49cff"></i>memory</span><span><i style="background:#6ad7ff"></i>code file</span><span><i style="background:#ffd166"></i>needs review</span></div>
                 <div class="gtip" id="gtip"></div>
               </div>
@@ -209,6 +227,6 @@
         </div>
       </main>
     </div>
-    <script src="./console.js?v=3"></script>
+    <script src="./console.js?v=4"></script>
   </body>
 </html>

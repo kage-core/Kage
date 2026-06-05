@@ -241,20 +241,22 @@
   }
   function escapeHtml(s) { var d = el("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
 
-  // ---- memory <-> code graph (canvas force layout) ----
-  var G = { nodes: [], edges: [], hover: -1, raf: 0, alpha: 1 };
+  // ---- memory <-> code graph (interactive canvas) ----
+  var G = { nodes: [], edges: [], hover: -1, focus: -1, raf: 0, alpha: 1, filter: "all", view: { s: 1, tx: 0, ty: 0 }, drag: null, pan: null };
   function seeded(n) { var x = Math.sin(n * 999.137) * 43758.5453; return x - Math.floor(x); }
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function nodeR(nd) { return Math.min(13, 4.5 + nd.deg * 1.1); }
   function buildGraph() {
     var items = state.items.filter(function (i) { return i.paths && i.paths.length; });
     var rank = { hot: 0, healthy: 1, stale: 2, disputed: 2, ungrounded: 2, cold: 3 };
     items.sort(function (a, b) { var ra = rank[a.health] == null ? 4 : rank[a.health], rb = rank[b.health] == null ? 4 : rank[b.health]; return ra - rb || (b.total_uses || 0) - (a.total_uses || 0); });
-    items = items.slice(0, 38);
+    items = items.slice(0, 60);
     var nodes = [], edges = [], fileIdx = {};
     items.forEach(function (it, mi) {
       var review = ["stale", "disputed", "ungrounded"].indexOf(it.health) !== -1;
-      var label = (it.title || "memory"); if (label.length > 24) label = label.slice(0, 23) + "…";
-      var mn = { id: "m" + mi, label: label, kind: "memory", review: review, deg: 0, tip: it.title, sub: it.type || "memory" };
-      nodes.push(mn); var mIndex = nodes.length - 1;
+      var label = (it.title || "memory"); if (label.length > 26) label = label.slice(0, 25) + "…";
+      nodes.push({ id: "m" + mi, label: label, kind: "memory", review: review, health: it.health, deg: 0, tip: it.title, sub: it.type || "memory" });
+      var mIndex = nodes.length - 1;
       it.paths.slice(0, 3).forEach(function (p) {
         var key = "f:" + p, fi = fileIdx[key];
         if (fi == null) { nodes.push({ id: key, label: base(p), kind: "file", deg: 0, tip: p, sub: "code file" }); fi = nodes.length - 1; fileIdx[key] = fi; }
@@ -267,85 +269,141 @@
     var canvas = document.getElementById("graph"); if (!canvas) return;
     buildGraph();
     var ctx = canvas.getContext("2d"), dpr = window.devicePixelRatio || 1, W = 0, H = 0;
-    function resize() {
-      W = canvas.clientWidth; H = canvas.clientHeight; canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
-    resize();
-    G.nodes.forEach(function (n, i) { n.x = W / 2 + (seeded(i + 1) - 0.5) * W * 0.6; n.y = H / 2 + (seeded(i + 7) - 0.5) * H * 0.6; n.vx = 0; n.vy = 0; });
     var tip = document.getElementById("gtip");
+    function resize() { W = canvas.clientWidth; H = canvas.clientHeight; canvas.width = W * dpr; canvas.height = H * dpr; }
+    resize();
+    G.nodes.forEach(function (n, i) { n.x = W / 2 + (seeded(i + 1) - 0.5) * W * 0.7; n.y = H / 2 + (seeded(i + 7) - 0.5) * H * 0.7; n.vx = 0; n.vy = 0; n.fixed = false; });
+
+    function fitView() {
+      if (!G.nodes.length) return;
+      var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      G.nodes.forEach(function (n) { minX = Math.min(minX, n.x); minY = Math.min(minY, n.y); maxX = Math.max(maxX, n.x); maxY = Math.max(maxY, n.y); });
+      var pad = 60, gw = (maxX - minX) || 1, gh = (maxY - minY) || 1;
+      var s = clamp(Math.min((W - 2 * pad) / gw, (H - 2 * pad) / gh), 0.35, 1.8);
+      G.view.s = s; G.view.tx = (W - (minX + maxX) * s) / 2; G.view.ty = (H - (minY + maxY) * s) / 2;
+    }
+    function s2w(sx, sy) { return { x: (sx - G.view.tx) / G.view.s, y: (sy - G.view.ty) / G.view.s }; }
+    function neighbors(idx) { var s = {}; if (idx < 0) return null; s[idx] = 1; G.edges.forEach(function (e) { if (e[0] === idx) s[e[1]] = 1; if (e[1] === idx) s[e[0]] = 1; }); return s; }
+    function categorySet() {
+      if (G.filter === "all") return null;
+      var set = {};
+      G.nodes.forEach(function (n, i) { if (n.kind === "memory" && (G.filter === "review" ? n.review : n.health === G.filter)) set[i] = 1; });
+      G.edges.forEach(function (e) { if (set[e[0]]) set[e[1]] = 1; if (set[e[1]]) set[e[0]] = 1; });
+      return set;
+    }
+    function color(nd) { return nd.kind === "file" ? "#6ad7ff" : (nd.review ? "#ffd166" : "#c49cff"); }
+
     function tick() {
       var n = G.nodes, e = G.edges, a = G.alpha;
-      for (var i = 0; i < n.length; i++) for (var j = i + 1; j < n.length; j++) {
-        var dx = n[i].x - n[j].x, dy = n[i].y - n[j].y, d2 = dx * dx + dy * dy + 0.01, d = Math.sqrt(d2);
-        var rep = 2800 / d2; var fx = dx / d * rep, fy = dy / d * rep;
-        n[i].vx += fx; n[i].vy += fy; n[j].vx -= fx; n[j].vy -= fy;
+      if (a > 0.03) {
+        for (var i = 0; i < n.length; i++) for (var j = i + 1; j < n.length; j++) {
+          var dx = n[i].x - n[j].x, dy = n[i].y - n[j].y, d2 = dx * dx + dy * dy + 0.01, d = Math.sqrt(d2);
+          var rep = 2900 / d2, fx = dx / d * rep, fy = dy / d * rep;
+          n[i].vx += fx; n[i].vy += fy; n[j].vx -= fx; n[j].vy -= fy;
+        }
+        for (var k = 0; k < e.length; k++) {
+          var s = n[e[k][0]], t = n[e[k][1]], dx2 = t.x - s.x, dy2 = t.y - s.y, dd = Math.sqrt(dx2 * dx2 + dy2 * dy2) + 0.01;
+          var f = (dd - 94) * 0.013, ux = dx2 / dd * f, uy = dy2 / dd * f;
+          s.vx += ux; s.vy += uy; t.vx -= ux; t.vy -= uy;
+        }
+        var cx = W / 2, cy = H / 2;
+        for (var m = 0; m < n.length; m++) {
+          if (n[m].fixed) { n[m].vx = n[m].vy = 0; continue; }
+          n[m].vx += (cx - n[m].x) * 0.0016; n[m].vy += (cy - n[m].y) * 0.0016;
+          n[m].vx *= 0.86; n[m].vy *= 0.86;
+          n[m].x += n[m].vx * a; n[m].y += n[m].vy * a;
+        }
+        G.alpha *= 0.992;
       }
-      for (var k = 0; k < e.length; k++) {
-        var s = n[e[k][0]], t = n[e[k][1]], dx2 = t.x - s.x, dy2 = t.y - s.y, dd = Math.sqrt(dx2 * dx2 + dy2 * dy2) + 0.01;
-        var f = (dd - 92) * 0.013; var ux = dx2 / dd * f, uy = dy2 / dd * f;
-        s.vx += ux; s.vy += uy; t.vx -= ux; t.vy -= uy;
-      }
-      for (var m = 0; m < n.length; m++) {
-        n[m].vx += (W / 2 - n[m].x) * 0.002; n[m].vy += (H / 2 - n[m].y) * 0.002;
-        n[m].vx *= 0.86; n[m].vy *= 0.86;
-        n[m].x += n[m].vx * a; n[m].y += n[m].vy * a;
-        n[m].x = Math.max(16, Math.min(W - 16, n[m].x)); n[m].y = Math.max(16, Math.min(H - 16, n[m].y));
-      }
-      if (G.alpha > 0.05) G.alpha *= 0.992;
       draw();
       G.raf = requestAnimationFrame(tick);
     }
-    function neighbors(idx) { var s = {}; if (idx < 0) return s; s[idx] = 1; G.edges.forEach(function (e) { if (e[0] === idx) s[e[1]] = 1; if (e[1] === idx) s[e[0]] = 1; }); return s; }
-    function color(nd) { return nd.kind === "file" ? "#6ad7ff" : (nd.review ? "#ffd166" : "#c49cff"); }
     function draw() {
-      var n = G.nodes, hl = neighbors(G.hover), active = G.hover >= 0;
-      ctx.clearRect(0, 0, W, H);
-      ctx.lineWidth = 1;
+      var n = G.nodes, v = G.view;
+      var hl = G.hover >= 0 ? neighbors(G.hover) : (G.focus >= 0 ? neighbors(G.focus) : null);
+      var emph = hl || categorySet(), active = !!emph;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+      ctx.setTransform(dpr * v.s, 0, 0, dpr * v.s, dpr * v.tx, dpr * v.ty);
+      ctx.lineWidth = 1 / v.s;
       G.edges.forEach(function (e) {
-        var on = active && hl[e[0]] && hl[e[1]];
-        ctx.strokeStyle = on ? "rgba(106,215,255,0.6)" : (active ? "rgba(147,175,160,0.05)" : "rgba(147,175,160,0.14)");
+        var on = active && emph[e[0]] && emph[e[1]];
+        ctx.strokeStyle = on ? "rgba(106,215,255,0.65)" : (active ? "rgba(147,175,160,0.04)" : "rgba(147,175,160,0.13)");
         ctx.beginPath(); ctx.moveTo(n[e[0]].x, n[e[0]].y); ctx.lineTo(n[e[1]].x, n[e[1]].y); ctx.stroke();
       });
-      // nodes
       n.forEach(function (nd, i) {
-        var r = Math.min(12, 4.5 + nd.deg * 1.1), dim = active && !hl[i], col = color(nd);
-        ctx.globalAlpha = dim ? 0.16 : 1;
-        if (!dim && (i === G.hover || nd.deg >= 4)) { ctx.beginPath(); ctx.arc(nd.x, nd.y, r + 5, 0, 6.2832); ctx.fillStyle = col + "22"; ctx.fill(); }
+        var r = nodeR(nd), dim = active && !emph[i], col = color(nd);
+        ctx.globalAlpha = dim ? 0.14 : 1;
+        if (!dim && (i === G.hover || i === G.focus || nd.deg >= 4)) { ctx.beginPath(); ctx.arc(nd.x, nd.y, r + 6, 0, 6.2832); ctx.fillStyle = col + "22"; ctx.fill(); }
         ctx.beginPath(); ctx.arc(nd.x, nd.y, r, 0, 6.2832); ctx.fillStyle = col; ctx.fill();
-        ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(5,8,6,0.85)"; ctx.stroke(); ctx.lineWidth = 1;
+        ctx.lineWidth = (i === G.focus ? 2.5 : 1.5) / v.s; ctx.strokeStyle = i === G.focus ? "#e4f7e9" : "rgba(5,8,6,0.85)"; ctx.stroke();
       });
-      // labels on top, only where they won't clutter
-      ctx.font = "600 11px Inter, ui-sans-serif, system-ui";
+      // labels in screen space so they stay crisp at any zoom
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.font = "600 11px Inter, ui-sans-serif, system-ui";
       n.forEach(function (nd, i) {
-        if (active && !hl[i]) return;
-        var labelIt = active ? true : nd.deg >= 3;
-        if (!labelIt) return;
-        var r = Math.min(12, 4.5 + nd.deg * 1.1), tx = nd.x + r + 5, ty = nd.y + 3.5;
-        var w = ctx.measureText(nd.label).width;
-        ctx.globalAlpha = 0.85; ctx.fillStyle = "rgba(5,8,6,0.72)";
-        roundRect(tx - 4, ty - 11, w + 8, 16, 3); ctx.fill();
-        ctx.globalAlpha = 1; ctx.fillStyle = nd.kind === "file" ? "#9cd9f0" : "#d7c7f5";
-        ctx.fillText(nd.label, tx, ty);
+        if (active && !emph[i]) return;
+        if (!(active || nd.deg >= 3 || i === G.hover)) return;
+        var sx = nd.x * v.s + v.tx, sy = nd.y * v.s + v.ty, r = nodeR(nd) * v.s;
+        if (sx < -40 || sx > W + 40 || sy < 0 || sy > H) return;
+        var tx = sx + r + 5, ty = sy + 3.5, w = ctx.measureText(nd.label).width;
+        ctx.globalAlpha = 0.88; ctx.fillStyle = "rgba(5,8,6,0.74)"; roundRect(tx - 4, ty - 11, w + 8, 16, 3); ctx.fill();
+        ctx.globalAlpha = 1; ctx.fillStyle = nd.kind === "file" ? "#9cd9f0" : "#d7c7f5"; ctx.fillText(nd.label, tx, ty);
       });
       ctx.globalAlpha = 1;
     }
     function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
-    function pick(mx, my) {
-      var best = -1, bd = 18 * 18;
-      for (var i = 0; i < G.nodes.length; i++) { var dx = G.nodes[i].x - mx, dy = G.nodes[i].y - my, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = i; } }
+    function pick(p) {
+      var best = -1, bd = Infinity;
+      for (var i = 0; i < G.nodes.length; i++) {
+        var nd = G.nodes[i], sx = nd.x * G.view.s + G.view.tx, sy = nd.y * G.view.s + G.view.ty;
+        var dx = sx - p.x, dy = sy - p.y, d = dx * dx + dy * dy, tol = nodeR(nd) * G.view.s + 8;
+        if (d < tol * tol && d < bd) { bd = d; best = i; }
+      }
       return best;
     }
-    canvas.onmousemove = function (ev) {
-      var rect = canvas.getBoundingClientRect(), mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
-      var idx = pick(mx, my); G.hover = idx; canvas.style.cursor = idx >= 0 ? "pointer" : "default";
-      if (idx >= 0) {
-        var nd = G.nodes[idx]; tip.style.display = "block";
-        tip.style.left = Math.min(rect.width - 240, mx + 14) + "px"; tip.style.top = (my + 14) + "px";
-        tip.innerHTML = "<b>" + escapeHtml(nd.tip) + "</b><div class='p'>" + escapeHtml(nd.sub) + " · " + nd.deg + " link" + (nd.deg === 1 ? "" : "s") + "</div>";
-      } else tip.style.display = "none";
-    };
-    canvas.onmouseleave = function () { G.hover = -1; tip.style.display = "none"; };
-    window.addEventListener("resize", function () { if (document.getElementById("section-graph").classList.contains("active")) { resize(); } });
+    function xy(ev) { var r = canvas.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; }
+    function showTip(nd, p) {
+      tip.style.display = "block"; tip.style.left = Math.min(W - 250, p.x + 14) + "px"; tip.style.top = (p.y + 14) + "px";
+      tip.innerHTML = "<b>" + escapeHtml(nd.tip) + "</b><div class='p'>" + escapeHtml(nd.sub) + " · " + nd.deg + " link" + (nd.deg === 1 ? "" : "s") + "</div>";
+    }
+    function zoomAt(p, factor) {
+      var ns = clamp(G.view.s * factor, 0.3, 4), w = s2w(p.x, p.y);
+      G.view.s = ns; G.view.tx = p.x - w.x * ns; G.view.ty = p.y - w.y * ns;
+    }
+
+    canvas.addEventListener("mousedown", function (ev) {
+      var p = xy(ev), idx = pick(p);
+      if (idx >= 0) { G.drag = { idx: idx, moved: false }; G.nodes[idx].fixed = true; canvas.style.cursor = "grabbing"; }
+      else { G.pan = { x: p.x, y: p.y, tx: G.view.tx, ty: G.view.ty, moved: false }; canvas.style.cursor = "grabbing"; }
+    });
+    window.addEventListener("mousemove", function (ev) {
+      if (G.drag) { var p = xy(ev), w = s2w(p.x, p.y), nd = G.nodes[G.drag.idx]; nd.x = w.x; nd.y = w.y; nd.vx = nd.vy = 0; G.drag.moved = true; G.hover = G.drag.idx; G.alpha = Math.max(G.alpha, 0.3); showTip(nd, p); return; }
+      if (G.pan) { var q = xy(ev); G.view.tx = G.pan.tx + (q.x - G.pan.x); G.view.ty = G.pan.ty + (q.y - G.pan.y); G.pan.moved = true; tip.style.display = "none"; return; }
+      if (!canvas.matches(":hover")) return;
+      var pp = xy(ev), id = pick(pp); G.hover = id; canvas.style.cursor = id >= 0 ? "pointer" : "grab";
+      if (id >= 0) showTip(G.nodes[id], pp); else tip.style.display = "none";
+    });
+    window.addEventListener("mouseup", function () {
+      if (G.drag) { if (!G.drag.moved) { var i = G.drag.idx; G.focus = G.focus === i ? -1 : i; G.nodes[i].fixed = false; } G.drag = null; }
+      else if (G.pan) { if (!G.pan.moved) G.focus = -1; G.pan = null; }
+      canvas.style.cursor = "grab";
+    });
+    canvas.addEventListener("mouseleave", function () { if (!G.drag && !G.pan) { G.hover = -1; tip.style.display = "none"; } });
+    canvas.addEventListener("wheel", function (ev) { ev.preventDefault(); zoomAt(xy(ev), ev.deltaY < 0 ? 1.12 : 0.892); }, { passive: false });
+
+    var zin = document.getElementById("zoomIn"), zout = document.getElementById("zoomOut"), zr = document.getElementById("resetView");
+    if (zin) zin.onclick = function () { zoomAt({ x: W / 2, y: H / 2 }, 1.25); };
+    if (zout) zout.onclick = function () { zoomAt({ x: W / 2, y: H / 2 }, 0.8); };
+    if (zr) zr.onclick = function () { G.focus = -1; G.nodes.forEach(function (n) { n.fixed = false; }); G.alpha = 0.5; fitView(); };
+    var fbar = document.getElementById("gfilters");
+    if (fbar) fbar.addEventListener("click", function (ev) {
+      var b = ev.target.closest("button[data-gfilter]"); if (!b) return;
+      G.filter = b.dataset.gfilter;
+      fbar.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+    });
+    window.addEventListener("resize", function () { if (document.getElementById("section-graph").classList.contains("active")) { resize(); fitView(); } });
+
+    canvas.style.cursor = "grab";
+    fitView();
     cancelAnimationFrame(G.raf); tick();
   }
 })();
