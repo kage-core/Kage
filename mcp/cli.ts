@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { daemonDoctor, readDaemonStatus, startDaemon, startViewer, stopDaemon } from "./daemon.js";
@@ -107,7 +110,7 @@ function usage(): never {
 Usage:
   kage index --project <dir>
   kage demo [--project <dir>]
-  kage init --project <dir>
+  kage init --project <dir> [--with-policy]
   kage policy --project <dir>
   kage doctor --project <dir>
   kage setup list
@@ -278,14 +281,15 @@ async function main(): Promise<void> {
   }
 
   if (command === "demo") {
-    const demoDir = takeArg(args, "--project") ?? `${process.cwd()}/kage-demo`;
+    // Default to a temp dir: the demo must never write into the user's cwd uninvited.
+    const demoDir = takeArg(args, "--project") ?? mkdtempSync(join(tmpdir(), "kage-demo-"));
     const result = runDemo(demoDir);
     if (args.includes("--json")) {
       console.log(JSON.stringify(result, null, 2));
       return;
     }
     console.log("Kage demo — can you trust your agent's memory?\n");
-    console.log(`Seeded ${result.captured.length} grounded memories in ${result.project_dir}\n`);
+    console.log(`Seeded ${result.captured.length} grounded memories in a throwaway project (${result.project_dir})\n`);
     console.log("1. Hallucinated citation — REJECTED on write:");
     if (result.rejected_hallucination) {
       console.log(`   ✗ "${result.rejected_hallucination.title}"`);
@@ -296,21 +300,38 @@ async function main(): Promise<void> {
     console.log("\n3. Recall returns only grounded, current memory:");
     for (const t of result.recalled) console.log(`   ✓ ${t}`);
     console.log(`\nTrust score: ${result.trust_score}/100`);
-    console.log(`\nSee it in the viewer:  ${result.viewer_command}`);
+    console.log("\nNext, in your own repo:");
+    console.log("  kage init --project .                         create repo memory");
+    console.log("  kage setup <agent> --project . --write        wire your agent (claude-code, codex, cursor, ...)");
+    console.log("  kage viewer --project .                       see the dashboard");
     return;
   }
 
   if (command === "init") {
-    const result = initProject(projectArg(args));
+    const withPolicy = args.includes("--with-policy");
+    const result = initProject(projectArg(args), { policy: withPolicy });
     console.log(`Initialized Kage memory for ${result.index.projectDir}`);
-    console.log(`Packets: ${result.index.packets}`);
-    console.log(`Migrated legacy nodes: ${result.index.migrated}`);
-    if (result.index.policyPath) console.log(`Agent policy: ${result.index.policyPath}`);
+    console.log("\nCreated:");
+    console.log("  .agent_memory/            memory packets + indexes (only directory Kage owns)");
+    if (result.policyInstalled) {
+      console.log("  AGENTS.md, CLAUDE.md      agent policy (requested via --with-policy)");
+      console.log("  .claude/settings.json     allowed kage tools (requested via --with-policy)");
+    }
+    console.log(`\nPackets: ${result.index.packets}`);
+    if (result.index.migrated) console.log(`Migrated legacy nodes: ${result.index.migrated}`);
     console.log(result.validation.ok ? "Validation passed." : "Validation failed.");
     if (result.validation.errors.length) console.log(`Errors:\n${result.validation.errors.map((error) => `  - ${error}`).join("\n")}`);
     if (result.validation.warnings.length) console.log(`Warnings:\n${result.validation.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
-    console.log("\nFirst recall preview:\n");
-    console.log(result.sampleRecall.context_block);
+    console.log("\nTip — version control:");
+    console.log("  commit  .agent_memory/packets/    (your team's reviewed memory)");
+    console.log("  ignore  .agent_memory/indexes/ .agent_memory/reports/    (regenerated)");
+    if (!result.policyInstalled) {
+      console.log("\nNot written (opt-in): agent policy files. Add them with `kage policy --project .`");
+      console.log("or rerun `kage init --with-policy` when you're ready to commit them.");
+    }
+    console.log("\nNext:");
+    console.log("  kage setup <agent> --project . --write    wire your agent (claude-code, codex, cursor, ...)");
+    console.log("  kage viewer --project .                   see the dashboard");
     if (!result.validation.ok) process.exit(2);
     return;
   }
