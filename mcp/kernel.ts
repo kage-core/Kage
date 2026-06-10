@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import type { Stats } from "node:fs";
 import { availableParallelism, tmpdir } from "node:os";
-import { basename, delimiter, dirname, join, relative, resolve } from "node:path";
+import { basename, delimiter, dirname, join, relative, resolve, sep } from "node:path";
 import { Worker } from "node:worker_threads";
 import * as ts from "typescript";
 import { createPublicCandidateBundleManifest, createSignedManifest, generateOrgRegistryManifest } from "./registry/index.js";
@@ -4563,6 +4563,10 @@ function shouldSkipCodePath(relativePath: string): boolean {
     .some((part) => [
       ".git",
       ".agent_memory",
+      // Agent working dirs: .claude holds settings AND worktrees/ (parallel agent
+      // checkouts) — indexing them pollutes the code graph with phantom duplicates.
+      ".claude",
+      ".codex",
       "node_modules",
       "vendor",
       ".venv",
@@ -7611,7 +7615,10 @@ export function buildIndexes(projectDir: string): string[] {
 
 function indexProjectDetailed(projectDir: string, options: { graphs?: boolean; full?: boolean } = {}): DetailedIndexResult {
   ensureMemoryDirs(projectDir);
-  const policy = installAgentPolicy(projectDir);
+  // Indexing must never write agent-policy files into the user's repo.
+  // Policy installation is explicit: `kage policy`, `kage init --with-policy`,
+  // or the kage_install_policy MCP tool.
+  const existingPolicyPath = join(projectDir, "AGENTS.md");
   const migrated = migrateLegacyMarkdown(projectDir);
   const overview = createRepoOverviewPacket(projectDir);
   if (overview) upsertGeneratedPacket(projectDir, overview);
@@ -7625,7 +7632,7 @@ function indexProjectDetailed(projectDir: string, options: { graphs?: boolean; f
       packets: loadPacketsFromDir(packetsDir(projectDir)).length,
       migrated,
       indexes: indexes.map((path) => relative(projectDir, path)),
-      policyPath: relative(projectDir, policy.path),
+      policyPath: existsSync(existingPolicyPath) ? relative(projectDir, existingPolicyPath) : undefined,
     },
     codeGraph: built?.codeGraph,
     knowledgeGraph: built?.knowledgeGraph,
@@ -13649,8 +13656,18 @@ export function registryRecommendations(projectDir: string): RegistryRecommendat
 export function setupAgent(agent: SetupAgent, projectDir: string, options: { write?: boolean; serverPath?: string; homeDir?: string } = {}): AgentSetupResult {
   if (!SETUP_AGENTS.includes(agent)) throw new Error(`Unsupported agent: ${agent}`);
   const serverPath = options.serverPath ?? join(__dirname, "index.js");
-  const serverCommand = "node";
-  const serverArgs = [serverPath];
+  // An npx cache path (~/.npm/_npx/<hash>/...) is ephemeral — npx prunes it and
+  // the configured MCP server silently dies. Point such configs at the package
+  // runner instead so they survive cache eviction.
+  const ephemeralNpxPath = serverPath.includes(`${sep}_npx${sep}`);
+  const serverCommand = ephemeralNpxPath ? "npx" : "node";
+  const serverArgs = ephemeralNpxPath ? ["-y", "@kage-core/kage-graph-mcp"] : [serverPath];
+  if (options.write) {
+    // `setup <agent> --write` is an explicit wiring action: the harness policy
+    // (AGENTS.md / CLAUDE.md) is part of that wiring, unlike plain init/index
+    // which must not touch repo-visible files.
+    installAgentPolicy(projectDir);
+  }
   const home = options.homeDir ?? process.env.HOME ?? "~";
   const universal = JSON.stringify({ mcpServers: { kage: { command: serverCommand, args: serverArgs } } }, null, 2);
   const result: AgentSetupResult = {
@@ -13675,7 +13692,7 @@ export function setupAgent(agent: SetupAgent, projectDir: string, options: { wri
 
   if (agent === "codex") {
     const path = join(home, ".codex", "config.toml");
-    const config = `[mcp_servers.kage]\ncommand = "node"\nargs = ["${serverPath}"]\n`;
+    const config = `[mcp_servers.kage]\ncommand = "${serverCommand}"\nargs = [${serverArgs.map((arg) => JSON.stringify(arg)).join(", ")}]\n`;
     setSnippet(path, config, ["Add this block to ~/.codex/config.toml, then restart Codex.", "Run `kage init --project <repo>` inside each repo."], true);
     if (options.write) {
       ensureDir(dirname(path));
@@ -15827,13 +15844,22 @@ function installClaudeSettings(projectDir: string): void {
   writeJson(settingsPath, settings);
 }
 
-export function initProject(projectDir: string): { index: IndexResult; validation: ValidationResult; sampleRecall: RecallResult } {
-  installAgentPolicy(projectDir);
-  installClaudeSettings(projectDir);
+export function initProject(
+  projectDir: string,
+  options: { policy?: boolean } = {},
+): { index: IndexResult; validation: ValidationResult; sampleRecall: RecallResult; policyInstalled: boolean } {
+  // Default init touches ONLY .agent_memory/. Agent-policy files (AGENTS.md,
+  // CLAUDE.md) and .claude/settings.json are repo-visible and reviewable, so
+  // writing them requires explicit opt-in (`kage init --with-policy` or `kage policy`).
+  const policyInstalled = options.policy === true;
+  if (policyInstalled) {
+    installAgentPolicy(projectDir);
+    installClaudeSettings(projectDir);
+  }
   const index = indexProject(projectDir, { graphs: false });
   const validation = validateProject(projectDir);
   const sampleRecall = recallFromPackets("how do I run tests", loadApprovedPackets(projectDir), 5, "Repo Memory");
-  return { index, validation, sampleRecall };
+  return { index, validation, sampleRecall, policyInstalled };
 }
 
 export function doctorProject(projectDir: string): DoctorResult {

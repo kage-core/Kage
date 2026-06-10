@@ -209,7 +209,9 @@ test("builds generated indexes after indexing", () => {
   const structure = loadApprovedPackets(project).find((packet) => packet.title.includes("repo structure"));
   assert.match(overview?.context?.why ?? "", /repo orientation/i);
   assert.match(structure?.context?.verification ?? "", /Generated from files present/);
-  assert.match(readFileSync(join(project, "AGENTS.md"), "utf8"), /KAGE_MEMORY_POLICY_V1/);
+  // Indexing must never write agent-policy files into the repo (explicit opt-in only).
+  assert.equal(existsSync(join(project, "AGENTS.md")), false);
+  assert.equal(existsSync(join(project, "CLAUDE.md")), false);
 });
 
 test("installs and updates Codex agent policy idempotently", () => {
@@ -1920,6 +1922,7 @@ test("metrics summarize code graph, memory graph, and harness readiness", () => 
   mkdirSync(join(project, "src"), { recursive: true });
   writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "node --test" } }), "utf8");
   writeFileSync(join(project, "src", "server.js"), "export function createApp() { return {}; }\n", "utf8");
+  installAgentPolicy(project); // policy is explicit now; indexing never writes it
   indexProject(project);
 
   const metrics = kageMetrics(project);

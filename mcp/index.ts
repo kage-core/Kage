@@ -2007,5 +2007,15 @@ if (require.main === module) {
     const result = spawnSync(process.execPath, [join(__dirname, "cli.js"), ...process.argv.slice(2)], { stdio: "inherit" });
     process.exit(result.status ?? 0);
   }
+  if (process.stdin.isTTY && process.stdout.isTTY) {
+    // A human in a terminal, not an MCP client: blocking silently on stdio here
+    // reads as "the tool printed nothing and hung". Run the 30-second demo instead.
+    const { spawnSync } = require("node:child_process");
+    const { join } = require("node:path");
+    console.log("Kage MCP server — normally launched by an MCP client (Claude Code, Codex, Cursor, ...).");
+    console.log("You're in a terminal, so here's the 30-second demo instead:\n");
+    const result = spawnSync(process.execPath, [join(__dirname, "cli.js"), "demo"], { stdio: "inherit" });
+    process.exit(result.status ?? 0);
+  }
   main().catch(console.error);
 }
