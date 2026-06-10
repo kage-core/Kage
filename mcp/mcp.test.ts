@@ -70,7 +70,11 @@ test("MCP lists repo-local memory tools", () => {
   assert.equal(names.includes("kage_feedback"), true);
   assert.equal(names.includes("kage_install_policy"), true);
   assert.equal(names.includes("kage_branch_overlay"), true);
-  assert.equal(names.includes("kage_export_public_bundle"), true);
+  // Org/marketplace/global stubs were removed from the surface.
+  assert.equal(names.includes("kage_export_public_bundle"), false);
+  assert.equal(names.includes("kage_org_status"), false);
+  assert.equal(names.includes("kage_layered_recall"), false);
+  assert.equal(names.includes("kage_marketplace"), false);
   assert.equal(names.includes("kage_review_artifact"), true);
   assert.equal(names.includes("kage_validate"), true);
 });
