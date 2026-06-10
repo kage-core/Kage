@@ -1001,7 +1001,8 @@ test('createApp routes tasks', () => createApp());
   assert.equal(graph.routes.some((route) => route.method === "GET" && route.path === "/tasks"), true);
   const createTaskCall = graph.calls.find((call) => call.to_symbol.includes("createtaskstore"));
   assert.equal(Boolean(createTaskCall), true);
-  assert.equal(createTaskCall?.confidence, 0.75);
+  // Import-resolved cross-file call: higher confidence than a name-only match.
+  assert.equal(createTaskCall?.confidence, 0.85);
   assert.equal(createTaskCall?.resolution, "typescript_ast_name");
   assert.equal(graph.tests.some((edge) => edge.covers_symbol === "createApp"), true);
 });
@@ -1915,6 +1916,38 @@ test("code graph query returns routes, symbols, and tests", () => {
   assert.equal(result.routes.some((route) => route.path === "/summary"), true);
   assert.equal(result.symbols.some((symbol) => symbol.name === "createApp"), true);
   assert.equal(result.tests.some((edge) => edge.title === "summary route"), true);
+});
+
+test("call resolution follows imports and rejects external/name-only ghosts", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "lib"), { recursive: true });
+  mkdirSync(join(project, "examples", "mvc"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo" }), "utf8");
+  // Real target imported and called.
+  writeFileSync(join(project, "lib", "router.ts"), "export function handle(req: unknown) { return req; }\n", "utf8");
+  // Same-name decoy in an unrelated package — must NOT become a call target.
+  writeFileSync(join(project, "examples", "mvc", "controller.ts"), "export function handle(x: unknown) { return x; }\n", "utf8");
+  writeFileSync(
+    join(project, "lib", "app.ts"),
+    "import { handle } from './router.js';\nexport function dispatch(req: unknown) { return handle(req); }\n",
+    "utf8",
+  );
+  // External import: calling a same-name repo symbol must yield NO edge.
+  writeFileSync(
+    join(project, "lib", "external.ts"),
+    "import { handle } from 'some-external-pkg';\nexport function run() { return handle(1); }\n",
+    "utf8",
+  );
+
+  const graph = buildCodeGraph(project);
+  const symbolPath = (id: string) => graph.symbols.find((s) => s.id === id)?.path ?? id;
+  const dispatchCalls = graph.calls.filter((c) => c.path === "lib/app.ts" && symbolPath(c.to_symbol).includes("handle") === false ? false : c.path === "lib/app.ts");
+  const targets = graph.calls.filter((c) => c.path === "lib/app.ts").map((c) => symbolPath(c.to_symbol));
+  assert.equal(targets.includes("lib/router.ts"), true, "import-resolved edge missing");
+  assert.equal(targets.includes("examples/mvc/controller.ts"), false, "cross-package ghost edge present");
+  const externalEdges = graph.calls.filter((c) => c.path === "lib/external.ts");
+  assert.equal(externalEdges.length, 0, "external import produced a repo edge");
+  void dispatchCalls;
 });
 
 test("caller-intent queries answer from the call-edge index", () => {
