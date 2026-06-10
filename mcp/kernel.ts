@@ -3132,6 +3132,11 @@ function fingerprintableMemoryPath(path: string): boolean {
   return meaningfulMemoryPath(normalized) && !normalized.startsWith(".agent_memory/");
 }
 
+// Process-level fingerprint cache validated by mtime+size: staleness checks run on
+// every recall, and re-hashing every grounded file dominated recall latency on
+// repos with many packets. Content changes always re-hash (mtime/size moves).
+const fingerprintProcessCache = new Map<string, { mtimeMs: number; size: number; fingerprint: MemoryPathFingerprint }>();
+
 function memoryPathFingerprint(projectDir: string, path: string, cache?: Map<string, MemoryPathFingerprint | null>): MemoryPathFingerprint | null {
   const normalized = path.replace(/\\/g, "/").replace(/^\/+/, "");
   if (!fingerprintableMemoryPath(normalized)) return null;
@@ -3144,11 +3149,17 @@ function memoryPathFingerprint(projectDir: string, path: string, cache?: Map<str
       cache?.set(cacheKey, null);
       return null;
     }
+    const warm = fingerprintProcessCache.get(cacheKey);
+    if (warm && warm.mtimeMs === stats.mtimeMs && warm.size === stats.size) {
+      cache?.set(cacheKey, warm.fingerprint);
+      return warm.fingerprint;
+    }
     const fingerprint = {
       path: normalized,
       sha256: sha256Hex(readFileSync(absolutePath)),
       size: stats.size,
     };
+    fingerprintProcessCache.set(cacheKey, { mtimeMs: stats.mtimeMs, size: stats.size, fingerprint });
     cache?.set(cacheKey, fingerprint);
     return fingerprint;
   } catch {
@@ -9184,21 +9195,24 @@ export function queryCodeGraph(projectDir: string, query: string, limit = 10, gr
         ]
       : []),
     files.length || symbols.length || routes.length || tests.length ? "## Code Facts" : "No related source-derived code facts found.",
-    ...routes.map((route, index) => `${index + 1}. [route] ${route.method} ${route.path} in ${route.file_path}:${route.line}`),
+    // Compaction: when symbol hits are strong, supporting facts (routes/tests/files/
+    // imports) shrink to a few lines each. The block is agent fuel — every line that
+    // doesn't help locate the answer is tokens the agent pays for nothing.
     ...symbols.map((symbol, index) => `${index + 1}. [symbol] ${symbol.kind} ${symbol.name} in ${symbol.path}:${symbol.line} (${symbol.language}, ${symbol.parser})`),
-    ...tests.map((test, index) => `${index + 1}. [test] ${test.title} in ${test.test_path}:${test.line}${test.covers_symbol ? ` covers ${test.covers_symbol}` : ""}`),
-    ...files.slice(0, 5).map((file, index) => `${index + 1}. [file] ${file.path} (${file.kind}, ${file.language}, ${file.parser})`),
-    structuralFiles.length || structuralSymbols.length || structuralEdges.length ? "" : "",
-    structuralFiles.length || structuralSymbols.length || structuralEdges.length ? "## Structural Index" : "",
-    ...structuralSymbols.map((symbol, index) => `${index + 1}. [structural symbol] ${symbol.kind} ${symbol.name} in ${symbol.path}:${symbol.line} (${symbol.language}, ${symbol.parser})`),
-    ...structuralFiles.slice(0, 5).map((file, index) => `${index + 1}. [structural file] ${file.path} (${file.kind}, ${file.language}, ${file.extraction})`),
+    ...routes.slice(0, symbols.length >= 3 ? 3 : limit).map((route, index) => `${index + 1}. [route] ${route.method} ${route.path} in ${route.file_path}:${route.line}`),
+    ...tests.slice(0, symbols.length >= 3 ? 2 : limit).map((test, index) => `${index + 1}. [test] ${test.title} in ${test.test_path}:${test.line}${test.covers_symbol ? ` covers ${test.covers_symbol}` : ""}`),
+    ...files.slice(0, 3).map((file, index) => `${index + 1}. [file] ${file.path} (${file.kind}, ${file.language}, ${file.parser})`),
+    structuralFiles.length || structuralSymbols.length ? "" : "",
+    structuralFiles.length || structuralSymbols.length ? "## Structural Index" : "",
+    ...structuralSymbols.slice(0, symbols.length >= 3 ? 3 : limit).map((symbol, index) => `${index + 1}. [structural symbol] ${symbol.kind} ${symbol.name} in ${symbol.path}:${symbol.line} (${symbol.language}, ${symbol.parser})`),
+    ...structuralFiles.slice(0, 3).map((file, index) => `${index + 1}. [structural file] ${file.path} (${file.kind}, ${file.language}, ${file.extraction})`),
     ...structuralEdges
       .filter((edge) => edge.relation === "imports")
-      .slice(0, 5)
+      .slice(0, symbols.length >= 3 ? 2 : 5)
       .map((edge, index) => `${index + 1}. [structural import] ${edge.source_file}${edge.source_location ? `:${edge.source_location.replace(/^L/, "")}` : ""} -> ${edge.target} (${edge.confidence})`),
     imports.length ? "" : "",
     imports.length ? "## Imports" : "",
-    ...imports.map(({ item }, index) => `${index + 1}. ${item.from_path}:${item.line} ${item.kind} ${item.specifier}${item.to_path ? ` -> ${item.to_path}` : ""}`),
+    ...imports.slice(0, symbols.length >= 3 ? 3 : limit).map(({ item }, index) => `${index + 1}. ${item.from_path}:${item.line} ${item.kind} ${item.specifier}${item.to_path ? ` -> ${item.to_path}` : ""}`),
     // When caller intent was answered above, don't repeat the same edges here.
     calls.length && !callerEdges.length ? "" : "",
     calls.length && !callerEdges.length ? "## Calls" : "",
