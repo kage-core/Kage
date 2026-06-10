@@ -13,18 +13,14 @@ import {
   benchmarkTrust,
   benchmarkTaskComparison,
   benchmarkProject,
-  buildGlobalCdnBundle,
   capture,
   catalogDomainNodeCount,
   buildBranchOverlay,
   buildCodeGraph,
-  buildMarketplace,
   buildStructuralIndex,
-  createPublicCandidate,
   createReviewArtifact,
   deleteContextSlot,
   distillSession,
-  exportPublicBundle,
   graphMermaid,
   installAgentPolicy,
   kageCleanupCandidates,
@@ -55,11 +51,7 @@ import {
   memoryInbox,
   kageWorkspace,
   kageWorkspaceRecall,
-  layeredRecall,
   observe,
-  orgRecall,
-  orgStatus,
-  orgUploadPacket,
   prCheck,
   prSummarize,
   proposeFromDiff,
@@ -1023,115 +1015,6 @@ export function listTools() {
       },
     },
     {
-      name: "kage_marketplace",
-      description:
-        "Build a local marketplace manifest for recommended docs, skills, and MCP packs. This never installs anything automatically.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          project_dir: { type: "string" },
-        },
-        required: ["project_dir"],
-      },
-    },
-    {
-      name: "kage_org_status",
-      description:
-        "Inspect the local org-memory inbox, approved packets, rejected packets, audit count, and registry path.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          project_dir: { type: "string" },
-          org: { type: "string" },
-        },
-        required: ["project_dir", "org"],
-      },
-    },
-    {
-      name: "kage_org_upload_candidate",
-      description:
-        "Upload an approved repo packet into the local org review inbox. This creates a candidate only; it does not approve org memory.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          project_dir: { type: "string" },
-          org: { type: "string" },
-          packet_id: { type: "string" },
-        },
-        required: ["project_dir", "org", "packet_id"],
-      },
-    },
-    {
-      name: "kage_org_recall",
-      description:
-        "Recall approved local org memory. Repo-local recall should still take priority when results conflict.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          project_dir: { type: "string" },
-          org: { type: "string" },
-          query: { type: "string" },
-          limit: { type: "number" },
-          json: { type: "boolean" },
-        },
-        required: ["project_dir", "org", "query"],
-      },
-    },
-    {
-      name: "kage_layered_recall",
-      description:
-        "Recall with Kage's priority order: branch > repo local > org > global. Org/global are included only when explicitly requested.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          project_dir: { type: "string" },
-          query: { type: "string" },
-          org: { type: "string" },
-          include_global: { type: "boolean" },
-          json: { type: "boolean" },
-        },
-        required: ["project_dir", "query"],
-      },
-    },
-    {
-      name: "kage_global_build",
-      description:
-        "Build a local static global/CDN bundle from human-promoted public candidates and the marketplace manifest. This does not upload anywhere.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          project_dir: { type: "string" },
-          org: { type: "string" },
-        },
-        required: ["project_dir"],
-      },
-    },
-    {
-      name: "kage_promote_public_candidate",
-      description:
-        "Create a sanitized local public-review candidate from an approved repo memory packet. This does not publish to the global graph.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          project_dir: { type: "string" },
-          packet_id: { type: "string" },
-        },
-        required: ["project_dir", "packet_id"],
-      },
-    },
-    {
-      name: "kage_export_public_bundle",
-      description:
-        "Export local public-review candidates as a static public bundle catalog. This still does not publish anywhere.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          project_dir: { type: "string" },
-        },
-        required: ["project_dir"],
-      },
-    },
-    {
       name: "kage_review_artifact",
       description:
         "Create a Markdown review artifact summarizing pending memory packets for PR or human review.",
@@ -1867,96 +1750,6 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     const result = registryRecommendations(String(args?.project_dir ?? ""));
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-    };
-  }
-
-  if (name === "kage_marketplace") {
-    const result = buildMarketplace(String(args?.project_dir ?? ""));
-    return {
-      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-      isError: !result.ok,
-    };
-  }
-
-  if (name === "kage_org_status") {
-    const result = orgStatus(String(args?.project_dir ?? ""), String(args?.org ?? "local"));
-    return {
-      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-    };
-  }
-
-  if (name === "kage_org_upload_candidate") {
-    const result = orgUploadPacket(String(args?.project_dir ?? ""), String(args?.org ?? "local"), String(args?.packet_id ?? ""));
-    return {
-      content: [
-        {
-          type: "text",
-          text: result.ok
-            ? `Created org review candidate: ${result.path}\nApprove explicitly with: kage org review --approve`
-            : `Org upload blocked:\n${result.errors.map((error) => `- ${error}`).join("\n")}`,
-        },
-      ],
-      isError: !result.ok,
-    };
-  }
-
-  if (name === "kage_org_recall") {
-    const result = orgRecall(
-      String(args?.project_dir ?? ""),
-      String(args?.org ?? "local"),
-      String(args?.query ?? ""),
-      Number(args?.limit ?? 5)
-    );
-    return {
-      content: [{ type: "text", text: args?.json ? JSON.stringify(result, null, 2) : result.context_block }],
-    };
-  }
-
-  if (name === "kage_layered_recall") {
-    const result = layeredRecall(String(args?.project_dir ?? ""), String(args?.query ?? ""), {
-      org: args?.org ? String(args.org) : undefined,
-      includeGlobal: Boolean(args?.include_global),
-    });
-    return {
-      content: [{ type: "text", text: args?.json ? JSON.stringify(result, null, 2) : result.context_block }],
-    };
-  }
-
-  if (name === "kage_global_build") {
-    const result = buildGlobalCdnBundle(String(args?.project_dir ?? ""), String(args?.org ?? "local"));
-    return {
-      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-      isError: !result.ok,
-    };
-  }
-
-  if (name === "kage_promote_public_candidate") {
-    const result = createPublicCandidate(String(args?.project_dir ?? ""), String(args?.packet_id ?? ""));
-    return {
-      content: [
-        {
-          type: "text",
-          text: result.ok
-            ? `Created local public-review candidate: ${result.path}\nThis does not publish until a human submits it.`
-            : `Promotion blocked:\n${result.errors.map((error) => `- ${error}`).join("\n")}`,
-        },
-      ],
-      isError: !result.ok,
-    };
-  }
-
-  if (name === "kage_export_public_bundle") {
-    const result = exportPublicBundle(String(args?.project_dir ?? ""));
-    return {
-      content: [
-        {
-          type: "text",
-          text: result.ok
-            ? `Exported public bundle: ${result.path}\nPackets: ${result.packetCount}`
-            : `Public bundle blocked:\n${result.errors.map((error) => `- ${error}`).join("\n")}`,
-        },
-      ],
-      isError: !result.ok,
     };
   }
 

@@ -16,11 +16,9 @@ import {
   buildEmbeddingIndex,
   approvePending,
   benchmarkProject,
-  buildGlobalCdnBundle,
   buildBranchOverlay,
   buildCodeGraph,
   buildKnowledgeGraph,
-  buildMarketplace,
   buildStructuralIndex,
   capture,
   changelog,
@@ -67,12 +65,6 @@ import {
   loadPendingPackets,
   MEMORY_TYPES,
   observe,
-  layeredRecall,
-  orgRecall,
-  orgReviewPacket,
-  orgStatus,
-  orgUploadPacket,
-  exportOrgRegistry,
   prCheck,
   prSummarize,
   proposeFromDiff,
@@ -104,8 +96,22 @@ import {
 } from "./kernel.js";
 import { buildGraphRegistryManifest } from "./graph-registry.js";
 
-function usage(): never {
-  console.log(`Kage repo memory and code graph
+const CORE_USAGE = `Kage — code-grounded memory for coding agents
+
+Core commands:
+  kage demo                                  30-second trust demo (temp dir)
+  kage init --project <dir>                  create repo memory (.agent_memory only)
+  kage index --project <dir> [--full]        build/refresh code graph + indexes
+  kage recall "<query>" --project <dir>      grounded recall from repo memory
+  kage learn --project <dir> ...             capture a learning as a memory packet
+  kage verify --project <dir>                check memory citations against code
+  kage setup <agent> --project <dir> --write wire your agent (claude-code, codex, cursor, ...)
+  kage doctor --project <dir>                health check
+  kage viewer --project <dir>                local dashboard
+
+Run 'kage help --all' for the full command list (lifecycle, CI, benchmarks, daemon, workspace).`;
+
+const FULL_USAGE = `Kage — full command reference
 
 Usage:
   kage index --project <dir>
@@ -190,21 +196,15 @@ Usage:
   kage promote --project <dir> --public <packet-id>
   kage export-public --project <dir>
   kage registry --project <dir> [--json]
-  kage marketplace --project <dir> [--json]
-  kage org status --project <dir> --org <org> [--json]
-  kage org upload --project <dir> --org <org> --packet <approved-packet-id>
-  kage org review --project <dir> --org <org> --packet <org-packet-id> --approve|--reject
-  kage org recall "<query>" --project <dir> --org <org> [--json]
-  kage org export --project <dir> --org <org> [--json]
-  kage layered-recall "<query>" --project <dir> [--org <org>] [--global] [--json]
-  kage global build --project <dir> [--org <org>] [--json]
   kage changelog --project <dir> [--days <n>] [--json]
   kage review --project <dir>
   kage validate --project <dir>
 
 Types:
-  ${MEMORY_TYPES.join(", ")}
-`);
+  ${MEMORY_TYPES.join(", ")}`;
+
+function usage(): never {
+  console.log(CORE_USAGE);
   process.exit(1);
 }
 
@@ -269,6 +269,10 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const command = args[0];
   if (!command) usage();
+  if (command === "help") {
+    console.log(args.includes("--all") ? FULL_USAGE : CORE_USAGE);
+    return;
+  }
 
   if (command === "index") {
     const result = indexProject(projectArg(args));
@@ -1626,110 +1630,6 @@ async function main(): Promise<void> {
       console.log(`  matched: ${item.matched.join(", ") || "(repo metadata)"}`);
       console.log(`  trust: ${item.trust}; install: ${item.install}`);
     }
-    return;
-  }
-
-  if (command === "marketplace") {
-    const result = buildMarketplace(projectArg(args));
-    if (args.includes("--json")) {
-      console.log(JSON.stringify(result, null, 2));
-      return;
-    }
-    console.log(`Marketplace manifest: ${result.path}`);
-    console.log(`Packs: ${result.packs.length}`);
-    for (const pack of result.packs) {
-      console.log(`- ${pack.id} [${pack.kind}] ${pack.title} (${pack.install})`);
-    }
-    return;
-  }
-
-  if (command === "org") {
-    const action = args[1];
-    const org = takeArg(args, "--org") ?? "local";
-    const projectDir = projectArg(args);
-    if (action === "status") {
-      const result = orgStatus(projectDir, org);
-      if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
-      else {
-        console.log(`Org memory: ${result.org}`);
-        console.log(`Path: ${result.path}`);
-        console.log(`Inbox: ${result.inbox}`);
-        console.log(`Approved: ${result.approved}`);
-        console.log(`Rejected: ${result.rejected}`);
-        console.log(`Audit events: ${result.audit_events}`);
-        if (result.registry_path) console.log(`Registry: ${result.registry_path}`);
-      }
-      return;
-    }
-    if (action === "upload") {
-      const id = takeArg(args, "--packet");
-      if (!id) usage();
-      const result = orgUploadPacket(projectDir, org, id);
-      if (!result.ok) {
-        console.error(`Org upload blocked:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);
-        process.exit(2);
-      }
-      console.log(`Created org review candidate: ${result.path}`);
-      console.log("Approve explicitly with: kage org review --approve");
-      return;
-    }
-    if (action === "review") {
-      const id = takeArg(args, "--packet");
-      if (!id || (!args.includes("--approve") && !args.includes("--reject"))) usage();
-      const result = orgReviewPacket(projectDir, org, id, args.includes("--approve") ? "approve" : "reject");
-      if (!result.ok) {
-        console.error(`Org review failed:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);
-        process.exit(2);
-      }
-      console.log(`Org review wrote: ${result.path}`);
-      return;
-    }
-    if (action === "recall") {
-      const query = firstPositional(args.slice(1));
-      if (!query) usage();
-      const result = orgRecall(projectDir, org, query);
-      if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
-      else console.log(result.context_block);
-      return;
-    }
-    if (action === "export") {
-      const result = exportOrgRegistry(projectDir, org);
-      if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
-      else console.log(`Exported org registry: ${result.registry_path}`);
-      return;
-    }
-    usage();
-  }
-
-  if (command === "layered-recall") {
-    const query = firstPositional(args);
-    if (!query) usage();
-    const result = layeredRecall(projectArg(args), query, {
-      org: takeArg(args, "--org"),
-      includeGlobal: args.includes("--global"),
-    });
-    if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
-    else console.log(result.context_block);
-    return;
-  }
-
-  if (command === "global") {
-    const action = args[1];
-    if (action !== "build") usage();
-    const result = buildGlobalCdnBundle(projectArg(args), takeArg(args, "--org") ?? "local");
-    if (args.includes("--json")) {
-      console.log(JSON.stringify(result, null, 2));
-      return;
-    }
-    if (!result.ok) {
-      console.error(`Global bundle failed:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);
-      process.exit(2);
-    }
-    console.log(`Global registry: ${result.manifest_path}`);
-    console.log(`Latest alias: ${result.alias_path}`);
-    console.log(`Marketplace: ${result.marketplace_path}`);
-    console.log(`Public packets: ${result.packet_count}`);
-    console.log(`Marketplace packs: ${result.marketplace_packs}`);
     return;
   }
 
