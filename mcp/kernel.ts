@@ -6065,7 +6065,46 @@ function normalizeCallEdge(call: CodeCallEdge | Record<string, unknown>, fallbac
   };
 }
 
-function extractCalls(path: string, text: string, symbols: CodeSymbolNode[], symbolByName: Map<string, CodeSymbolNode[]>): CodeCallEdge[] {
+interface CallResolutionContext {
+  importedPaths: Set<string>; // resolved to_paths this file imports
+  importedNames: Map<string, string | null>; // imported name -> resolved to_path (null = external module)
+  dir: string; // directory of the calling file (same-package heuristic)
+}
+
+const EMPTY_CALL_RESOLUTION: CallResolutionContext = { importedPaths: new Set(), importedNames: new Map(), dir: "" };
+
+// Resolve a callee name to symbol targets through scope, not just name matching:
+// local file → explicit import binding → imported module → same directory →
+// (last resort) one name-only match at low confidence. A name imported from an
+// external package resolves to NO repo symbol — same-name repo symbols are not
+// the callee, and emitting them is how bogus cross-package edges were born.
+function resolveCallTargets(
+  name: string,
+  path: string,
+  targets: CodeSymbolNode[],
+  context: CallResolutionContext,
+  confidences: { local: number; imported: number; sameDir: number; nameOnly: number },
+): Array<{ target: CodeSymbolNode; confidence: number }> {
+  const local = targets.filter((target) => target.path === path);
+  if (local.length) return local.slice(0, 2).map((target) => ({ target, confidence: confidences.local }));
+  if (context.importedNames.has(name)) {
+    const toPath = context.importedNames.get(name) ?? null;
+    if (toPath === null) return []; // imported from an external package
+    return targets
+      .filter((target) => target.path === toPath)
+      .slice(0, 2)
+      .map((target) => ({ target, confidence: confidences.imported }));
+  }
+  const viaImports = targets.filter((target) => context.importedPaths.has(target.path));
+  if (viaImports.length) return viaImports.slice(0, 2).map((target) => ({ target, confidence: confidences.imported }));
+  const sameDir = targets.filter((target) =>
+    context.dir ? target.path.startsWith(`${context.dir}/`) : !target.path.includes("/"),
+  );
+  if (sameDir.length) return sameDir.slice(0, 1).map((target) => ({ target, confidence: confidences.sameDir }));
+  return targets.slice(0, 1).map((target) => ({ target, confidence: confidences.nameOnly }));
+}
+
+function extractCalls(path: string, text: string, symbols: CodeSymbolNode[], symbolByName: Map<string, CodeSymbolNode[]>, context: CallResolutionContext = EMPTY_CALL_RESOLUTION): CodeCallEdge[] {
   const sourceFile = sourceFileFor(path, text);
   const calls: CodeCallEdge[] = [];
   const visit = (node: ts.Node) => {
@@ -6086,7 +6125,7 @@ function extractCalls(path: string, text: string, symbols: CodeSymbolNode[], sym
     }
     const line = lineForNode(sourceFile, node);
     const caller = symbolAtLine(symbols, path, line);
-    for (const target of targets.slice(0, 3)) {
+    for (const { target, confidence } of resolveCallTargets(name, path, targets, context, { local: 0.9, imported: 0.85, sameDir: 0.6, nameOnly: 0.35 })) {
       if (calls.length >= MAX_CODE_GRAPH_CALLS_PER_FILE) break;
       if (target.path === path && target.line === line) continue;
       calls.push({
@@ -6094,7 +6133,7 @@ function extractCalls(path: string, text: string, symbols: CodeSymbolNode[], sym
         to_symbol: target.id,
         path,
         line,
-        confidence: target.path === path ? 0.9 : 0.75,
+        confidence,
         resolution: "typescript_ast_name",
       });
     }
@@ -6119,7 +6158,7 @@ const GENERIC_CALL_STOP_WORDS = new Set([
   "while",
 ]);
 
-function extractGenericCalls(path: string, text: string, symbols: CodeSymbolNode[], symbolByName: Map<string, CodeSymbolNode[]>): CodeCallEdge[] {
+function extractGenericCalls(path: string, text: string, symbols: CodeSymbolNode[], symbolByName: Map<string, CodeSymbolNode[]>, context: CallResolutionContext = EMPTY_CALL_RESOLUTION): CodeCallEdge[] {
   const calls: CodeCallEdge[] = [];
   const lines = text.split(/\r?\n/);
   for (let index = 0; index < lines.length && calls.length < MAX_CODE_GRAPH_CALLS_PER_FILE; index += 1) {
@@ -6133,14 +6172,14 @@ function extractGenericCalls(path: string, text: string, symbols: CodeSymbolNode
       const targets = symbolByName.get(name)?.filter((target) => target.path !== path || target.line !== line);
       if (!targets?.length) continue;
       const caller = symbolAtLine(symbols, path, line);
-      for (const target of targets.slice(0, 3)) {
+      for (const { target, confidence } of resolveCallTargets(name, path, targets, context, { local: 0.7, imported: 0.65, sameDir: 0.5, nameOnly: 0.3 })) {
         if (calls.length >= MAX_CODE_GRAPH_CALLS_PER_FILE) break;
         calls.push({
           from_symbol: caller?.id ?? null,
           to_symbol: target.id,
           path,
           line,
-          confidence: target.path === path ? 0.7 : 0.55,
+          confidence,
           resolution: "generic_static_name",
         });
       }
@@ -6357,7 +6396,7 @@ function externalIndexFiles(projectDir: string): Array<{ path: string; parser: C
 }
 
 interface GraphInputEntry {
-  kind: "code_file" | "external_code_index" | "approved_packet" | "code_graph_input";
+  kind: "code_file" | "external_code_index" | "approved_packet" | "code_graph_input" | "code_graph_builder";
   path: string;
   sha256: string;
 }
@@ -6394,8 +6433,18 @@ function fileInputEntries(projectDir: string, paths: string[], kind: GraphInputE
     }));
 }
 
+// Bump when call/route/test derivation logic changes so existing repos rebuild
+// their code graph on next index — otherwise builder fixes never reach users
+// whose files haven't changed.
+const CODE_GRAPH_BUILDER_VERSION = 2; // v2: import-aware call resolution
+
+function codeGraphBuilderVersionEntry(): GraphInputEntry {
+  return { kind: "code_graph_builder", path: "kage", sha256: String(CODE_GRAPH_BUILDER_VERSION) };
+}
+
 function codeGraphInputHash(projectDir: string, absoluteFiles = listCodeFiles(projectDir)): string {
   return graphInputHash([
+    codeGraphBuilderVersionEntry(),
     ...fileInputEntries(projectDir, absoluteFiles, "code_file"),
     ...fileInputEntries(projectDir, externalIndexFiles(projectDir).map((index) => index.path), "external_code_index"),
   ]);
@@ -6407,6 +6456,7 @@ function codeGraphInputHashFromStructural(projectDir: string, structural: Struct
 
 function codeGraphInputHashFromStructuralFingerprint(projectDir: string, fingerprint: string): string {
   return graphInputHash([
+    codeGraphBuilderVersionEntry(),
     { kind: "code_graph_input", path: ".agent_memory/structural/fingerprint", sha256: fingerprint },
     ...fileInputEntries(projectDir, externalIndexFiles(projectDir).map((index) => index.path), "external_code_index"),
   ]);
@@ -6435,6 +6485,7 @@ function currentCodeGraphInputHash(projectDir: string): string {
 
 function codeGraphStructuralFingerprint(projectDir: string, structural: StructuralIndex): string {
   const entries = [
+    `builder:${CODE_GRAPH_BUILDER_VERSION}`,
     `structural:${structural.manifest.fingerprint}`,
     ...externalIndexFiles(projectDir)
       .map((index) => index.path)
@@ -6899,9 +6950,20 @@ export function buildCodeGraph(projectDir: string, options: { force?: boolean } 
     if (calls.length >= MAX_CODE_GRAPH_CALLS) break;
     const fileSymbols = symbols.filter((symbol) => symbol.path === rel);
     const fileImports = imports.filter((item) => item.from_path === rel);
+    const importedNames = new Map<string, string | null>();
+    for (const item of fileImports) {
+      for (const importedName of item.imported) {
+        if (!importedNames.has(importedName)) importedNames.set(importedName, item.to_path);
+      }
+    }
+    const resolution: CallResolutionContext = {
+      importedPaths: new Set(fileImports.map((item) => item.to_path).filter((value): value is string => Boolean(value))),
+      importedNames,
+      dir: rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : "",
+    };
     const fileCalls = TS_AST_EXTENSIONS.has(extensionOf(rel))
-      ? extractCalls(rel, content, fileSymbols, symbolByName)
-      : extractGenericCalls(rel, content, fileSymbols, symbolByName);
+      ? extractCalls(rel, content, fileSymbols, symbolByName, resolution)
+      : extractGenericCalls(rel, content, fileSymbols, symbolByName, resolution);
     calls.push(...fileCalls.slice(0, Math.max(0, MAX_CODE_GRAPH_CALLS - calls.length)));
     routes.push(...extractRoutes(rel, content, fileSymbols));
     tests.push(...extractTests(rel, content, fileSymbols, fileImports));
@@ -9126,14 +9188,18 @@ export function queryCodeGraph(projectDir: string, query: string, limit = 10, gr
   }
   const callerTargetIds = new Set(callerTargets.map((symbol) => symbol.id));
   const callerTargetNames = new Set(callerTargets.map((symbol) => symbol.name.toLowerCase()));
+  // Edges below 0.5 are name-only guesses; presenting them as callers destroys
+  // trust in the one answer a call graph exists to give.
   const callerEdges = callerTargetIds.size
     ? graph.calls
+        .filter((call) => call.confidence >= 0.5)
         .filter((call) => callerTargetIds.has(call.to_symbol) || callerTargetNames.has((symbolNameById.get(call.to_symbol) ?? call.to_symbol).split(" ")[0]?.toLowerCase() ?? ""))
         .slice(0, 20)
     : [];
   const calls = callerEdges.length
     ? callerEdges
     : graph.calls
+        .filter((call) => call.confidence >= 0.5)
         .filter((call) => symbolIds.has(call.to_symbol) || Boolean(call.from_symbol && symbolIds.has(call.from_symbol)))
         .slice(0, limit);
   const structuralIndex = readCurrentStructuralIndex(projectDir);
