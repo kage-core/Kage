@@ -4920,7 +4920,9 @@ function structuralPackedFileCachePath(projectDir: string): string {
   return join(structuralIndexDir(projectDir), "file-cache.json");
 }
 
-const STRUCTURAL_EXTRACTOR_VERSION = 2;
+// Bump whenever symbol/call extraction changes, or cached per-file results
+// keep serving pre-change output and upgrades silently never land.
+const STRUCTURAL_EXTRACTOR_VERSION = 3; // v3: method-assignment symbols (app.use = function)
 
 function structuralFileCachePath(projectDir: string, rel: string, hash: string): string {
   return join(structuralFileCacheDir(projectDir), `v${STRUCTURAL_EXTRACTOR_VERSION}-${slugify(rel)}-${hash}.json`);
@@ -5790,6 +5792,21 @@ function extractSymbols(path: string, text: string): CodeSymbolNode[] {
         const kind = initializer && (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) ? "function" : "constant";
         addSymbol(declaration.name.text, kind, declaration, exported, node.getText(sourceFile).split(/\r?\n/)[0]);
       }
+    } else if (
+      ts.isExpressionStatement(node) &&
+      ts.isBinaryExpression(node.expression) &&
+      node.expression.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isPropertyAccessExpression(node.expression.left) &&
+      (ts.isFunctionExpression(node.expression.right) || ts.isArrowFunction(node.expression.right))
+    ) {
+      // Method-assignment pattern: `app.use = function use(fn) {…}`, `proto.handle = (req) => {…}`.
+      // Express/Koa-style APIs define most of their public surface this way; without this
+      // branch those symbols are invisible to the code graph.
+      const left = node.expression.left;
+      const receiver = left.expression.getText(sourceFile);
+      const exported = receiver === "exports" || receiver === "module.exports" || receiver.endsWith(".prototype");
+      const firstLine = `${left.getText(sourceFile)} = ${node.expression.right.getText(sourceFile).split(/\r?\n/)[0] ?? ""}`;
+      addSymbol(left.name.text, "method", node, exported, firstLine.trim().slice(0, 180));
     } else if (codeFileKind(path) === "test" && ts.isCallExpression(node)) {
       const callee = propertyOrIdentifierName(node.expression);
       const first = stringLiteralValue(node.arguments[0]);
@@ -9018,20 +9035,32 @@ function boostTermScore(boost: string, term: string): number {
 export function queryCodeGraph(projectDir: string, query: string, limit = 10, graph?: CodeGraph): CodeGraphQueryResult {
   graph = graph ?? readCurrentCodeGraph(projectDir) ?? buildCodeGraph(projectDir);
   const terms = tokenize(query);
+  // Implementation queries must rank core source above tests/examples/benchmarks.
+  // Without this, path-term matches let `test/` and `examples/` swamp `lib/` —
+  // the exact inversion that made code-graph answers lose to grep.
+  const testIntent = terms.some((term) => ["test", "tests", "spec", "coverage", "fixture"].includes(term));
+  const exampleIntent = terms.some((term) => ["example", "examples", "sample", "demo"].includes(term));
+  const pathKindWeight = (path: string): number => {
+    const kind = codeFileKind(path);
+    if (kind === "test") return testIntent ? 1.15 : 0.45;
+    if (/(^|\/)(examples?|samples?|demos?|fixtures?|benchmarks?)\//.test(path)) return exampleIntent ? 1.1 : 0.5;
+    if (kind === "source") return 1.0;
+    return 0.85; // config/manifest/doc: useful, but below implementation
+  };
   const files = graph.files
-    .map((file) => ({ file, score: scoreText(terms, `${file.path} ${file.kind} ${file.language} ${file.parser}`, [file.path, file.language]) }))
+    .map((file) => ({ file, score: scoreText(terms, `${file.path} ${file.kind} ${file.language} ${file.parser}`, [file.path, file.language]) * pathKindWeight(file.path) }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score || a.file.path.localeCompare(b.file.path))
     .slice(0, limit)
     .map((entry) => entry.file);
   const symbols = graph.symbols
-    .map((symbol) => ({ symbol, score: scoreText(terms, `${symbol.name} ${symbol.kind} ${symbol.path} ${symbol.language} ${symbol.signature}`, [symbol.name, symbol.path]) }))
+    .map((symbol) => ({ symbol, score: scoreText(terms, `${symbol.name} ${symbol.kind} ${symbol.path} ${symbol.language} ${symbol.signature}`, [symbol.name, symbol.path]) * pathKindWeight(symbol.path) }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score || a.symbol.path.localeCompare(b.symbol.path) || a.symbol.line - b.symbol.line)
     .slice(0, limit)
     .map((entry) => entry.symbol);
   const routes = graph.routes
-    .map((route) => ({ route, score: scoreText(terms, `route routes endpoint api handler ${route.method} ${route.path} ${route.file_path} ${route.framework}`, [route.path, route.file_path]) }))
+    .map((route) => ({ route, score: scoreText(terms, `route routes endpoint api handler ${route.method} ${route.path} ${route.file_path} ${route.framework}`, [route.path, route.file_path]) * pathKindWeight(route.file_path) }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score || a.route.path.localeCompare(b.route.path))
     .slice(0, limit)
@@ -9058,9 +9087,44 @@ export function queryCodeGraph(projectDir: string, query: string, limit = 10, gr
     .slice(0, limit);
   const symbolIds = new Set(symbols.map((symbol) => symbol.id));
   const symbolNameById = new Map(graph.symbols.map((symbol) => [symbol.id, `${symbol.name} (${symbol.path}:${symbol.line})`]));
-  const calls = graph.calls
-    .filter((call) => symbolIds.has(call.to_symbol) || Boolean(call.from_symbol && symbolIds.has(call.from_symbol)))
-    .slice(0, limit);
+  // Caller-intent queries ("who calls X", "which functions call X", "usages of X")
+  // must be answered from the call-edge index — the one question a call graph is
+  // uniquely qualified to answer. Keyword scoring alone returns definitions instead.
+  const callerIntent = /\b(?:who|what|which)\b[^?]*\bcalls?\b|\bcallers?\s+(?:of|for)\b|\bcall\s*sites?\b|\busages?\s+of\b|\bwhere\s+is\b.+\b(?:called|invoked|used)\b/i.test(query);
+  const intentStopwords = new Set(["call", "calls", "called", "caller", "callers", "calling", "invoked", "invoke", "usage", "usages", "site", "sites", "who", "what", "which", "where", "function", "functions", "method", "methods", "file", "files", "of", "for", "is", "the", "in", "are", "do", "does"]);
+  let callerTargets: CodeSymbolNode[] = [];
+  if (callerIntent) {
+    const byName = new Map<string, CodeSymbolNode[]>();
+    for (const symbol of graph.symbols) {
+      const key = symbol.name.toLowerCase();
+      const bucket = byName.get(key);
+      if (bucket) bucket.push(symbol);
+      else byName.set(key, [symbol]);
+    }
+    const rawWords = query.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? [];
+    const seen = new Set<string>();
+    for (const word of rawWords) {
+      const key = word.toLowerCase();
+      if (seen.has(key) || intentStopwords.has(key)) continue;
+      const matches = byName.get(key);
+      if (!matches) continue;
+      seen.add(key);
+      callerTargets.push(...matches.slice(0, 4));
+    }
+    callerTargets = callerTargets.slice(0, 8);
+  }
+  const callerTargetIds = new Set(callerTargets.map((symbol) => symbol.id));
+  const callerTargetNames = new Set(callerTargets.map((symbol) => symbol.name.toLowerCase()));
+  const callerEdges = callerTargetIds.size
+    ? graph.calls
+        .filter((call) => callerTargetIds.has(call.to_symbol) || callerTargetNames.has((symbolNameById.get(call.to_symbol) ?? call.to_symbol).split(" ")[0]?.toLowerCase() ?? ""))
+        .slice(0, 20)
+    : [];
+  const calls = callerEdges.length
+    ? callerEdges
+    : graph.calls
+        .filter((call) => symbolIds.has(call.to_symbol) || Boolean(call.from_symbol && symbolIds.has(call.from_symbol)))
+        .slice(0, limit);
   const structuralIndex = readCurrentStructuralIndex(projectDir);
   const graphPaths = new Set(graph.files.map((file) => file.path));
   const graphSymbolIds = new Set(graph.symbols.map((symbol) => symbol.id));
@@ -9083,7 +9147,7 @@ export function queryCodeGraph(projectDir: string, query: string, limit = 10, gr
     ? structuralIndex.symbols
         .map((symbol) => ({
           symbol,
-          score: scoreText(terms, `${symbol.name} ${symbol.kind} ${symbol.path} ${symbol.language} ${symbol.parser}`, [symbol.name, symbol.path]),
+          score: scoreText(terms, `${symbol.name} ${symbol.kind} ${symbol.path} ${symbol.language} ${symbol.parser}`, [symbol.name, symbol.path]) * pathKindWeight(symbol.path),
         }))
         .filter((entry) => entry.score > 0 && !graphSymbolIds.has(entry.symbol.id))
         .sort((a, b) => b.score - a.score || a.symbol.path.localeCompare(b.symbol.path) || a.symbol.line - b.symbol.line)
@@ -9111,6 +9175,14 @@ export function queryCodeGraph(projectDir: string, query: string, limit = 10, gr
     "",
     `Query: ${query}`,
     "",
+    ...(callerEdges.length
+      ? [
+          "## Callers (from the call-edge index)",
+          ...callerTargets.map((symbol) => `target: ${symbol.kind} ${symbol.name} defined in ${symbol.path}:${symbol.line}`),
+          ...callerEdges.map((call, index) => `${index + 1}. ${call.from_symbol ? symbolNameById.get(call.from_symbol) ?? call.from_symbol : call.path} calls ${symbolNameById.get(call.to_symbol) ?? call.to_symbol} at ${call.path}:${call.line}`),
+          "",
+        ]
+      : []),
     files.length || symbols.length || routes.length || tests.length ? "## Code Facts" : "No related source-derived code facts found.",
     ...routes.map((route, index) => `${index + 1}. [route] ${route.method} ${route.path} in ${route.file_path}:${route.line}`),
     ...symbols.map((symbol, index) => `${index + 1}. [symbol] ${symbol.kind} ${symbol.name} in ${symbol.path}:${symbol.line} (${symbol.language}, ${symbol.parser})`),
@@ -9127,9 +9199,12 @@ export function queryCodeGraph(projectDir: string, query: string, limit = 10, gr
     imports.length ? "" : "",
     imports.length ? "## Imports" : "",
     ...imports.map(({ item }, index) => `${index + 1}. ${item.from_path}:${item.line} ${item.kind} ${item.specifier}${item.to_path ? ` -> ${item.to_path}` : ""}`),
-    calls.length ? "" : "",
-    calls.length ? "## Calls" : "",
-    ...calls.map((call, index) => `${index + 1}. ${call.from_symbol ? symbolNameById.get(call.from_symbol) ?? call.from_symbol : call.path} calls ${symbolNameById.get(call.to_symbol) ?? call.to_symbol} at ${call.path}:${call.line} (${call.resolution}, confidence ${call.confidence.toFixed(2)})`),
+    // When caller intent was answered above, don't repeat the same edges here.
+    calls.length && !callerEdges.length ? "" : "",
+    calls.length && !callerEdges.length ? "## Calls" : "",
+    ...(callerEdges.length
+      ? []
+      : calls.map((call, index) => `${index + 1}. ${call.from_symbol ? symbolNameById.get(call.from_symbol) ?? call.from_symbol : call.path} calls ${symbolNameById.get(call.to_symbol) ?? call.to_symbol} at ${call.path}:${call.line} (${call.resolution}, confidence ${call.confidence.toFixed(2)})`)),
   ];
 
   return {

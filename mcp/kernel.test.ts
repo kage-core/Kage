@@ -1917,6 +1917,44 @@ test("code graph query returns routes, symbols, and tests", () => {
   assert.equal(result.tests.some((edge) => edge.title === "summary route"), true);
 });
 
+test("caller-intent queries answer from the call-edge index", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo" }), "utf8");
+  writeFileSync(join(project, "src", "delay.ts"), "export function calculateRetryDelay(n: number) { return n * 2; }\n", "utf8");
+  writeFileSync(
+    join(project, "src", "client.ts"),
+    "import { calculateRetryDelay } from './delay.js';\nexport function retryRequest() { return calculateRetryDelay(3); }\n",
+    "utf8",
+  );
+
+  const result = queryCodeGraph(project, "which functions call calculateRetryDelay");
+  assert.match(result.context_block, /## Callers/);
+  assert.match(result.context_block, /defined in src\/delay\.ts/);
+  assert.match(result.context_block, /src\/client\.ts:2/);
+});
+
+test("symbol extraction captures method-assignment patterns (app.use = function)", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "lib"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo" }), "utf8");
+  writeFileSync(
+    join(project, "lib", "application.js"),
+    [
+      "var app = exports = module.exports = {};",
+      "app.use = function use(fn) { return this; };",
+      "app.handle = (req, res) => { res.end(); };",
+      "Router.prototype.route = function route(path) { return path; };",
+    ].join("\n") + "\n",
+    "utf8",
+  );
+
+  const result = queryCodeGraph(project, "use handle route application");
+  assert.equal(result.symbols.some((s) => s.name === "use" && s.kind === "method"), true);
+  assert.equal(result.symbols.some((s) => s.name === "handle" && s.kind === "method"), true);
+  assert.equal(result.symbols.some((s) => s.name === "route" && s.kind === "method" && s.export === true), true);
+});
+
 test("metrics summarize code graph, memory graph, and harness readiness", () => {
   const project = tempProject();
   mkdirSync(join(project, "src"), { recursive: true });
