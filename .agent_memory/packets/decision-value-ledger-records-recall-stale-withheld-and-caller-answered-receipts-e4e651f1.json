@@ -1,0 +1,83 @@
+{
+  "schema_version": 2,
+  "id": "repo:agent-a2d7fc6b76e05334a:decision:value-ledger-records-recall-stale-withheld-and-caller-answered-receipts-17811877",
+  "title": "Value ledger records recall, stale-withheld, and caller-answered receipts",
+  "summary": "Kage persists a per repo value ledger at .agent memory/reports/value.json schema version 1, events capped at 5000 with all time totals that survive trimming, temp file + rename writes . recallWithVectorScores in mcp/kern",
+  "body": "Kage persists a per-repo value ledger at .agent_memory/reports/value.json (schema_version 1, events capped at 5000 with all-time totals that survive trimming, temp-file + rename writes). recallWithVectorScores in mcp/kernel.ts records recall_served (tokens_saved = cited source bytes/4 minus context block length/4, floored at 0) and one stale_withheld event per hard-stale packet suppressed; queryCodeGraph records caller_answered when a caller-intent query is answered from the call-edge index, guarded on .agent_memory existing so bare code-graph queries stay read-only. valueSummary() exposes today/last_7d/all_time windows with a $15-per-1M-token dollar estimate; receipts surface via 'kage gains', a receipt line after 'kage recall', and a Gains line appended to the kage_context MCP handler in mcp/index.ts.\nEvidence: mcp/kernel.ts recordValueEvent/valueSummary; tests: kernel.test.ts value ledger tests pass (193 total)",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "value-ledger",
+    "receipts",
+    "telemetry"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/cli.ts",
+    "mcp/index.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-11T14:22:05.474Z"
+    }
+  ],
+  "context": {
+    "fact": "Kage persists a per-repo value ledger at .agent_memory/reports/value.json (schema_version 1, events capped at 5000 with all-time totals that survive trimming, temp-file + rename writes). recallWithVectorScores in mcp/kernel.ts records recall_served (tokens_saved = cited source bytes/4 minus context block length/4, floored at 0) and one stale_withheld event per hard-stale packet suppressed; queryCodeGraph records caller_answered when a caller-intent query is answered from the call-edge index, guarded on .agent_memory existing so bare code-graph queries stay read-only. valueSummary() exposes today/last_7d/all_time windows with a $15-per-1M-token dollar estimate; receipts surface via 'kage gains', a receipt line after 'kage recall', and a Gains line appended to the kage_context MCP handler in mcp/index.ts.\nEvidence: mcp/kernel.ts recordValueEvent/valueSummary; tests: kernel.test.ts value ledger tests pass (193 total)",
+    "verification": "mcp/kernel.ts recordValueEvent/valueSummary; tests: kernel.test.ts value ledger tests pass (193 total)"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-11T14:22:05.474Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "59029e8ab6b5ca2bca8da594032dc543360fb7fed0bc444b86708d14c0378598",
+        "size": 668707
+      },
+      {
+        "path": "mcp/cli.ts",
+        "sha256": "90cafe86fb7a97c1066bc11837d6e193d63a2e2577e091d67b696210021e9696",
+        "size": 86168
+      },
+      {
+        "path": "mcp/index.ts",
+        "sha256": "124b35740ff1d136f4de26546dcaa3c74baf414c470a10e29f5c1ebc568e1bb5",
+        "size": 63550
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 232
+  },
+  "created_at": "2026-06-11T14:22:05.474Z",
+  "updated_at": "2026-06-11T14:22:13.939Z",
+  "author_branch": "feat/v2-value-ledger-receipts"
+}

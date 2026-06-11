@@ -82,6 +82,9 @@ import {
   queryGraph,
   recall,
   recallWithEmbeddings,
+  recordValueEvent,
+  valueSummary,
+  formatTokenCount,
   recordFeedback,
   refreshProject,
   rejectPending,
@@ -3826,4 +3829,82 @@ test("truth report on a doc-less repo skips doc checks and still finds bus-facto
   assert.ok(bus);
   assert.match(bus.detail, /test@example.com/);
   assert.equal(report.findings.some((finding) => finding.kind === "doc_lie"), false);
+});
+
+test("value ledger accumulates events and valueSummary computes window math", () => {
+  const project = tempProject();
+  recordValueEvent(project, { kind: "recall_served", tokens_saved: 4000 });
+  recordValueEvent(project, { kind: "recall_served", tokens_saved: 1000 });
+  recordValueEvent(project, { kind: "stale_withheld", packet_title: "Old widget runbook" });
+  recordValueEvent(project, { kind: "caller_answered" });
+
+  const ledgerPath = join(project, ".agent_memory", "reports", "value.json");
+  const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  assert.equal(ledger.schema_version, 1);
+  assert.equal(ledger.events.length, 4);
+  assert.equal(ledger.totals.tokens_saved, 5000);
+  assert.equal(ledger.events.some((event: { packet_title?: string }) => event.packet_title === "Old widget runbook"), true);
+
+  const summary = valueSummary(project);
+  for (const window of [summary.today, summary.last_7d, summary.all_time]) {
+    assert.equal(window.tokens_saved, 5000);
+    assert.equal(window.recalls, 2);
+    assert.equal(window.stale_withheld, 1);
+    assert.equal(window.caller_answers, 1);
+    assert.equal(window.estimated_dollars, Number(((5000 / 1_000_000) * 15).toFixed(2)));
+  }
+
+  // Events outside the window drop out of today/last_7d but stay in all-time totals.
+  ledger.events[0].at = new Date(Date.now() - 10 * 86_400_000).toISOString();
+  writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2), "utf8");
+  const rolled = valueSummary(project);
+  assert.equal(rolled.last_7d.tokens_saved, 1000);
+  assert.equal(rolled.last_7d.recalls, 1);
+  assert.equal(rolled.today.tokens_saved, 1000);
+  assert.equal(rolled.all_time.tokens_saved, 5000);
+  assert.equal(rolled.all_time.recalls, 2);
+
+  assert.equal(formatTokenCount(412), "412");
+  assert.equal(formatTokenCount(412_345), "412K");
+  assert.equal(formatTokenCount(4_120_000), "4.1M");
+});
+
+test("recall records value ledger receipts for served and withheld memory", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "billing.ts"), `// billing module\n${"export const billingLine = 1;\n".repeat(200)}`, "utf8");
+  writeFileSync(join(project, "src", "gone.ts"), "export const gone = 1;\n", "utf8");
+  capture({ projectDir: project, title: "Billing retry rule", body: "Billing retries use idempotency keys in src/billing.ts.", type: "decision", paths: ["src/billing.ts"] });
+  capture({ projectDir: project, title: "Gone billing note", body: "Old billing retry behavior in src/gone.ts.", type: "decision", paths: ["src/gone.ts"] });
+  unlinkSync(join(project, "src", "gone.ts"));
+
+  const result = recall(project, "billing retry idempotency", 5);
+  assert.equal(result.results.some((entry) => entry.packet.title === "Billing retry rule"), true);
+  assert.ok(result.value_receipt);
+  assert.equal(result.value_receipt.stale_withheld, 1);
+  assert.equal(result.value_receipt.tokens_saved >= 0, true);
+
+  const summary = valueSummary(project);
+  assert.equal(summary.all_time.recalls >= 1, true);
+  assert.equal(summary.all_time.stale_withheld >= 1, true);
+  const ledger = JSON.parse(readFileSync(join(project, ".agent_memory", "reports", "value.json"), "utf8"));
+  assert.equal(ledger.events.some((event: { kind: string }) => event.kind === "recall_served"), true);
+  assert.equal(ledger.events.some((event: { kind: string; packet_title?: string }) => event.kind === "stale_withheld" && event.packet_title === "Gone billing note"), true);
+});
+
+test("caller-intent code graph answers record caller_answered value events", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo" }), "utf8");
+  writeFileSync(join(project, "src", "delay.ts"), "export function computeBackoff(n: number) { return n * 2; }\n", "utf8");
+  writeFileSync(
+    join(project, "src", "client.ts"),
+    "import { computeBackoff } from './delay.js';\nexport function retryRequest() { return computeBackoff(3); }\n",
+    "utf8",
+  );
+
+  const result = queryCodeGraph(project, "which functions call computeBackoff");
+  assert.match(result.context_block, /## Callers/);
+  const summary = valueSummary(project);
+  assert.equal(summary.all_time.caller_answers, 1);
 });
