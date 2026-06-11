@@ -1,0 +1,95 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:runbook:releasing-kage-release-js-publishes-from-any-named-branch-1781191414917",
+  "title": "Releasing Kage: release.js publishes from any named branch",
+  "summary": "node mcp/dist/release.js publish smoke publishes @kage core/kage graph mcp from the CURRENT named branch: preflights are clean worktree git status porcelain uall empty , origin/<branch is an ancestor of HEAD push first ,",
+  "body": "node mcp/dist/release.js --publish --smoke publishes @kage-core/kage-graph-mcp from the CURRENT named branch: preflights are clean worktree (git status --porcelain -uall empty), origin/<branch> is an ancestor of HEAD (push first), npm test, and pack dry-run; master is NOT required, so a release/vX branch can publish before its PR merges. It then npm-publishes with --access public, polls npm view (10 retries/3s) and smoke-installs the tarball into a temp prefix. Version sources to bump in lockstep: mcp/package.json (+package-lock via npm install --package-lock-only), plugin/.claude-plugin/plugin.json, plugin/.codex-plugin/plugin.json, and the Server version literal in mcp/index.ts (name kage-graph). Verified for v2.0.0 (2026-06-11).\nEvidence: v2.0.0 published from release/v2.0.0 with PR #66 unmerged; npm view returned 2.0.0; smoke install added 97 packages\nVerified by: 2.0.0 release run",
+  "type": "runbook",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "release",
+    "runbook",
+    "npm"
+  ],
+  "paths": [
+    "mcp/release.ts",
+    "mcp/package.json",
+    "mcp/index.ts",
+    "plugin/.claude-plugin/plugin.json",
+    "plugin/.codex-plugin/plugin.json"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-11T15:23:34.916Z"
+    }
+  ],
+  "context": {
+    "fact": "node mcp/dist/release.js --publish --smoke publishes @kage-core/kage-graph-mcp from the CURRENT named branch: preflights are clean worktree (git status --porcelain -uall empty), origin/<branch> is an ancestor of HEAD (push first), npm test, and pack dry-run; master is NOT required, so a release/vX branch can publish before its PR merges. It then npm-publishes with --access public, polls npm view (10 retries/3s) and smoke-installs the tarball into a temp prefix. Version sources to bump in lockstep: mcp/package.json (+package-lock via npm install --package-lock-only), plugin/.claude-plugin/plugin.json, plugin/.codex-plugin/plugin.json, and the Server version literal in mcp/index.ts (name kage-graph). Verified for v2.0.0 (2026-06-11).\nEvidence: v2.0.0 published from release/v2.0.0 with PR #66 unmerged; npm view returned 2.0.0; smoke install added 97 packages\nVerified by: 2.0.0 release run",
+    "verification": "v2.0.0 published from release/v2.0.0 with PR #66 unmerged; npm view returned 2.0.0; smoke install added 97 packages"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-11T15:23:34.916Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/release.ts",
+        "sha256": "526ba31170e96dabcc315dced845f1955a4adf92ae338c75954de7d0d088fb3d",
+        "size": 5908
+      },
+      {
+        "path": "mcp/package.json",
+        "sha256": "b449aee3367abfb277dc85bb1375877c6dd97b823ac77e97f8cc8a6275369af9",
+        "size": 1095
+      },
+      {
+        "path": "mcp/index.ts",
+        "sha256": "a3ba5c1b522dcfaf3f15b4a2b010f22116d07f3c810f38a6c4f8b0604dfd9a42",
+        "size": 63966
+      },
+      {
+        "path": "plugin/.claude-plugin/plugin.json",
+        "sha256": "11153bbcdc50cae8982fdc01cd53b511eda853cabac692826b842e2b672d3982",
+        "size": 604
+      },
+      {
+        "path": "plugin/.codex-plugin/plugin.json",
+        "sha256": "17d68feee3886a46bbf9a82ecbd536dc1b2b4d9784b2b23e6489820238478557",
+        "size": 267
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 225
+  },
+  "created_at": "2026-06-11T15:23:34.916Z",
+  "updated_at": "2026-06-11T15:23:45.558Z",
+  "author_branch": "release/v2.0.0"
+}
