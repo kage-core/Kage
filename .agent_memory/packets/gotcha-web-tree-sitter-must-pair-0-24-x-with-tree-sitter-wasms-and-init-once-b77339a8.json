@@ -1,0 +1,60 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:gotcha:web-tree-sitter-must-pair-0-24-x-with-tree-sitter-wasms-and-init-once-1781167503",
+  "title": "web-tree-sitter must pair 0.24.x with tree-sitter-wasms and init once",
+  "summary": "Kage's tree sitter extraction tier uses web tree sitter pure WASM, no node gyp with prebuilt grammars from tree sitter wasms. Two gotchas: 1 web tree sitter 0.25+/0.26 cannot load tree sitter wasms 0.1.x grammars built w",
+  "body": "Kage's tree-sitter extraction tier uses web-tree-sitter (pure WASM, no node-gyp) with prebuilt grammars from tree-sitter-wasms. Two gotchas: (1) web-tree-sitter 0.25+/0.26 cannot load tree-sitter-wasms 0.1.x grammars (built with tree-sitter-cli 0.20.8) — Language.load fails in getDylinkMetadata; the dependency must stay at web-tree-sitter ^0.24.7. (2) web-tree-sitter mutates its CommonJS export during Parser.init(), so a second require(\"web-tree-sitter\") returns an object whose .init is not a function; the pre-init Parser class is cached once in kernel.ts (treeSitterRuntime) and reused for every Language.load. Per-language grammar npm packages (tree-sitter-python etc.) were rejected because they run node-gyp-build on install, which would break the npx install story.\nEvidence: mcp/kernel.ts ensureTreeSitterLanguages; verified by loading python/go/rust/java/ruby grammars under web-tree-sitter 0.24.7 and reproducing both failure modes under 0.26.9 and double-require.\nVerified by: npm test (190 pass) and acid index of pallets/click producing 1839 tree-sitter symbols",
+  "type": "gotcha",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "tree-sitter",
+    "structural-index",
+    "code-graph",
+    "dependencies"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/package.json"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-11T08:45:03.507Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-11T08:45:03.507Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 270
+  },
+  "created_at": "2026-06-11T08:45:03.507Z",
+  "updated_at": "2026-06-11T08:45:17.056Z"
+}

@@ -1,0 +1,62 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:tree-sitter-tier-sits-between-ts-ast-and-regex-extraction-1781167511592",
+  "title": "Tree-sitter tier sits between TS-AST and regex extraction",
+  "summary": "Per file structural extraction in kernel.ts now has three tiers: TypeScript compiler AST for TS/JS, tree sitter web tree sitter WASM for python/go/rust/java/ruby, and the regex extractGenericSymbols/extractGenericCalls f",
+  "body": "Per-file structural extraction in kernel.ts now has three tiers: TypeScript compiler AST for TS/JS, tree-sitter (web-tree-sitter WASM) for python/go/rust/java/ruby, and the regex extractGenericSymbols/extractGenericCalls for everything else (kotlin, php, csharp, cpp, swift) or when a grammar fails to load. Because web-tree-sitter only initializes asynchronously while buildStructuralIndex/buildCodeGraph stay synchronous, grammars are loaded once per process before any file loop: cli.ts main() awaits ensureTreeSitterLanguages() after the help branch, index.ts callTool() awaits it first, and structural-worker.ts awaits it for the languages in its batch before mapping files. extractTreeSitterSymbols/extractTreeSitterCalls return null when no parser is loaded and callers fall back to the regex tier (?? extractGenericSymbols / ?? extractGenericCalls). Tree-sitter call edges use resolution \"tree_sitter_name\" with resolveCallTargets weights {local 0.8, imported 0.75, sameDir 0.55, nameOnly 0.32} — between regex (0.7) and TS-AST (0.9). usableStructuralCache treats cached generic-static symbols as a miss once the language's grammar is loaded so regex-tier cache entries cannot pin weak symbols past the upgrade. STRUCTURAL_EXTRACTOR_VERSION=4 and CODE_GRAPH_BUILDER_VERSION=3 force cache rebuilds.\nEvidence: mcp/kernel.ts extractTreeSitterSymbols/extractTreeSitterCalls/usableStructuralCache; kernel.test.ts tree-sitter python and go tests.\nVerified by: npm test (190 pass, 0 fail); pallets/click index: 1839/1839 symbols tree-sitter, 3704 calls tree_sitter_name",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "tree-sitter",
+    "structural-index",
+    "code-graph",
+    "non-typescript"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/structural-worker.ts",
+    "mcp/cli.ts",
+    "mcp/index.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-11T08:45:11.592Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-11T08:45:11.592Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 393
+  },
+  "created_at": "2026-06-11T08:45:11.592Z",
+  "updated_at": "2026-06-11T08:45:17.055Z"
+}
