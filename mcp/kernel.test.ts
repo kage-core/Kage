@@ -3812,6 +3812,43 @@ test("truth report flags duplicates, ghost exports, and doc lies in a synthetic 
   assert.equal(report.findings.length <= 12, true);
 });
 
+test("truth report doc-lie scan skips paths quoted inside fenced code blocks", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "fence-demo", scripts: { build: "tsc" } }), "utf8");
+  writeFileSync(join(project, "src", "core.ts"), "export function fenceDemo(): number {\n  return 1;\n}\n", "utf8");
+  writeFileSync(
+    join(project, "README.md"),
+    [
+      "# Fence demo",
+      "",
+      "See `src/missing/prose.ts` for the parser.",
+      "",
+      "```text",
+      "  • lib/response.js — knowledge void",
+      "  ✗ \"Use the helper in src/ghost.ts\"",
+      "npm run dev",
+      "```",
+      "",
+      "```bash",
+      "npm run lint",
+      "```",
+      "",
+    ].join("\n"),
+    "utf8"
+  );
+  commitAll(project, "initial");
+
+  const report = truthReport(project);
+  const lieTitles = report.findings.filter((finding) => finding.kind === "doc_lie").map((finding) => finding.title);
+  assert.equal(lieTitles.some((title) => title.includes("src/missing/prose.ts")), true);
+  assert.equal(lieTitles.some((title) => title.includes("lib/response.js")), false);
+  assert.equal(lieTitles.some((title) => title.includes("src/ghost.ts")), false);
+  assert.equal(lieTitles.some((title) => title.includes("npm run dev")), false);
+  assert.equal(lieTitles.some((title) => title.includes("npm run lint")), true);
+});
+
 test("truth report on a doc-less repo skips doc checks and still finds bus-factor files", () => {
   const project = tempProject();
   execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
