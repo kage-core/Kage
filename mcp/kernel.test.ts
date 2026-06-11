@@ -83,6 +83,8 @@ import {
   recall,
   recallWithEmbeddings,
   recordValueEvent,
+  staleCatch,
+  formatStaleCatch,
   valueSummary,
   formatTokenCount,
   recordFeedback,
@@ -3907,4 +3909,78 @@ test("caller-intent code graph answers record caller_answered value events", () 
   assert.match(result.context_block, /## Callers/);
   const summary = valueSummary(project);
   assert.equal(summary.all_time.caller_answers, 1);
+});
+
+test("staleCatch reports memory invalidated by a changed cited file with a reason", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "auth.ts"), "export const tokenTtlMinutes = 60;\n", "utf8");
+  writeFileSync(join(project, "src", "stable.ts"), "export const stable = true;\n", "utf8");
+  const captured = capture({ projectDir: project, title: "Auth token ttl rule", body: "Auth tokens rotate hourly; ttl lives in src/auth.ts.", type: "decision", paths: ["src/auth.ts"] });
+  assert.equal(captured.ok, true);
+  capture({ projectDir: project, title: "Stable module note", body: "Stable module behavior documented in src/stable.ts.", type: "decision", paths: ["src/stable.ts"] });
+  writeFileSync(join(project, "src", "auth.ts"), "export const tokenTtlMinutes = 60 * 24; // now daily\n", "utf8");
+
+  const result = staleCatch(project, ["src/auth.ts", "src/stable.ts"]);
+  assert.equal(result.ok, true);
+  assert.equal(result.invalidated.length, 1);
+  assert.equal(result.invalidated[0].packet_title, "Auth token ttl rule");
+  assert.equal(result.invalidated[0].packet_id, captured.packet?.id);
+  assert.equal(result.invalidated[0].cited_path, "src/auth.ts");
+  assert.match(result.invalidated[0].reason, /content changed/);
+  assert.match(result.summary, /invalidated 1 team memory/);
+
+  // The catch lands in the value ledger as a change-time event.
+  const summary = valueSummary(project);
+  assert.equal(summary.all_time.stale_caught, 1);
+  const ledger = JSON.parse(readFileSync(join(project, ".agent_memory", "reports", "value.json"), "utf8"));
+  assert.equal(ledger.events.some((event: { kind: string; packet_title?: string }) => event.kind === "stale_caught" && event.packet_title === "Auth token ttl rule"), true);
+
+  // Human rendering: headline, one bullet per catch, fix footer.
+  const lines = formatStaleCatch(result);
+  assert.match(lines[0], /⚠ Your changes invalidated 1 team memory:/);
+  assert.match(lines[1], /• Auth token ttl rule — cites src\/auth\.ts \(content changed/);
+  assert.match(lines[2], /fix: kage learn \(update\) \| kage supersede --packet <id>/);
+});
+
+test("staleCatch stays clean when changed files do not invalidate memory", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "billing.ts"), "export const billing = 1;\n", "utf8");
+  writeFileSync(join(project, "src", "unrelated.ts"), "export const unrelated = 1;\n", "utf8");
+  capture({ projectDir: project, title: "Billing invariant", body: "Billing totals are computed in src/billing.ts.", type: "decision", paths: ["src/billing.ts"] });
+
+  // Cited file unchanged: changing an uncited file catches nothing.
+  writeFileSync(join(project, "src", "unrelated.ts"), "export const unrelated = 2; // touched\n", "utf8");
+  const clean = staleCatch(project, ["src/unrelated.ts"]);
+  assert.equal(clean.invalidated.length, 0);
+  assert.match(clean.summary, /No team memory invalidated/);
+  assert.deepEqual(formatStaleCatch(clean), ["✓ No team memory invalidated by this change"]);
+
+  // Cited file listed as changed but byte-identical to its fingerprint: still clean.
+  const sameContent = staleCatch(project, ["src/billing.ts"]);
+  assert.equal(sameContent.invalidated.length, 0);
+  assert.equal(valueSummary(project).all_time.stale_caught, 0);
+});
+
+test("staleCatch detects working-tree changes from git when no file list is passed", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "config.ts"), "export const retries = 3;\n", "utf8");
+  commitAll(project, "initial");
+  capture({ projectDir: project, title: "Retry budget", body: "HTTP retry budget is configured in src/config.ts.", type: "decision", paths: ["src/config.ts"] });
+
+  assert.equal(staleCatch(project).invalidated.length, 0);
+  writeFileSync(join(project, "src", "config.ts"), "export const retries = 5; // raised after incident\n", "utf8");
+  const result = staleCatch(project);
+  assert.equal(result.changed_files.includes("src/config.ts"), true);
+  assert.equal(result.invalidated.length, 1);
+  assert.equal(result.invalidated[0].cited_path, "src/config.ts");
+
+  // Deleting the cited file is reported with a deletion reason.
+  unlinkSync(join(project, "src", "config.ts"));
+  const deleted = staleCatch(project);
+  assert.equal(deleted.invalidated.length, 1);
+  assert.match(deleted.invalidated[0].reason, /deleted/);
 });

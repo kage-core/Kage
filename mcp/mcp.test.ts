@@ -634,7 +634,10 @@ test("MCP refresh and PR tools expose merge readiness", async () => {
   assert.equal(refresh.ok, true);
   assert.equal(typeof refresh.code_graph.files, "number");
 
-  const check = JSON.parse(textContent(await callTool("kage_pr_check", { project_dir: project })));
+  // kage_pr_check leads with the human stale-catch summary before the JSON payload.
+  const checkText = textContent(await callTool("kage_pr_check", { project_dir: project }));
+  assert.match(checkText.split("\n")[0], /team memor/);
+  const check = JSON.parse(checkText.slice(checkText.indexOf("{")));
   assert.equal(check.ok, true);
   assert.equal(check.code_graph_current, true);
 });

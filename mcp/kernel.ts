@@ -2989,6 +2989,7 @@ const VALUE_DOLLARS_PER_MILLION_TOKENS = 15;
 export type ValueEvent =
   | { kind: "recall_served"; tokens_saved: number }
   | { kind: "stale_withheld"; packet_title: string }
+  | { kind: "stale_caught"; packet_title: string }
   | { kind: "caller_answered" };
 
 interface ValueLedgerEvent {
@@ -3001,13 +3002,14 @@ interface ValueLedgerEvent {
 interface ValueLedger {
   schema_version: number;
   // All-time rollups survive the event cap: events get trimmed, totals never lose history.
-  totals: { tokens_saved: number; stale_withheld: number; recalls: number; caller_answers: number };
+  totals: { tokens_saved: number; stale_withheld: number; stale_caught: number; recalls: number; caller_answers: number };
   events: ValueLedgerEvent[];
 }
 
 export interface ValueWindowSummary {
   tokens_saved: number;
   stale_withheld: number;
+  stale_caught: number;
   recalls: number;
   caller_answers: number;
   estimated_dollars: number;
@@ -3028,7 +3030,7 @@ function valueLedgerPath(projectDir: string): string {
 function emptyValueLedger(): ValueLedger {
   return {
     schema_version: VALUE_LEDGER_SCHEMA_VERSION,
-    totals: { tokens_saved: 0, stale_withheld: 0, recalls: 0, caller_answers: 0 },
+    totals: { tokens_saved: 0, stale_withheld: 0, stale_caught: 0, recalls: 0, caller_answers: 0 },
     events: [],
   };
 }
@@ -3050,7 +3052,7 @@ function readValueLedger(projectDir: string): ValueLedger {
         return Boolean(candidate)
           && typeof candidate?.at === "string"
           && Number.isFinite(Date.parse(candidate.at))
-          && (candidate.kind === "recall_served" || candidate.kind === "stale_withheld" || candidate.kind === "caller_answered");
+          && (candidate.kind === "recall_served" || candidate.kind === "stale_withheld" || candidate.kind === "stale_caught" || candidate.kind === "caller_answered");
       })
       .slice(-VALUE_LEDGER_EVENT_CAP);
     return {
@@ -3058,6 +3060,7 @@ function readValueLedger(projectDir: string): ValueLedger {
       totals: {
         tokens_saved: nonNegativeCount(totals.tokens_saved),
         stale_withheld: nonNegativeCount(totals.stale_withheld),
+        stale_caught: nonNegativeCount(totals.stale_caught),
         recalls: nonNegativeCount(totals.recalls),
         caller_answers: nonNegativeCount(totals.caller_answers),
       },
@@ -3082,6 +3085,9 @@ function recordValueEvents(projectDir: string, events: ValueEvent[]): void {
       } else if (event.kind === "stale_withheld") {
         record.packet_title = event.packet_title;
         ledger.totals.stale_withheld += 1;
+      } else if (event.kind === "stale_caught") {
+        record.packet_title = event.packet_title;
+        ledger.totals.stale_caught += 1;
       } else {
         ledger.totals.caller_answers += 1;
       }
@@ -3109,7 +3115,7 @@ function estimatedTokenDollars(tokensSaved: number): number {
 }
 
 function summarizeValueWindow(events: ValueLedgerEvent[], cutoff: number): ValueWindowSummary {
-  const window = { tokens_saved: 0, stale_withheld: 0, recalls: 0, caller_answers: 0 };
+  const window = { tokens_saved: 0, stale_withheld: 0, stale_caught: 0, recalls: 0, caller_answers: 0 };
   for (const event of events) {
     const at = Date.parse(event.at);
     if (!Number.isFinite(at) || at < cutoff) continue;
@@ -3118,6 +3124,8 @@ function summarizeValueWindow(events: ValueLedgerEvent[], cutoff: number): Value
       window.tokens_saved += nonNegativeCount(event.tokens_saved);
     } else if (event.kind === "stale_withheld") {
       window.stale_withheld += 1;
+    } else if (event.kind === "stale_caught") {
+      window.stale_caught += 1;
     } else {
       window.caller_answers += 1;
     }
@@ -16070,6 +16078,97 @@ export function prSummarize(projectDir: string): PrSummaryResult {
     errors: validation.errors,
     warnings,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Stale-catch: the retention heartbeat. When a developer's working-tree change
+// invalidates team memory (a packet's cited file no longer matches its stored
+// fingerprint), surface it at the moment of change — `kage pr check`,
+// `kage staleguard` (pre-commit/pre-push hook), and kage_pr_check all lead
+// with this so the author fixes the memory while the context is still hot.
+// ---------------------------------------------------------------------------
+
+export interface StaleCatchInvalidation {
+  packet_id: string;
+  packet_title: string;
+  cited_path: string;
+  reason: string;
+}
+
+export interface StaleCatchResult {
+  ok: boolean;
+  project_dir: string;
+  changed_files: string[];
+  invalidated: StaleCatchInvalidation[];
+  summary: string;
+}
+
+// Working-tree changes vs HEAD: unstaged + staged + untracked. Outside a git
+// repo (or before the first commit) this degrades to "nothing changed".
+function workingTreeChangedFiles(projectDir: string): string[] {
+  const sections = [
+    readGit(projectDir, ["diff", "--name-only", "HEAD"]),
+    readGit(projectDir, ["diff", "--name-only", "--cached"]),
+    readGit(projectDir, ["ls-files", "--others", "--exclude-standard"]),
+  ];
+  return unique(
+    sections
+      .filter((section): section is string => Boolean(section))
+      .flatMap((section) => section.split(/\r?\n/))
+      .map((path) => path.trim())
+      .filter(Boolean)
+      .map((path) => gitPathToProjectRelative(projectDir, path))
+      .filter((path): path is string => Boolean(path))
+  );
+}
+
+export function staleCatch(projectDir: string, changedFiles?: string[]): StaleCatchResult {
+  const changed = new Set(
+    (changedFiles?.length ? changedFiles : workingTreeChangedFiles(projectDir))
+      .map((path) => path.replace(/\\/g, "/").replace(/^\/+/, ""))
+      .filter(Boolean)
+  );
+  const invalidated: StaleCatchInvalidation[] = [];
+  if (changed.size) {
+    const fpCache = new Map<string, MemoryPathFingerprint | null>();
+    for (const packet of loadPacketsFromDir(packetsDir(projectDir))) {
+      if (packet.status !== "approved" && packet.status !== "pending") continue;
+      for (const stored of packetStoredPathFingerprints(packet)) {
+        if (!changed.has(stored.path) || isGroundingIgnored(projectDir, stored.path)) continue;
+        const current = memoryPathFingerprint(projectDir, stored.path, fpCache);
+        if (current === null) {
+          invalidated.push({ packet_id: packet.id, packet_title: packet.title, cited_path: stored.path, reason: "cited file was deleted" });
+        } else if (current.sha256 !== stored.sha256) {
+          invalidated.push({ packet_id: packet.id, packet_title: packet.title, cited_path: stored.path, reason: "content changed since this memory was verified" });
+        }
+      }
+    }
+  }
+  if (invalidated.length) {
+    recordValueEvents(projectDir, invalidated.map((item) => ({ kind: "stale_caught" as const, packet_title: item.packet_title })));
+  }
+  const summary = invalidated.length
+    ? `Your changes invalidated ${invalidated.length} team ${invalidated.length === 1 ? "memory" : "memories"}.`
+    : "No team memory invalidated by this change.";
+  return {
+    ok: true,
+    project_dir: resolve(projectDir),
+    changed_files: [...changed].sort(),
+    invalidated,
+    summary,
+  };
+}
+
+// Shared human rendering for the stale-catch moment (CLI pr check, kage
+// staleguard, and the kage_pr_check MCP tool all print the exact same lines).
+export function formatStaleCatch(result: StaleCatchResult): string[] {
+  if (!result.invalidated.length) return ["✓ No team memory invalidated by this change"];
+  const count = result.invalidated.length;
+  return [
+    `⚠ Your changes invalidated ${count} team ${count === 1 ? "memory" : "memories"}:`,
+    ...result.invalidated.map((item) => `  • ${item.packet_title} — cites ${item.cited_path} (${item.reason})`),
+    "  fix: kage learn (update) | kage supersede --packet <id>",
+  ];
 }
 
 export function prCheck(projectDir: string): PrCheckResult {

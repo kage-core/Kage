@@ -86,6 +86,8 @@ import {
   setupAgent,
   setupDoctor,
   setContextSlot,
+  staleCatch,
+  formatStaleCatch,
   supersedeMemory,
   truthReport,
   validateProject,
@@ -145,6 +147,7 @@ Usage:
   kage suppressed --project <dir> [--json]
   kage pr summarize --project <dir> [--json]
   kage pr check --project <dir> [--json]
+  kage staleguard --project <dir> [--json]
   kage upgrade [--dry-run]
   kage branch --project <dir> [--json]
   kage metrics --project <dir> [--json]
@@ -214,6 +217,20 @@ Types:
 function usage(): never {
   console.log(CORE_USAGE);
   process.exit(1);
+}
+
+// Stale-catch lines lead with color when attached to a terminal so the
+// retention heartbeat is impossible to miss; plain text otherwise (CI, pipes).
+function printStaleCatch(result: ReturnType<typeof staleCatch>): void {
+  const useColor = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
+  const [headline, ...rest] = formatStaleCatch(result);
+  if (!useColor) {
+    console.log([headline, ...rest].join("\n"));
+    return;
+  }
+  const tint = result.invalidated.length ? "\u001b[33m" : "\u001b[32m";
+  console.log(`${tint}${headline}\u001b[0m`);
+  if (rest.length) console.log(rest.join("\n"));
 }
 
 function takeArg(args: string[], name: string): string | undefined {
@@ -696,6 +713,10 @@ async function main(): Promise<void> {
         if (!result.ok) process.exit(2);
         return;
       }
+      // The stale-catch moment comes first: the human-readable heartbeat that a
+      // change just invalidated team memory beats the mechanical check output.
+      printStaleCatch(staleCatch(projectArg(args)));
+      console.log("");
       console.log(`PR memory check for ${result.project_dir}`);
       console.log(`Branch: ${result.branch ?? "(detached)"}`);
       console.log(`Changed files: ${result.changed_files.length}`);
@@ -710,6 +731,19 @@ async function main(): Promise<void> {
       return;
     }
     usage();
+  }
+
+  if (command === "staleguard") {
+    // Lightweight stale-catch for pre-commit/pre-push hooks: no graph builds,
+    // no validation — just "did this change invalidate team memory?". Advisory
+    // by design (exit 0) so it informs the commit instead of blocking it.
+    const result = staleCatch(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    printStaleCatch(result);
+    return;
   }
 
   if (command === "upgrade") {
@@ -1074,18 +1108,20 @@ async function main(): Promise<void> {
     }
     const plural = (count: number, singular: string, pluralForm: string): string => (count === 1 ? singular : pluralForm);
     const week = summary.last_7d;
-    if (!summary.all_time.recalls && !summary.all_time.stale_withheld && !summary.all_time.caller_answers) {
+    if (!summary.all_time.recalls && !summary.all_time.stale_withheld && !summary.all_time.stale_caught && !summary.all_time.caller_answers) {
       console.log("No value events recorded yet. Run kage recall (or let your agent call kage_context) and check back.");
       return;
     }
     console.log(
       `This week Kage saved you ~${formatTokenCount(week.tokens_saved)} tokens (~$${week.estimated_dollars.toFixed(2)}), ` +
       `blocked ${week.stale_withheld} stale ${plural(week.stale_withheld, "memory", "memories")}, ` +
+      `caught ${week.stale_caught} stale at change-time, ` +
       `answered ${week.recalls} ${plural(week.recalls, "recall", "recalls")}.`
     );
     const windowLine = (label: string, window: typeof week): string =>
       `  ${label} ~${formatTokenCount(window.tokens_saved)} tokens (~$${window.estimated_dollars.toFixed(2)}) · ` +
-      `${window.stale_withheld} stale blocked · ${window.recalls} ${plural(window.recalls, "recall", "recalls")} · ` +
+      `${window.stale_withheld} stale blocked · ${window.stale_caught} stale caught at change-time · ` +
+      `${window.recalls} ${plural(window.recalls, "recall", "recalls")} · ` +
       `${window.caller_answers} caller ${plural(window.caller_answers, "answer", "answers")}`;
     console.log(windowLine("Today:   ", summary.today));
     console.log(windowLine("All time:", summary.all_time));
