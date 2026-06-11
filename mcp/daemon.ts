@@ -159,6 +159,54 @@ export function viewerRedirectLocation(pathname: string, search: string, fallbac
   return `/viewer/index.html${search || fallbackSearch}`;
 }
 
+// Every report file the dashboard reads, keyed by its query-string param name.
+// `value` points at the cumulative value ledger written by recall — it is read-only
+// here and must never be regenerated, or the all-time savings history is lost.
+export function viewerReportPaths(projectRoot: string): Record<string, string> {
+  const agentDir = join(projectRoot, ".agent_memory");
+  const reportsDir = join(agentDir, "reports");
+  return {
+    graph: join(agentDir, "graph", "graph.json"),
+    code: join(agentDir, "code_graph", "graph.json"),
+    metrics: join(agentDir, "metrics.json"),
+    inbox: join(agentDir, "inbox.json"),
+    review: join(agentDir, "review", "memory-review.md"),
+    pending: join(agentDir, "pending"),
+    quality: join(reportsDir, "quality.json"),
+    benchmark: join(reportsDir, "benchmark.json"),
+    contributors: join(reportsDir, "contributors.json"),
+    profile: join(reportsDir, "profile.json"),
+    xray: join(reportsDir, "xray.json"),
+    capabilities: join(reportsDir, "capabilities.json"),
+    slots: join(reportsDir, "context-slots.json"),
+    decisions: join(reportsDir, "decisions.json"),
+    risk: join(reportsDir, "risk.json"),
+    moduleHealth: join(reportsDir, "module-health.json"),
+    graphInsights: join(reportsDir, "graph-insights.json"),
+    workspace: join(reportsDir, "workspace.json"),
+    sessions: join(reportsDir, "sessions.json"),
+    replay: join(reportsDir, "replay.json"),
+    memoryAccess: join(reportsDir, "memory-access.json"),
+    memoryAudit: join(reportsDir, "memory-audit.json"),
+    handoff: join(reportsDir, "handoff.json"),
+    lifecycle: join(reportsDir, "lifecycle.json"),
+    activity: join(reportsDir, "activity.json"),
+    timeline: join(reportsDir, "timeline.json"),
+    lineage: join(reportsDir, "lineage.json"),
+    setup: join(reportsDir, "setup.json"),
+    trust: join(reportsDir, "trust.json"),
+    suppressed: join(reportsDir, "suppressed.json"),
+    value: join(reportsDir, "value.json"),
+  };
+}
+
+export function viewerUrl(host: string, port: number, projectRoot: string): string {
+  const query = Object.entries(viewerReportPaths(projectRoot))
+    .map(([name, path]) => `${name}=${encodeURIComponent(path)}`)
+    .join("&");
+  return `http://${host}:${port}/viewer/index.html?${query}&view=code`;
+}
+
 export function viewerBenchmarkReport(projectDir: string): ViewerBenchmarkReport {
   const gates = benchmarkProject(projectDir);
   const memoryQuality = benchmarkCodingMemoryQuality();
@@ -643,74 +691,47 @@ export async function startViewer(projectDir: string, options: { host?: string; 
   const viewerDir = resolve(__dirname, "..", "viewer");
   const threeDir = resolve(__dirname, "..", "node_modules", "three");
   const projectRoot = resolve(projectDir);
-  const graphPath = join(projectRoot, ".agent_memory", "graph", "graph.json");
-  const codePath = join(projectRoot, ".agent_memory", "code_graph", "graph.json");
-  const metricsPath = join(projectRoot, ".agent_memory", "metrics.json");
-  const inboxPath = join(projectRoot, ".agent_memory", "inbox.json");
-  const reviewPath = join(projectRoot, ".agent_memory", "review", "memory-review.md");
-  const pendingDir = join(projectRoot, ".agent_memory", "pending");
+  const reports = viewerReportPaths(projectRoot);
   const reportsDir = join(projectRoot, ".agent_memory", "reports");
-  const qualityPath = join(reportsDir, "quality.json");
-  const benchmarkPath = join(reportsDir, "benchmark.json");
-  const contributorsPath = join(reportsDir, "contributors.json");
-  const profilePath = join(reportsDir, "profile.json");
-  const xrayPath = join(reportsDir, "xray.json");
-  const capabilitiesPath = join(reportsDir, "capabilities.json");
-  const slotsPath = join(reportsDir, "context-slots.json");
-  const decisionsPath = join(reportsDir, "decisions.json");
-  const riskPath = join(reportsDir, "risk.json");
-  const moduleHealthPath = join(reportsDir, "module-health.json");
-  const graphInsightsPath = join(reportsDir, "graph-insights.json");
-  const workspacePath = join(reportsDir, "workspace.json");
-  const sessionsPath = join(reportsDir, "sessions.json");
-  const replayPath = join(reportsDir, "replay.json");
-  const memoryAccessPath = join(reportsDir, "memory-access.json");
-  const memoryAuditPath = join(reportsDir, "memory-audit.json");
-  const handoffPath = join(reportsDir, "handoff.json");
-  const lifecyclePath = join(reportsDir, "lifecycle.json");
-  const activityPath = join(reportsDir, "activity.json");
-  const timelinePath = join(reportsDir, "timeline.json");
-  const lineagePath = join(reportsDir, "lineage.json");
-  const setupPath = join(reportsDir, "setup.json");
-  const trustPath = join(reportsDir, "trust.json");
-  const suppressedPath = join(reportsDir, "suppressed.json");
 
   // Pre-generate lightweight JSON reports so the viewer can load them directly.
+  // Note: reports.value (the cumulative value ledger written by recall) is served
+  // as-is and intentionally never regenerated here.
   try {
     mkdirSync(reportsDir, { recursive: true });
     const metrics = kageMetrics(projectDir);
-    writeFileSync(metricsPath, JSON.stringify(metrics, null, 2));
+    writeFileSync(reports.metrics, JSON.stringify(metrics, null, 2));
     const inbox = memoryInbox(projectDir);
-    writeFileSync(inboxPath, JSON.stringify(inbox, null, 2));
-    writeFileSync(qualityPath, JSON.stringify(qualityReport(projectDir), null, 2));
-    writeFileSync(benchmarkPath, JSON.stringify(viewerBenchmarkReport(projectDir), null, 2));
-    writeFileSync(contributorsPath, JSON.stringify(kageContributors(projectDir), null, 2));
-    writeFileSync(profilePath, JSON.stringify(kageProjectProfile(projectDir), null, 2));
-    writeFileSync(xrayPath, JSON.stringify(kageRepoXray(projectDir), null, 2));
-    writeFileSync(capabilitiesPath, JSON.stringify(kageCapabilityAudit(projectDir), null, 2));
-    writeFileSync(slotsPath, JSON.stringify(kageContextSlots(projectDir), null, 2));
-    writeFileSync(decisionsPath, JSON.stringify(kageDecisionIntelligence(projectDir), null, 2));
-    writeFileSync(riskPath, JSON.stringify(kageRisk(projectDir), null, 2));
-    writeFileSync(moduleHealthPath, JSON.stringify(kageModuleHealth(projectDir), null, 2));
-    writeFileSync(graphInsightsPath, JSON.stringify(kageGraphInsights(projectDir), null, 2));
-    writeFileSync(workspacePath, JSON.stringify(kageWorkspace(projectDir), null, 2));
-    writeFileSync(sessionsPath, JSON.stringify(kageSessionCaptureReport(projectDir), null, 2));
-    writeFileSync(replayPath, JSON.stringify(kageSessionReplay(projectDir), null, 2));
-    writeFileSync(memoryAccessPath, JSON.stringify(kageMemoryAccess(projectDir), null, 2));
-    writeFileSync(memoryAuditPath, JSON.stringify(kageMemoryAudit(projectDir), null, 2));
-    writeFileSync(handoffPath, JSON.stringify(kageMemoryHandoff(projectDir), null, 2));
-    writeFileSync(lifecyclePath, JSON.stringify(kageMemoryLifecycle(projectDir), null, 2));
-    writeFileSync(activityPath, JSON.stringify(kageActivity(projectDir), null, 2));
-    writeFileSync(timelinePath, JSON.stringify(kageMemoryTimeline(projectDir), null, 2));
-    writeFileSync(lineagePath, JSON.stringify(kageMemoryLineage(projectDir), null, 2));
-    writeFileSync(setupPath, JSON.stringify(setupDoctor(projectDir), null, 2));
-    writeFileSync(trustPath, JSON.stringify(benchmarkTrust(projectDir), null, 2));
-    writeFileSync(suppressedPath, JSON.stringify(kageSuppressedMemory(projectDir), null, 2));
+    writeFileSync(reports.inbox, JSON.stringify(inbox, null, 2));
+    writeFileSync(reports.quality, JSON.stringify(qualityReport(projectDir), null, 2));
+    writeFileSync(reports.benchmark, JSON.stringify(viewerBenchmarkReport(projectDir), null, 2));
+    writeFileSync(reports.contributors, JSON.stringify(kageContributors(projectDir), null, 2));
+    writeFileSync(reports.profile, JSON.stringify(kageProjectProfile(projectDir), null, 2));
+    writeFileSync(reports.xray, JSON.stringify(kageRepoXray(projectDir), null, 2));
+    writeFileSync(reports.capabilities, JSON.stringify(kageCapabilityAudit(projectDir), null, 2));
+    writeFileSync(reports.slots, JSON.stringify(kageContextSlots(projectDir), null, 2));
+    writeFileSync(reports.decisions, JSON.stringify(kageDecisionIntelligence(projectDir), null, 2));
+    writeFileSync(reports.risk, JSON.stringify(kageRisk(projectDir), null, 2));
+    writeFileSync(reports.moduleHealth, JSON.stringify(kageModuleHealth(projectDir), null, 2));
+    writeFileSync(reports.graphInsights, JSON.stringify(kageGraphInsights(projectDir), null, 2));
+    writeFileSync(reports.workspace, JSON.stringify(kageWorkspace(projectDir), null, 2));
+    writeFileSync(reports.sessions, JSON.stringify(kageSessionCaptureReport(projectDir), null, 2));
+    writeFileSync(reports.replay, JSON.stringify(kageSessionReplay(projectDir), null, 2));
+    writeFileSync(reports.memoryAccess, JSON.stringify(kageMemoryAccess(projectDir), null, 2));
+    writeFileSync(reports.memoryAudit, JSON.stringify(kageMemoryAudit(projectDir), null, 2));
+    writeFileSync(reports.handoff, JSON.stringify(kageMemoryHandoff(projectDir), null, 2));
+    writeFileSync(reports.lifecycle, JSON.stringify(kageMemoryLifecycle(projectDir), null, 2));
+    writeFileSync(reports.activity, JSON.stringify(kageActivity(projectDir), null, 2));
+    writeFileSync(reports.timeline, JSON.stringify(kageMemoryTimeline(projectDir), null, 2));
+    writeFileSync(reports.lineage, JSON.stringify(kageMemoryLineage(projectDir), null, 2));
+    writeFileSync(reports.setup, JSON.stringify(setupDoctor(projectDir), null, 2));
+    writeFileSync(reports.trust, JSON.stringify(benchmarkTrust(projectDir), null, 2));
+    writeFileSync(reports.suppressed, JSON.stringify(kageSuppressedMemory(projectDir), null, 2));
   } catch {
     // non-fatal: viewer will show 404 for reports if generation fails
   }
 
-  const url = `http://${host}:${port}/viewer/index.html?graph=${encodeURIComponent(graphPath)}&code=${encodeURIComponent(codePath)}&metrics=${encodeURIComponent(metricsPath)}&inbox=${encodeURIComponent(inboxPath)}&review=${encodeURIComponent(reviewPath)}&pending=${encodeURIComponent(pendingDir)}&quality=${encodeURIComponent(qualityPath)}&benchmark=${encodeURIComponent(benchmarkPath)}&contributors=${encodeURIComponent(contributorsPath)}&profile=${encodeURIComponent(profilePath)}&xray=${encodeURIComponent(xrayPath)}&capabilities=${encodeURIComponent(capabilitiesPath)}&slots=${encodeURIComponent(slotsPath)}&decisions=${encodeURIComponent(decisionsPath)}&risk=${encodeURIComponent(riskPath)}&moduleHealth=${encodeURIComponent(moduleHealthPath)}&graphInsights=${encodeURIComponent(graphInsightsPath)}&workspace=${encodeURIComponent(workspacePath)}&sessions=${encodeURIComponent(sessionsPath)}&replay=${encodeURIComponent(replayPath)}&memoryAccess=${encodeURIComponent(memoryAccessPath)}&memoryAudit=${encodeURIComponent(memoryAuditPath)}&handoff=${encodeURIComponent(handoffPath)}&lifecycle=${encodeURIComponent(lifecyclePath)}&activity=${encodeURIComponent(activityPath)}&timeline=${encodeURIComponent(timelinePath)}&lineage=${encodeURIComponent(lineagePath)}&setup=${encodeURIComponent(setupPath)}&trust=${encodeURIComponent(trustPath)}&suppressed=${encodeURIComponent(suppressedPath)}&view=code`;
+  const url = viewerUrl(host, port, projectRoot);
 
   const server = createServer((req, res) => {
     const requestUrl = new URL(req.url ?? "/", `http://${host}:${port}`);

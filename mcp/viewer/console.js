@@ -9,8 +9,35 @@
     suppressed: src("suppressed", root + "suppressed.json"),
     metrics: src("metrics", "./data/kage/metrics.json"),
     activity: src("activity", root + "activity.json"),
+    value: src("value", root + "value.json"),
   };
   var state = { items: [], filter: "all", q: "", metrics: null, graphReady: false, showAll: false };
+
+  // Theme-aware colors: the canvas graph and donut can't use CSS variables directly,
+  // so resolve them once (and again when the OS light/dark preference flips).
+  var THEME = {};
+  function cssVar(name, fallback) {
+    var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  }
+  function refreshTheme() {
+    THEME = {
+      gain: cssVar("--gain", "#0c7a4d"),
+      warn: cssVar("--warn", "#9a6b08"),
+      code: cssVar("--code", "#155e9c"),
+      memory: cssVar("--memory", "#6d49b8"),
+      ink: cssVar("--ink", "#1c1e1a"),
+      muted: cssVar("--muted", "#5d635b"),
+      faint: cssVar("--faint", "#8b9088"),
+      paper: cssVar("--paper", "#fffdf9"),
+      line: cssVar("--line-strong", "#c9c4b4"),
+    };
+  }
+  refreshTheme();
+  if (window.matchMedia) {
+    var scheme = window.matchMedia("(prefers-color-scheme: dark)");
+    if (scheme.addEventListener) scheme.addEventListener("change", function () { refreshTheme(); renderInsights(state.metrics, state.items); });
+  }
 
   function getJSON(p) { return fetch(p).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
@@ -39,7 +66,8 @@
 
   // ---- nav ----
   var META = {
-    overview: ["kage://overview", "Repository overview", "Whether this repo's agent memory can be trusted — at a glance."],
+    gains: ["kage://gains", "What Kage saved you", "Tokens, dollars, and bad memories caught — receipts, not vibes."],
+    overview: ["kage://trust", "Memory trust", "Whether this repo's agent memory can be trusted — at a glance."],
     graph: ["kage://memory-map", "Memory ↔ code map", "Each packet anchored to the files it's grounded in. Hover a node to inspect."],
     memory: ["kage://memory", "Memory", "Every packet Kage has stored, with health and grounding."],
     activity: ["kage://activity", "Activity", "What agents actually recalled and captured here, over time."],
@@ -62,15 +90,16 @@
   });
 
   // ---- load ----
-  Promise.all([getJSON(paths.trust), getJSON(paths.suppressed), getJSON(paths.lifecycle), getJSON(paths.metrics), getJSON(paths.activity)])
-    .then(function (r) { render(r[0], r[1], r[2], r[3], r[4]); })
-    .catch(function () { render(null, null, null, null, null); });
+  Promise.all([getJSON(paths.trust), getJSON(paths.suppressed), getJSON(paths.lifecycle), getJSON(paths.metrics), getJSON(paths.activity), getJSON(paths.value)])
+    .then(function (r) { render(r[0], r[1], r[2], r[3], r[4], r[5]); })
+    .catch(function () { render(null, null, null, null, null, null); });
 
-  function render(trust, suppressed, lifecycle, metrics, activity) {
+  function render(trust, suppressed, lifecycle, metrics, activity, value) {
     state.items = (lifecycle && lifecycle.items) || [];
     state.metrics = metrics || {};
     state.activity = activity || {};
     document.getElementById("repo").textContent = resolveRepoName(metrics, lifecycle);
+    renderGains(value);
     renderHero(trust);
     renderTiles(metrics, state.items);
     renderAttention(state.items, suppressed);
@@ -78,7 +107,115 @@
     renderInsights(metrics, state.items);
     renderActivity(activity);
     var start = (location.hash || "").replace("#", "");
-    show(META[start] ? start : "overview");
+    show(META[start] ? start : "gains");
+  }
+
+  // ---- gains (value ledger receipts) ----
+  // value.json is the raw ledger written by recall: { totals, events[] }. Windows are
+  // recomputed here with the same rules as `kage gains` (today = local midnight,
+  // 7d = rolling, all-time = totals so trimmed events never lose history).
+  var DOLLARS_PER_MILLION_TOKENS = 15;
+  function dollars(tokens) { return (tokens / 1e6) * DOLLARS_PER_MILLION_TOKENS; }
+  function fmtDollars(tokens) {
+    var d = dollars(tokens);
+    return "$" + (d >= 100 ? Math.round(d) : d.toFixed(2));
+  }
+  function summarizeWindow(events, cutoff) {
+    var w = { tokens_saved: 0, stale_withheld: 0, recalls: 0, caller_answers: 0 };
+    events.forEach(function (e) {
+      var at = Date.parse(e.at);
+      if (!at || at < cutoff) return;
+      if (e.kind === "recall_served") { w.recalls += 1; w.tokens_saved += Math.max(0, e.tokens_saved || 0); }
+      else if (e.kind === "stale_withheld") w.stale_withheld += 1;
+      else if (e.kind === "caller_answered") w.caller_answers += 1;
+    });
+    return w;
+  }
+  function renderGains(value) {
+    var hero = document.getElementById("gainsHero");
+    var tiles = document.getElementById("gainsTiles");
+    var timeline = document.getElementById("gainsTimeline");
+    if (!hero) return;
+    var events = (value && value.events) || [];
+    var totals = (value && value.totals) || null;
+    var midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+    var today = summarizeWindow(events, midnight.getTime());
+    var week = summarizeWindow(events, Date.now() - 7 * 86400000);
+    var all = totals || summarizeWindow(events, 0);
+
+    hero.textContent = "";
+    var head = el("div", "r-head");
+    head.appendChild(el("span", null, "Kage · savings receipt"));
+    head.appendChild(el("span", null, new Date().toISOString().slice(0, 10)));
+    hero.appendChild(head);
+    var hh = el("div", "r-hero");
+    var big = el("div", "big");
+    big.appendChild(el("b", null, all.tokens_saved ? "0" : "—"));
+    big.appendChild(el("span", "unit", "tokens saved, all time"));
+    if (all.tokens_saved) big.appendChild(el("span", "dollars", "≈ " + fmtDollars(all.tokens_saved)));
+    hh.appendChild(big);
+    hh.appendChild(el("p", "sub", all.tokens_saved
+      ? "Context your agents did not have to re-read from source, because Kage served grounded memory instead."
+      : "No savings recorded yet. Run kage recall or kage_context against this repo and the receipt fills in."));
+    hero.appendChild(hh);
+    var wins = el("div", "r-windows");
+    [["Today", today], ["Last 7 days", week], ["All time", all]].forEach(function (p) {
+      var w = el("div", "r-win");
+      w.appendChild(el("div", "k", p[0]));
+      w.appendChild(el("div", "v", fmt(p[1].tokens_saved) + " tok"));
+      w.appendChild(el("div", "d", "≈ " + fmtDollars(p[1].tokens_saved)));
+      wins.appendChild(w);
+    });
+    hero.appendChild(wins);
+    var lines = el("div", "r-lines");
+    [
+      ["Recalls served from memory", fmt(all.recalls), "gain"],
+      ["Stale memories caught & withheld", fmt(all.stale_withheld), all.stale_withheld ? "warn" : ""],
+      ["Caller questions answered from the graph", fmt(all.caller_answers), ""],
+    ].forEach(function (li) {
+      var row = el("div", "r-line");
+      row.appendChild(el("span", null, li[0]));
+      row.appendChild(el("span", "dots"));
+      row.appendChild(el("b", li[2], li[1]));
+      lines.appendChild(row);
+    });
+    hero.appendChild(lines);
+    hero.appendChild(el("div", "r-foot", "estimated at $" + DOLLARS_PER_MILLION_TOKENS + " per 1M input tokens · ledger: .agent_memory/reports/value.json · verify: kage gains"));
+    if (all.tokens_saved) countUp(big.querySelector("b"), all.tokens_saved, 900);
+
+    if (tiles) {
+      tiles.textContent = "";
+      [
+        { k: "Saved (7 days)", v: fmt(week.tokens_saved), s: "≈ " + fmtDollars(week.tokens_saved) + " of context not re-read", cls: "green" },
+        { k: "Recalls served (7d)", v: fmt(week.recalls), s: fmt(all.recalls) + " all-time", cls: "green" },
+        { k: "Stale caught", v: fmt(all.stale_withheld), s: all.stale_withheld ? "withheld before they misled an agent" : "nothing withheld yet", cls: all.stale_withheld ? "warn" : "" },
+        { k: "Graph answers", v: fmt(all.caller_answers), s: "caller questions answered from the code graph", cls: "code" },
+      ].forEach(function (d) { var x = el("div", "tile"); x.appendChild(el("div", "k", d.k)); x.appendChild(el("div", "v " + (d.cls || ""), d.v)); x.appendChild(el("div", "s", d.s)); tiles.appendChild(x); });
+    }
+
+    if (timeline) {
+      timeline.textContent = ""; timeline.className = "vfeed";
+      if (!events.length) { timeline.appendChild(el("div", "empty", "No value events yet. Each recall, withheld stale memory, and graph answer lands here with a timestamp.")); return; }
+      var V_ICON = { recall_served: "✓", stale_withheld: "⊘", caller_answered: "◆" };
+      events.slice(-30).reverse().forEach(function (e) {
+        var row = el("div", "vev " + (e.kind || ""));
+        row.appendChild(el("span", "vi", V_ICON[e.kind] || "•"));
+        var mid = el("div", "vt");
+        if (e.kind === "recall_served") {
+          mid.appendChild(document.createTextNode("Recall served — saved "));
+          mid.appendChild(el("b", null, "~" + fmt(Math.max(0, e.tokens_saved || 0)) + " tokens"));
+          mid.appendChild(document.createTextNode(" vs reading source"));
+        } else if (e.kind === "stale_withheld") {
+          mid.appendChild(document.createTextNode("Stale memory withheld"));
+          if (e.packet_title) { mid.appendChild(document.createTextNode(" — ")); mid.appendChild(el("b", null, e.packet_title)); }
+        } else {
+          mid.appendChild(document.createTextNode("Caller question answered from the code graph"));
+        }
+        row.appendChild(mid);
+        row.appendChild(el("span", "when", relTime(e.at)));
+        timeline.appendChild(row);
+      });
+    }
   }
 
   // ---- activity feed (real recorded recalls + captures) ----
@@ -341,15 +478,15 @@
     var generated = c.generated || 0;
     var groundedCurrent = items.length - needsReview - generated;
     var seg = [
-      { k: "Grounded & current", v: groundedCurrent, col: "#41ff8f" },
-      { k: "Needs review", v: needsReview, col: "#ffd166" },
-      { k: "Generated", v: generated, col: "#3a8db0" },
+      { k: "Grounded & current", v: groundedCurrent, col: THEME.gain },
+      { k: "Needs review", v: needsReview, col: THEME.warn },
+      { k: "Generated", v: generated, col: THEME.code },
     ].filter(function (s) { return s.v > 0; });
     var total = items.length || 1;
     var stops = [], acc = 0;
     seg.forEach(function (s) { var from = acc / total * 360, to = (acc + s.v) / total * 360; stops.push(s.col + " " + from + "deg " + to + "deg"); acc += s.v; });
     var donut = document.getElementById("donut");
-    donut.style.background = "conic-gradient(" + (stops.join(", ") || "#41ff8f 0deg 360deg") + ")";
+    donut.style.background = "conic-gradient(" + (stops.join(", ") || THEME.gain + " 0deg 360deg") + ")";
     var pct = Math.round(groundedCurrent / total * 100);
     // The big % is the health readout, so color it by how healthy it is — a high
     // grounded share is green, not a warning. (Amber/red only when it's actually low.)
@@ -417,6 +554,14 @@
 
   // ---- memory <-> code graph (interactive canvas) ----
   var G = { nodes: [], edges: [], hover: -1, focus: -1, raf: 0, alpha: 1, filter: "all", view: { s: 1, tx: 0, ty: 0 }, drag: null, pan: null, tween: null };
+  // Canvas needs concrete colors; turn a resolved theme hex into rgba at a given alpha.
+  function rgba(hex, a) {
+    var h = String(hex).replace("#", "");
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var n = parseInt(h, 16);
+    if (isNaN(n)) return hex;
+    return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+  }
   function seeded(n) { var x = Math.sin(n * 999.137) * 43758.5453; return x - Math.floor(x); }
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function nodeR(nd) { return Math.min(13, 4.5 + nd.deg * 1.1); }
@@ -470,8 +615,8 @@
       G.edges.forEach(function (e) { if (seed[e[0]]) set[e[1]] = 1; if (seed[e[1]]) set[e[0]] = 1; });
       return set;
     }
-    function color(nd) { return nd.kind === "file" ? "#6ad7ff" : (nd.review ? "#ffd166" : "#c49cff"); }
-    function bodyColor(nd) { return nd.kind === "file" ? "rgba(6,18,22,0.92)" : (nd.review ? "rgba(26,21,7,0.92)" : "rgba(19,12,28,0.92)"); }
+    function color(nd) { return nd.kind === "file" ? THEME.code : (nd.review ? THEME.warn : THEME.memory); }
+    function bodyColor(nd) { return rgba(THEME.paper, 0.94); }
     var DIAMOND = { decision: 1, bug_fix: 1, test: 1, gotcha: 1 };
     function shapePath(x, y, r, nd) {
       if (nd.kind === "file") { roundRect(x - r * 1.3, y - r * 0.78, r * 2.6, r * 1.56, 3); return; }
@@ -518,7 +663,7 @@
       ctx.lineWidth = 1 / v.s;
       G.edges.forEach(function (e) {
         var on = active && emph[e[0]] && emph[e[1]];
-        ctx.strokeStyle = on ? "rgba(106,215,255,0.65)" : (active ? "rgba(147,175,160,0.04)" : "rgba(147,175,160,0.13)");
+        ctx.strokeStyle = on ? rgba(THEME.code, 0.7) : (active ? rgba(THEME.faint, 0.08) : rgba(THEME.faint, 0.25));
         ctx.beginPath(); ctx.moveTo(n[e[0]].x, n[e[0]].y); ctx.lineTo(n[e[1]].x, n[e[1]].y); ctx.stroke();
       });
       n.forEach(function (nd, i) {
@@ -534,7 +679,7 @@
         if (nd.kind === "memory") { ctx.globalAlpha = (dim ? 0.14 : 1) * 0.9; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(nd.x, nd.y, Math.max(2.2, r * 0.2), 0, 6.2832); ctx.fill(); }
         ctx.restore();
         // halo on hover/focus
-        if (!dim && strong) { ctx.save(); shapePath(nd.x, nd.y, r + 5, nd); ctx.strokeStyle = i === G.focus ? "#e4f7e9" : col; ctx.lineWidth = 1.8 / v.s; ctx.shadowColor = col; ctx.shadowBlur = 9; ctx.stroke(); ctx.restore(); }
+        if (!dim && strong) { ctx.save(); shapePath(nd.x, nd.y, r + 5, nd); ctx.strokeStyle = i === G.focus ? THEME.ink : col; ctx.lineWidth = 1.8 / v.s; ctx.shadowColor = col; ctx.shadowBlur = 9; ctx.stroke(); ctx.restore(); }
       });
       // labels in screen space (mono pill, centered below) so they stay crisp at any zoom
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -548,9 +693,9 @@
         if (sx < -60 || sx > W + 60 || sy < -20 || sy > H + 20) return;
         ctx.font = (strong ? "700 " : "600 ") + "11px ui-monospace, Menlo, monospace";
         var w = ctx.measureText(nd.label).width, pw = w + 14, ph = 18, lx = sx - pw / 2, ly = sy + r + 7;
-        ctx.globalAlpha = 0.92; ctx.fillStyle = "rgba(5,8,6,0.92)"; roundRect(lx, ly, pw, ph, 4); ctx.fill();
-        ctx.lineWidth = 1; ctx.strokeStyle = strong ? "rgba(65,255,143,0.42)" : "rgba(65,255,143,0.12)"; ctx.stroke();
-        ctx.globalAlpha = 1; ctx.fillStyle = strong ? "#e4f7e9" : "#9cb0a4"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.globalAlpha = 0.94; ctx.fillStyle = rgba(THEME.paper, 0.94); roundRect(lx, ly, pw, ph, 4); ctx.fill();
+        ctx.lineWidth = 1; ctx.strokeStyle = strong ? rgba(THEME.gain, 0.6) : rgba(THEME.line, 0.8); ctx.stroke();
+        ctx.globalAlpha = 1; ctx.fillStyle = strong ? THEME.ink : THEME.muted; ctx.textAlign = "center"; ctx.textBaseline = "middle";
         ctx.fillText(nd.label, sx, ly + ph / 2);
       });
       ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; ctx.globalAlpha = 1;
@@ -581,10 +726,10 @@
       if (G.focus < 0) { detail.style.display = "none"; return; }
       var nd = G.nodes[G.focus], html;
       if (nd.kind === "file") {
-        html = "<div class='gd-k' style='color:#6ad7ff'>code file</div><b class='gd-t'>" + escapeHtml(nd.tip) + "</b>" +
+        html = "<div class='gd-k k-file'>code file</div><b class='gd-t'>" + escapeHtml(nd.tip) + "</b>" +
           "<div class='gd-row'>cited by <b>" + nd.deg + "</b> memor" + (nd.deg === 1 ? "y" : "ies") + "</div>";
       } else {
-        html = "<div class='gd-k' style='color:#c49cff'>" + escapeHtml(nd.sub) + "</div><b class='gd-t'>" + escapeHtml(nd.tip) + "</b>" +
+        html = "<div class='gd-k k-memory'>" + escapeHtml(nd.sub) + "</div><b class='gd-t'>" + escapeHtml(nd.tip) + "</b>" +
           "<div class='gd-row'>health <b class='" + (nd.health || "") + "'>" + (nd.health || "—") + "</b>" + (nd.uses ? " · used " + nd.uses + "×" : "") + " · " + nd.deg + " file" + (nd.deg === 1 ? "" : "s") + "</div>" +
           (nd.files && nd.files.length ? "<div class='gd-files'>" + nd.files.map(escapeHtml).join(" · ") + "</div>" : "");
       }

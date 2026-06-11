@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Kage is shared repo memory for AI coding agents. Save what your agent learns, connect it to code, recall it next session."
+      content="Kage is verified repo knowledge for AI coding agents — and you see exactly what it saves you. Save what your agent learns, connect it to code, recall it next session."
     />
-    <title>Kage — the agent memory you can trust</title>
+    <title>Kage — verified repo knowledge for coding agents</title>
     <link rel="icon" type="image/svg+xml" href="assets/kage-eye.svg" />
     <link rel="canonical" href="https://kage-core.com/" />
     <!-- Social / branding -->
@@ -33,7 +33,8 @@
         gap: 40px;
         align-items: center;
       }
-      .hero h1 { max-width: 640px; }
+      .hero h1 { max-width: 680px; }
+      .hero h1 .accent { color: var(--green); font-style: italic; }
       .hero-copy { margin-top: 16px; max-width: 540px; color: var(--muted); font: 400 18px/1.55 var(--sans); }
       .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
       .badges img { height: 20px; }
@@ -81,7 +82,7 @@
         width: 22px; height: 22px;
         margin-top: 1px;
         border-radius: 999px;
-        background: rgba(65, 255, 143, 0.14);
+        background: var(--green-soft);
         color: var(--green);
         font: 700 12px/1 var(--mono);
       }
@@ -114,7 +115,7 @@
         border-radius: var(--r-card);
         background: var(--paper);
       }
-      .demo img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #07100d; }
+      .demo img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--paper-2); }
       .demo-caption { display: flex; justify-content: space-between; gap: 14px; padding: 12px 14px; border-top: 1px solid var(--line); color: var(--muted); font: 400 13px/1.4 var(--sans); }
       .demo-caption strong { color: var(--ink); font-weight: 600; }
 
@@ -146,38 +147,38 @@
       <section class="hero">
         <div class="wrap hero-grid">
           <div>
-            <span class="eyebrow">Trustworthy memory for coding agents</span>
-            <h1>The agent memory you can trust.</h1>
+            <span class="eyebrow">Verified repo knowledge for coding agents</span>
+            <h1>Verified repo knowledge for coding agents — <span class="accent">and you see exactly what it saves you.</span></h1>
             <p class="hero-copy">
-              Every coding agent remembers now. Kage is the one you can trust: it rejects
-              hallucinated citations, withholds memory whose code was deleted, and is
-              grounded to your actual code graph — stored as plain files you review in the
-              same PR as the code. Git-native, zero dependencies, no API key.
+              Kage gives every agent session your repo's hard-won knowledge — validated
+              against the code, withheld the moment it goes stale — and prints the
+              receipt: tokens and dollars saved, bad memories caught. Git-native, zero
+              dependencies, no API key.
             </p>
             <div class="actions">
               <a class="button primary" href="guide.html#quickstart">Install Kage</a>
               <a class="button" href="viewer/">Open viewer demo</a>
             </div>
             <div class="badges" aria-label="Project badges">
-              <img alt="npm version" src="https://img.shields.io/npm/v/@kage-core/kage-graph-mcp?style=flat-square&color=0f8f57" />
-              <img alt="npm monthly downloads" src="https://img.shields.io/npm/dm/@kage-core/kage-graph-mcp?style=flat-square&color=0f8f57" />
-              <img alt="GitHub stars" src="https://img.shields.io/github/stars/kage-core/Kage?style=flat-square&color=111614" />
-              <img alt="license" src="https://img.shields.io/npm/l/@kage-core/kage-graph-mcp?style=flat-square&color=111614" />
+              <img alt="npm version" src="https://img.shields.io/npm/v/@kage-core/kage-graph-mcp?style=flat-square&color=0c7a4d" />
+              <img alt="npm monthly downloads" src="https://img.shields.io/npm/dm/@kage-core/kage-graph-mcp?style=flat-square&color=0c7a4d" />
+              <img alt="GitHub stars" src="https://img.shields.io/github/stars/kage-core/Kage?style=flat-square&color=41463f" />
+              <img alt="license" src="https://img.shields.io/npm/l/@kage-core/kage-graph-mcp?style=flat-square&color=41463f" />
             </div>
           </div>
 
-          <div class="terminal" aria-label="Install Kage">
-            <div class="terminal-head">
-              <span>try it — no setup, no API key</span>
-              <span>Node 18+</span>
+          <div class="receipt" aria-label="Example Kage savings receipt">
+            <div class="r-head"><span>Kage · savings receipt</span><span>example week</span></div>
+            <div class="r-hero">
+              <div class="big"><b>412K</b><span class="unit">tokens saved<br />this week</span><span class="dollars">≈ $6.18</span></div>
             </div>
-            <pre># see the trust wedge in 30 seconds
-npx -y @kage-core/kage-graph-mcp demo
-
-# then wire it into your repo + agent
-npm install -g @kage-core/kage-graph-mcp
-kage init --project .
-kage setup claude-code --project . --write   # or: codex, cursor, windsurf…</pre>
+            <div class="r-lines">
+              <div class="r-line"><span>Recalls served from memory</span><span class="dots"></span><b class="gain">38</b></div>
+              <div class="r-line"><span>Stale memories caught &amp; withheld</span><span class="dots"></span><b class="warn">4</b></div>
+              <div class="r-line"><span>Hallucinated citations rejected</span><span class="dots"></span><b class="warn">2</b></div>
+              <div class="r-line"><span>Caller questions answered from the graph</span><span class="dots"></span><b>11</b></div>
+            </div>
+            <div class="r-foot">your numbers, from your repo · run <span style="color:var(--ink)">kage gains</span> or open the viewer's Gains tab</div>
           </div>
         </div>
 
@@ -353,7 +354,7 @@ kage setup verify-agent --agent claude-code --project .</pre>
 
     <footer class="footer">
       <div class="wrap footer-inner">
-        <span>Kage &middot; the agent memory you can trust</span>
+        <span>Kage &middot; verified repo knowledge for coding agents</span>
         <span>
           <a href="guide.html">Docs</a> &middot;
           <a href="viewer/">Viewer</a> &middot;

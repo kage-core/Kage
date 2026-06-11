@@ -116,11 +116,10 @@
     "promotion_requires_review": true,
     "stale": true,
     "stale_reasons": [
-      "packet status is deprecated",
-      "linked path changed since memory was verified: CHANGELOG.md, README.md, mcp/cli.ts"
+      "packet status is deprecated"
     ],
     "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-04T18:27:15.281Z",
-  "updated_at": "2026-06-05T09:05:04.077Z"
+  "updated_at": "2026-06-11T15:01:00.015Z"
 }
