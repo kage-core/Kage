@@ -1,0 +1,85 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:reference:market-position-june-2026-three-unique-axes-write-gate-stale-catch-receipts-copi",
+  "title": "Market position June 2026: three unique axes (write-gate, stale-catch, receipts); Copilot Memory is the convergent threat",
+  "summary": "Competitive sweep of Kage 2.0.0 June 2026, sourced : UNIQUE with no real competitor — 1 write time citation rejection Copilot Memory validates citations only at recall, default on for Pro since Mar 2026 — the single bigg",
+  "body": "Competitive sweep of Kage 2.0.0 (June 2026, sourced): UNIQUE with no real competitor — (1) write-time citation rejection (Copilot Memory validates citations only at recall, default-on for Pro since Mar 2026 — the single biggest threat; nobody else gates at write), (2) change-time stale-catch at commit/PR (zero competitors for memories; Swimm proves the pattern for docs at ~$29/mo), (3) per-recall token/$ receipts (nothing in any category attributes savings to a specific recall). BEST-IN-COMBINATION: Truth Report — CodeScene does knowledge-maps/bus-factor deeper (€27/seat, Pro-only, not agent-facing); GitClear owns AI-clone research ($12-26/dev); doc-lies rivals are hobby tools (README Clew, Driftless). MERELY COMPETITIVE: staleness-aware recall (Copilot's JIT validation + 28-day expiry ≈80% of value, free); code graph is now COMMODITY (code-graph-mcp, CodeGraph, GitNexus, Sourcegraph MCP GA — tree-sitter+MCP graphs everywhere; differentiate on memory-graph coupling only). BEHIND: distribution (MemPalace 43K stars in days; Letta mindshare; Zep temporal rigor). Positioning that survives: NOT 'memory for agents' (commodity) — 'verified memory with visible ROI'. Durable deltas vs Copilot: write-time strictness, SHA-level fingerprints, team/PR boundary, receipts, open + agent-agnostic. Cursor REMOVED Memories (2.1.x) in favor of Rules.\nVerified by: 37-source web sweep 2026-06-12: github.blog changelogs, CodeScene/GitClear pricing pages, mem0/Zep/Letta/ByteRover docs, code-graph-mcp/GitNexus repos",
+  "type": "reference",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "market",
+    "competitive",
+    "positioning",
+    "copilot-memory",
+    "2026"
+  ],
+  "paths": [
+    "README.md",
+    "docs/index.html",
+    "launch/distribution-plan.md"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-11T20:52:51.253Z"
+    }
+  ],
+  "context": {
+    "fact": "Competitive sweep of Kage 2.0.0 (June 2026, sourced): UNIQUE with no real competitor — (1) write-time citation rejection (Copilot Memory validates citations only at recall, default-on for Pro since Mar 2026 — the single biggest threat; nobody else gates at write), (2) change-time stale-catch at commit/PR (zero competitors for memories; Swimm proves the pattern for docs at ~$29/mo), (3) per-recall token/$ receipts (nothing in any category attributes savings to a specific recall). BEST-IN-COMBINATION: Truth Report — CodeScene does knowledge-maps/bus-factor deeper (€27/seat, Pro-only, not agent-facing); GitClear owns AI-clone research ($12-26/dev); doc-lies rivals are hobby tools (README Clew, Driftless). MERELY COMPETITIVE: staleness-aware recall (Copilot's JIT validation + 28-day expiry ≈80% of value, free); code graph is now COMMODITY (code-graph-mcp, CodeGraph, GitNexus, Sourcegraph MCP GA — tree-sitter+MCP graphs everywhere; differentiate on memory-graph coupling only). BEHIND: distribution (MemPalace 43K stars in days; Letta mindshare; Zep temporal rigor). Positioning that survives: NOT 'memory for agents' (commodity) — 'verified memory with visible ROI'. Durable deltas vs Copilot: write-time strictness, SHA-level fingerprints, team/PR boundary, receipts, open + agent-agnostic. Cursor REMOVED Memories (2.1.x) in favor of Rules.\nVerified by: 37-source web sweep 2026-06-12: github.blog changelogs, CodeScene/GitClear pricing pages, mem0/Zep/Letta/ByteRover docs, code-graph-mcp/GitNexus repos",
+    "verification": "37-source web sweep 2026-06-12: github.blog changelogs, CodeScene/GitClear pricing pages, mem0/Zep/Letta/ByteRover docs, code-graph-mcp/GitNexus repos"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-11T20:52:51.253Z",
+    "path_fingerprints": [
+      {
+        "path": "README.md",
+        "sha256": "853581411f4f92d31bd5170cda5ed35547c3f6b800bb5159238d7f8c416bb668",
+        "size": 8155
+      },
+      {
+        "path": "docs/index.html",
+        "sha256": "41d2131368d3339557e4c16cdf26fb0cd009a7c0c2075ddef03637c934324351",
+        "size": 19118
+      },
+      {
+        "path": "launch/distribution-plan.md",
+        "sha256": "42794b9080e067ff0a387760bbed68f3118bcf2044df8f01b07903c15ee577ae",
+        "size": 2568
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 90,
+    "reasons": [
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "stale_reasons": [],
+    "estimated_tokens_saved": 379
+  },
+  "created_at": "2026-06-11T20:52:51.253Z",
+  "updated_at": "2026-06-11T20:52:51.253Z",
+  "author_branch": "release/v2.0.0"
+}

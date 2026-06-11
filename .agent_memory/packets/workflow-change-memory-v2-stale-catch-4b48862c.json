@@ -8,7 +8,7 @@
   "scope": "repo",
   "visibility": "team",
   "sensitivity": "internal",
-  "status": "approved",
+  "status": "superseded",
   "confidence": 0.62,
   "tags": [
     "change-memory",
@@ -82,7 +82,10 @@
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
-    "verification": "git_diff"
+    "verification": "git_diff",
+    "superseded_at": "2026-06-11T19:33:57.968Z",
+    "superseded_by": "repo:https-github-com-kage-core-kage:workflow:stale-catch-feature-landed-via-pr-64-kernel-test-ts-seam-carries-both-v2-test-su",
+    "superseded_reason": "Branch-time change memory replaced by post-merge verified state (PR #64; kernel.test.ts seam resolution documented)"
   },
   "edges": [
     {
@@ -114,6 +117,12 @@
       "relation": "changes_path",
       "to": "path:mcp/mcp.test.ts",
       "evidence": "git_diff"
+    },
+    {
+      "relation": "superseded_by",
+      "to": "repo:https-github-com-kage-core-kage:workflow:stale-catch-feature-landed-via-pr-64-kernel-test-ts-seam-carries-both-v2-test-su",
+      "evidence": "Branch-time change memory replaced by post-merge verified state (PR #64; kernel.test.ts seam resolution documented)",
+      "created_at": "2026-06-11T19:33:57.968Z"
     }
   ],
   "quality": {
@@ -144,8 +153,15 @@
     },
     "candidate_kind": "change_memory",
     "review_boundary": "git_or_pr",
-    "promotion_requires_review": true
+    "promotion_requires_review": true,
+    "stale": true,
+    "stale_reasons": [
+      "linked path changed since memory was verified: mcp/kernel.test.ts"
+    ],
+    "suggested_action": "update",
+    "superseded_by": "repo:https-github-com-kage-core-kage:workflow:stale-catch-feature-landed-via-pr-64-kernel-test-ts-seam-carries-both-v2-test-su",
+    "superseded_reason": "Branch-time change memory replaced by post-merge verified state (PR #64; kernel.test.ts seam resolution documented)"
   },
   "created_at": "2026-06-11T14:52:02.865Z",
-  "updated_at": "2026-06-11T15:18:19.000Z"
+  "updated_at": "2026-06-11T19:33:57.968Z"
 }
