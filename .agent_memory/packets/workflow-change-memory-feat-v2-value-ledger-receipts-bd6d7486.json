@@ -139,8 +139,13 @@
     },
     "candidate_kind": "change_memory",
     "review_boundary": "git_or_pr",
-    "promotion_requires_review": true
+    "promotion_requires_review": true,
+    "stale": true,
+    "stale_reasons": [
+      "linked path changed since memory was verified: mcp/cli.ts, mcp/index.ts, mcp/kernel.test.ts, mcp/kernel.ts"
+    ],
+    "suggested_action": "update"
   },
   "created_at": "2026-06-11T14:22:25.672Z",
-  "updated_at": "2026-06-11T14:22:36.618Z"
+  "updated_at": "2026-06-11T14:52:03.617Z"
 }

@@ -55,6 +55,8 @@ import {
   observe,
   prCheck,
   prSummarize,
+  staleCatch,
+  formatStaleCatch,
   proposeFromDiff,
   qualityReport,
   queryCodeGraph,
@@ -618,7 +620,7 @@ export function listTools() {
     {
       name: "kage_pr_check",
       description:
-        "Check whether repo memory, code graph, memory graph, and stale-memory state are ready for merge.",
+        "Check whether repo memory, code graph, memory graph, and stale-memory state are ready for merge. Leads with a human summary of team memories invalidated by the current change — relay it to the developer.",
       inputSchema: {
         type: "object",
         properties: {
@@ -1504,9 +1506,13 @@ export async function callTool(name: string, args: Record<string, unknown> | und
   }
 
   if (name === "kage_pr_check") {
-    const result = prCheck(String(args?.project_dir ?? ""));
+    const projectDir = String(args?.project_dir ?? "");
+    // Lead with the stale-catch moment so agents relay "your changes
+    // invalidated team memory" to the developer instead of burying it in JSON.
+    const guard = formatStaleCatch(staleCatch(projectDir)).join("\n");
+    const result = prCheck(projectDir);
     return {
-      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      content: [{ type: "text", text: `${guard}\n\n${JSON.stringify(result, null, 2)}` }],
       isError: !result.ok,
     };
   }
