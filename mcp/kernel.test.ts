@@ -92,6 +92,7 @@ import {
   setContextSlot,
   supersedeMemory,
   structuralIndexDir,
+  truthReport,
   qualityReport,
   evaluateMemoryAdmission,
   verifyAgentActivation,
@@ -3747,4 +3748,82 @@ func filter(prefix string) []string {
   assert.equal(call?.confidence, 0.8);
   assert.equal(call?.resolution, "tree_sitter_name");
   assert.equal(call?.from_symbol, list?.id);
+});
+
+test("truth report flags duplicates, ghost exports, and doc lies in a synthetic repo", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src", "auth"), { recursive: true });
+  mkdirSync(join(project, "src", "billing"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "truth-demo", scripts: { build: "tsc" } }), "utf8");
+  writeFileSync(
+    join(project, "src", "auth", "token.ts"),
+    "export function parseAuthToken(raw: string): string {\n  return raw.trim();\n}\nexport function orphanHelper(x: number): number {\n  return x * 2;\n}\n",
+    "utf8"
+  );
+  writeFileSync(
+    join(project, "src", "billing", "token.ts"),
+    "export function parseAuthToken(raw: string): string {\n  return raw.trim();\n}\n",
+    "utf8"
+  );
+  writeFileSync(
+    join(project, "src", "use.ts"),
+    "import { parseAuthToken } from \"./auth/token.js\";\nexport const value = parseAuthToken(\"a\");\n",
+    "utf8"
+  );
+  writeFileSync(
+    join(project, "README.md"),
+    "# Truth demo\n\nSee `src/missing/file.ts` for the parser.\nRun `npm run lint` before pushing.\n",
+    "utf8"
+  );
+  commitAll(project, "initial");
+
+  const report = truthReport(project);
+  assert.equal(report.schema_version, 1);
+  assert.equal(report.totals.duplicate_clusters >= 1, true);
+  const duplicate = report.findings.find((finding) => finding.kind === "duplicate_cluster" && finding.title.includes("parseAuthToken"));
+  assert.ok(duplicate);
+  assert.equal(duplicate.evidence.some((line) => line.includes("src/auth/token.ts:1")), true);
+  assert.equal(duplicate.evidence.some((line) => line.includes("src/billing/token.ts:1")), true);
+  assert.match(duplicate.title, /recent, likely AI-era/);
+
+  assert.equal(report.totals.ghost_exports >= 1, true);
+  const ghost = report.findings.find((finding) => finding.kind === "ghost_export" && finding.title.includes("orphanHelper"));
+  assert.ok(ghost);
+  assert.equal(ghost.evidence.some((line) => line.includes("src/auth/token.ts:4")), true);
+  assert.equal(report.findings.some((finding) => finding.kind === "ghost_export" && finding.title.includes("parseAuthToken")), false);
+
+  assert.equal(report.totals.doc_lies >= 2, true);
+  const missingPathLie = report.findings.find((finding) => finding.kind === "doc_lie" && finding.title.includes("src/missing/file.ts"));
+  assert.ok(missingPathLie);
+  assert.match(missingPathLie.title, /file does not exist/);
+  assert.deepEqual(missingPathLie.evidence, ["README.md:3"]);
+  const scriptLie = report.findings.find((finding) => finding.kind === "doc_lie" && finding.title.includes("npm run lint"));
+  assert.ok(scriptLie);
+  assert.match(scriptLie.title, /no "lint" script/);
+
+  assert.match(report.headline, /duplicate cluster/);
+  assert.match(report.headline, /doc lie/);
+  assert.equal(report.findings.length <= 12, true);
+});
+
+test("truth report on a doc-less repo skips doc checks and still finds bus-factor files", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "core.ts"), "export function computeRate(value: number): number {\n  return value * 1.1;\n}\n", "utf8");
+  writeFileSync(join(project, "src", "use.ts"), "import { computeRate } from \"./core.js\";\nexport const rate = computeRate(2);\n", "utf8");
+  commitAll(project, "initial");
+  writeFileSync(join(project, "src", "core.ts"), "export function computeRate(value: number): number {\n  return value * 1.2;\n}\n", "utf8");
+  commitAll(project, "tweak rate");
+
+  const report = truthReport(project);
+  assert.equal(report.totals.docs_scanned, 0);
+  assert.equal(report.totals.doc_lies, 0);
+  assert.doesNotMatch(report.headline, /doc lie/);
+  assert.equal(report.totals.bus_factor_files >= 1, true);
+  const bus = report.findings.find((finding) => finding.kind === "bus_factor" && finding.title.includes("src/core.ts"));
+  assert.ok(bus);
+  assert.match(bus.detail, /test@example.com/);
+  assert.equal(report.findings.some((finding) => finding.kind === "doc_lie"), false);
 });
