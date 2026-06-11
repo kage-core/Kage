@@ -1,0 +1,60 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:bug_fix:truth-report-doc-lie-scan-is-fence-aware-1781191819344",
+  "title": "Truth Report doc-lie scan is fence-aware",
+  "summary": "The truth report's doc lie scan in mcp/kernel.ts tracks fenced code block state while collecting docLines each line carries the enclosing fence's info string, null in prose . Decision: path existence checks skip ALL fenc",
+  "body": "The truth report's doc-lie scan in mcp/kernel.ts tracks fenced code-block state while collecting docLines (each line carries the enclosing fence's info string, null in prose). Decision: path-existence checks skip ALL fenced blocks (fenced content is code samples or quoted output, not prose claims about repo layout — e.g. README ```text blocks quoting Truth Report output from other repos caused false positives like lib/response.js). Command checks (npm run, CLI subcommands) still run inside shell-style fences because those are runnable instructions against this repo, but skip output-style fences listed in TRUTH_OUTPUT_FENCE_INFOS (text/txt/plain/plaintext/console/output/log/logs). Covered by the kernel.test.ts test \"truth report doc-lie scan skips paths quoted inside fenced code blocks\".\nVerified by: cd mcp && npm run build && npm test (200 pass); node dist/cli.js scan --project .. no longer flags README sample blocks, still flags docs/BENCHMARKS.md broken links",
+  "type": "bug_fix",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "truth-report",
+    "doc-lie",
+    "scan",
+    "false-positive"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-11T15:30:19.344Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-11T15:30:19.344Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 244
+  },
+  "created_at": "2026-06-11T15:30:19.344Z",
+  "updated_at": "2026-06-11T15:30:29.145Z"
+}

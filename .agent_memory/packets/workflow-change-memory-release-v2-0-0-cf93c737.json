@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-release-v2-0-0",
   "title": "Change memory: release/v2.0.0",
-  "summary": "Repo-local context for 15 changed repo paths on release/v2.0.0.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/bug_fix-ci-kage-pr-check-must-block-only-on-hard-stale-memory-f9e2c269.json\n- .agent_memory/packets/code_explanation-stale-catch-change-time-invalidation-heartbeat-stalecatch-kage-staleguard-b1f7baca.json\n- .agent_memory/packets/decision-graph-nodes-at-capture-and-opt-in-recall-token-budget-12d31c53.json\n- .agent_memory/packets/decision-value-ledger-records-recall-stale-withheld-and-caller-answered-receipts-e4e651f1.json\n- .agent_memory/packets/gotcha-github-pages-custom-domain-needs-https-enforcement-87a83226.json\n- .agent_memory/packets/gotcha-github-pages-serves-docs-statically-markdown-renders-raw-73ff264a.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n- .agent_memory/packets/workflow-change-memory-v2-stale-catch-4b48862c.json\n- CHANGELOG.md\n- README.md\n- mcp/index.ts\n- mcp/package-lock.json\n- mcp/package.json\n- plugin/.claude-plugin/plugin.json\n- plugin/.codex-plugin/plugin.json\n\nDiff summary:\n```text\n...t-block-only-on-hard-stale-memory-f9e2c269.json |  15 +-\n ...rtbeat-stalecatch-kage-staleguard-b1f7baca.json |   6 +-\n ...re-and-opt-in-recall-token-budget-12d31c53.json |  23 +-\n ...held-and-caller-answered-receipts-e4e651f1.json |  23 +-\n ...om-domain-needs-https-enforcement-87a83226.json |  15 +-\n ...s-statically-markdown-renders-raw-73ff264a.json |  15 +-\n .../workflow-change-memory-master-23634276.json    |   3 +-\n ...flow-change-memory-v2-stale-catch-4b48862c.json |   6 +-\n CHANGELOG.md                                       |  66 ++++\n README.md                                          | 434 ++++++---------------\n mcp/index.ts                                       |   2 +-\n mcp/package-lock.json                              |   4 +-\n mcp/package.json                                   |   2 +-\n plugin/.claude-plugin/plugin.json                  |   2 +-\n plugin/.codex-plugin/plugin.json                   |   2 +-\n 15 files changed, 242 insertions(+), 376 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "summary": "Repo-local context for 2 changed repo paths on release/v2.0.0.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- mcp/kernel.test.ts\n- mcp/kernel.ts\n\nDiff summary:\n```text\n...unchanged-after-skip-list-cleanup-60335e2b.json |  5 +-\n ...stale-exclusion-is-fingerprint-ba-c575beee.json |  5 +-\n ...external-tool-specific-skip-names-06a3d2bf.json |  5 +-\n ...eat-prd-memory-quality-mechanisms-a5328ec7.json |  5 +-\n ...ory-feat-v2-value-ledger-receipts-bd6d7486.json |  5 +-\n mcp/kernel.test.ts                                 | 37 +++++++++++++\n mcp/kernel.ts                                      | 61 ++++++++++++++++------\n 7 files changed, 93 insertions(+), 30 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- The package, API, command, or architectural pattern future agents should reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -17,180 +17,42 @@
     "branch:release-v2-0-0"
   ],
   "paths": [
-    ".agent_memory/packets/bug_fix-ci-kage-pr-check-must-block-only-on-hard-stale-memory-f9e2c269.json",
-    ".agent_memory/packets/code_explanation-stale-catch-change-time-invalidation-heartbeat-stalecatch-kage-staleguard-b1f7baca.json",
-    ".agent_memory/packets/decision-graph-nodes-at-capture-and-opt-in-recall-token-budget-12d31c53.json",
-    ".agent_memory/packets/decision-value-ledger-records-recall-stale-withheld-and-caller-answered-receipts-e4e651f1.json",
-    ".agent_memory/packets/gotcha-github-pages-custom-domain-needs-https-enforcement-87a83226.json",
-    ".agent_memory/packets/gotcha-github-pages-serves-docs-statically-markdown-renders-raw-73ff264a.json",
-    ".agent_memory/packets/workflow-change-memory-master-23634276.json",
-    ".agent_memory/packets/workflow-change-memory-v2-stale-catch-4b48862c.json",
-    "CHANGELOG.md",
-    "README.md",
-    "mcp/index.ts",
-    "mcp/package-lock.json",
-    "mcp/package.json",
-    "plugin/.claude-plugin/plugin.json",
-    "plugin/.codex-plugin/plugin.json"
+    "mcp/kernel.test.ts",
+    "mcp/kernel.ts"
   ],
   "stack": [],
   "source_refs": [
     {
       "kind": "git_diff",
       "branch": "release/v2.0.0",
-      "head": "3f579ce2ac4713958aa7ca579b6fa0ec14b6089b",
+      "head": "761752c39ac7d15c2a516122a30cea4dcf6ee51c",
       "merge_base": "3f579ce2ac4713958aa7ca579b6fa0ec14b6089b",
       "changed_files": [
-        ".agent_memory/packets/bug_fix-ci-kage-pr-check-must-block-only-on-hard-stale-memory-f9e2c269.json",
-        ".agent_memory/packets/code_explanation-stale-catch-change-time-invalidation-heartbeat-stalecatch-kage-staleguard-b1f7baca.json",
-        ".agent_memory/packets/decision-graph-nodes-at-capture-and-opt-in-recall-token-budget-12d31c53.json",
-        ".agent_memory/packets/decision-value-ledger-records-recall-stale-withheld-and-caller-answered-receipts-e4e651f1.json",
-        ".agent_memory/packets/gotcha-github-pages-custom-domain-needs-https-enforcement-87a83226.json",
-        ".agent_memory/packets/gotcha-github-pages-serves-docs-statically-markdown-renders-raw-73ff264a.json",
-        ".agent_memory/packets/workflow-change-memory-master-23634276.json",
-        ".agent_memory/packets/workflow-change-memory-v2-stale-catch-4b48862c.json",
-        "CHANGELOG.md",
-        "README.md",
-        "mcp/index.ts",
-        "mcp/package-lock.json",
-        "mcp/package.json",
-        "plugin/.claude-plugin/plugin.json",
-        "plugin/.codex-plugin/plugin.json"
+        "mcp/kernel.test.ts",
+        "mcp/kernel.ts"
       ],
-      "summary_path": ".agent_memory/review/branch-summary-release-v2-0-0.json"
+      "summary_path": "/Users/kushaljain/code/Kage/.agent_memory/review/branch-summary-release-v2-0-0.json"
     }
   ],
-  "context": {
-    "fact": "Current branch release/v2.0.0 changes 15 repo paths.",
-    "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
-    "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
-    "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
-    "verification": "Generated from git diff and refreshed by kage pr summarize or kage propose --from-diff.",
-    "risk_if_forgotten": "Future agents may repeat orientation work, miss branch-specific assumptions, or ignore files touched by this change.",
-    "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
-  },
   "freshness": {
-    "last_verified_at": "2026-06-11T15:19:54.275Z",
+    "last_verified_at": "2026-06-11T15:32:26.756Z",
     "ttl_days": 180,
-    "path_fingerprints": [
-      {
-        "path": "CHANGELOG.md",
-        "sha256": "54b9e13abd87e593a7f4ee22daea79cc259ed16ce324d7df259fab9947bfdb21",
-        "size": 20366
-      },
-      {
-        "path": "README.md",
-        "sha256": "853581411f4f92d31bd5170cda5ed35547c3f6b800bb5159238d7f8c416bb668",
-        "size": 8155
-      },
-      {
-        "path": "mcp/index.ts",
-        "sha256": "a3ba5c1b522dcfaf3f15b4a2b010f22116d07f3c810f38a6c4f8b0604dfd9a42",
-        "size": 63966
-      },
-      {
-        "path": "mcp/package-lock.json",
-        "sha256": "69d7a109fba3cc2ff35a0dae5e6958b1e45c7fcb2bbe8edff05b3fe6f66ec2f8",
-        "size": 42685
-      },
-      {
-        "path": "mcp/package.json",
-        "sha256": "b449aee3367abfb277dc85bb1375877c6dd97b823ac77e97f8cc8a6275369af9",
-        "size": 1095
-      },
-      {
-        "path": "plugin/.claude-plugin/plugin.json",
-        "sha256": "11153bbcdc50cae8982fdc01cd53b511eda853cabac692826b842e2b672d3982",
-        "size": 604
-      },
-      {
-        "path": "plugin/.codex-plugin/plugin.json",
-        "sha256": "17d68feee3886a46bbf9a82ecbd536dc1b2b4d9784b2b23e6489820238478557",
-        "size": 267
-      }
-    ],
-    "path_fingerprint_policy": "source_hash_staleness",
     "verification": "git_diff"
   },
   "edges": [
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-ci-kage-pr-check-must-block-only-on-hard-stale-memory-f9e2c269.json",
+      "to": "path:mcp/kernel.test.ts",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/code_explanation-stale-catch-change-time-invalidation-heartbeat-stalecatch-kage-staleguard-b1f7baca.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-graph-nodes-at-capture-and-opt-in-recall-token-budget-12d31c53.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-value-ledger-records-recall-stale-withheld-and-caller-answered-receipts-e4e651f1.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/gotcha-github-pages-custom-domain-needs-https-enforcement-87a83226.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/gotcha-github-pages-serves-docs-statically-markdown-renders-raw-73ff264a.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/workflow-change-memory-master-23634276.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/workflow-change-memory-v2-stale-catch-4b48862c.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:CHANGELOG.md",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:README.md",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:mcp/index.ts",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:mcp/package-lock.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:mcp/package.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:plugin/.claude-plugin/plugin.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:plugin/.codex-plugin/plugin.json",
+      "to": "path:mcp/kernel.ts",
       "evidence": "git_diff"
     }
   ],
   "quality": {
-    "score": 100,
+    "score": 86,
     "reasons": [
       "high-value memory type",
       "has source evidence",
@@ -199,26 +61,55 @@
       "concise but substantive",
       "actionable rationale or verification"
     ],
-    "risks": [],
-    "duplicate_candidates": [],
-    "estimated_tokens_saved": 668,
+    "risks": [
+      "possible duplicate memory"
+    ],
+    "duplicate_candidates": [
+      {
+        "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-feat-tree-sitter-extraction",
+        "title": "Change memory: feat/tree-sitter-extraction",
+        "score": 0.73,
+        "status": "approved"
+      },
+      {
+        "id": "repo:memory:workflow:change-memory-v2-stale-catch",
+        "title": "Change memory: v2/stale-catch",
+        "score": 0.72,
+        "status": "approved"
+      },
+      {
+        "id": "repo:agent-a8e00068f536471a0:workflow:change-memory-v2-theme",
+        "title": "Change memory: v2/theme",
+        "score": 0.7,
+        "status": "approved"
+      },
+      {
+        "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
+        "title": "Change memory: master",
+        "score": 0.61,
+        "status": "approved"
+      }
+    ],
+    "estimated_tokens_saved": 289,
     "admission": {
       "admit": true,
       "class": "candidate",
-      "score": 70,
+      "score": 46,
       "reasons": [
         "durable memory type",
         "has provenance",
         "repo scoped or path grounded",
-        "has durable trigger, rationale, issue context, or explanation",
+        "has future trigger or rationale",
         "substantive enough to reuse"
       ],
-      "risks": []
+      "risks": [
+        "duplicates existing memory"
+      ]
     },
     "candidate_kind": "change_memory",
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-06-11T15:19:54.275Z",
-  "updated_at": "2026-06-11T15:20:10.133Z"
+  "created_at": "2026-06-11T15:32:26.756Z",
+  "updated_at": "2026-06-11T16:08:12.710Z"
 }
