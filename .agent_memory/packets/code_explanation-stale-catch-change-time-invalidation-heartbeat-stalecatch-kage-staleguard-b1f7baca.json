@@ -74,9 +74,14 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 204
+    "estimated_tokens_saved": 204,
+    "stale": true,
+    "stale_reasons": [
+      "linked path changed since memory was verified: mcp/kernel.ts"
+    ],
+    "suggested_action": "update"
   },
   "created_at": "2026-06-11T14:51:56.736Z",
-  "updated_at": "2026-06-11T15:18:19.000Z",
+  "updated_at": "2026-06-11T21:38:21.455Z",
   "author_branch": "v2/stale-catch"
 }
