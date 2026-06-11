@@ -79,11 +79,12 @@
     "estimated_tokens_saved": 221,
     "stale": true,
     "stale_reasons": [
-      "packet status is deprecated"
+      "packet status is deprecated",
+      "linked path changed since memory was verified: mcp/kernel.ts, mcp/index.ts, mcp/cli.ts"
     ],
     "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-04T15:18:00.531Z",
-  "updated_at": "2026-06-11T15:01:00.013Z",
+  "updated_at": "2026-06-11T15:05:52.520Z",
   "author_branch": "master"
 }

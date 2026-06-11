@@ -23,12 +23,8 @@
     "docs/assets/site.css",
     "docs/guide.html",
     "docs/index.html",
-    "docs/viewer/console.js",
-    "docs/viewer/index.html",
     "mcp/daemon.test.ts",
-    "mcp/daemon.ts",
-    "mcp/viewer/console.js",
-    "mcp/viewer/index.html"
+    "mcp/daemon.ts"
   ],
   "stack": [],
   "source_refs": [
@@ -44,12 +40,8 @@
         "docs/assets/site.css",
         "docs/guide.html",
         "docs/index.html",
-        "docs/viewer/console.js",
-        "docs/viewer/index.html",
         "mcp/daemon.test.ts",
-        "mcp/daemon.ts",
-        "mcp/viewer/console.js",
-        "mcp/viewer/index.html"
+        "mcp/daemon.ts"
       ],
       "summary_path": "/Users/kushaljain/code/Kage/.claude/worktrees/agent-a8e00068f536471a0/.agent_memory/review/branch-summary-v2-theme.json"
     }
@@ -163,5 +155,5 @@
     "promotion_requires_review": true
   },
   "created_at": "2026-06-11T15:01:59.668Z",
-  "updated_at": "2026-06-11T15:02:49.046Z"
+  "updated_at": "2026-06-11T15:05:52.533Z"
 }
