@@ -184,6 +184,9 @@ export interface RecallResult {
   }>;
   explanations?: RecallExplanation[];
   suppressed?: Array<{ id: string; title: string; reason: string }>;
+  // Value receipt for this recall: tokens the agent avoided spending by not
+  // re-reading the cited source files, plus how many stale packets were withheld.
+  value_receipt?: { tokens_saved: number; stale_withheld: number };
 }
 
 export interface RecallScoreBreakdown {
@@ -2969,6 +2972,195 @@ function recordRecallAccess(projectDir: string, results: RecallResult["results"]
   } catch {
     // Recall should never fail because local access telemetry could not be updated.
   }
+}
+
+// ---------------------------------------------------------------------------
+// Value ledger: persistent per-repo receipts of what the harness actually saved
+// or blocked — tokens not spent re-reading cited source, hard-stale memories
+// withheld from recall, caller-intent questions answered from the call graph.
+// Read by `kage gains` and the receipt lines appended to recall/context output.
+// ---------------------------------------------------------------------------
+
+const VALUE_LEDGER_SCHEMA_VERSION = 1;
+const VALUE_LEDGER_EVENT_CAP = 5000;
+// Rough Sonnet-class input price used for the dollar estimate: $15 per 1M tokens.
+const VALUE_DOLLARS_PER_MILLION_TOKENS = 15;
+
+export type ValueEvent =
+  | { kind: "recall_served"; tokens_saved: number }
+  | { kind: "stale_withheld"; packet_title: string }
+  | { kind: "caller_answered" };
+
+interface ValueLedgerEvent {
+  at: string;
+  kind: ValueEvent["kind"];
+  tokens_saved?: number;
+  packet_title?: string;
+}
+
+interface ValueLedger {
+  schema_version: number;
+  // All-time rollups survive the event cap: events get trimmed, totals never lose history.
+  totals: { tokens_saved: number; stale_withheld: number; recalls: number; caller_answers: number };
+  events: ValueLedgerEvent[];
+}
+
+export interface ValueWindowSummary {
+  tokens_saved: number;
+  stale_withheld: number;
+  recalls: number;
+  caller_answers: number;
+  estimated_dollars: number;
+}
+
+export interface ValueSummary {
+  schema_version: number;
+  project_dir: string;
+  today: ValueWindowSummary;
+  last_7d: ValueWindowSummary;
+  all_time: ValueWindowSummary;
+}
+
+function valueLedgerPath(projectDir: string): string {
+  return join(reportsDir(projectDir), "value.json");
+}
+
+function emptyValueLedger(): ValueLedger {
+  return {
+    schema_version: VALUE_LEDGER_SCHEMA_VERSION,
+    totals: { tokens_saved: 0, stale_withheld: 0, recalls: 0, caller_answers: 0 },
+    events: [],
+  };
+}
+
+function nonNegativeCount(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0;
+}
+
+function readValueLedger(projectDir: string): ValueLedger {
+  const path = valueLedgerPath(projectDir);
+  if (!existsSync(path)) return emptyValueLedger();
+  try {
+    const raw = readJson<Partial<ValueLedger>>(path);
+    const totals = (raw.totals ?? {}) as Partial<ValueLedger["totals"]>;
+    const events = (Array.isArray(raw.events) ? raw.events : [])
+      .filter((event): event is ValueLedgerEvent => {
+        const candidate = event as Partial<ValueLedgerEvent> | undefined;
+        return Boolean(candidate)
+          && typeof candidate?.at === "string"
+          && Number.isFinite(Date.parse(candidate.at))
+          && (candidate.kind === "recall_served" || candidate.kind === "stale_withheld" || candidate.kind === "caller_answered");
+      })
+      .slice(-VALUE_LEDGER_EVENT_CAP);
+    return {
+      schema_version: VALUE_LEDGER_SCHEMA_VERSION,
+      totals: {
+        tokens_saved: nonNegativeCount(totals.tokens_saved),
+        stale_withheld: nonNegativeCount(totals.stale_withheld),
+        recalls: nonNegativeCount(totals.recalls),
+        caller_answers: nonNegativeCount(totals.caller_answers),
+      },
+      events,
+    };
+  } catch {
+    return emptyValueLedger();
+  }
+}
+
+function recordValueEvents(projectDir: string, events: ValueEvent[]): void {
+  if (!events.length) return;
+  try {
+    const ledger = readValueLedger(projectDir);
+    const at = nowIso();
+    for (const event of events) {
+      const record: ValueLedgerEvent = { at, kind: event.kind };
+      if (event.kind === "recall_served") {
+        record.tokens_saved = nonNegativeCount(event.tokens_saved);
+        ledger.totals.tokens_saved += record.tokens_saved;
+        ledger.totals.recalls += 1;
+      } else if (event.kind === "stale_withheld") {
+        record.packet_title = event.packet_title;
+        ledger.totals.stale_withheld += 1;
+      } else {
+        ledger.totals.caller_answers += 1;
+      }
+      ledger.events.push(record);
+    }
+    if (ledger.events.length > VALUE_LEDGER_EVENT_CAP) ledger.events = ledger.events.slice(-VALUE_LEDGER_EVENT_CAP);
+    // Atomic read-modify-write: write to a temp file then rename so a crashed or
+    // concurrent writer can never leave a torn value.json behind.
+    const path = valueLedgerPath(projectDir);
+    ensureDir(dirname(path));
+    const tmp = `${path}.${process.pid}.tmp`;
+    writeFileSync(tmp, `${JSON.stringify(ledger, null, 2)}\n`, "utf8");
+    renameSync(tmp, path);
+  } catch {
+    // Value telemetry must never break recall or code-graph queries.
+  }
+}
+
+export function recordValueEvent(projectDir: string, event: ValueEvent): void {
+  recordValueEvents(projectDir, [event]);
+}
+
+function estimatedTokenDollars(tokensSaved: number): number {
+  return Number(((tokensSaved / 1_000_000) * VALUE_DOLLARS_PER_MILLION_TOKENS).toFixed(2));
+}
+
+function summarizeValueWindow(events: ValueLedgerEvent[], cutoff: number): ValueWindowSummary {
+  const window = { tokens_saved: 0, stale_withheld: 0, recalls: 0, caller_answers: 0 };
+  for (const event of events) {
+    const at = Date.parse(event.at);
+    if (!Number.isFinite(at) || at < cutoff) continue;
+    if (event.kind === "recall_served") {
+      window.recalls += 1;
+      window.tokens_saved += nonNegativeCount(event.tokens_saved);
+    } else if (event.kind === "stale_withheld") {
+      window.stale_withheld += 1;
+    } else {
+      window.caller_answers += 1;
+    }
+  }
+  return { ...window, estimated_dollars: estimatedTokenDollars(window.tokens_saved) };
+}
+
+export function valueSummary(projectDir: string): ValueSummary {
+  const ledger = readValueLedger(projectDir);
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  return {
+    schema_version: VALUE_LEDGER_SCHEMA_VERSION,
+    project_dir: resolve(projectDir),
+    today: summarizeValueWindow(ledger.events, todayStart.getTime()),
+    last_7d: summarizeValueWindow(ledger.events, Date.now() - 7 * 86_400_000),
+    all_time: { ...ledger.totals, estimated_dollars: estimatedTokenDollars(ledger.totals.tokens_saved) },
+  };
+}
+
+// Human display for ledger token counts: 412 -> "412", 412_345 -> "412K", 4_120_000 -> "4.1M".
+export function formatTokenCount(tokens: number): string {
+  const count = Math.max(0, Math.round(tokens));
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  if (count >= 1_000) return `${Math.round(count / 1_000)}K`;
+  return String(count);
+}
+
+// Receipt math: tokens an agent would have spent reading the cited source files
+// of the served packets (bytes / 4) minus the tokens the recall context block
+// itself costs (length / 4). Floored at zero — a recall never "costs" savings.
+function recallTokensSaved(projectDir: string, results: RecallResult["results"], contextBlock: string): number {
+  const paths = unique(results.flatMap((entry) => entry.packet.paths).filter((path) => meaningfulMemoryPath(path)));
+  let sourceBytes = 0;
+  for (const path of paths) {
+    try {
+      const stats = statSync(join(projectDir, path));
+      if (stats.isFile()) sourceBytes += stats.size;
+    } catch {
+      // Missing cited files save nothing.
+    }
+  }
+  return Math.max(0, Math.floor(sourceBytes / 4) - Math.floor(contextBlock.length / 4));
 }
 
 // A chronological activity feed: every recall an agent made (from access telemetry)
@@ -9310,7 +9502,17 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
         }))
       : undefined,
   };
-  if (inputs.trackAccess !== false) recordRecallAccess(projectDir, result.results);
+  result.value_receipt = {
+    tokens_saved: scored.length ? recallTokensSaved(projectDir, result.results, result.context_block) : 0,
+    stale_withheld: suppressed.length,
+  };
+  if (inputs.trackAccess !== false) {
+    recordRecallAccess(projectDir, result.results);
+    recordValueEvents(projectDir, [
+      ...suppressed.map((entry): ValueEvent => ({ kind: "stale_withheld", packet_title: entry.title })),
+      ...(scored.length ? [{ kind: "recall_served", tokens_saved: result.value_receipt.tokens_saved } satisfies ValueEvent] : []),
+    ]);
+  }
   return result;
 }
 
@@ -9460,6 +9662,10 @@ export function queryCodeGraph(projectDir: string, query: string, limit = 10, gr
         .filter((call) => call.confidence >= 0.5)
         .filter((call) => symbolIds.has(call.to_symbol) || Boolean(call.from_symbol && symbolIds.has(call.from_symbol)))
         .slice(0, limit);
+  // Value ledger: a caller-intent query answered from the call-edge index is a
+  // grep/agent round-trip the user did not pay for. Only repos that already opted
+  // into Kage memory get the write — a bare code-graph query stays read-only.
+  if (callerEdges.length && existsSync(memoryRoot(projectDir))) recordValueEvent(projectDir, { kind: "caller_answered" });
   const structuralIndex = readCurrentStructuralIndex(projectDir);
   const graphPaths = new Set(graph.files.map((file) => file.path));
   const graphSymbolIds = new Set(graph.symbols.map((symbol) => symbol.id));

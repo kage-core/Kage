@@ -71,6 +71,8 @@ import {
   setContextSlot,
   supersedeMemory,
   validateProject,
+  valueSummary,
+  formatTokenCount,
   verifyAgentActivation,
   writeCodeIndex,
   type MemoryType,
@@ -1205,6 +1207,11 @@ export async function callTool(name: string, args: Record<string, unknown> | und
       dependencyResult ? `\n## Dependency Path\n${dependencyResult.summary}${dependencyResult.path.length ? `\nPath: ${dependencyResult.path.join(" -> ")}` : ""}` : "",
       reconciliation.unresolved_count ? `\n## Memory Reconciliation\n${reconciliation.agent_instruction}` : "",
       `\n_${validationText}_`,
+      // Visible receipt: surface what the harness saved today so agents relay it.
+      (() => {
+        const gains = valueSummary(projectDir).today;
+        return `\n\nGains: ~${formatTokenCount(gains.tokens_saved)} tokens saved this session · stale memories withheld: ${gains.stale_withheld}`;
+      })(),
     ].filter(Boolean).join("");
     return {
       content: [{ type: "text", text: sections }],

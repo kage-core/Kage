@@ -88,6 +88,8 @@ import {
   setContextSlot,
   supersedeMemory,
   validateProject,
+  valueSummary,
+  formatTokenCount,
   verifyAgentActivation,
   writeCodeIndex,
   type CaptureInput,
@@ -105,6 +107,7 @@ Core commands:
   kage index --project <dir> [--full]        build/refresh code graph + indexes
   kage recall "<query>" --project <dir>      grounded recall from repo memory
   kage learn --project <dir> ...             capture a learning as a memory packet
+  kage gains --project <dir>                 what Kage saved you (tokens, cost, stale blocks)
   kage verify --project <dir>                check memory citations against code
   kage setup <agent> --project <dir> --write wire your agent (claude-code, codex, cursor, ...)
   kage doctor --project <dir>                health check
@@ -142,6 +145,7 @@ Usage:
   kage upgrade [--dry-run]
   kage branch --project <dir> [--json]
   kage metrics --project <dir> [--json]
+  kage gains --project <dir> [--json]
   kage memory-access --project <dir> [--json]
   kage activity --project <dir> [--json]
   kage memory-audit --project <dir> [--limit <n>] [--json]
@@ -1025,6 +1029,32 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "gains") {
+    const summary = valueSummary(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(summary, null, 2));
+      return;
+    }
+    const plural = (count: number, singular: string, pluralForm: string): string => (count === 1 ? singular : pluralForm);
+    const week = summary.last_7d;
+    if (!summary.all_time.recalls && !summary.all_time.stale_withheld && !summary.all_time.caller_answers) {
+      console.log("No value events recorded yet. Run kage recall (or let your agent call kage_context) and check back.");
+      return;
+    }
+    console.log(
+      `This week Kage saved you ~${formatTokenCount(week.tokens_saved)} tokens (~$${week.estimated_dollars.toFixed(2)}), ` +
+      `blocked ${week.stale_withheld} stale ${plural(week.stale_withheld, "memory", "memories")}, ` +
+      `answered ${week.recalls} ${plural(week.recalls, "recall", "recalls")}.`
+    );
+    const windowLine = (label: string, window: typeof week): string =>
+      `  ${label} ~${formatTokenCount(window.tokens_saved)} tokens (~$${window.estimated_dollars.toFixed(2)}) · ` +
+      `${window.stale_withheld} stale blocked · ${window.recalls} ${plural(window.recalls, "recall", "recalls")} · ` +
+      `${window.caller_answers} caller ${plural(window.caller_answers, "answer", "answers")}`;
+    console.log(windowLine("Today:   ", summary.today));
+    console.log(windowLine("All time:", summary.all_time));
+    return;
+  }
+
   if (command === "memory-access") {
     const result = kageMemoryAccess(projectArg(args));
     if (args.includes("--json")) {
@@ -1644,7 +1674,12 @@ async function main(): Promise<void> {
       ? await recallWithEmbeddings(projectArg(args), query, 5, args.includes("--explain"))
       : recall(projectArg(args), query, 5, args.includes("--explain"), { maxContextTokens, structuralHops });
     if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
-    else console.log(result.context_block);
+    else {
+      console.log(result.context_block);
+      if (result.value_receipt) {
+        console.log(`\n↳ saved ~${formatTokenCount(result.value_receipt.tokens_saved)} tokens vs reading source · ${result.value_receipt.stale_withheld} stale withheld`);
+      }
+    }
     return;
   }
 
