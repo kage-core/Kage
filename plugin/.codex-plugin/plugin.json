@@ -1,6 +1,6 @@
 {
   "name": "kage",
-  "version": "1.4.0",
+  "version": "2.0.0",
   "description": "Trustworthy, code-grounded memory for coding agents. Recall grounded repo knowledge before acting, capture durable learnings, and never act on stale or hallucinated memory.",
   "mcpServers": "./.mcp.json"
 }

@@ -179,7 +179,7 @@ function riskContextBlock(result: ReturnType<typeof kageRisk>): string {
 }
 
 const server = new Server(
-  { name: "kage-graph", version: "1.1.7" },
+  { name: "kage-graph", version: "2.0.0" },
   { capabilities: { tools: {} } }
 );
 

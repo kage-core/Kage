@@ -29,7 +29,7 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-21T17:31:40.023Z",
+    "last_verified_at": "2026-06-11T15:18:19.000Z",
     "path_fingerprints": [
       {
         "path": "docs/CNAME",
@@ -38,8 +38,8 @@
       },
       {
         "path": ".github/workflows/pages.yml",
-        "sha256": "6028f310dfa63842d207f6bd847676965a6101e1e59c01081634327211229b7a",
-        "size": 2920
+        "sha256": "cab3422f94a17999d2de650be09a0917a2c15174b78f98e041dfc1f2961d69c6",
+        "size": 5019
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -64,13 +64,8 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 113,
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: .github/workflows/pages.yml"
-    ],
-    "suggested_action": "update"
+    "estimated_tokens_saved": 113
   },
   "created_at": "2026-05-21T17:31:40.023Z",
-  "updated_at": "2026-06-11T15:05:52.530Z"
+  "updated_at": "2026-06-11T15:18:46.394Z"
 }
