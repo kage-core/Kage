@@ -87,6 +87,7 @@ import {
   setupDoctor,
   setContextSlot,
   supersedeMemory,
+  truthReport,
   validateProject,
   valueSummary,
   formatTokenCount,
@@ -103,6 +104,7 @@ const CORE_USAGE = `Kage — code-grounded memory for coding agents
 
 Core commands:
   kage demo                                  30-second trust demo (temp dir)
+  kage scan --project <dir>                  60-second truth report on any repo (zero setup)
   kage init --project <dir>                  create repo memory (.agent_memory only)
   kage index --project <dir> [--full]        build/refresh code graph + indexes
   kage recall "<query>" --project <dir>      grounded recall from repo memory
@@ -119,6 +121,7 @@ const FULL_USAGE = `Kage — full command reference
 
 Usage:
   kage index --project <dir>
+  kage scan --project <dir> [--json]
   kage demo [--project <dir>]
   kage init --project <dir> [--with-policy]
   kage policy --project <dir>
@@ -287,6 +290,40 @@ async function main(): Promise<void> {
     console.log(`Migrated legacy nodes: ${result.migrated}`);
     if (result.policyPath) console.log(`Agent policy: ${result.policyPath}`);
     console.log(`Indexes:\n${result.indexes.map((path) => `  - ${path}`).join("\n")}`);
+    return;
+  }
+
+  if (command === "scan") {
+    const result = truthReport(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Kage Truth Report — ${result.project_dir}`);
+    console.log(`Scanned ${result.totals.files_scanned} files, ${result.totals.symbols_scanned} symbols${result.totals.docs_scanned ? `, ${result.totals.docs_scanned} doc file(s)` : ""}\n`);
+    console.log(`  ${result.headline}\n`);
+    const sections: Array<{ kind: string; heading: string; count: number }> = [
+      { kind: "duplicate_cluster", heading: "DUPLICATE IMPLEMENTATIONS", count: result.totals.duplicate_clusters },
+      { kind: "ghost_export", heading: "GHOST KNOWLEDGE — exported, never called", count: result.totals.ghost_exports },
+      { kind: "bus_factor", heading: "BUS FACTOR 1 — one head holds it all", count: result.totals.bus_factor_files },
+      { kind: "knowledge_void", heading: "KNOWLEDGE VOID — high churn, zero memory", count: result.totals.knowledge_voids },
+      { kind: "doc_lie", heading: "DOC LIES — the README vs reality", count: result.totals.doc_lies },
+    ];
+    for (const section of sections) {
+      const items = result.findings.filter((finding) => finding.kind === section.kind);
+      if (!items.length) continue;
+      console.log(`■ ${section.heading} (${section.count}${section.count > items.length ? `, showing top ${items.length}` : ""})`);
+      for (const finding of items) {
+        console.log(`  • ${finding.title}`);
+        console.log(`    ${finding.detail}`);
+        for (const evidence of finding.evidence) console.log(`      ${evidence}`);
+      }
+      console.log("");
+    }
+    if (!result.findings.length) console.log("No surprising findings — this repo's knowledge is unusually well distributed.\n");
+    if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}\n`);
+    console.log("Fix the void:");
+    for (const action of result.next_actions) console.log(`  ${action}`);
     return;
   }
 

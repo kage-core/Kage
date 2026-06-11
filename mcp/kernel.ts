@@ -10566,6 +10566,389 @@ export function kageCleanupCandidates(projectDir: string): KageCleanupCandidates
   };
 }
 
+export interface TruthFinding {
+  kind: "duplicate_cluster" | "ghost_export" | "bus_factor" | "knowledge_void" | "doc_lie";
+  title: string;
+  detail: string;
+  evidence: string[];
+  surprise: number;
+}
+
+export interface TruthReport {
+  schema_version: 1;
+  project_dir: string;
+  generated_at: string;
+  totals: {
+    files_scanned: number;
+    symbols_scanned: number;
+    duplicate_clusters: number;
+    ghost_exports: number;
+    bus_factor_files: number;
+    knowledge_voids: number;
+    doc_lies: number;
+    docs_scanned: number;
+  };
+  headline: string;
+  findings: TruthFinding[];
+  warnings: string[];
+  next_actions: string[];
+}
+
+const TRUTH_REPORT_MAX_FINDINGS = 12;
+const TRUTH_REPORT_AI_ERA_DAYS = 120;
+
+// Symbol names too generic to mean "two teams built the same thing".
+const TRUTH_COMMON_SYMBOL_NAMES = new Set([
+  "main", "init", "run", "setup", "start", "stop", "open", "close", "create", "destroy",
+  "constructor", "tostring", "render", "handler", "handle", "execute", "default", "index",
+  "build", "parse", "load", "save", "update", "delete", "remove", "test", "validate",
+  "format", "process", "next", "send", "write", "read", "config", "helper", "util",
+]);
+
+function truthExcludedPath(path: string): boolean {
+  return /(^|\/)(tests?|__tests__|specs?|examples?|fixtures?|benchmarks?|mocks?|__mocks__|vendor|node_modules|dist|build)\//i.test(path)
+    || /\.(test|spec)\.[^.]+$/i.test(path)
+    || /(^|\/)test[^/]*\.[^.]+$/i.test(path);
+}
+
+const TRUTH_DOC_PATH_EXTENSIONS = "ts|tsx|js|jsx|mjs|cjs|json|md|yml|yaml|toml|py|rb|go|rs|java|kt|sh|bash|css|scss|html|sql|proto|graphql|c|h|cpp|hpp|cs|txt";
+
+function truthDocPathCandidates(line: string): string[] {
+  const candidates = new Set<string>();
+  for (const match of line.matchAll(/`([^`\n]+)`/g)) {
+    const token = match[1].trim();
+    if (new RegExp(`^(?:\\./)?[\\w.-]+(?:/[\\w.-]+)+\\.(?:${TRUTH_DOC_PATH_EXTENSIONS})$`).test(token)) candidates.add(token.replace(/^\.\//, ""));
+  }
+  for (const match of line.matchAll(new RegExp(`(?:^|[\\s("'\\[])((?:\\./)?[\\w.-]+(?:/[\\w.-]+)+\\.(?:${TRUTH_DOC_PATH_EXTENSIONS}))(?=$|[\\s)"'\\],.:;])`, "g"))) {
+    candidates.add(match[1].replace(/^\.\//, ""));
+  }
+  return [...candidates].filter((candidate) =>
+    !/[*<>{}$\\]/.test(candidate)
+    && !candidate.startsWith("http")
+    && !candidate.includes("node_modules")
+    && !candidate.startsWith(".agent_memory"));
+}
+
+export function truthReport(projectDir: string): TruthReport {
+  const graph = readCurrentCodeGraph(projectDir) ?? buildCodeGraph(projectDir);
+  const warnings: string[] = [];
+  const fileByPath = new Map(graph.files.map((file) => [file.path, file]));
+  const sourceFiles = graph.files.filter((file) => file.kind === "source" && !truthExcludedPath(file.path));
+
+  // Single git pass: per-file distinct authors, total commit count, newest commit epoch.
+  const hasGit = Boolean(gitHead(projectDir));
+  if (!hasGit) warnings.push("Git history is unavailable; bus-factor, churn, and recency signals are skipped.");
+  const shallowGit = hasGit && readGit(projectDir, ["rev-parse", "--is-shallow-repository"]) === "true";
+  if (shallowGit) warnings.push("Git history is shallow (partial clone); churn, bus-factor, and recency findings undercount reality.");
+  const fileAuthors = new Map<string, Set<string>>();
+  const fileCommits = new Map<string, number>();
+  const fileNewestEpoch = new Map<string, number>();
+  if (hasGit) {
+    const raw = readGit(projectDir, ["log", "--no-renames", "--format=__KAGE_SCAN__%x1f%ae%x1f%ct", "--name-only"]) ?? "";
+    // Resolve the repo->project prefix once; gitPathToProjectRelative spawns git per call,
+    // which is far too slow for a full-history name-only walk.
+    const projectPrefix = readGit(projectDir, ["rev-parse", "--show-prefix"])?.replace(/\\/g, "/").replace(/\/+$/, "") ?? "";
+    let author = "";
+    let epoch = 0;
+    for (const rawLine of raw.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line) continue;
+      if (line.startsWith("__KAGE_SCAN__")) {
+        const parts = line.split("\x1f");
+        author = (parts[1] ?? "").toLowerCase();
+        epoch = Number(parts[2] ?? 0) || 0;
+        continue;
+      }
+      if (!author) continue;
+      const normalized = line.replace(/\\/g, "/").replace(/^\/+/, "");
+      const path = projectPrefix && normalized.startsWith(`${projectPrefix}/`) ? normalized.slice(projectPrefix.length + 1) : normalized;
+      if (!fileByPath.has(path)) continue;
+      const authors = fileAuthors.get(path) ?? new Set<string>();
+      authors.add(author);
+      fileAuthors.set(path, authors);
+      fileCommits.set(path, (fileCommits.get(path) ?? 0) + 1);
+      // git log is newest-first, so the first sighting is the newest commit touching the file.
+      if (!fileNewestEpoch.has(path)) fileNewestEpoch.set(path, epoch);
+    }
+  }
+
+  // Centrality: import + call edges touching the file.
+  const centrality = new Map<string, number>();
+  const bumpCentrality = (path: string | null) => {
+    if (!path || !fileByPath.has(path)) return;
+    centrality.set(path, (centrality.get(path) ?? 0) + 1);
+  };
+  for (const edge of graph.imports) {
+    bumpCentrality(edge.from_path);
+    bumpCentrality(edge.to_path);
+  }
+  for (const call of graph.calls) bumpCentrality(call.path);
+
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  const aiEraCutoff = nowEpoch - TRUTH_REPORT_AI_ERA_DAYS * 24 * 3600;
+
+  // 1a. Duplicate implementations: same-name symbols spread across directories.
+  const symbolsByName = new Map<string, CodeSymbolNode[]>();
+  for (const symbol of graph.symbols) {
+    if (!["function", "class", "method"].includes(symbol.kind)) continue;
+    if (symbol.name.length < 4 || TRUTH_COMMON_SYMBOL_NAMES.has(symbol.name.toLowerCase())) continue;
+    if (truthExcludedPath(symbol.path) || fileByPath.get(symbol.path)?.kind !== "source") continue;
+    const list = symbolsByName.get(symbol.name.toLowerCase()) ?? [];
+    list.push(symbol);
+    symbolsByName.set(symbol.name.toLowerCase(), list);
+  }
+  const duplicateFindings: TruthFinding[] = [];
+  for (const [, members] of symbolsByName) {
+    const dirs = new Set(members.map((member) => dirname(member.path)));
+    const paths = new Set(members.map((member) => member.path));
+    if (dirs.size < 2 || paths.size < 2) continue;
+    const signatureCounts = new Map<string, number>();
+    for (const member of members) {
+      const normalized = member.signature.replace(/\s+/g, "");
+      signatureCounts.set(normalized, (signatureCounts.get(normalized) ?? 0) + 1);
+    }
+    const signatureMatch = [...signatureCounts.values()].some((count) => count >= 2);
+    const newestEpoch = Math.max(0, ...members.map((member) => fileNewestEpoch.get(member.path) ?? 0));
+    const recent = hasGit && newestEpoch > aiEraCutoff;
+    duplicateFindings.push({
+      kind: "duplicate_cluster",
+      title: `${members[0].name} — ${paths.size} implementations across ${dirs.size} directories${recent ? " [recent, likely AI-era]" : ""}`,
+      detail: signatureMatch
+        ? "Same name AND near-identical signature: almost certainly parallel implementations of the same idea."
+        : "Same name in unrelated directories: agents and humans may be solving the same problem twice.",
+      evidence: members.slice(0, 5).map((member) => `${member.path}:${member.line}  ${member.kind} ${member.signature.slice(0, 80)}`),
+      surprise: Math.min(100, 45 + paths.size * 8 + (signatureMatch ? 15 : 0) + (recent ? 20 : 0)),
+    });
+  }
+  duplicateFindings.sort((a, b) => b.surprise - a.surprise || a.title.localeCompare(b.title));
+
+  // 1b. Ghost knowledge: exported symbols nothing in this repo calls or imports by name.
+  const referenced = new Set<string>();
+  for (const call of graph.calls) referenced.add(call.to_symbol);
+  for (const edge of graph.imports) for (const name of edge.imported) referenced.add(name);
+  for (const route of graph.routes) if (route.handler_symbol) referenced.add(route.handler_symbol);
+  for (const test of graph.tests) if (test.covers_symbol) referenced.add(test.covers_symbol);
+  const ghostCandidates: CodeSymbolNode[] = [];
+  for (const symbol of graph.symbols) {
+    if (!symbol.export || !["function", "class", "method"].includes(symbol.kind)) continue;
+    if (truthExcludedPath(symbol.path) || isEntrypointLike(symbol.path)) continue;
+    if (fileByPath.get(symbol.path)?.kind !== "source") continue;
+    if (referenced.has(symbol.id) || referenced.has(symbol.name)) continue;
+    ghostCandidates.push(symbol);
+  }
+  // Graph edges miss dynamic/property references, so a ghost claim must survive a raw-text
+  // check: the name may appear nowhere in the repo outside its own file.
+  const truthTextCache = new Map<string, string>();
+  const truthFileText = (path: string): string => {
+    const cached = truthTextCache.get(path);
+    if (cached !== undefined) return cached;
+    const file = fileByPath.get(path);
+    const text = file && file.size_bytes <= 512 * 1024 ? safeReadText(join(projectDir, path)) ?? "" : "";
+    truthTextCache.set(path, text);
+    return text;
+  };
+  const ghostFindings: TruthFinding[] = ghostCandidates.slice(0, 60).flatMap((symbol) => {
+    const namePattern = new RegExp(`(^|[^A-Za-z0-9_$])${escapeRegex(symbol.name)}([^A-Za-z0-9_$]|$)`);
+    const mentionedElsewhere = graph.files.some((file) =>
+      file.path !== symbol.path
+      && (file.kind === "source" || file.kind === "test")
+      && namePattern.test(truthFileText(file.path)));
+    if (mentionedElsewhere) return [];
+    const fileCentrality = centrality.get(symbol.path) ?? 0;
+    return [{
+      kind: "ghost_export" as const,
+      title: `${symbol.name} — exported, never called`,
+      detail: "No call edge, no import, and the name appears in no other file. Dead code, or knowledge nobody wired in.",
+      evidence: [`${symbol.path}:${symbol.line}  ${symbol.kind} ${symbol.signature.slice(0, 80)}`],
+      surprise: Math.min(100, 35 + Math.min(30, fileCentrality)),
+    }];
+  });
+  ghostFindings.sort((a, b) => b.surprise - a.surprise || a.title.localeCompare(b.title));
+
+  // 1c. Knowledge concentration: single-author files ranked by graph centrality.
+  const busFindings: TruthFinding[] = [];
+  let singleAuthorCount = 0;
+  if (hasGit) {
+    for (const file of sourceFiles) {
+      const authors = fileAuthors.get(file.path);
+      if (!authors || authors.size !== 1) continue;
+      singleAuthorCount += 1;
+      const commits = fileCommits.get(file.path) ?? 0;
+      const fileCentrality = centrality.get(file.path) ?? 0;
+      if (commits < 2 || fileCentrality < 1) continue;
+      busFindings.push({
+        kind: "bus_factor",
+        title: `${file.path} — bus factor 1`,
+        detail: `Every one of ${commits} commit(s) came from ${[...authors][0]}. ${fileCentrality} graph edge(s) depend on a file only one person has ever touched.`,
+        evidence: [`${file.path}:1  sole author ${[...authors][0]}, ${commits} commit(s), centrality ${fileCentrality}`],
+        surprise: Math.min(100, 30 + Math.min(40, fileCentrality) + Math.min(20, commits)),
+      });
+    }
+    if (!shallowGit && sourceFiles.length >= 5 && singleAuthorCount >= sourceFiles.length * 0.9) {
+      warnings.push("Nearly every file has a single author; this looks like a solo-maintained repo, so bus-factor-1 is the baseline, not the exception.");
+    }
+  }
+  busFindings.sort((a, b) => b.surprise - a.surprise || a.title.localeCompare(b.title));
+
+  // 1d. Knowledge void: high churn x high centrality, zero memory packets, zero doc mentions.
+  const packets = loadApprovedPackets(projectDir);
+  const packetCovers = (path: string): boolean => packets.some((packet) => packet.paths.some((cited) => {
+    const normalized = cited.replace(/\/+$/, "");
+    return normalized === path || path.startsWith(`${normalized}/`) || normalized.startsWith(`${path}/`);
+  }));
+  const docFiles: string[] = [];
+  for (const candidate of ["README.md", "readme.md", "Readme.md"]) {
+    if (existsSync(join(projectDir, candidate))) {
+      docFiles.push(candidate);
+      break;
+    }
+  }
+  const docsDir = join(projectDir, "docs");
+  if (safeStat(docsDir)?.isDirectory()) {
+    for (const name of readdirSync(docsDir).filter((entry) => entry.endsWith(".md")).sort().slice(0, 20)) {
+      docFiles.push(join("docs", name));
+    }
+  }
+  const docLines: Array<{ doc: string; line: number; text: string }> = [];
+  for (const doc of docFiles) {
+    const text = safeReadText(join(projectDir, doc));
+    if (!text) continue;
+    text.split(/\r?\n/).forEach((line, index) => docLines.push({ doc, line: index + 1, text: line }));
+  }
+  const docsText = docLines.map((entry) => entry.text).join("\n");
+  const voidFindings: TruthFinding[] = [];
+  if (hasGit) {
+    for (const file of sourceFiles) {
+      const commits = fileCommits.get(file.path) ?? 0;
+      const fileCentrality = centrality.get(file.path) ?? 0;
+      if (commits < 5 || fileCentrality < 3) continue;
+      if (packetCovers(file.path) || docsText.includes(file.path)) continue;
+      voidFindings.push({
+        kind: "knowledge_void",
+        title: `${file.path} — knowledge void`,
+        detail: `${commits} commits of accumulated decisions, ${fileCentrality} graph edge(s) depending on it — and zero memory packets or doc mentions. Agents and new hires fly blind here.`,
+        evidence: [`${file.path}:1  churn ${commits} x centrality ${fileCentrality}, memory packets citing it: 0`],
+        surprise: Math.min(100, 25 + Math.min(45, Math.round(Math.sqrt(commits * fileCentrality))) + Math.min(20, fileCentrality)),
+      });
+    }
+  }
+  voidFindings.sort((a, b) => b.surprise - a.surprise || a.title.localeCompare(b.title));
+
+  // 2. Doc-truth: checkable claims in README/docs vs reality.
+  const docLieFindings: TruthFinding[] = [];
+  if (docLines.length) {
+    const seenLies = new Set<string>();
+    const packageJsonText = safeReadText(join(projectDir, "package.json"));
+    let scripts: Record<string, string> = {};
+    let binNames: string[] = [];
+    if (packageJsonText) {
+      try {
+        const parsed = JSON.parse(packageJsonText) as { scripts?: Record<string, string>; bin?: string | Record<string, string>; name?: string };
+        scripts = parsed.scripts ?? {};
+        binNames = typeof parsed.bin === "string" ? [parsed.name ?? ""].filter(Boolean) : Object.keys(parsed.bin ?? {});
+      } catch {
+        warnings.push("package.json could not be parsed; npm-script doc checks skipped.");
+      }
+    }
+    // CLI claims are only checkable when there is obvious CLI source to check them against.
+    const cliSourceText = binNames.length
+      ? graph.files
+        .filter((file) => file.kind === "source" && (/(^|\/)(cli|bin|commands?)[^/]*\.[^.]+$/i.test(file.path) || /(^|\/)(cli|bin|commands)\//i.test(file.path)))
+        .slice(0, 30)
+        .map((file) => safeReadText(join(projectDir, file.path)) ?? "")
+        .join("\n")
+      : "";
+    for (const entry of docLines) {
+      for (const candidate of truthDocPathCandidates(entry.text)) {
+        const key = `path:${candidate}`;
+        if (seenLies.has(key) || existsSync(join(projectDir, candidate))) continue;
+        seenLies.add(key);
+        docLieFindings.push({
+          kind: "doc_lie",
+          title: `${entry.doc}:${entry.line} cites ${candidate} — reality: file does not exist`,
+          detail: `"${entry.text.trim().slice(0, 100)}"`,
+          evidence: [`${entry.doc}:${entry.line}`],
+          surprise: 70,
+        });
+      }
+      if (packageJsonText && Object.keys(scripts).length) {
+        for (const match of entry.text.matchAll(/\bnpm run ([A-Za-z0-9:_-]+)/g)) {
+          const script = match[1];
+          const key = `script:${script}`;
+          if (seenLies.has(key) || scripts[script]) continue;
+          seenLies.add(key);
+          docLieFindings.push({
+            kind: "doc_lie",
+            title: `${entry.doc}:${entry.line} says \`npm run ${script}\` — reality: no "${script}" script in package.json`,
+            detail: `"${entry.text.trim().slice(0, 100)}"`,
+            evidence: [`${entry.doc}:${entry.line}`],
+            surprise: 75,
+          });
+        }
+      }
+      if (cliSourceText) {
+        for (const bin of binNames) {
+          for (const match of entry.text.matchAll(new RegExp(`\`${bin} ([a-z][a-z0-9-]+)`, "g"))) {
+            const subcommand = match[1];
+            const key = `cli:${subcommand}`;
+            if (seenLies.has(key) || cliSourceText.includes(`"${subcommand}"`) || cliSourceText.includes(`'${subcommand}'`)) continue;
+            seenLies.add(key);
+            docLieFindings.push({
+              kind: "doc_lie",
+              title: `${entry.doc}:${entry.line} documents \`${bin} ${subcommand}\` — reality: no such command in CLI source`,
+              detail: `"${entry.text.trim().slice(0, 100)}"`,
+              evidence: [`${entry.doc}:${entry.line}`],
+              surprise: 80,
+            });
+          }
+        }
+      }
+    }
+  }
+  docLieFindings.sort((a, b) => b.surprise - a.surprise || a.title.localeCompare(b.title));
+
+  // Cap per category so one noisy category cannot drown the report, then rank globally.
+  const findings = [
+    ...duplicateFindings.slice(0, 4),
+    ...ghostFindings.slice(0, 4),
+    ...busFindings.slice(0, 4),
+    ...voidFindings.slice(0, 4),
+    ...docLieFindings.slice(0, 4),
+  ].sort((a, b) => b.surprise - a.surprise || a.title.localeCompare(b.title)).slice(0, TRUTH_REPORT_MAX_FINDINGS);
+
+  const headlineParts = [
+    `${duplicateFindings.length} duplicate cluster${duplicateFindings.length === 1 ? "" : "s"}`,
+    `${ghostFindings.length} ghost export${ghostFindings.length === 1 ? "" : "s"}`,
+    `${busFindings.length} bus-factor-1 hot file${busFindings.length === 1 ? "" : "s"}`,
+    `${voidFindings.length} knowledge void${voidFindings.length === 1 ? "" : "s"}`,
+    ...(docLines.length ? [`${docLieFindings.length} doc lie${docLieFindings.length === 1 ? "" : "s"}`] : []),
+  ];
+
+  return {
+    schema_version: 1,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    totals: {
+      files_scanned: graph.files.length,
+      symbols_scanned: graph.symbols.length,
+      duplicate_clusters: duplicateFindings.length,
+      ghost_exports: ghostFindings.length,
+      bus_factor_files: busFindings.length,
+      knowledge_voids: voidFindings.length,
+      doc_lies: docLieFindings.length,
+      docs_scanned: docFiles.length,
+    },
+    headline: headlineParts.join(" · "),
+    findings,
+    warnings,
+    next_actions: [
+      "kage init --project <dir>     create repo memory so this knowledge stops living in one head",
+      "kage learn --project <dir> --learning \"...\" --paths <file>     capture what only your team knows",
+      "kage viewer --project <dir>     watch the void close",
+    ],
+  };
+}
+
 export function kageReviewerSuggestions(projectDir: string, targets: string[] = [], changedFiles: string[] = []): KageReviewerSuggestionsReport {
   const graph = readCurrentCodeGraph(projectDir) ?? buildCodeGraph(projectDir);
   const graphPaths = new Set(graph.files.map((file) => file.path));
