@@ -1,38 +1,42 @@
-/* Kage site shared tokens and primitives.
-   Used by docs/index.html, docs/guide.html, docs/releases.html. */
+/* Kage site shared tokens and primitives — V2 "receipts" theme.
+   Used by docs/index.html, docs/guide.html, docs/releases.html, docs/benchmarks.html.
+   Light-first warm paper with editorial serif display type; deep verified-green is
+   reserved for gains/primary action. Dark-capable via prefers-color-scheme. */
 
 :root {
-  color-scheme: dark;
+  color-scheme: light dark;
 
   /* Surface */
-  --bg: #050806;
-  --paper: #08110d;
-  --paper-2: #0d1913;
-  --line: #1b3a2a;
-  --line-strong: #234a35;
+  --bg: #f6f4ef;
+  --paper: #fffdf9;
+  --paper-2: #efece4;
+  --line: #e2ded2;
+  --line-strong: #c9c4b4;
 
   /* Ink */
-  --ink: #e4f7e9;
-  --muted: #93afa0;
-  --faint: #6b8a7a;
+  --ink: #1c1e1a;
+  --muted: #5d635b;
+  --faint: #8b9088;
 
-  /* Accents -- bright green reserved for primary action + healthy state. */
-  --green: #41ff8f;
-  --green-strong: #87f7b5;
-  --green-soft: rgba(65, 255, 143, 0.12);
+  /* Accents — deep verified green reserved for gains + primary action. */
+  --green: #0c7a4d;
+  --green-strong: #09935c;
+  --green-soft: rgba(12, 122, 77, 0.08);
 
-  --code: #6ad7ff;
-  --memory: #c49cff;
-  --warn: #ffd166;
-  --danger: #ff7a8f;
+  --code: #155e9c;
+  --memory: #6d49b8;
+  --warn: #9a6b08;
+  --danger: #b03048;
 
-  /* Code */
-  --code-bg: #020503;
-  --code-text: #c9f8dc;
+  /* Code — terminals stay dark in both schemes, like a printed receipt. */
+  --code-bg: #15181b;
+  --code-text: #d7e2da;
 
-  /* Type */
+  /* Type — editorial contrast: serif display, sans body, mono data. */
   --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
+    "Times New Roman", serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", monospace;
 
@@ -42,21 +46,45 @@
   --r-card: 8px;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121413;
+    --paper: #1a1d1b;
+    --paper-2: #212522;
+    --line: #2c302c;
+    --line-strong: #41463f;
+
+    --ink: #edefe9;
+    --muted: #a4aba1;
+    --faint: #767d74;
+
+    --green: #43c98a;
+    --green-strong: #5fdca0;
+    --green-soft: rgba(67, 201, 138, 0.12);
+
+    --code: #6fb4e8;
+    --memory: #b095e8;
+    --warn: #d9a93f;
+    --danger: #e07a8c;
+
+    --code-bg: #0e1110;
+    --code-text: #cfe0d4;
+  }
+}
+
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 
 body {
   margin: 0;
-  background:
-    radial-gradient(circle at 14% 0%, rgba(65, 255, 143, 0.08), transparent 36%),
-    linear-gradient(180deg, #07100b 0%, var(--bg) 42%, #030504 100%);
+  background: var(--bg);
   color: var(--ink);
   font: 400 14px/1.55 var(--sans);
   letter-spacing: 0;
 }
 
 a { color: inherit; text-decoration: none; }
-a:hover { color: var(--green-strong); }
+a:hover { color: var(--green); }
 
 h1, h2, h3, h4, p { margin: 0; }
 ul { margin: 0; padding-left: 22px; }
@@ -66,7 +94,7 @@ code {
   padding: 1px 5px;
   border: 1px solid var(--line);
   border-radius: var(--r-control);
-  background: rgba(8, 17, 13, 0.6);
+  background: var(--paper-2);
   color: var(--code);
   font: 500 13px/1.55 var(--mono);
 }
@@ -104,7 +132,8 @@ pre code {
   min-height: 60px;
   padding: 0 clamp(18px, 4vw, 56px);
   border-bottom: 1px solid var(--line);
-  background: rgba(5, 8, 6, 0.92);
+  background: var(--paper);
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
   backdrop-filter: blur(16px);
 }
 
@@ -112,16 +141,16 @@ pre code {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  font: 700 15px/1 var(--sans);
+  font: 700 16px/1 var(--serif);
 }
 
 .brand img {
   width: 28px;
   height: 28px;
   padding: 4px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-control);
-  background: #07130d;
+  background: var(--ink);
 }
 
 .nav-links {
@@ -145,11 +174,11 @@ pre code {
   border: 1px solid var(--green);
   border-radius: var(--r-control);
   background: var(--green);
-  color: #03110a;
+  color: var(--paper);
   font: 600 13px/1 var(--sans);
 }
 
-.nav-cta:hover { color: #03110a; }
+.nav-cta:hover { color: var(--paper); background: var(--green-strong); }
 
 /* Wrap */
 .wrap {
@@ -165,7 +194,7 @@ pre code {
 /* Sections */
 .section {
   padding: 56px 0;
-  border-top: 1px solid rgba(45, 107, 69, 0.32);
+  border-top: 1px solid var(--line);
 }
 
 .section:first-of-type { border-top: 0; }
@@ -177,19 +206,19 @@ pre code {
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
-  color: var(--muted);
+  color: var(--faint);
   font: 600 12px/1 var(--mono);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.1em;
 }
 
 h1 {
-  font: 700 clamp(36px, 5.4vw, 64px) / 1.04 var(--sans);
+  font: 600 clamp(36px, 5.2vw, 60px) / 1.06 var(--serif);
   letter-spacing: -0.01em;
 }
 
 h2 {
-  font: 700 clamp(24px, 3.2vw, 36px) / 1.12 var(--sans);
+  font: 600 clamp(24px, 3.2vw, 36px) / 1.14 var(--serif);
   letter-spacing: -0.005em;
 }
 
@@ -219,22 +248,22 @@ p { color: var(--muted); font: 400 15px/1.65 var(--sans); }
   justify-content: center;
   min-height: 40px;
   padding: 0 16px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-control);
   background: var(--paper);
   color: var(--ink);
   font: 600 14px/1 var(--sans);
 }
 
-.button:hover { color: var(--ink); border-color: var(--line-strong); }
+.button:hover { color: var(--ink); border-color: var(--faint); }
 
 .button.primary {
   border-color: var(--green);
   background: var(--green);
-  color: #03110a;
+  color: var(--paper);
 }
 
-.button.primary:hover { color: #03110a; background: var(--green-strong); border-color: var(--green-strong); }
+.button.primary:hover { color: var(--paper); background: var(--green-strong); border-color: var(--green-strong); }
 
 /* Cards */
 .card {
@@ -262,7 +291,7 @@ p { color: var(--muted); font: 400 15px/1.65 var(--sans); }
 /* Terminal */
 .terminal {
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-card);
   background: var(--code-bg);
 }
@@ -272,12 +301,49 @@ p { color: var(--muted); font: 400 15px/1.65 var(--sans); }
   justify-content: space-between;
   gap: 12px;
   padding: 10px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  color: var(--faint);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: #9aa49c;
   font: 500 12px/1 var(--mono);
 }
 
 .terminal pre { border: 0; border-radius: 0; }
+
+/* Receipt — the gains proof artifact, shared by index hero and viewer mock. */
+.receipt {
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-card);
+  background: var(--paper);
+  box-shadow: 0 18px 44px rgba(28, 30, 26, 0.10);
+}
+.receipt .r-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px dashed var(--line-strong);
+  color: var(--faint);
+  font: 600 11px/1 var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.receipt .r-hero { padding: 22px 20px 16px; }
+.receipt .r-hero .big { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.receipt .r-hero .big b { font: 600 44px/0.95 var(--serif); letter-spacing: -0.02em; color: var(--green); font-variant-numeric: tabular-nums; }
+.receipt .r-hero .big .unit { color: var(--muted); font: 500 13px/1.3 var(--sans); }
+.receipt .r-hero .big .dollars { color: var(--ink); font: 600 18px/1 var(--serif); }
+.receipt .r-lines { border-top: 1px dashed var(--line-strong); padding: 12px 20px 14px; }
+.receipt .r-line { display: flex; align-items: baseline; gap: 10px; padding: 4px 0; font: 400 13px/1.5 var(--sans); color: var(--ink); }
+.receipt .r-line .dots { flex: 1; border-bottom: 1px dotted var(--line-strong); transform: translateY(-4px); }
+.receipt .r-line b { font: 600 13px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.receipt .r-line b.warn { color: var(--warn); }
+.receipt .r-line b.gain { color: var(--green); }
+.receipt .r-foot {
+  border-top: 1px dashed var(--line-strong);
+  padding: 10px 20px;
+  color: var(--faint);
+  font: 400 10.5px/1.5 var(--mono);
+}
 
 /* Footer */
 .footer {
@@ -299,7 +365,7 @@ p { color: var(--muted); font: 400 15px/1.65 var(--sans); }
 /* Demo frame */
 .demo-frame {
   margin-top: 22px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-card);
   overflow: hidden;
   background: var(--code-bg);

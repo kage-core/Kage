@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { daemonContextReport, daemonDoctor, viewerBenchmarkReport, viewerRedirectLocation, viewerStaticHeaders } from "./daemon.js";
+import { daemonContextReport, daemonDoctor, viewerBenchmarkReport, viewerRedirectLocation, viewerReportPaths, viewerStaticHeaders, viewerUrl } from "./daemon.js";
 import { capture, indexProject } from "./kernel.js";
 
 test("viewer bare routes redirect to index while preserving query params", () => {
@@ -25,13 +25,30 @@ test("viewer static responses include browser security headers", () => {
   assert.doesNotMatch(headers["content-security-policy"], /script-src 'unsafe-inline'/);
 });
 
+test("viewer url serves every report param including the value ledger", () => {
+  const reports = viewerReportPaths("/repo");
+  assert.equal(reports.value, "/repo/.agent_memory/reports/value.json");
+  assert.equal(reports.trust, "/repo/.agent_memory/reports/trust.json");
+  assert.equal(reports.metrics, "/repo/.agent_memory/metrics.json");
+
+  const url = viewerUrl("127.0.0.1", 3113, "/repo");
+  assert.match(url, /^http:\/\/127\.0\.0\.1:3113\/viewer\/index\.html\?/);
+  assert.match(url, /graph=%2Frepo%2F\.agent_memory%2Fgraph%2Fgraph\.json/);
+  assert.match(url, /value=%2Frepo%2F\.agent_memory%2Freports%2Fvalue\.json/);
+  assert.match(url, /&view=code$/);
+});
+
 test("viewer dashboard is a CSP-safe multi-section page backed by external console.js", () => {
   const indexHtml = readFileSync(join(process.cwd(), "viewer", "index.html"), "utf8");
   const consoleJs = readFileSync(join(process.cwd(), "viewer", "console.js"), "utf8");
   // CSP forbids inline scripts: the page must load console.js externally.
   assert.match(indexHtml, /<script src="\.\/console\.js/);
   assert.doesNotMatch(indexHtml, /<script>\s*\n\s*\(function/);
-  // Multi-section dashboard: sidebar nav drives separate Overview / Graph / Memory / Insights sections.
+  // Multi-section dashboard: sidebar nav drives separate Gains / Overview / Graph / Memory / Insights sections.
+  // Gains is the landing tab: value first, trust as proof.
+  assert.match(indexHtml, /data-section="gains" aria-current="true"/);
+  assert.match(indexHtml, /id="gainsHero"/);
+  assert.match(indexHtml, /id="gainsTimeline"/);
   assert.match(indexHtml, /data-section="overview"/);
   assert.match(indexHtml, /data-section="graph"/);
   assert.match(indexHtml, /data-section="memory"/);
@@ -51,6 +68,11 @@ test("viewer dashboard is a CSP-safe multi-section page backed by external conso
   assert.match(consoleJs, /buildGraph/);
   assert.match(consoleJs, /renderActivity/);
   assert.match(indexHtml, /id="activityFeed"/);
+  // The Gains tab reads the value ledger and renders the savings receipt + timeline.
+  assert.match(consoleJs, /renderGains/);
+  assert.match(consoleJs, /value\.json/);
+  assert.match(consoleJs, /recall_served/);
+  assert.match(consoleJs, /stale_withheld/);
 });
 
 test("viewer benchmark report combines local gates with coding memory retrieval proof", () => {

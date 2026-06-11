@@ -101,13 +101,12 @@
     "estimated_tokens_saved": 154,
     "stale": true,
     "stale_reasons": [
-      "packet status is superseded",
-      "linked path changed since memory was verified: mcp/kernel.ts, mcp/kernel.test.ts, README.md, docs/guide.html"
+      "packet status is superseded"
     ],
     "suggested_action": "mark_stale",
     "superseded_by": "repo:https-github-com-kage-core-kage:bug_fix:linked-code-reconciliation-still-uses-source-fingerprints-after-risk-path-parser",
     "superseded_reason": "Updated after risk path parser fix; reconciliation remains source-fingerprint based."
   },
   "created_at": "2026-05-23T14:26:16.043Z",
-  "updated_at": "2026-06-05T11:51:46.166Z"
+  "updated_at": "2026-06-11T15:01:00.013Z"
 }

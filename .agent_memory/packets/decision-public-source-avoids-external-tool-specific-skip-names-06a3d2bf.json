@@ -89,13 +89,12 @@
     "estimated_tokens_saved": 178,
     "stale": true,
     "stale_reasons": [
-      "packet status is superseded",
-      "linked path changed since memory was verified: mcp/kernel.ts"
+      "packet status is superseded"
     ],
     "suggested_action": "mark_stale",
     "superseded_by": "repo:https-github-com-kage-core-kage:decision:public-source-skip-lists-remain-generic-after-risk-path-parser-fix-1780217154439",
     "superseded_reason": "Updated after risk path parser fix; public skip-list decision remains generic."
   },
   "created_at": "2026-05-23T14:25:21.183Z",
-  "updated_at": "2026-05-31T08:46:21.183Z"
+  "updated_at": "2026-06-11T15:01:00.014Z"
 }
