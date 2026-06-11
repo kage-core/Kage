@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
-  "summary": "Repo-local context for 2 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/decision-value-ledger-records-recall-stale-withheld-and-caller-answered-receipts-e4e651f1.json\n- .agent_memory/packets/workflow-change-memory-feat-v2-value-ledger-receipts-bd6d7486.json\n\nDiff summary:\n```text\n...all-stale-withheld-and-caller-answered-receipts-e4e651f1.json | 9 +++++++--\n ...low-change-memory-feat-v2-value-ledger-receipts-bd6d7486.json | 9 +++++++--\n 2 files changed, 14 insertions(+), 4 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "summary": "Repo-local context for 3 changed repo paths on master.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/decision-value-ledger-records-recall-stale-withheld-and-caller-answered-receipts-e4e651f1.json\n- .agent_memory/packets/workflow-change-memory-feat-v2-value-ledger-receipts-bd6d7486.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n...all-stale-withheld-and-caller-answered-receipts-e4e651f1.json | 4 ++--\n ...low-change-memory-feat-v2-value-ledger-receipts-bd6d7486.json | 9 +++++----\n .../packets/workflow-change-memory-master-23634276.json          | 3 +--\n 3 files changed, 8 insertions(+), 8 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -18,24 +18,26 @@
   ],
   "paths": [
     ".agent_memory/packets/decision-value-ledger-records-recall-stale-withheld-and-caller-answered-receipts-e4e651f1.json",
-    ".agent_memory/packets/workflow-change-memory-feat-v2-value-ledger-receipts-bd6d7486.json"
+    ".agent_memory/packets/workflow-change-memory-feat-v2-value-ledger-receipts-bd6d7486.json",
+    ".agent_memory/packets/workflow-change-memory-master-23634276.json"
   ],
   "stack": [],
   "source_refs": [
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "1b3cf7a888169c62066390be141752ed73d2716b",
-      "merge_base": "1b3cf7a888169c62066390be141752ed73d2716b",
+      "head": "beaab72e9a54d58f433a46940ac6d6f3edb0e502",
+      "merge_base": "beaab72e9a54d58f433a46940ac6d6f3edb0e502",
       "changed_files": [
         ".agent_memory/packets/decision-value-ledger-records-recall-stale-withheld-and-caller-answered-receipts-e4e651f1.json",
-        ".agent_memory/packets/workflow-change-memory-feat-v2-value-ledger-receipts-bd6d7486.json"
+        ".agent_memory/packets/workflow-change-memory-feat-v2-value-ledger-receipts-bd6d7486.json",
+        ".agent_memory/packets/workflow-change-memory-master-23634276.json"
       ],
       "summary_path": ".agent_memory/review/branch-summary-master.json"
     }
   ],
   "context": {
-    "fact": "Current branch master changes 2 repo paths.",
+    "fact": "Current branch master changes 3 repo paths.",
     "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
     "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
     "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
@@ -44,7 +46,7 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-11T14:40:54.476Z",
+    "last_verified_at": "2026-06-11T14:57:42.108Z",
     "ttl_days": 180,
     "path_fingerprints": [],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -59,6 +61,11 @@
     {
       "relation": "changes_path",
       "to": "path:.agent_memory/packets/workflow-change-memory-feat-v2-value-ledger-receipts-bd6d7486.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/workflow-change-memory-master-23634276.json",
       "evidence": "git_diff"
     }
   ],
@@ -75,7 +82,7 @@
     "risks": [],
     "duplicate_candidates": [],
     "stale_reasons": [],
-    "estimated_tokens_saved": 289,
+    "estimated_tokens_saved": 323,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -93,6 +100,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-06-11T14:40:54.476Z",
-  "updated_at": "2026-06-11T14:40:54.476Z"
+  "created_at": "2026-06-11T14:57:42.108Z",
+  "updated_at": "2026-06-11T14:57:42.108Z"
 }
