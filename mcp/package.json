@@ -38,7 +38,9 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.10.2",
     "three": "^0.184.0",
-    "typescript": "^5.0.0"
+    "tree-sitter-wasms": "^0.1.13",
+    "typescript": "^5.0.0",
+    "web-tree-sitter": "^0.24.7"
   },
   "devDependencies": {
     "@types/node": "^22.0.0"

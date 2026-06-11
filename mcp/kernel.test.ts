@@ -27,6 +27,7 @@ import {
   createPublicCandidate,
   distillSession,
   doctorProject,
+  ensureTreeSitterLanguages,
   exportPublicBundle,
   codeGraphDir,
   graphDir,
@@ -3646,4 +3647,104 @@ test("kageActivity merges recorded recalls and captures into a chronological fee
   for (let i = 1; i < activity.events.length; i += 1) {
     assert.equal(Date.parse(activity.events[i - 1].at) >= Date.parse(activity.events[i].at), true);
   }
+});
+
+test("tree-sitter extracts python symbols and calls with ast-accurate kinds and lines", async () => {
+  await ensureTreeSitterLanguages(["python"]);
+  const project = tempProject();
+  mkdirSync(join(project, "app"), { recursive: true });
+  writeFileSync(
+    join(project, "app", "tasks.py"),
+    `import helpers
+
+def top_level(value):
+    return helpers.clean(value)
+
+@decorator
+async def fetch_all():
+    pass
+
+class TaskService:
+    def list_tasks(self):
+        return top_level([])
+
+    def _hidden(self):
+        pass
+`,
+    "utf8"
+  );
+
+  const graph = buildCodeGraph(project);
+  const symbols = graph.symbols.filter((symbol) => symbol.path === "app/tasks.py");
+  assert.equal(symbols.every((symbol) => symbol.parser === "tree-sitter"), true);
+  const topLevel = symbols.find((symbol) => symbol.name === "top_level");
+  assert.equal(topLevel?.kind, "function");
+  assert.equal(topLevel?.line, 3);
+  assert.equal(topLevel?.end_line, 4);
+  const fetchAll = symbols.find((symbol) => symbol.name === "fetch_all");
+  assert.equal(fetchAll?.kind, "function");
+  assert.equal(fetchAll?.line, 7);
+  const service = symbols.find((symbol) => symbol.name === "TaskService");
+  assert.equal(service?.kind, "class");
+  assert.equal(service?.line, 10);
+  const listTasks = symbols.find((symbol) => symbol.name === "list_tasks");
+  assert.equal(listTasks?.kind, "method");
+  assert.equal(listTasks?.line, 11);
+  assert.equal(symbols.find((symbol) => symbol.name === "_hidden")?.export, false);
+  assert.equal(graph.files.find((file) => file.path === "app/tasks.py")?.parser, "tree-sitter");
+  const call = graph.calls.find((edge) => edge.path === "app/tasks.py" && edge.to_symbol === topLevel?.id);
+  assert.equal(call?.line, 12);
+  assert.equal(call?.confidence, 0.8);
+  assert.equal(call?.resolution, "tree_sitter_name");
+  assert.equal(call?.from_symbol, listTasks?.id);
+});
+
+test("tree-sitter extracts go symbols including method receivers", async () => {
+  await ensureTreeSitterLanguages(["go"]);
+  const project = tempProject();
+  mkdirSync(join(project, "pkg"), { recursive: true });
+  writeFileSync(
+    join(project, "pkg", "store.go"),
+    `package store
+
+type TaskStore struct {}
+
+func NewTaskStore() *TaskStore {
+	return &TaskStore{}
+}
+
+func (s *TaskStore) List(prefix string) []string {
+	return filter(prefix)
+}
+
+func filter(prefix string) []string {
+	return nil
+}
+`,
+    "utf8"
+  );
+
+  const graph = buildCodeGraph(project);
+  const symbols = graph.symbols.filter((symbol) => symbol.path === "pkg/store.go");
+  assert.equal(symbols.every((symbol) => symbol.parser === "tree-sitter"), true);
+  const store = symbols.find((symbol) => symbol.name === "TaskStore");
+  assert.equal(store?.kind, "class");
+  assert.equal(store?.line, 3);
+  const constructor = symbols.find((symbol) => symbol.name === "NewTaskStore");
+  assert.equal(constructor?.kind, "function");
+  assert.equal(constructor?.line, 5);
+  assert.equal(constructor?.export, true);
+  const list = symbols.find((symbol) => symbol.name === "List");
+  assert.equal(list?.kind, "method");
+  assert.equal(list?.line, 9);
+  assert.equal(list?.end_line, 11);
+  assert.equal(list?.signature.includes("(s *TaskStore)"), true);
+  const filter = symbols.find((symbol) => symbol.name === "filter");
+  assert.equal(filter?.kind, "function");
+  assert.equal(filter?.export, false);
+  const call = graph.calls.find((edge) => edge.path === "pkg/store.go" && edge.to_symbol === filter?.id);
+  assert.equal(call?.line, 10);
+  assert.equal(call?.confidence, 0.8);
+  assert.equal(call?.resolution, "tree_sitter_name");
+  assert.equal(call?.from_symbol, list?.id);
 });

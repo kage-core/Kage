@@ -3,6 +3,8 @@ import { dirname } from "node:path";
 import { workerData } from "node:worker_threads";
 import {
   buildStructuralFileForWorker,
+  ensureTreeSitterLanguages,
+  treeSitterLanguagesForPaths,
   type StructuralIndexManifest,
   type StructuralWorkerResultFile,
 } from "./kernel.js";
@@ -29,15 +31,20 @@ function notifyDone(shared: SharedArrayBuffer): void {
 
 const data = workerData as StructuralWorkerData;
 
-try {
-  const results = data.files.map((file) => buildStructuralFileForWorker(data.projectDir, file, data.knownFiles, data.prior));
-  writeResult(data.outputPath, { ok: true, results });
-} catch (error) {
-  writeResult(data.outputPath, {
-    ok: false,
-    results: [],
-    error: error instanceof Error ? `${error.message}\n${error.stack ?? ""}` : String(error),
-  });
-} finally {
-  notifyDone(data.shared);
+async function run(): Promise<void> {
+  try {
+    await ensureTreeSitterLanguages(treeSitterLanguagesForPaths(data.files));
+    const results = data.files.map((file) => buildStructuralFileForWorker(data.projectDir, file, data.knownFiles, data.prior));
+    writeResult(data.outputPath, { ok: true, results });
+  } catch (error) {
+    writeResult(data.outputPath, {
+      ok: false,
+      results: [],
+      error: error instanceof Error ? `${error.message}\n${error.stack ?? ""}` : String(error),
+    });
+  } finally {
+    notifyDone(data.shared);
+  }
 }
+
+void run();
