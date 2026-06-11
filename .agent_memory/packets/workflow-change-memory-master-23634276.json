@@ -3,7 +3,7 @@
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
   "summary": "Repo-local context for 1 changed repo path on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n.agent_memory/packets/workflow-change-memory-master-23634276.json | 3 +--\n 1 file changed, 1 insertion(+), 2 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/workflow-change-memory-feat-tree-sitter-extraction-0ab8fd2d.json\n\nDiff summary:\n```text\n.../workflow-change-memory-feat-tree-sitter-extraction-0ab8fd2d.json   | 3 +--\n 1 file changed, 1 insertion(+), 2 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -17,17 +17,17 @@
     "branch:master"
   ],
   "paths": [
-    ".agent_memory/packets/workflow-change-memory-master-23634276.json"
+    ".agent_memory/packets/workflow-change-memory-feat-tree-sitter-extraction-0ab8fd2d.json"
   ],
   "stack": [],
   "source_refs": [
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "ee9a0aad1fa0975c935d590d93ac091ca70aee83",
-      "merge_base": "ee9a0aad1fa0975c935d590d93ac091ca70aee83",
+      "head": "900855843ecfaa28f38b74bf28f1dc983c22c90f",
+      "merge_base": "900855843ecfaa28f38b74bf28f1dc983c22c90f",
       "changed_files": [
-        ".agent_memory/packets/workflow-change-memory-master-23634276.json"
+        ".agent_memory/packets/workflow-change-memory-feat-tree-sitter-extraction-0ab8fd2d.json"
       ],
       "summary_path": ".agent_memory/review/branch-summary-master.json"
     }
@@ -42,7 +42,7 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-05T13:43:47.112Z",
+    "last_verified_at": "2026-06-11T08:50:15.011Z",
     "ttl_days": 180,
     "path_fingerprints": [],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -51,7 +51,7 @@
   "edges": [
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/workflow-change-memory-master-23634276.json",
+      "to": "path:.agent_memory/packets/workflow-change-memory-feat-tree-sitter-extraction-0ab8fd2d.json",
       "evidence": "git_diff"
     }
   ],
@@ -67,7 +67,8 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 231,
+    "stale_reasons": [],
+    "estimated_tokens_saved": 238,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -85,6 +86,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-06-05T13:43:47.112Z",
-  "updated_at": "2026-06-05T14:03:30.165Z"
+  "created_at": "2026-06-11T08:50:15.011Z",
+  "updated_at": "2026-06-11T08:50:15.011Z"
 }
