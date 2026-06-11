@@ -29,12 +29,12 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-05T11:54:06.179Z",
+    "last_verified_at": "2026-06-11T15:18:19.000Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "bececf631d4a1544db4cf4bc92db97d1c992617531cd2e96c7982c28deb4b0a9",
-        "size": 641419
+        "sha256": "feb28afccf9163d9a4a6f5e46e36e9d1b056043bec756ade4c492c0693e03162",
+        "size": 691945
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -60,14 +60,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 91,
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: mcp/kernel.ts"
-    ],
-    "suggested_action": "update"
+    "estimated_tokens_saved": 91
   },
   "created_at": "2026-06-05T11:54:06.179Z",
-  "updated_at": "2026-06-11T15:05:52.517Z",
+  "updated_at": "2026-06-11T15:18:46.383Z",
   "author_branch": "chore/dogfood"
 }

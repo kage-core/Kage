@@ -30,7 +30,7 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-05T11:54:06.532Z",
+    "last_verified_at": "2026-06-11T15:18:19.000Z",
     "path_fingerprints": [
       {
         "path": "docs/benchmarks.html",
@@ -39,8 +39,8 @@
       },
       {
         "path": ".github/workflows/pages.yml",
-        "sha256": "d0b67262f9d518b5bc50382e4d5db0a003ba7d293637b9b51f07b6ccee789021",
-        "size": 3157
+        "sha256": "cab3422f94a17999d2de650be09a0917a2c15174b78f98e041dfc1f2961d69c6",
+        "size": 5019
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -66,14 +66,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 68,
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: .github/workflows/pages.yml"
-    ],
-    "suggested_action": "update"
+    "estimated_tokens_saved": 68
   },
   "created_at": "2026-06-05T11:54:06.532Z",
-  "updated_at": "2026-06-11T15:05:52.531Z",
+  "updated_at": "2026-06-11T15:18:46.395Z",
   "author_branch": "chore/dogfood"
 }

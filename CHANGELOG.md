@@ -1,5 +1,71 @@
 # Changelog
 
+## v2.0.0 - verified repo knowledge, receipts, and the Truth Report
+
+The 2.0 release reframes Kage around one story: every claim cited against your
+current code, and you see exactly what it saves you. (PRs #56–#65.)
+
+### New
+
+- **`kage scan` — the Truth Report** (#63). Zero-setup, ~60-second shock report
+  on any repo: duplicate implementations (AI-era flagged), grep-proof ghost
+  exports, bus-factor-1 hot files, knowledge voids (churn × centrality × zero
+  memory), and doc lies (README claims vs reality). Every finding cites
+  `file:line` evidence. Express acid test: `lib/response.js — 390 commits,
+  149 edges, zero memory packets.` Includes a 66s→0.29s perf fix.
+- **Value ledger + visible receipts (`kage gains`)** (#62). Persistent per-repo
+  ledger at `.agent_memory/reports/value.json`; receipt line after each recall;
+  gains line in `kage_context` that agents relay ("~289K tokens saved" live).
+- **Stale-catch moment** (#64). `kage pr check` now leads with
+  "⚠ Your changes invalidated N team memories" (file + reason + fix); new
+  `kage staleguard` for pre-commit hooks; `stale_caught` ledger events feed
+  `kage gains`; the `kage_pr_check` MCP tool relays the summary. Dogfooding
+  caught 15 real invalidations on this repo.
+- **Tree-sitter extraction tier** (#61). Real AST extraction for Python, Go,
+  Rust, Java, and Ruby via web-tree-sitter (pure WASM, zero native deps),
+  replacing regex. Click acid test: 466 methods correctly classified (was 0),
+  real block spans, docstring false-positives gone. Grammar load failures fall
+  back to regex.
+- **Gains-first theme** (#65). Light-first "receipts/proof" viewer with a GAINS
+  landing tab fed by the value ledger (dark variant included); site hero updated;
+  daemon serves `value.json`.
+
+### Engine
+
+- **Import-aware call resolution** (#59). Callees resolve through local scope →
+  imports → same package before any name-only match; external-package imports
+  produce no repo edge; <0.5-confidence edges are gated from display. On
+  Express: 524 ghost edges shown → 0; verified-local edges 473 → 2,277.
+  `CODE_GRAPH_BUILDER_VERSION` busts stale graph caches.
+- **Engine fixes that lost the grep benchmark** (#57): method-assignment symbol
+  extraction (+101 symbols on Express), core-over-tests ranking, and
+  call-edge-powered caller queries (definition + all call sites, `file:line`),
+  plus extractor-version cache busting.
+- **Context-block compaction + fingerprint cache** (#58): 38% smaller recall
+  context blocks (same answers); staleness checks stop re-hashing unchanged
+  files in long-lived server processes.
+
+### First-run and surface
+
+- **First-run trust fixes** (#56): TTY + no args now runs the demo with next
+  steps; `init`/`index` no longer write `AGENTS.md`/`CLAUDE.md`/`.claude`
+  unprompted (explicit `--with-policy` / `kage policy` / `setup --write`);
+  setup emits `npx -y` when the server path is ephemeral; `.claude`/`.codex`
+  excluded from indexing.
+- **Surface shrink** (#60): tiered CLI help (14-line core vs the old 93-line
+  wall); org/marketplace/global/layered stubs removed across CLI, MCP, kernel,
+  and tests. Kage is repo-local memory — promotion surfaces that never shipped
+  are gone.
+
+### Breaking
+
+- Removed untested stub surfaces (#60): org status/upload/review/recall/export,
+  marketplace, global CDN bundle, and layered recall — 4 CLI commands and
+  8 MCP tools (`kage_marketplace`, `kage_org_*`, `kage_layered_recall`,
+  `kage_global_build`, `kage_promote_public_candidate`,
+  `kage_export_public_bundle`). MCP tool surface 71 → 63. Repo-local memory,
+  the code graph, and the MCP harness are unaffected.
+
 ## v1.4.0 - live memory: grounding-aware, instrumented, and a real dashboard
 
 - **`.kageignore` now governs memory grounding, not just indexing.** A repo can

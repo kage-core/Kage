@@ -137,7 +137,6 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "stale_reasons": [],
     "estimated_tokens_saved": 668,
     "admission": {
       "admit": true,
@@ -157,5 +156,5 @@
     "promotion_requires_review": true
   },
   "created_at": "2026-06-11T15:05:57.430Z",
-  "updated_at": "2026-06-11T15:05:57.430Z"
+  "updated_at": "2026-06-11T15:08:06.068Z"
 }

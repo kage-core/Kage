@@ -34,22 +34,22 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-11T14:22:05.474Z",
+    "last_verified_at": "2026-06-11T15:18:19.000Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "59029e8ab6b5ca2bca8da594032dc543360fb7fed0bc444b86708d14c0378598",
-        "size": 668707
+        "sha256": "feb28afccf9163d9a4a6f5e46e36e9d1b056043bec756ade4c492c0693e03162",
+        "size": 691945
       },
       {
         "path": "mcp/cli.ts",
-        "sha256": "90cafe86fb7a97c1066bc11837d6e193d63a2e2577e091d67b696210021e9696",
-        "size": 86168
+        "sha256": "728f18995f87914ae7d1ad827a7f5800f451e864d4b5790932e15ca10660e07d",
+        "size": 89956
       },
       {
         "path": "mcp/index.ts",
-        "sha256": "124b35740ff1d136f4de26546dcaa3c74baf414c470a10e29f5c1ebc568e1bb5",
-        "size": 63550
+        "sha256": "a3ba5c1b522dcfaf3f15b4a2b010f22116d07f3c810f38a6c4f8b0604dfd9a42",
+        "size": 63966
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -75,14 +75,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 232,
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: mcp/kernel.ts, mcp/cli.ts, mcp/index.ts"
-    ],
-    "suggested_action": "update"
+    "estimated_tokens_saved": 232
   },
   "created_at": "2026-06-11T14:22:05.474Z",
-  "updated_at": "2026-06-11T14:57:37.181Z",
+  "updated_at": "2026-06-11T15:18:46.393Z",
   "author_branch": "feat/v2-value-ledger-receipts"
 }
