@@ -10817,12 +10817,25 @@ export function truthReport(projectDir: string): TruthReport {
       docFiles.push(join("docs", name));
     }
   }
-  const docLines: Array<{ doc: string; line: number; text: string }> = [];
+  // Track fenced code blocks: sample output quoted in fences must not be treated
+  // as doc claims (a pasted truth report would flag its own examples as lies).
+  // Shell-typed fences are the exception — `npm run x` there is a real claim.
+  const docLines: Array<{ doc: string; line: number; text: string; fence: string | null }> = [];
   for (const doc of docFiles) {
     const text = safeReadText(join(projectDir, doc));
     if (!text) continue;
-    text.split(/\r?\n/).forEach((line, index) => docLines.push({ doc, line: index + 1, text: line }));
+    let fence: string | null = null;
+    text.split(/\r?\n/).forEach((line, index) => {
+      const fenceMatch = line.match(/^\s*(?:```|~~~)\s*([A-Za-z0-9_-]*)/);
+      if (fenceMatch) {
+        fence = fence === null ? (fenceMatch[1] || "text").toLowerCase() : null;
+        docLines.push({ doc, line: index + 1, text: line, fence: "marker" });
+        return;
+      }
+      docLines.push({ doc, line: index + 1, text: line, fence });
+    });
   }
+  const SHELL_FENCES = new Set(["bash", "sh", "shell", "zsh", "console", "terminal"]);
   const docsText = docLines.map((entry) => entry.text).join("\n");
   const voidFindings: TruthFinding[] = [];
   if (hasGit) {
@@ -10867,7 +10880,10 @@ export function truthReport(projectDir: string): TruthReport {
         .join("\n")
       : "";
     for (const entry of docLines) {
-      for (const candidate of truthDocPathCandidates(entry.text)) {
+      if (entry.fence === "marker") continue;
+      const inShellFence = entry.fence !== null && SHELL_FENCES.has(entry.fence);
+      // Path claims only count in prose; fenced content is sample output.
+      for (const candidate of entry.fence === null ? truthDocPathCandidates(entry.text) : []) {
         const key = `path:${candidate}`;
         if (seenLies.has(key) || existsSync(join(projectDir, candidate))) continue;
         seenLies.add(key);
@@ -10879,7 +10895,8 @@ export function truthReport(projectDir: string): TruthReport {
           surprise: 70,
         });
       }
-      if (packageJsonText && Object.keys(scripts).length) {
+      // Script/CLI claims count in prose AND shell fences (a quoted command is a claim).
+      if (packageJsonText && Object.keys(scripts).length && (entry.fence === null || inShellFence)) {
         for (const match of entry.text.matchAll(/\bnpm run ([A-Za-z0-9:_-]+)/g)) {
           const script = match[1];
           const key = `script:${script}`;
@@ -10894,7 +10911,7 @@ export function truthReport(projectDir: string): TruthReport {
           });
         }
       }
-      if (cliSourceText) {
+      if (cliSourceText && (entry.fence === null || inShellFence)) {
         for (const bin of binNames) {
           for (const match of entry.text.matchAll(new RegExp(`\`${bin} ([a-z][a-z0-9-]+)`, "g"))) {
             const subcommand = match[1];

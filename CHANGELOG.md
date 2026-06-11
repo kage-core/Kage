@@ -387,4 +387,9 @@ current code, and you see exactly what it saves you. (PRs #56–#65.)
 
 ## v1.0.0
 
-- Initial local-first Kage MCP package with repo memory packets, recall, graph indexing, code graph, review gates, metrics, daemon, and setup helpers.
+- Initial local-first Kage MCP package with repo memory packets, recall, graph indexing, code graph, review gates, metrics, daemon, and setup helpers.## 2.0.1
+
+- `kage scan` doc-lie checks are fence-aware: paths quoted inside code fences are sample output, not claims; `npm run`/CLI claims still verified inside shell-typed fences.
+- npm package declares `mcpName: com.kage-core/kage` for the official MCP registry.
+
+
