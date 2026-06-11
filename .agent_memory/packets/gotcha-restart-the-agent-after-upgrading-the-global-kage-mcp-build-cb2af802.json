@@ -1,0 +1,56 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:gotcha:restart-the-agent-after-upgrading-the-global-kage-mcp-build-1780660835450",
+  "title": "Restart the agent after upgrading the global Kage MCP build",
+  "summary": "The in session MCP server is loaded once at agent start, so a freshly published/installed kage graph mcp build e.g. a loader hardening fix is NOT picked up until the agent restarts. Symptom before restart: kage learn/kag",
+  "body": "The in-session MCP server is loaded once at agent start, so a freshly published/installed kage-graph-mcp build (e.g. a loader-hardening fix) is NOT picked up until the agent restarts. Symptom before restart: kage_learn/kage_refresh over MCP crash with 'Unexpected end of JSON input' on a repo with corrupt/merge-conflicted packets, even though the CLI (new build) works. Fix: restart the agent to reload the global MCP server.\nVerified by: kage_context + kage_verify_agent ran natively after restart (mcp_tool_reachable: true)",
+  "type": "gotcha",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning"
+  ],
+  "paths": [
+    "mcp/index.ts",
+    "mcp/kernel.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-05T12:00:35.450Z"
+    }
+  ],
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-05T12:00:35.450Z",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 132
+  },
+  "created_at": "2026-06-05T12:00:35.450Z",
+  "updated_at": "2026-06-11T08:45:17.056Z"
+}
