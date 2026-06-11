@@ -21,6 +21,7 @@ import {
   createReviewArtifact,
   deleteContextSlot,
   distillSession,
+  ensureTreeSitterLanguages,
   graphMermaid,
   installAgentPolicy,
   kageCleanupCandidates,
@@ -1046,6 +1047,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 }));
 
 export async function callTool(name: string, args: Record<string, unknown> | undefined) {
+  await ensureTreeSitterLanguages();
   if (name === "kage_list_domains") {
     const catalog = await fetchJSON<Catalog>(`${BASE_URL}/catalog.json`);
     const lines = Object.entries(catalog.domains)

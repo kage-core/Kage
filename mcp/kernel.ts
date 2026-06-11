@@ -1020,7 +1020,7 @@ export interface CodeCallEdge {
   path: string;
   line: number;
   confidence: number;
-  resolution: "typescript_ast_name" | "generic_static_name" | "external_index";
+  resolution: "typescript_ast_name" | "tree_sitter_name" | "generic_static_name" | "external_index";
 }
 
 export interface CodeRouteNode {
@@ -4933,7 +4933,7 @@ function structuralPackedFileCachePath(projectDir: string): string {
 
 // Bump whenever symbol/call extraction changes, or cached per-file results
 // keep serving pre-change output and upgrades silently never land.
-const STRUCTURAL_EXTRACTOR_VERSION = 3; // v3: method-assignment symbols (app.use = function)
+const STRUCTURAL_EXTRACTOR_VERSION = 4; // v4: tree-sitter symbols for python/go/rust/java/ruby
 
 function structuralFileCachePath(projectDir: string, rel: string, hash: string): string {
   return join(structuralFileCacheDir(projectDir), `v${STRUCTURAL_EXTRACTOR_VERSION}-${slugify(rel)}-${hash}.json`);
@@ -5331,6 +5331,15 @@ function writeStructuralFileCachePack(projectDir: string, results: StructuralFil
   rmSync(structuralFileCacheDir(projectDir), { recursive: true, force: true });
 }
 
+// A regex-tier cache entry for a language whose tree-sitter grammar is now
+// loaded would pin weak symbols past the upgrade; treat it as a miss so the
+// file re-extracts at the stronger tier.
+function usableStructuralCache(rel: string, cached: StructuralCachedFile | null): StructuralCachedFile | null {
+  if (!cached) return null;
+  if (treeSitterParserFor(rel) && cached.symbols.some((symbol) => symbol.parser === "generic-static")) return null;
+  return cached;
+}
+
 function buildStructuralFile(
   projectDir: string,
   absolutePath: string,
@@ -5343,11 +5352,11 @@ function buildStructuralFile(
   const canReuseHash = priorEntry && priorEntry.size_bytes === stats.size && Math.round(priorEntry.mtime_ms) === Math.round(stats.mtimeMs);
   let buffer: Buffer | null = canReuseHash ? null : readFileSync(absolutePath);
   let hash = canReuseHash ? priorEntry.hash : sha256Hex(buffer ?? "");
-  let cached = readCachedStructuralFile(projectDir, rel, hash);
+  let cached = usableStructuralCache(rel, readCachedStructuralFile(projectDir, rel, hash));
   if (!cached && !buffer) {
     buffer = readFileSync(absolutePath);
     hash = sha256Hex(buffer);
-    cached = readCachedStructuralFile(projectDir, rel, hash);
+    cached = usableStructuralCache(rel, readCachedStructuralFile(projectDir, rel, hash));
   }
   const entry: StructuralIndexManifestFile = {
     path: rel,
@@ -5368,7 +5377,7 @@ function buildStructuralFile(
       rawSymbols.push(...extractSymbols(rel, content));
       rawImports.push(...extractImports(projectDir, rel, content, knownFiles));
     } else if (CODE_EXTENSIONS.has(extensionOf(rel))) {
-      rawSymbols.push(...extractGenericSymbols(rel, content));
+      rawSymbols.push(...(extractTreeSitterSymbols(rel, content) ?? extractGenericSymbols(rel, content)));
       rawImports.push(...extractGenericImports(projectDir, rel, content, knownFiles));
     }
   }
@@ -5830,6 +5839,251 @@ function extractSymbols(path: string, text: string): CodeSymbolNode[] {
   return symbols.sort((a, b) => a.line - b.line || a.name.localeCompare(b.name));
 }
 
+const TREE_SITTER_LANGUAGES: Record<string, string> = {
+  python: "python",
+  go: "go",
+  rust: "rust",
+  java: "java",
+  ruby: "ruby",
+};
+
+interface TreeSitterNode {
+  type: string;
+  text: string;
+  parent: TreeSitterNode | null;
+  startPosition: { row: number; column: number };
+  endPosition: { row: number; column: number };
+  namedChildren: TreeSitterNode[];
+  childForFieldName(name: string): TreeSitterNode | null;
+  descendantsOfType(types: string[]): TreeSitterNode[];
+}
+
+interface TreeSitterTree {
+  rootNode: TreeSitterNode;
+  delete(): void;
+}
+
+interface TreeSitterParser {
+  parse(text: string): TreeSitterTree;
+}
+
+const treeSitterParsers = new Map<string, TreeSitterParser>();
+const treeSitterFailedLanguages = new Set<string>();
+// web-tree-sitter mutates its CommonJS export during init, so the pre-init
+// Parser class is cached once instead of re-required per language.
+let treeSitterRuntime: { new (): { setLanguage(grammar: unknown): void }; Language: { load(path: string): Promise<unknown> } } | null = null;
+
+export function treeSitterLanguagesForPaths(paths: string[]): string[] {
+  return [...new Set(paths.map((path) => codeLanguage(path)).filter((language) => language in TREE_SITTER_LANGUAGES))];
+}
+
+// web-tree-sitter only initializes asynchronously, so grammars are loaded here —
+// once per process, before any file loop — and per-file extraction stays
+// synchronous. A language whose grammar fails to load falls back to the regex
+// extractor instead of crashing or blocking.
+export async function ensureTreeSitterLanguages(languages: string[] = Object.keys(TREE_SITTER_LANGUAGES)): Promise<void> {
+  const wanted = languages.filter((language) => language in TREE_SITTER_LANGUAGES && !treeSitterParsers.has(language) && !treeSitterFailedLanguages.has(language));
+  if (!wanted.length) return;
+  if (!treeSitterRuntime) {
+    try {
+      const Parser = require("web-tree-sitter");
+      await Parser.init();
+      treeSitterRuntime = Parser;
+    } catch {
+      for (const language of wanted) treeSitterFailedLanguages.add(language);
+      return;
+    }
+  }
+  const runtime = treeSitterRuntime;
+  if (!runtime) return;
+  for (const language of wanted) {
+    try {
+      const grammar = await runtime.Language.load(require.resolve(`tree-sitter-wasms/out/tree-sitter-${TREE_SITTER_LANGUAGES[language]}.wasm`));
+      const parser = new runtime();
+      parser.setLanguage(grammar);
+      treeSitterParsers.set(language, parser as unknown as TreeSitterParser);
+    } catch {
+      treeSitterFailedLanguages.add(language);
+    }
+  }
+}
+
+function treeSitterParserFor(path: string): TreeSitterParser | null {
+  if (TS_AST_EXTENSIONS.has(extensionOf(path))) return null;
+  return treeSitterParsers.get(codeLanguage(path)) ?? null;
+}
+
+const TREE_SITTER_SYMBOL_NODE_TYPES: Record<string, string[]> = {
+  python: ["function_definition", "class_definition", "assignment"],
+  go: ["function_declaration", "method_declaration", "type_spec"],
+  rust: ["function_item", "function_signature_item", "struct_item", "enum_item", "trait_item"],
+  java: ["class_declaration", "interface_declaration", "enum_declaration", "method_declaration", "constructor_declaration"],
+  ruby: ["method", "singleton_method", "class", "module"],
+};
+
+const TREE_SITTER_CALL_NODE_TYPES: Record<string, string[]> = {
+  python: ["call"],
+  go: ["call_expression"],
+  rust: ["call_expression"],
+  java: ["method_invocation", "object_creation_expression"],
+  ruby: ["call"],
+};
+
+const TREE_SITTER_CLASS_ANCESTORS: Record<string, Set<string>> = {
+  python: new Set(["class_definition"]),
+  rust: new Set(["impl_item", "trait_item"]),
+  ruby: new Set(["class", "module"]),
+};
+
+function treeSitterHasClassAncestor(language: string, node: TreeSitterNode): boolean {
+  const types = TREE_SITTER_CLASS_ANCESTORS[language];
+  if (!types) return false;
+  for (let current = node.parent; current; current = current.parent) {
+    if (types.has(current.type)) return true;
+  }
+  return false;
+}
+
+function treeSitterSymbolFromNode(language: string, node: TreeSitterNode): { name: string; kind: CodeSymbolNode["kind"]; exported: boolean } | null {
+  if (language === "python") {
+    if (node.type === "assignment") {
+      const left = node.childForFieldName("left");
+      if (left?.type !== "identifier" || node.childForFieldName("right")?.type !== "lambda") return null;
+      return { name: left.text, kind: "function", exported: !left.text.startsWith("_") };
+    }
+    const name = node.childForFieldName("name")?.text;
+    if (!name) return null;
+    if (node.type === "class_definition") return { name, kind: "class", exported: !name.startsWith("_") };
+    return { name, kind: treeSitterHasClassAncestor(language, node) ? "method" : "function", exported: !name.startsWith("_") };
+  }
+  if (language === "go") {
+    const name = node.childForFieldName("name")?.text;
+    if (!name) return null;
+    const exported = /^[A-Z]/.test(name);
+    if (node.type === "method_declaration") return { name, kind: "method", exported };
+    if (node.type === "type_spec") {
+      const typeNode = node.childForFieldName("type");
+      if (typeNode?.type !== "struct_type" && typeNode?.type !== "interface_type") return null;
+      return { name, kind: "class", exported };
+    }
+    return { name, kind: "function", exported };
+  }
+  if (language === "rust") {
+    const name = node.childForFieldName("name")?.text;
+    if (!name) return null;
+    const exported = node.namedChildren.some((child) => child.type === "visibility_modifier");
+    if (node.type === "struct_item" || node.type === "enum_item" || node.type === "trait_item") return { name, kind: "class", exported };
+    return { name, kind: treeSitterHasClassAncestor(language, node) ? "method" : "function", exported };
+  }
+  if (language === "java") {
+    const name = node.childForFieldName("name")?.text;
+    if (!name) return null;
+    const exported = node.namedChildren.some((child) => child.type === "modifiers" && /\bpublic\b/.test(child.text));
+    if (node.type === "method_declaration" || node.type === "constructor_declaration") return { name, kind: "method", exported };
+    return { name, kind: "class", exported };
+  }
+  if (language === "ruby") {
+    const name = node.childForFieldName("name")?.text;
+    if (!name) return null;
+    if (node.type === "class" || node.type === "module") return { name, kind: "class", exported: true };
+    return { name, kind: treeSitterHasClassAncestor(language, node) ? "method" : "function", exported: !name.startsWith("_") };
+  }
+  return null;
+}
+
+function extractTreeSitterSymbols(path: string, text: string): CodeSymbolNode[] | null {
+  const parser = treeSitterParserFor(path);
+  if (!parser) return null;
+  const language = codeLanguage(path);
+  const fileKind = codeFileKind(path);
+  let tree: TreeSitterTree;
+  try {
+    tree = parser.parse(text);
+  } catch {
+    return null;
+  }
+  const symbols: CodeSymbolNode[] = [];
+  try {
+    for (const node of tree.rootNode.descendantsOfType(TREE_SITTER_SYMBOL_NODE_TYPES[language] ?? [])) {
+      const fact = treeSitterSymbolFromNode(language, node);
+      if (!fact) continue;
+      const kind = fact.kind !== "class" && fileKind === "test" && /^(test_|Test|it_|should_)/.test(fact.name) ? "test" : fact.kind;
+      const line = node.startPosition.row + 1;
+      symbols.push({
+        id: symbolId(path, fact.name, kind, line),
+        name: fact.name,
+        kind,
+        path,
+        language,
+        parser: "tree-sitter",
+        export: fact.exported,
+        line,
+        end_line: node.endPosition.row + 1,
+        signature: node.text.split("\n", 1)[0].trim().slice(0, 180),
+      });
+    }
+  } finally {
+    tree.delete();
+  }
+  return symbols.sort((a, b) => a.line - b.line || a.name.localeCompare(b.name));
+}
+
+function treeSitterCalleeName(language: string, node: TreeSitterNode): string | null {
+  if (language === "java") {
+    if (node.type === "object_creation_expression") return node.childForFieldName("type")?.text.split("<")[0].split(".").pop() ?? null;
+    return node.childForFieldName("name")?.text ?? null;
+  }
+  if (language === "ruby") {
+    const method = node.childForFieldName("method");
+    return method?.type === "identifier" ? method.text : null;
+  }
+  const callee = node.childForFieldName("function");
+  if (!callee) return null;
+  if (callee.type === "identifier") return callee.text;
+  if (callee.type === "attribute") return callee.childForFieldName("attribute")?.text ?? null;
+  if (callee.type === "selector_expression" || callee.type === "field_expression") return callee.childForFieldName("field")?.text ?? null;
+  if (callee.type === "scoped_identifier") return callee.childForFieldName("name")?.text ?? null;
+  return null;
+}
+
+function extractTreeSitterCalls(path: string, text: string, symbols: CodeSymbolNode[], symbolByName: Map<string, CodeSymbolNode[]>, context: CallResolutionContext = EMPTY_CALL_RESOLUTION): CodeCallEdge[] | null {
+  const parser = treeSitterParserFor(path);
+  if (!parser) return null;
+  const language = codeLanguage(path);
+  let tree: TreeSitterTree;
+  try {
+    tree = parser.parse(text);
+  } catch {
+    return null;
+  }
+  const calls: CodeCallEdge[] = [];
+  try {
+    for (const node of tree.rootNode.descendantsOfType(TREE_SITTER_CALL_NODE_TYPES[language] ?? [])) {
+      if (calls.length >= MAX_CODE_GRAPH_CALLS_PER_FILE) break;
+      const name = treeSitterCalleeName(language, node);
+      if (!name || !/^[A-Za-z_]\w*$/.test(name)) continue;
+      const line = node.startPosition.row + 1;
+      const targets = symbolByName.get(name)?.filter((target) => target.path !== path || target.line !== line);
+      if (!targets?.length) continue;
+      const caller = symbolAtLine(symbols, path, line);
+      for (const { target, confidence } of resolveCallTargets(name, path, targets, context, { local: 0.8, imported: 0.75, sameDir: 0.55, nameOnly: 0.32 })) {
+        if (calls.length >= MAX_CODE_GRAPH_CALLS_PER_FILE) break;
+        calls.push({
+          from_symbol: caller?.id ?? null,
+          to_symbol: target.id,
+          path,
+          line,
+          confidence,
+          resolution: "tree_sitter_name",
+        });
+      }
+    }
+  } finally {
+    tree.delete();
+  }
+  return calls.sort((a, b) => a.line - b.line || a.to_symbol.localeCompare(b.to_symbol));
+}
+
 function extractGenericSymbols(path: string, text: string): CodeSymbolNode[] {
   const symbols: CodeSymbolNode[] = [];
   const language = codeLanguage(path);
@@ -6050,7 +6304,7 @@ function normalizeCallConfidence(value: unknown, fallback: number): number {
 }
 
 function normalizeCallResolution(value: unknown, fallback: CodeCallEdge["resolution"]): CodeCallEdge["resolution"] {
-  return value === "typescript_ast_name" || value === "generic_static_name" || value === "external_index" ? value : fallback;
+  return value === "typescript_ast_name" || value === "tree_sitter_name" || value === "generic_static_name" || value === "external_index" ? value : fallback;
 }
 
 function normalizeCallEdge(call: CodeCallEdge | Record<string, unknown>, fallback: { confidence: number; resolution: CodeCallEdge["resolution"] }): CodeCallEdge | null {
@@ -6436,7 +6690,7 @@ function fileInputEntries(projectDir: string, paths: string[], kind: GraphInputE
 // Bump when call/route/test derivation logic changes so existing repos rebuild
 // their code graph on next index — otherwise builder fixes never reach users
 // whose files haven't changed.
-const CODE_GRAPH_BUILDER_VERSION = 2; // v2: import-aware call resolution
+const CODE_GRAPH_BUILDER_VERSION = 3; // v3: tree-sitter calls for python/go/rust/java/ruby
 
 function codeGraphBuilderVersionEntry(): GraphInputEntry {
   return { kind: "code_graph_builder", path: "kage", sha256: String(CODE_GRAPH_BUILDER_VERSION) };
@@ -6916,6 +7170,10 @@ export function buildCodeGraph(projectDir: string, options: { force?: boolean } 
 
   const externalFacts = loadExternalCodeFacts(projectDir);
   const fileByPath = new Map(files.map((file) => [file.path, file]));
+  for (const symbol of symbols) {
+    const file = fileByPath.get(symbol.path);
+    if (file) file.parser = strongerParser(file.parser, symbol.parser);
+  }
   const addSymbol = (symbol: CodeSymbolNode) => {
     if (!fileByPath.has(symbol.path)) return;
     const file = fileByPath.get(symbol.path);
@@ -6963,7 +7221,7 @@ export function buildCodeGraph(projectDir: string, options: { force?: boolean } 
     };
     const fileCalls = TS_AST_EXTENSIONS.has(extensionOf(rel))
       ? extractCalls(rel, content, fileSymbols, symbolByName, resolution)
-      : extractGenericCalls(rel, content, fileSymbols, symbolByName, resolution);
+      : extractTreeSitterCalls(rel, content, fileSymbols, symbolByName, resolution) ?? extractGenericCalls(rel, content, fileSymbols, symbolByName, resolution);
     calls.push(...fileCalls.slice(0, Math.max(0, MAX_CODE_GRAPH_CALLS - calls.length)));
     routes.push(...extractRoutes(rel, content, fileSymbols));
     tests.push(...extractTests(rel, content, fileSymbols, fileImports));

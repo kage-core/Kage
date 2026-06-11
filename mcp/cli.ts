@@ -26,6 +26,7 @@ import {
   createPublicCandidate,
   distillSession,
   doctorProject,
+  ensureTreeSitterLanguages,
   exportPublicBundle,
   graphMermaid,
   initProject,
@@ -273,6 +274,7 @@ async function main(): Promise<void> {
     console.log(args.includes("--all") ? FULL_USAGE : CORE_USAGE);
     return;
   }
+  await ensureTreeSitterLanguages();
 
   if (command === "index") {
     const result = indexProject(projectArg(args));
