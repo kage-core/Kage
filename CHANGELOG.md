@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.2.3 - scan ends where install begins
+
+- **Fix: scan's next steps stranded npx users.** The Truth Report ended by
+  telling users to run `kage init` — a binary npx users don't have, and the
+  wrong next step since `install` exists. Scan now bridges directly:
+  one install command, what happens after, and where the receipt shows up.
+
 ## v2.2.2 - the demo earns the click
 
 - **`kage demo` rebuilt as a live experiment.** The output now narrates what

@@ -11224,9 +11224,9 @@ export function truthReport(projectDir: string): TruthReport {
     findings,
     warnings,
     next_actions: [
-      "kage init --project <dir>     create repo memory so this knowledge stops living in one head",
-      "kage learn --project <dir> --learning \"...\" --paths <file>     capture what only your team knows",
-      "kage viewer --project <dir>     watch the void close",
+      "npx -y @kage-core/kage-graph-mcp install      one command: creates repo memory + wires your agents (Claude Code, Codex, Cursor, ...)",
+      "then just work — agents capture learnings and recall them, verified against this code",
+      "kage gains --project .      the receipt: what the memory loop saved you this week",
     ],
   };
 }
