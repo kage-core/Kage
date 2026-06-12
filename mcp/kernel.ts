@@ -554,7 +554,9 @@ export interface ResumeReport {
     unresolved_count: number;
     items: Array<{ packet_id: string; title: string }>;
   };
-  /** ≤15-line "previously…" block for SessionStart injection; empty when has_content is false. */
+  /** Newest-first compact index of recent memory packets (max 15). */
+  recent_memory: Array<{ id: string; type: MemoryType; title: string; updated_at: string; age: string }>;
+  /** "Previously…" block for SessionStart injection (≤15 session lines plus a compact recent-memory timeline, ≤800 estimated tokens total); empty when has_content is false. */
   context_block: string;
 }
 
@@ -2110,6 +2112,8 @@ export interface RefreshResult {
   ok: boolean;
   project_dir: string;
   generated_at: string;
+  /** True when this refresh ran on a non-default git branch without --force: staleness was computed in memory but metadata-only packet rewrites were not persisted. */
+  quiet_refresh: boolean;
   index: IndexResult;
   validation: ValidationResult;
   metrics: KageMetrics;
@@ -4461,6 +4465,27 @@ function safeReadText(path: string): string | null {
 
 function gitBranch(projectDir: string): string | null {
   return readGit(projectDir, ["branch", "--show-current"]) || readGit(projectDir, ["rev-parse", "--short", "HEAD"]);
+}
+
+function gitDefaultBranch(projectDir: string): string | null {
+  // Prefer the remote's view of the default branch (origin/HEAD), then fall
+  // back to whichever of master/main exists locally.
+  const originHead = readGit(projectDir, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]);
+  if (originHead) return originHead.replace(/^origin\//, "");
+  for (const candidate of ["master", "main"]) {
+    if (readGit(projectDir, ["rev-parse", "--verify", "--quiet", `refs/heads/${candidate}`]) !== null) return candidate;
+  }
+  return null;
+}
+
+// True only when we are confident the working tree is on a non-default branch.
+// Unknown states (not a git repo, detached HEAD, undeterminable default branch)
+// return false so refresh keeps its full-rewrite behavior.
+function onNonDefaultBranch(projectDir: string): boolean {
+  const current = readGit(projectDir, ["branch", "--show-current"]);
+  if (!current) return false;
+  const defaultBranch = gitDefaultBranch(projectDir);
+  return defaultBranch !== null && current !== defaultBranch;
 }
 
 function gitHead(projectDir: string): string | null {
@@ -8392,7 +8417,12 @@ function staleFinding(packet: MemoryPacket, reasons: string[]): StaleMemoryFindi
   };
 }
 
-function refreshPacketStaleness(projectDir: string): { findings: StaleMemoryFinding[]; updated: number } {
+// quiet: compute staleness fully (findings still drive recall withholding) but
+// skip pure-metadata rewrites (stale flags / updated_at recomputation) on disk.
+// Used on non-default git branches so concurrent branches stop conflicting on
+// cosmetic packet churn. Content changes (pruned grounding paths, i.e. the
+// citation set changed) are still persisted even in quiet mode.
+function refreshPacketStaleness(projectDir: string, options: { quiet?: boolean } = {}): { findings: StaleMemoryFinding[]; updated: number } {
   const findings: StaleMemoryFinding[] = [];
   let updated = 0;
   const fingerprintCache = new Map<string, MemoryPathFingerprint | null>();
@@ -8420,10 +8450,11 @@ function refreshPacketStaleness(projectDir: string): { findings: StaleMemoryFind
       nextQuality = rest;
     }
     const nextFreshness = oldFreshness;
-    const changed = pruned !== null
+    const contentChanged = pruned !== null;
+    const changed = contentChanged
       || JSON.stringify(oldQuality) !== JSON.stringify(nextQuality)
       || JSON.stringify(oldFreshness) !== JSON.stringify(nextFreshness);
-    if (changed) {
+    if (changed && (!options.quiet || contentChanged)) {
       writeJson(entry.path, {
         ...packet,
         freshness: nextFreshness,
@@ -8436,12 +8467,18 @@ function refreshPacketStaleness(projectDir: string): { findings: StaleMemoryFind
   return { findings, updated };
 }
 
-export function refreshProject(projectDir: string, options: { full?: boolean } = {}): RefreshResult {
+export function refreshProject(projectDir: string, options: { full?: boolean; force?: boolean } = {}): RefreshResult {
+  // Quiet-refresh on non-default branches: staleness is still computed (and
+  // recall withholding still works — it recomputes staleness in memory), but
+  // metadata-only packet rewrites are not persisted, so concurrent branches
+  // stop generating merge conflicts on .agent_memory/packets/*.json.
+  // --force restores full rewrites anywhere.
+  const quiet = !options.force && onNonDefaultBranch(projectDir);
   const detailedIndex = indexProjectDetailed(projectDir, { full: options.full });
   const index = detailedIndex.result;
   let codeGraph = detailedIndex.codeGraph;
   let knowledgeGraph = detailedIndex.knowledgeGraph;
-  const stale = refreshPacketStaleness(projectDir);
+  const stale = refreshPacketStaleness(projectDir, { quiet });
   let indexes = index.indexes;
   if (stale.updated > 0) {
     const rebuilt = buildGraphIndexes(projectDir, { forceCodeGraph: options.full });
@@ -8455,6 +8492,9 @@ export function refreshProject(projectDir: string, options: { full?: boolean } =
   writeJson(join(reportsDir(projectDir), "context-slots.json"), kageContextSlots(projectDir));
   writeJson(join(reportsDir(projectDir), "handoff.json"), kageMemoryHandoff(projectDir));
   const nextActions: string[] = [];
+  if (quiet && stale.findings.length) {
+    nextActions.push("Quiet refresh (non-default branch): stale flags were computed in memory but not written to packet files. Run `kage refresh --force` to persist them.");
+  }
   if (stale.findings.length) nextActions.push("Update, verify, or supersede stale repo memories before relying on them.");
   if (!validation.ok) nextActions.push("Fix validation errors before merging or sharing memory.");
   if (validation.warnings.length) nextActions.push("Review validation warnings for grounding, indexes, or generated artifacts.");
@@ -8464,6 +8504,7 @@ export function refreshProject(projectDir: string, options: { full?: boolean } =
     ok: validation.ok,
     project_dir: projectDir,
     generated_at: nowIso(),
+    quiet_refresh: quiet,
     index,
     validation,
     metrics,
@@ -16511,6 +16552,24 @@ export function distillSession(projectDir: string, sessionId: string, options: {
 
 // Session continuity: a compact "previously…" digest the SessionStart hook injects so a new
 // session starts with last session's context instead of cold. Empty when there is no prior data.
+function humanPacketAge(iso: string): string {
+  const then = Date.parse(iso);
+  if (!Number.isFinite(then)) return "age unknown";
+  const minutes = Math.max(0, Math.floor((Date.now() - then) / 60000));
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 60) return `${days}d ago`;
+  return `${Math.floor(days / 30)}mo ago`;
+}
+
+// Timeline-as-index: resume shows a compact one-line-per-packet index of recent
+// memory instead of full packets — the agent recalls details on demand.
+const RESUME_TIMELINE_LIMIT = 15;
+const RESUME_TIMELINE_DETAILED = 3;
+const RESUME_CONTEXT_TOKEN_BUDGET = 800;
+
 export function kageResume(projectDir: string): ResumeReport {
   ensureMemoryDirs(projectDir);
   const approved = loadApprovedPackets(projectDir);
@@ -16554,7 +16613,19 @@ export function kageResume(projectDir: string): ResumeReport {
   const reconciliation = kageMemoryReconciliation(projectDir, { limit: 5 });
   const reconciliationItems = reconciliation.items.map((item) => ({ packet_id: item.packet_id, title: item.title }));
 
-  const hasContent = Boolean(lastSession || lastChangeMemory || pendingAutoDistilled || reconciliation.unresolved_count);
+  const recentPackets = [...approved, ...pending]
+    .sort((a, b) => packetRecency(b).localeCompare(packetRecency(a)))
+    .slice(0, RESUME_TIMELINE_LIMIT);
+  const recentMemory = recentPackets.map((packet) => ({
+    id: packet.id,
+    type: packet.type,
+    title: packet.title,
+    updated_at: packetRecency(packet),
+    age: humanPacketAge(packetRecency(packet)),
+  }));
+
+  const hasSessionContent = Boolean(lastSession || lastChangeMemory || pendingAutoDistilled || reconciliation.unresolved_count);
+  const hasContent = hasSessionContent || recentMemory.length > 0;
   const lines: string[] = [];
   if (hasContent) {
     lines.push("# Previously (Kage)");
@@ -16576,6 +16647,22 @@ export function kageResume(projectDir: string): ResumeReport {
     }
   }
 
+  // Compact timeline index: one line per recent packet, full detail (summary)
+  // only for the newest few, hard-capped to the resume token budget.
+  const block = lines.slice(0, 15);
+  if (recentPackets.length) {
+    block.push("", "## Recent memory");
+    recentPackets.forEach((packet, position) => {
+      const entry = `[${packet.id.slice(0, 12)}] ${packet.type} ${packet.title} (${humanPacketAge(packetRecency(packet))})`;
+      const candidate = [entry];
+      if (position < RESUME_TIMELINE_DETAILED && packet.summary) {
+        const summary = packet.summary.replace(/\s+/g, " ").trim();
+        candidate.push(`    ${summary.length > 160 ? `${summary.slice(0, 157)}...` : summary}`);
+      }
+      if (estimateTokens([...block, ...candidate].join("\n")) <= RESUME_CONTEXT_TOKEN_BUDGET) block.push(...candidate);
+    });
+  }
+
   return {
     schema_version: 1,
     project_dir: projectDir,
@@ -16587,7 +16674,8 @@ export function kageResume(projectDir: string): ResumeReport {
     pending_total: pending.length,
     ...(pendingAutoDistilled ? { review_command: `kage review --project ${projectDir}` } : {}),
     reconciliation: { unresolved_count: reconciliation.unresolved_count, items: reconciliationItems },
-    context_block: lines.slice(0, 15).join("\n"),
+    recent_memory: recentMemory,
+    context_block: block.join("\n"),
   };
 }
 
@@ -17530,19 +17618,22 @@ function installClaudeSettings(projectDir: string): void {
 export function initProject(
   projectDir: string,
   options: { policy?: boolean } = {},
-): { index: IndexResult; validation: ValidationResult; sampleRecall: RecallResult; policyInstalled: boolean } {
-  // Default init touches ONLY .agent_memory/. Agent-policy files (AGENTS.md,
-  // CLAUDE.md) and .claude/settings.json are repo-visible and reviewable, so
-  // writing them requires explicit opt-in (`kage init --with-policy` or `kage policy`).
+): { index: IndexResult; validation: ValidationResult; sampleRecall: RecallResult; policyInstalled: boolean; gitAttributes: { path: string; changed: boolean } } {
+  // Default init touches ONLY .agent_memory/ plus a one-line .gitattributes
+  // entry wiring the kage-packet merge driver (idempotent; ends hand-resolved
+  // packet JSON conflicts). Agent-policy files (AGENTS.md, CLAUDE.md) and
+  // .claude/settings.json are repo-visible and reviewable, so writing them
+  // requires explicit opt-in (`kage init --with-policy` or `kage policy`).
   const policyInstalled = options.policy === true;
   if (policyInstalled) {
     installAgentPolicy(projectDir);
     installClaudeSettings(projectDir);
   }
+  const gitAttributes = ensurePacketMergeAttributes(projectDir);
   const index = indexProject(projectDir, { graphs: false });
   const validation = validateProject(projectDir);
   const sampleRecall = recallFromPackets("how do I run tests", loadApprovedPackets(projectDir), 5, "Repo Memory");
-  return { index, validation, sampleRecall, policyInstalled };
+  return { index, validation, sampleRecall, policyInstalled, gitAttributes };
 }
 
 export function doctorProject(projectDir: string): DoctorResult {
@@ -17642,6 +17733,87 @@ function resolveConflictedPacket(content: string): MemoryPacket | null {
   if (!candidates.length) return null;
   candidates.sort((a, b) => packetRecency(b).localeCompare(packetRecency(a)));
   return candidates[0];
+}
+
+// ---------------------------------------------------------------------------
+// Packet merge driver. `kage merge-packet <ours> <base> <theirs>` follows the
+// git merge-driver convention (%A %O %B: write the result to the ours path,
+// exit 0 on success, non-zero to leave the conflict). v1 policy is whole-file
+// newest-wins by updated_at — packets are single facts, so field-level merges
+// buy little over taking the most recently verified side.
+
+export const PACKET_MERGE_ATTRIBUTE_LINE = ".agent_memory/packets/*.json merge=kage-packet";
+export const PACKET_MERGE_DRIVER_CONFIG =
+  'git config merge.kage-packet.driver "npx -y @kage-core/kage-graph-mcp merge-packet %A %O %B"';
+
+export interface MergePacketResult {
+  ok: boolean;
+  winner: "ours" | "theirs" | null;
+  detail: string;
+}
+
+export function mergePacketFiles(oursPath: string, basePath: string, theirsPath: string): MergePacketResult {
+  void basePath; // Reserved for a future field-level three-way merge.
+  const readSide = (path: string): { raw: string; packet: Partial<MemoryPacket> } | null => {
+    const raw = safeReadText(path);
+    if (raw === null) return null;
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return { raw, packet: parsed as Partial<MemoryPacket> };
+      }
+    } catch {
+      // A side that carries committed conflict markers (the exact failure mode
+      // this driver exists to end) can often be recovered with repair's
+      // conflict-splitting logic before giving up on it.
+      const recovered = resolveConflictedPacket(raw);
+      if (recovered) return { raw: `${JSON.stringify(recovered, null, 2)}\n`, packet: recovered };
+    }
+    return null;
+  };
+  const ours = readSide(oursPath);
+  const theirs = readSide(theirsPath);
+  if (!ours && !theirs) {
+    return { ok: false, winner: null, detail: "kage merge-packet: neither side parses as packet JSON; leaving the conflict for manual resolution." };
+  }
+  let winner: "ours" | "theirs";
+  if (ours && theirs) {
+    winner = packetRecency(theirs.packet).localeCompare(packetRecency(ours.packet)) > 0 ? "theirs" : "ours";
+  } else {
+    winner = ours ? "ours" : "theirs";
+  }
+  const winning = winner === "ours" ? ours! : theirs!;
+  try {
+    writeFileSync(oursPath, winning.raw, "utf8");
+  } catch (error) {
+    return { ok: false, winner: null, detail: `kage merge-packet: failed to write merge result: ${error instanceof Error ? error.message : String(error)}` };
+  }
+  const recency = packetRecency(winning.packet);
+  return {
+    ok: true,
+    winner,
+    detail: `kage merge-packet: kept ${winner} side (newest updated_at${recency ? ` ${recency}` : ""}).`,
+  };
+}
+
+// Idempotently wire .gitattributes so packet JSON uses the kage-packet merge
+// driver. Re-runs never duplicate the line; a stale driver value on the same
+// pattern is replaced in place.
+export function ensurePacketMergeAttributes(projectDir: string): { path: string; changed: boolean } {
+  const path = join(projectDir, ".gitattributes");
+  const existing = safeReadText(path) ?? "";
+  const lines = existing.split(/\r?\n/);
+  const pattern = /^\.agent_memory\/packets\/\*\.json\s+merge=/;
+  const index = lines.findIndex((line) => pattern.test(line.trim()));
+  if (index !== -1) {
+    if (lines[index].trim() === PACKET_MERGE_ATTRIBUTE_LINE) return { path, changed: false };
+    lines[index] = PACKET_MERGE_ATTRIBUTE_LINE;
+    writeFileSync(path, `${lines.join("\n").replace(/\n+$/, "")}\n`, "utf8");
+    return { path, changed: true };
+  }
+  const prefix = existing.length ? (existing.endsWith("\n") ? existing : `${existing}\n`) : "";
+  writeFileSync(path, `${prefix}${PACKET_MERGE_ATTRIBUTE_LINE}\n`, "utf8");
+  return { path, changed: true };
 }
 
 export function repairProject(projectDir: string, options: { homeDir?: string; serverPath?: string } = {}): RepairResult {

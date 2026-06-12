@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+- **Quiet refresh on non-default branches.** `kage refresh` (and `kage_refresh`)
+  no longer persists metadata-only packet rewrites (stale flags, `updated_at`,
+  fingerprint recomputation) when the current git branch is not the default
+  branch (detected via `origin/HEAD`, falling back to local `master`/`main`).
+  Staleness is still computed in memory — stale findings are reported and
+  recall withholding keeps working — but unchanged packets stay byte-identical
+  on disk, so concurrent branches stop conflicting on
+  `.agent_memory/packets/*.json`. Content changes (e.g. pruned grounding
+  paths) are still written, and `--force` restores full rewrites anywhere.
+  Refresh results now include `quiet_refresh`.
+- **`kage merge-packet <ours> <base> <theirs>` git merge driver.** Resolves
+  packet JSON conflicts automatically using the git merge-driver convention
+  (`%A %O %B`: result written to the ours path, exit 0 on success, exit 1 to
+  leave the conflict). v1 policy is whole-file newest-wins by `updated_at`,
+  reusing repair's conflict resolution; sides that carry committed conflict
+  markers are recovered via the same splitter, and garbage input exits 1.
+  `kage init` and `kage install` now write an idempotent `.gitattributes`
+  entry (`.agent_memory/packets/*.json merge=kage-packet`) and print the
+  one-liner to enable it per clone:
+  `git config merge.kage-packet.driver "npx -y @kage-core/kage-graph-mcp merge-packet %A %O %B"`.
+- **Timeline-as-index in `kage resume`.** Resume output now ends with a
+  "Recent memory" section: one compact line per recent packet
+  (`[id-prefix] type title (age)`) for the newest 15 packets, summaries only
+  for the newest 3, hard-capped at ~800 estimated tokens. The structured
+  report gains a `recent_memory` array. Shown only when packets exist.
+- **`kage_workflow` MCP pseudo-tool.** A no-op tool whose description (and
+  response) teaches the kage loop — kage_context first, work, kage_learn for
+  reusables, kage_refresh after file changes, kage_pr_check before finishing —
+  plus `<private>` tags and recall-receipt savings, so agents learn the
+  workflow just by listing tools.
+
 - **`kage audit-claude-mem` — truth report over a claude-mem store.** One
   read-only command that audits an existing claude-mem user's memory
   (`~/.claude-mem/claude-mem.db`, or `--store <path>`) against the current

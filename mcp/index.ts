@@ -183,6 +183,17 @@ const server = new Server(
   { capabilities: { tools: {} } }
 );
 
+// Workflow pseudo-tool: the description itself is the documentation, so agents
+// absorb the loop just by listing tools. The handler returns the same text.
+const KAGE_WORKFLOW_TEXT =
+  "Kage memory workflow (this tool performs no action; it returns this loop). " +
+  "1) Start every task with kage_context (project_dir + the task as query): it validates memory, recalls relevant packets, and queries the code and knowledge graphs in one call. " +
+  "2) Do the work, preferring repo memory over public context. " +
+  "3) Capture reusable learnings with kage_learn — bug causes and verified fixes, conventions, decisions, gotchas, run/test/build commands. Wrap anything that must never leave the repo in <private>...</private> tags; private spans are stripped before sharing. " +
+  "4) After meaningful file changes, call kage_refresh so indexes, graphs, and stale-memory checks stay current. " +
+  "5) Before finishing a branch, call kage_pr_summarize then kage_pr_check. " +
+  "Recall receipts show estimated tokens saved versus rediscovery; report memory quality with kage_feedback (helpful/wrong/stale).";
+
 export function listTools() {
   return [
     {
@@ -596,13 +607,23 @@ export function listTools() {
     {
       name: "kage_refresh",
       description:
-        "Rebuild repo indexes, code graph, memory graph, metrics, and stale-memory metadata. Agents should run this after meaningful file/content changes before PR checks; push-only or same-tree commits do not need another refresh.",
+        "Rebuild repo indexes, code graph, memory graph, metrics, and stale-memory metadata. Agents should run this after meaningful file/content changes before PR checks; push-only or same-tree commits do not need another refresh. On non-default git branches metadata-only packet rewrites are skipped (quiet refresh) to avoid merge conflicts; pass force to persist them anyway.",
       inputSchema: {
         type: "object",
         properties: {
           project_dir: { type: "string" },
+          force: { type: "boolean", description: "Persist packet metadata rewrites even on a non-default branch" },
         },
         required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_workflow",
+      description: KAGE_WORKFLOW_TEXT,
+      inputSchema: {
+        type: "object",
+        properties: {},
+        required: [],
       },
     },
     {
@@ -1491,10 +1512,16 @@ export async function callTool(name: string, args: Record<string, unknown> | und
   }
 
   if (name === "kage_refresh") {
-    const result = refreshProject(String(args?.project_dir ?? ""), { full: Boolean(args?.full) });
+    const result = refreshProject(String(args?.project_dir ?? ""), { full: Boolean(args?.full), force: Boolean(args?.force) });
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       isError: !result.ok,
+    };
+  }
+
+  if (name === "kage_workflow") {
+    return {
+      content: [{ type: "text", text: KAGE_WORKFLOW_TEXT }],
     };
   }
 

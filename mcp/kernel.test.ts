@@ -78,6 +78,9 @@ import {
   loadApprovedPackets,
   loadPendingPackets,
   memoryInbox,
+  mergePacketFiles,
+  ensurePacketMergeAttributes,
+  PACKET_MERGE_ATTRIBUTE_LINE,
   observe,
   observationsDir,
   packetsDir,
@@ -2416,7 +2419,10 @@ test("resume prints a previously block with prior session data and stays silent 
   assert.match(result.context_block, /Last session resume-session/);
   assert.match(result.context_block, /auto-distilled draft/);
   assert.match(result.context_block, /kage review --project/);
-  assert.equal(result.context_block.split("\n").length <= 15, true);
+  // Session section stays capped at 15 lines; the recent-memory timeline follows it.
+  const sessionSection = result.context_block.split("## Recent memory")[0];
+  assert.equal(sessionSection.trimEnd().split("\n").length <= 15, true);
+  assert.match(result.context_block, /## Recent memory/);
 });
 
 test("session capture report shows distillable observations without raw replay", () => {
@@ -4682,4 +4688,172 @@ test("remediationFor maps error text to one copy-pasteable command", () => {
   assert.equal(remediationFor(new Error("code graph artifact missing; rebuild required")), "kage index --project .");
   assert.equal(remediationFor(new Error("kaboom")), "kage doctor --project .");
   assert.equal(remediationFor("plain string failure"), "kage doctor --project .");
+});
+
+// ---------------------------------------------------------------------------
+// Quiet refresh on branches, packet merge driver, resume timeline.
+
+function seedGitProjectWithPacket(branch: string): { project: string; packetPath: string; packetId: string } {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  execFileSync("git", ["symbolic-ref", "HEAD", `refs/heads/${branch}`], { cwd: project, stdio: "ignore" });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "node --test" } }), "utf8");
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "server.ts"), "export function createApp() { return {}; }\n", "utf8");
+  const captured = capture({
+    projectDir: project,
+    title: "Server setup convention",
+    body: "createApp owns middleware setup. Verified by: npm test",
+    type: "decision",
+    paths: ["src/server.ts"],
+  });
+  assert.equal(captured.ok, true);
+  commitAll(project, "seed");
+  return { project, packetPath: captured.path!, packetId: captured.packet!.id };
+}
+
+test("refresh on a non-default branch skips metadata-only packet rewrites but still reports staleness", () => {
+  const { project, packetPath, packetId } = seedGitProjectWithPacket("main");
+  execFileSync("git", ["checkout", "-b", "feature/quiet"], { cwd: project, stdio: "ignore" });
+  // Invalidate the packet's citation so staleness must be detected.
+  writeFileSync(join(project, "src", "server.ts"), "export function createApp() { return { changed: true }; }\n", "utf8");
+  const before = readFileSync(packetPath, "utf8");
+
+  const result = refreshProject(project);
+  assert.equal(result.quiet_refresh, true);
+  // Staleness still computed (recall withholding keeps working on branches)...
+  assert.equal(result.stale_packets.some((finding) => finding.id === packetId), true);
+  // ...but the packet file stays byte-identical: no cosmetic rewrite on a branch.
+  assert.equal(readFileSync(packetPath, "utf8"), before);
+
+  // --force persists the stale flag even on a non-default branch.
+  const forced = refreshProject(project, { force: true });
+  assert.equal(forced.quiet_refresh, false);
+  const rewritten = JSON.parse(readFileSync(packetPath, "utf8"));
+  assert.equal(rewritten.quality.stale, true);
+});
+
+test("refresh on the default branch persists stale metadata to disk", () => {
+  const { project, packetPath, packetId } = seedGitProjectWithPacket("main");
+  writeFileSync(join(project, "src", "server.ts"), "export function createApp() { return { changed: true }; }\n", "utf8");
+
+  const result = refreshProject(project);
+  assert.equal(result.quiet_refresh, false);
+  assert.equal(result.stale_packets.some((finding) => finding.id === packetId), true);
+  const rewritten = JSON.parse(readFileSync(packetPath, "utf8"));
+  assert.equal(rewritten.quality.stale, true);
+});
+
+test("merge-packet keeps the newest side whole-file and rejects garbage", () => {
+  const dir = mkdtempSync(join(tmpdir(), "kage-merge-"));
+  const basePacket = { id: "gotcha-merge-1", title: "base", updated_at: "2026-01-01T00:00:00.000Z" };
+  const oursPath = join(dir, "ours.json");
+  const basePath = join(dir, "base.json");
+  const theirsPath = join(dir, "theirs.json");
+  writeFileSync(basePath, JSON.stringify(basePacket, null, 2), "utf8");
+  writeFileSync(oursPath, JSON.stringify({ ...basePacket, title: "ours", updated_at: "2026-02-01T00:00:00.000Z" }, null, 2), "utf8");
+  writeFileSync(theirsPath, JSON.stringify({ ...basePacket, title: "theirs", updated_at: "2026-03-01T00:00:00.000Z" }, null, 2), "utf8");
+
+  const result = mergePacketFiles(oursPath, basePath, theirsPath);
+  assert.equal(result.ok, true);
+  assert.equal(result.winner, "theirs");
+  const merged = JSON.parse(readFileSync(oursPath, "utf8"));
+  assert.equal(merged.title, "theirs");
+
+  // Newest on the ours side wins symmetrically.
+  writeFileSync(oursPath, JSON.stringify({ ...basePacket, title: "ours-newest", updated_at: "2099-01-01T00:00:00.000Z" }, null, 2), "utf8");
+  const oursWins = mergePacketFiles(oursPath, basePath, theirsPath);
+  assert.equal(oursWins.ok, true);
+  assert.equal(oursWins.winner, "ours");
+  assert.equal(JSON.parse(readFileSync(oursPath, "utf8")).title, "ours-newest");
+
+  // Garbage on both sides → conflict left for manual resolution.
+  writeFileSync(oursPath, "definitely not json", "utf8");
+  writeFileSync(theirsPath, "<<<<<<< unbalanced marker soup", "utf8");
+  const garbage = mergePacketFiles(oursPath, basePath, theirsPath);
+  assert.equal(garbage.ok, false);
+});
+
+test("kage merge-packet CLI follows the git merge-driver exit convention", () => {
+  const dir = mkdtempSync(join(tmpdir(), "kage-merge-cli-"));
+  const basePacket = { id: "gotcha-merge-2", title: "base", updated_at: "2026-01-01T00:00:00.000Z" };
+  const oursPath = join(dir, "ours.json");
+  const basePath = join(dir, "base.json");
+  const theirsPath = join(dir, "theirs.json");
+  writeFileSync(basePath, JSON.stringify(basePacket, null, 2), "utf8");
+  writeFileSync(oursPath, JSON.stringify({ ...basePacket, title: "ours", updated_at: "2026-02-01T00:00:00.000Z" }, null, 2), "utf8");
+  writeFileSync(theirsPath, JSON.stringify({ ...basePacket, title: "theirs", updated_at: "2026-03-01T00:00:00.000Z" }, null, 2), "utf8");
+  const cli = join(__dirname, "cli.js");
+
+  const okRun = spawnSync(process.execPath, [cli, "merge-packet", oursPath, basePath, theirsPath]);
+  assert.equal(okRun.status, 0);
+  assert.equal(JSON.parse(readFileSync(oursPath, "utf8")).title, "theirs");
+
+  writeFileSync(oursPath, "garbage", "utf8");
+  writeFileSync(theirsPath, "garbage", "utf8");
+  const conflict = spawnSync(process.execPath, [cli, "merge-packet", oursPath, basePath, theirsPath]);
+  assert.equal(conflict.status, 1);
+});
+
+test("packet merge gitattributes entry is idempotent and preserves existing content", () => {
+  const project = tempProject();
+  writeFileSync(join(project, ".gitattributes"), "*.png binary\n", "utf8");
+  const first = ensurePacketMergeAttributes(project);
+  assert.equal(first.changed, true);
+  const second = ensurePacketMergeAttributes(project);
+  assert.equal(second.changed, false);
+  // init re-runs through the same helper without duplicating the line.
+  initProject(project);
+  initProject(project);
+  const content = readFileSync(join(project, ".gitattributes"), "utf8");
+  assert.equal(content.includes("*.png binary"), true);
+  assert.equal(content.split("\n").filter((line) => line.trim() === PACKET_MERGE_ATTRIBUTE_LINE).length, 1);
+
+  // A stale driver value on the same pattern is replaced in place, never duplicated.
+  writeFileSync(join(project, ".gitattributes"), ".agent_memory/packets/*.json merge=old-driver\n", "utf8");
+  const replaced = ensurePacketMergeAttributes(project);
+  assert.equal(replaced.changed, true);
+  const updated = readFileSync(join(project, ".gitattributes"), "utf8");
+  const packetLines = updated.split("\n").filter((line) => line.includes(".agent_memory/packets/*.json"));
+  assert.deepEqual(packetLines, [PACKET_MERGE_ATTRIBUTE_LINE]);
+});
+
+test("resume timeline indexes at most 15 recent packets within the token budget", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "app.ts"), "export const app = 1;\n", "utf8");
+  const captured = capture({
+    projectDir: project,
+    title: "Timeline seed packet",
+    body: "App entry lives in src/app.ts. Verified by: reading the file.",
+    type: "reference",
+    paths: ["src/app.ts"],
+  });
+  assert.equal(captured.ok, true);
+  const template = JSON.parse(readFileSync(captured.path!, "utf8"));
+  for (let i = 0; i < 19; i += 1) {
+    const clone = {
+      ...template,
+      id: `reference-timeline-${i}`,
+      title: `Timeline packet ${i}`,
+      summary: `Summary for timeline packet ${i}.`,
+      updated_at: new Date(Date.parse(template.updated_at) - (i + 1) * 60000).toISOString(),
+    };
+    writeFileSync(join(packetsDir(project), `reference-timeline-${i}.json`), JSON.stringify(clone, null, 2), "utf8");
+  }
+
+  const result = kageResume(project);
+  assert.equal(result.has_content, true);
+  // 20 packets exist; the timeline indexes only the newest 15.
+  assert.equal(result.recent_memory.length, 15);
+  assert.equal(result.recent_memory[0].id, template.id);
+  assert.match(result.context_block, /## Recent memory/);
+  const entryLines = result.context_block.split("\n").filter((line) => /^\[[^\]]+\] /.test(line));
+  assert.equal(entryLines.length <= 15, true);
+  // Entry format: [id-prefix] type title (age)
+  assert.match(entryLines[0], /^\[[^\]]{1,12}\] reference Timeline seed packet \(.+\)$/);
+  // Full detail (summary line) only for the newest entries.
+  assert.match(result.context_block, /App entry lives in src\/app\.ts|Summary for timeline packet/);
+  // Token budget: ~4 chars per estimated token, capped at 800.
+  assert.equal(Math.ceil(result.context_block.length / 4) <= 800, true);
 });
