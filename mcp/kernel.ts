@@ -189,6 +189,9 @@ export interface RecallResult {
   // of the served packets' discovery_tokens), plus how many stale packets were
   // withheld. replay_tokens is present when served packets carried discovery costs.
   value_receipt?: { tokens_saved: number; stale_withheld: number; replay_tokens?: number };
+  // Personal-memory section (~/.kage/memory): kept OUT of `results` so repo flows
+  // (pr-check, stale-catch, refresh, access tracking) never see personal packets.
+  personal?: PersonalRecallEntry[];
 }
 
 export interface RecallScoreBreakdown {
@@ -9660,6 +9663,11 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
       return true;
     })
     .slice(0, 3);
+  // Personal memory (~/.kage/memory): a clearly separated, lower-trust section
+  // appended AFTER every repo section — repo memory always ranks first. Cited
+  // personal packets are re-verified against this checkout (hard-stale ones are
+  // withheld, same as repo memory); citation-free ones are labeled unverifiable.
+  const personalEntries = personalRecallEntries(projectDir, terms, 3);
   const graphContext = queryGraph(projectDir, query, 5, knowledgeGraph);
   const codeContext = queryCodeGraph(projectDir, query, 5, codeGraph);
   const pinnedContext = renderPinnedRepoContext(readContextSlots(projectDir));
@@ -9714,6 +9722,20 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
     ...(suppressed.length
       ? ["", `_${suppressed.length} stale memory packet(s) excluded from recall. Run kage verify for details._`]
       : []),
+    ...(personalEntries.length
+      ? [
+          "",
+          "## Personal Memory",
+          "_Cross-machine personal store (~/.kage/memory). Lower trust than repo memory: not repo-reviewed — verify before relying on it. Repo memory above takes precedence on conflict._",
+          ...personalEntries.flatMap((entry, index) => [
+            "",
+            `${index + 1}. [personal] [${entry.packet.type} | confidence ${entry.packet.confidence.toFixed(2)}] ${entry.packet.title}`,
+            `   [personal] Summary: ${entry.packet.summary}`,
+            `   [personal] Why matched: ${entry.why_matched.join(", ") || "text relevance"}`,
+            `   [personal] Verification: ${entry.unverifiable ? "unverifiable (citation-free personal note)" : "citations re-verified against this checkout"}`,
+          ]),
+        ]
+      : []),
   ];
 
   const assembledBlock = lines.join("\n");
@@ -9722,6 +9744,7 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
     context_block: inputs.maxContextTokens ? boundContextBlock(assembledBlock, inputs.maxContextTokens) : assembledBlock,
     results: scored,
     suppressed: suppressed.length ? suppressed : undefined,
+    personal: personalEntries.length ? personalEntries : undefined,
     explanations: explain
       ? scored.map((entry) => ({
           packet_id: entry.packet.id,
@@ -15005,6 +15028,21 @@ export function learn(input: LearnInput): LearnResult {
     input.verifiedBy ? `\nVerified by: ${input.verifiedBy.trim()}` : "",
   ].join("").trim();
 
+  // Strict (agent/CLI) repo learnings must be grounded: a learning with no cited
+  // paths at all is rejected. Citation-free notes are allowed only in the
+  // personal store (`kage learn --personal` / learnPersonal), where recall
+  // labels them unverifiable instead of trusting them as repo facts.
+  if (input.strictCitations && !(input.paths ?? []).filter(Boolean).length && !input.allowMissingPaths) {
+    return {
+      ok: false,
+      errors: [
+        "Citation required: repo learnings must cite at least one path (--paths) so the memory stays verifiable. " +
+          "Pass allow_missing_paths for a file you are about to create, or use kage learn --personal for a cross-repo, citation-free personal note.",
+      ],
+      warnings: [],
+    };
+  }
+
   return capture({
     projectDir: input.projectDir,
     title,
@@ -18384,4 +18422,589 @@ export function kageMemoryTimeline(projectDir: string, days = 14): MemoryTimelin
     entries,
     recommendations,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Personal memory (~/.kage/memory) + kage sync — cross-machine continuity
+// (docs/CLOUD.md v1). Repo memory follows the repo through git; personal
+// memory follows the PERSON: packets live in the user's home store and sync
+// through the user's own private git remote. Trust rules stay structural:
+// personal packets may cite the current project's files (validated and
+// fingerprinted exactly like repo memory, re-verified against the local
+// checkout on every recall, in any clone) or carry no citations at all —
+// allowed ONLY here, and labeled unverifiable on recall. Personal packets
+// never enter repo flows (pr-check, stale-catch, refresh, access tracking).
+// ---------------------------------------------------------------------------
+
+export function kageHomeDir(): string {
+  const override = process.env.KAGE_HOME?.trim();
+  return override ? resolve(override) : join(homedir(), ".kage");
+}
+
+export function personalMemoryDir(): string {
+  return join(kageHomeDir(), "memory");
+}
+
+export function personalPacketsDir(): string {
+  return join(personalMemoryDir(), "packets");
+}
+
+export function personalConflictsDir(): string {
+  return join(personalMemoryDir(), "conflicts");
+}
+
+export function loadPersonalPackets(): MemoryPacket[] {
+  return loadPacketsFromDir(personalPacketsDir()).filter((packet) => packet.status === "approved");
+}
+
+function makePersonalPacketId(type: MemoryType, title: string, suffix: string): string {
+  return `personal:${type}:${slugify(`${title}-${suffix}`)}`;
+}
+
+export function learnPersonal(input: LearnInput): LearnResult {
+  // Same privacy guarantee as repo learn: <private> spans never reach disk.
+  input = {
+    ...input,
+    learning: stripPrivateSpans(input.learning),
+    title: input.title === undefined ? undefined : stripPrivateSpans(input.title),
+    evidence: input.evidence === undefined ? undefined : stripPrivateSpans(input.evidence),
+    verifiedBy: input.verifiedBy === undefined ? undefined : stripPrivateSpans(input.verifiedBy),
+  };
+  const type = inferLearningType(input);
+  const title = input.title?.trim() || titleFromLearning(input.learning);
+  const body = [
+    input.learning.trim(),
+    input.evidence ? `\nEvidence: ${input.evidence.trim()}` : "",
+    input.verifiedBy ? `\nVerified by: ${input.verifiedBy.trim()}` : "",
+  ].join("").trim();
+  return capturePersonal({
+    projectDir: input.projectDir,
+    title,
+    summary: summarize(input.learning),
+    body,
+    type,
+    tags: unique(["personal", ...(input.tags ?? [])]),
+    paths: input.paths,
+    stack: input.stack,
+    context: input.context,
+    allowMissingPaths: input.allowMissingPaths,
+    discoveryTokens: input.discoveryTokens,
+  });
+}
+
+export function capturePersonal(input: CaptureInput): CaptureResult {
+  input = {
+    ...input,
+    title: stripPrivateSpans(input.title),
+    summary: input.summary === undefined ? undefined : stripPrivateSpans(input.summary),
+    body: stripPrivateSpans(input.body),
+    context: input.context ? stripPrivateFromContext(input.context) : input.context,
+  };
+  const type = input.type ?? "reference";
+  if (!MEMORY_TYPES.includes(type)) {
+    return { ok: false, errors: [`Invalid memory type: ${type}`] };
+  }
+  // Personal memory syncs to a remote, so the secret scan matters MORE here, not less.
+  const scanFindings = scanSensitiveText([input.title, input.summary ?? "", input.body].join("\n"));
+  if (scanFindings.length) {
+    return { ok: false, errors: [`Sensitive content blocked: ${unique(scanFindings).join(", ")}`] };
+  }
+
+  const warnings: string[] = [];
+  const citedPaths = (input.paths ?? []).filter((path) => path && !isGroundingIgnored(input.projectDir, path));
+  const meaningfulPaths = citedPaths.filter((path) => meaningfulMemoryPath(path) && !shouldSkipRepoMemoryPath(path));
+  const missingPaths = meaningfulPaths.filter((path) => !pathExistsInRepo(input.projectDir, path));
+  // Cited personal packets follow the SAME write-time rule as repo memory: a packet
+  // whose every cited path is missing from the current project is a hallucinated
+  // citation and is rejected. The citation-FREE case below is the only personal escape.
+  if (meaningfulPaths.length && missingPaths.length === meaningfulPaths.length && !input.allowMissingPaths) {
+    return {
+      ok: false,
+      errors: [
+        `Citation validation failed: none of the referenced paths exist in this project: ${missingPaths.join(", ")}. ` +
+          `Fix the paths, drop them for a citation-free personal note, or pass allow_missing_paths.`,
+      ],
+      warnings: [],
+    };
+  }
+  if (missingPaths.length) {
+    warnings.push(`Some referenced paths do not exist in this project: ${missingPaths.join(", ")}`);
+  }
+
+  const createdAt = nowIso();
+  const fingerprints = memoryPathFingerprints(input.projectDir, citedPaths);
+  // Citation-free personal packets are allowed but structurally second-class:
+  // marked unverifiable at write time so recall can label them as such.
+  const unverifiable = fingerprints.length === 0;
+  if (unverifiable) {
+    warnings.push("Personal packet has no verifiable citations; recall will label it unverifiable.");
+  }
+  const packet: MemoryPacket = {
+    schema_version: PACKET_SCHEMA_VERSION,
+    id: makePersonalPacketId(type, input.title, String(Date.now())),
+    title: input.title.trim(),
+    summary: (input.summary?.trim() || summarize(input.body)),
+    body: input.body.trim(),
+    type,
+    scope: "personal",
+    visibility: "private",
+    sensitivity: "internal",
+    status: "approved",
+    confidence: DEFAULT_CONFIDENCE,
+    tags: input.tags ?? [],
+    paths: citedPaths,
+    stack: input.stack ?? [],
+    source_refs: [
+      {
+        kind: "personal_capture",
+        captured_at: createdAt,
+        project: repoDisplayName(input.projectDir),
+      },
+    ],
+    context: inferEngineeringContext({ title: input.title, body: input.body, context: input.context }),
+    freshness: {
+      ttl_days: 365,
+      last_verified_at: createdAt,
+      path_fingerprints: fingerprints,
+      path_fingerprint_policy: "source_hash_staleness",
+      verification: unverifiable ? "unverifiable_personal" : "personal_capture_cited",
+    },
+    edges: [],
+    quality: {
+      reviewer: "personal",
+      votes_up: 0,
+      votes_down: 0,
+      uses_30d: 0,
+      reports_stale: 0,
+      unverifiable,
+      review_boundary: "personal_store",
+      promotion_requires_review: true,
+      ...(Number.isFinite(Number(input.discoveryTokens)) && Number(input.discoveryTokens) > 0
+        ? { discovery_tokens: Math.floor(Number(input.discoveryTokens)), discovery_tokens_estimated: false }
+        : { discovery_tokens: defaultDiscoveryTokens(type), discovery_tokens_estimated: true }),
+    },
+    created_at: createdAt,
+    updated_at: createdAt,
+    author_branch: null,
+  };
+
+  const validation = validatePacket(packet);
+  if (!validation.ok) return { ok: false, errors: validation.errors, warnings };
+  ensureDir(personalPacketsDir());
+  const path = join(personalPacketsDir(), packetFileName(packet));
+  writeJson(path, packet);
+  return { ok: true, packet, path, errors: [], warnings };
+}
+
+export interface PersonalRecallEntry {
+  packet: MemoryPacket;
+  score: number;
+  why_matched: string[];
+  /** True when the packet carries no verifiable citations (citation-free personal note). */
+  unverifiable: boolean;
+}
+
+// Personal-memory candidates for a repo recall. Cited packets are re-verified
+// against THIS checkout (relative paths + content fingerprints), so the same
+// packet that recalls fine in one clone is withheld in a repo where its
+// evidence does not exist — the docs/CLOUD.md "verified sync" rule.
+function personalRecallEntries(projectDir: string, terms: string[], limit = 3): PersonalRecallEntry[] {
+  const packets = loadPersonalPackets();
+  if (!packets.length) return [];
+  const cache = new Map<string, MemoryPathFingerprint | null>();
+  const eligible = packets.filter((packet) => recallHardStaleReason(projectDir, packet, cache) === null);
+  if (!eligible.length) return [];
+  const scores = scorePacketsBm25(terms, eligible);
+  return eligible
+    .map((packet) => {
+      const { score, why } = scores.get(packet.id) ?? { score: 0, why: [] };
+      return {
+        packet,
+        score,
+        why_matched: why,
+        unverifiable: packetStoredPathFingerprints(packet).length === 0,
+      };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || a.packet.title.localeCompare(b.packet.title))
+    .slice(0, Math.max(1, limit));
+}
+
+// --- kage sync: git-remote transport for the personal store ---------------
+
+interface SyncGitResult {
+  ok: boolean;
+  stdout: string;
+  stderr: string;
+}
+
+function runSyncGit(cwd: string, args: string[]): SyncGitResult {
+  try {
+    const stdout = execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    return { ok: true, stdout: String(stdout ?? "").trim(), stderr: "" };
+  } catch (error) {
+    const failed = error as { stdout?: unknown; stderr?: unknown; message?: string };
+    return {
+      ok: false,
+      stdout: String(failed.stdout ?? "").trim(),
+      stderr: String(failed.stderr ?? failed.message ?? "git command failed").trim(),
+    };
+  }
+}
+
+// Commits must work on machines without a global git identity (fresh CI boxes,
+// brand-new laptops); fall back to a kage-sync identity instead of failing.
+function syncIdentityArgs(memoryDir: string): string[] {
+  const email = runSyncGit(memoryDir, ["config", "user.email"]);
+  return email.ok && email.stdout ? [] : ["-c", "user.name=kage-sync", "-c", "user.email=kage-sync@localhost"];
+}
+
+const SYNC_SETUP_HINT = "Run: kage sync setup --remote <git-url>";
+
+function syncPacketFile(file: string): boolean {
+  return file.startsWith("packets/") && file.endsWith(".json");
+}
+
+function countSyncPacketFiles(namesOutput: string): number {
+  return namesOutput
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter(syncPacketFile)
+    .length;
+}
+
+function syncRemoteDefaultBranch(memoryDir: string): string | null {
+  // "ref: refs/heads/<branch>\tHEAD" — empty remotes return nothing.
+  const result = runSyncGit(memoryDir, ["ls-remote", "--symref", "origin", "HEAD"]);
+  if (!result.ok) return null;
+  const match = result.stdout.match(/^ref:\s+refs\/heads\/(\S+)\s+HEAD/m);
+  return match?.[1] ?? null;
+}
+
+interface PacketConflictResolution {
+  ok: boolean;
+  backupPath?: string;
+  error?: string;
+}
+
+// Auto-resolve a rebase conflict on a packet file: newest updated_at wins
+// (same policy as the kage-packet merge driver), the losing version is
+// preserved under conflicts/<name>.<unix-ts>.json so no data is ever lost,
+// and the worktree file is rewritten as clean JSON — never conflict markers.
+function resolvePacketSyncConflict(memoryDir: string, file: string): PacketConflictResolution {
+  // During a rebase, stage 2 ("ours") is the upstream side already in the new
+  // history; stage 3 ("theirs") is the local commit being replayed.
+  const readStage = (stage: 2 | 3): Partial<MemoryPacket> | null => {
+    const show = runSyncGit(memoryDir, ["show", `:${stage}:${file}`]);
+    if (!show.ok) return null;
+    try {
+      const parsed = JSON.parse(show.stdout) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as Partial<MemoryPacket>;
+    } catch {
+      // An unparsable side loses to a parsable one.
+    }
+    return null;
+  };
+  const upstreamSide = readStage(2);
+  const localSide = readStage(3);
+  if (!upstreamSide && !localSide) {
+    return { ok: false, error: `kage sync: neither side of ${file} parses as packet JSON; resolve manually in ${memoryDir}.` };
+  }
+  const localWins = Boolean(localSide && (!upstreamSide || packetRecency(localSide).localeCompare(packetRecency(upstreamSide)) > 0));
+  const winner = localWins ? localSide! : upstreamSide!;
+  const loser = localWins ? upstreamSide : localSide;
+  writeJson(join(memoryDir, file), winner);
+  let backupPath: string | undefined;
+  if (loser) {
+    ensureDir(personalConflictsDir());
+    const base = basename(file, ".json");
+    let candidate = join(personalConflictsDir(), `${base}.${Math.floor(Date.now() / 1000)}.json`);
+    let counter = 1;
+    while (existsSync(candidate)) {
+      candidate = join(personalConflictsDir(), `${base}.${Math.floor(Date.now() / 1000)}-${counter}.json`);
+      counter += 1;
+    }
+    writeJson(candidate, loser);
+    backupPath = candidate;
+  }
+  return { ok: true, backupPath };
+}
+
+interface SyncRebaseOutcome {
+  ok: boolean;
+  resolved: number;
+  conflictBackups: string[];
+  error?: string;
+}
+
+function rebaseOntoUpstream(memoryDir: string, upstream: string): SyncRebaseOutcome {
+  const conflictBackups: string[] = [];
+  let resolved = 0;
+  let step = runSyncGit(memoryDir, ["-c", "core.editor=true", "rebase", upstream]);
+  while (!step.ok) {
+    const conflicted = runSyncGit(memoryDir, ["diff", "--name-only", "--diff-filter=U"])
+      .stdout.split("\n").map((line) => line.trim()).filter(Boolean);
+    if (!conflicted.length) {
+      // The resolved commit became empty (we kept the upstream side wholesale).
+      const skip = runSyncGit(memoryDir, ["-c", "core.editor=true", "rebase", "--skip"]);
+      if (skip.ok) { step = skip; continue; }
+      runSyncGit(memoryDir, ["rebase", "--abort"]);
+      return { ok: false, resolved, conflictBackups, error: `git rebase failed: ${step.stderr || skip.stderr}` };
+    }
+    for (const file of conflicted) {
+      if (!syncPacketFile(file)) {
+        runSyncGit(memoryDir, ["rebase", "--abort"]);
+        return { ok: false, resolved, conflictBackups, error: `kage sync only auto-resolves packets/*.json conflicts; ${file} needs manual resolution in ${memoryDir}.` };
+      }
+      const resolution = resolvePacketSyncConflict(memoryDir, file);
+      if (!resolution.ok) {
+        runSyncGit(memoryDir, ["rebase", "--abort"]);
+        return { ok: false, resolved, conflictBackups, error: resolution.error };
+      }
+      if (resolution.backupPath) conflictBackups.push(resolution.backupPath);
+      resolved += 1;
+      const toAdd = [file, ...(resolution.backupPath ? [relative(memoryDir, resolution.backupPath)] : [])];
+      runSyncGit(memoryDir, ["add", "--", ...toAdd]);
+    }
+    step = runSyncGit(memoryDir, ["-c", "core.editor=true", "rebase", "--continue"]);
+  }
+  return { ok: true, resolved, conflictBackups };
+}
+
+export interface SyncSetupResult {
+  ok: boolean;
+  memory_dir: string;
+  remote: string;
+  initialized: boolean;
+  remote_updated: boolean;
+  branch: string | null;
+  pushed: boolean;
+  errors: string[];
+}
+
+export function syncSetup(remoteUrl: string): SyncSetupResult {
+  const memoryDir = personalMemoryDir();
+  ensureDir(personalPacketsDir());
+  const result: SyncSetupResult = {
+    ok: false,
+    memory_dir: memoryDir,
+    remote: remoteUrl,
+    initialized: false,
+    remote_updated: false,
+    branch: null,
+    pushed: false,
+    errors: [],
+  };
+  if (!existsSync(join(memoryDir, ".git"))) {
+    const init = runSyncGit(memoryDir, ["init"]);
+    if (!init.ok) {
+      result.errors.push(`git init failed: ${init.stderr}`);
+      return result;
+    }
+    result.initialized = true;
+  }
+  // Keep the packets dir trackable even before the first capture.
+  const keep = join(personalPacketsDir(), ".gitkeep");
+  if (!existsSync(keep)) writeFileSync(keep, "", "utf8");
+
+  const currentRemote = runSyncGit(memoryDir, ["remote", "get-url", "origin"]);
+  if (!currentRemote.ok) {
+    const added = runSyncGit(memoryDir, ["remote", "add", "origin", remoteUrl]);
+    if (!added.ok) {
+      result.errors.push(`git remote add failed: ${added.stderr}`);
+      return result;
+    }
+    result.remote_updated = true;
+  } else if (currentRemote.stdout !== remoteUrl) {
+    const updated = runSyncGit(memoryDir, ["remote", "set-url", "origin", remoteUrl]);
+    if (!updated.ok) {
+      result.errors.push(`git remote set-url failed: ${updated.stderr}`);
+      return result;
+    }
+    result.remote_updated = true;
+  }
+
+  // Commit local state before aligning with the remote.
+  runSyncGit(memoryDir, ["add", "-A"]);
+  const status = runSyncGit(memoryDir, ["status", "--porcelain"]);
+  const hasHead = runSyncGit(memoryDir, ["rev-parse", "--verify", "--quiet", "HEAD"]).ok;
+  if (status.stdout || !hasHead) {
+    const commit = runSyncGit(memoryDir, [
+      ...syncIdentityArgs(memoryDir),
+      "commit",
+      "-m",
+      "kage sync setup",
+      ...(status.stdout ? [] : ["--allow-empty"]),
+    ]);
+    if (!commit.ok) {
+      result.errors.push(`git commit failed: ${commit.stderr}`);
+      return result;
+    }
+  }
+
+  const fetch = runSyncGit(memoryDir, ["fetch", "origin"]);
+  if (!fetch.ok) {
+    result.errors.push(`git fetch failed: ${fetch.stderr}`);
+    return result;
+  }
+  // A second machine pointing at an existing remote must converge on the
+  // remote's branch instead of pushing a parallel one: rename the local branch
+  // to match and rebase local commits (the setup commit) on top.
+  const remoteBranch = syncRemoteDefaultBranch(memoryDir);
+  if (remoteBranch && runSyncGit(memoryDir, ["rev-parse", "--verify", "--quiet", `origin/${remoteBranch}`]).ok) {
+    const renamed = runSyncGit(memoryDir, ["branch", "-M", remoteBranch]);
+    if (!renamed.ok) {
+      result.errors.push(`git branch -M failed: ${renamed.stderr}`);
+      return result;
+    }
+    const rebase = rebaseOntoUpstream(memoryDir, `origin/${remoteBranch}`);
+    if (!rebase.ok) {
+      result.errors.push(rebase.error ?? "git rebase failed");
+      return result;
+    }
+  }
+  result.branch = runSyncGit(memoryDir, ["rev-parse", "--abbrev-ref", "HEAD"]).stdout || null;
+
+  const push = runSyncGit(memoryDir, ["push", "-u", "origin", "HEAD"]);
+  if (!push.ok) {
+    result.errors.push(`git push failed: ${push.stderr}`);
+    return result;
+  }
+  result.pushed = true;
+  result.ok = true;
+  return result;
+}
+
+export interface SyncStatusResult {
+  ok: boolean;
+  memory_dir: string;
+  remote: string | null;
+  branch: string | null;
+  ahead: number;
+  behind: number;
+  dirty: boolean;
+  warnings: string[];
+  errors: string[];
+}
+
+export function syncStatus(): SyncStatusResult {
+  const memoryDir = personalMemoryDir();
+  const result: SyncStatusResult = {
+    ok: false,
+    memory_dir: memoryDir,
+    remote: null,
+    branch: null,
+    ahead: 0,
+    behind: 0,
+    dirty: false,
+    warnings: [],
+    errors: [],
+  };
+  if (!existsSync(join(memoryDir, ".git"))) {
+    result.errors.push(`Personal memory store is not set up for sync. ${SYNC_SETUP_HINT}`);
+    return result;
+  }
+  const remote = runSyncGit(memoryDir, ["remote", "get-url", "origin"]);
+  if (!remote.ok) {
+    result.errors.push(`No sync remote configured. ${SYNC_SETUP_HINT}`);
+    return result;
+  }
+  result.remote = remote.stdout;
+  // Status is read-only on the network: fetch only, never pull/push.
+  const fetch = runSyncGit(memoryDir, ["fetch", "origin"]);
+  if (!fetch.ok) result.warnings.push(`git fetch failed (showing last-known remote state): ${fetch.stderr}`);
+  result.branch = runSyncGit(memoryDir, ["rev-parse", "--abbrev-ref", "HEAD"]).stdout || null;
+  const upstream = result.branch ? `origin/${result.branch}` : null;
+  if (upstream && runSyncGit(memoryDir, ["rev-parse", "--verify", "--quiet", upstream]).ok) {
+    const counts = runSyncGit(memoryDir, ["rev-list", "--left-right", "--count", `HEAD...${upstream}`]);
+    if (counts.ok) {
+      const [ahead, behind] = counts.stdout.split(/\s+/).map((value) => Number(value));
+      result.ahead = Number.isFinite(ahead) ? ahead : 0;
+      result.behind = Number.isFinite(behind) ? behind : 0;
+    }
+  }
+  result.dirty = Boolean(runSyncGit(memoryDir, ["status", "--porcelain"]).stdout);
+  result.ok = true;
+  return result;
+}
+
+export interface SyncResult {
+  ok: boolean;
+  memory_dir: string;
+  remote: string | null;
+  pushed: number;
+  pulled: number;
+  resolved: number;
+  conflict_backups: string[];
+  errors: string[];
+}
+
+export function syncPersonal(): SyncResult {
+  const memoryDir = personalMemoryDir();
+  const result: SyncResult = {
+    ok: false,
+    memory_dir: memoryDir,
+    remote: null,
+    pushed: 0,
+    pulled: 0,
+    resolved: 0,
+    conflict_backups: [],
+    errors: [],
+  };
+  if (!existsSync(join(memoryDir, ".git"))) {
+    result.errors.push(`Personal memory store is not set up for sync. ${SYNC_SETUP_HINT}`);
+    return result;
+  }
+  const remote = runSyncGit(memoryDir, ["remote", "get-url", "origin"]);
+  if (!remote.ok) {
+    result.errors.push(`No sync remote configured. ${SYNC_SETUP_HINT}`);
+    return result;
+  }
+  result.remote = remote.stdout;
+
+  // 1. Commit local packet changes.
+  runSyncGit(memoryDir, ["add", "-A"]);
+  if (runSyncGit(memoryDir, ["status", "--porcelain"]).stdout) {
+    const commit = runSyncGit(memoryDir, [...syncIdentityArgs(memoryDir), "commit", "-m", `kage sync ${nowIso()}`]);
+    if (!commit.ok) {
+      result.errors.push(`git commit failed: ${commit.stderr}`);
+      return result;
+    }
+  }
+
+  // 2. Pull --rebase (split into fetch + rebase so the receipt can count what came in).
+  const fetch = runSyncGit(memoryDir, ["fetch", "origin"]);
+  if (!fetch.ok) {
+    result.errors.push(`git fetch failed: ${fetch.stderr}`);
+    return result;
+  }
+  const branch = runSyncGit(memoryDir, ["rev-parse", "--abbrev-ref", "HEAD"]).stdout;
+  const upstream = `origin/${branch}`;
+  const hasUpstream = Boolean(branch) && runSyncGit(memoryDir, ["rev-parse", "--verify", "--quiet", upstream]).ok;
+  if (hasUpstream) {
+    // Their side of the merge base: packet files this sync will bring in.
+    const incoming = runSyncGit(memoryDir, ["diff", "--name-only", `HEAD...${upstream}`]);
+    result.pulled = countSyncPacketFiles(incoming.stdout);
+    const rebase = rebaseOntoUpstream(memoryDir, upstream);
+    result.resolved = rebase.resolved;
+    result.conflict_backups = rebase.conflictBackups;
+    if (!rebase.ok) {
+      result.errors.push(rebase.error ?? "git rebase failed");
+      return result;
+    }
+  }
+
+  // 3. Push (first push sets the upstream).
+  const outgoing = hasUpstream
+    ? runSyncGit(memoryDir, ["diff", "--name-only", `${upstream}..HEAD`])
+    : runSyncGit(memoryDir, ["ls-tree", "-r", "--name-only", "HEAD"]);
+  result.pushed = countSyncPacketFiles(outgoing.stdout);
+  const push = runSyncGit(memoryDir, ["push", "-u", "origin", "HEAD"]);
+  if (!push.ok) {
+    result.errors.push(`git push failed: ${push.stderr}`);
+    return result;
+  }
+  result.ok = true;
+  return result;
 }
