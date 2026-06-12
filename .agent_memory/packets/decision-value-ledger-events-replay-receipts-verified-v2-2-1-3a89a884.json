@@ -1,0 +1,76 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:value-ledger-events-replay-receipts-verified-v2-2-1-1781268533614",
+  "title": "Value ledger: events + replay receipts (verified v2.2.1)",
+  "summary": "Ledger at .agent memory/reports/value.json: recall served with replay tokens , stale withheld, caller answered, stale caught; valueSummary feeds kage gains and the viewer Gains tab $ at ~15/1M . Receipts report max read",
+  "body": "Ledger at .agent_memory/reports/value.json: recall_served (with replay_tokens), stale_withheld, caller_answered, stale_caught; valueSummary feeds kage gains and the viewer Gains tab ($ at ~15/1M). Receipts report max(read-vs-source, replay). Non-empty kage file-context injections record events. Unchanged by 2.2.1.",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning"
+  ],
+  "paths": [
+    "mcp/kernel.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-12T12:48:53.614Z"
+    }
+  ],
+  "context": {
+    "fact": "Ledger at .agent_memory/reports/value.json: recall_served (with replay_tokens), stale_withheld, caller_answered, stale_caught; valueSummary feeds kage gains and the viewer Gains tab ($ at ~15/1M). Receipts report max(read-vs-source, replay). Non-empty kage file-context injections record events. Unchanged by 2.2.1."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-12T12:48:53.614Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "abae50ee8a49b342f2cf6954044aed904d27421cd25db79ec0ab03d2575a6631",
+        "size": 783618
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [
+    {
+      "relation": "supersedes",
+      "to": "repo:https-github-com-kage-core-kage:decision:value-ledger-recall-stale-withheld-caller-answered-replay-receipts-v2-2-0-178126",
+      "evidence": "Newer repo memory supersedes this packet.",
+      "created_at": "2026-06-12T12:48:53.805Z"
+    }
+  ],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "discovery_tokens": 4000,
+    "discovery_tokens_estimated": true,
+    "score": 96,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "stale_reasons": [],
+    "estimated_tokens_saved": 79
+  },
+  "created_at": "2026-06-12T12:48:53.614Z",
+  "updated_at": "2026-06-12T12:48:53.805Z",
+  "author_branch": "master"
+}

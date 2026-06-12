@@ -8,7 +8,7 @@
   "scope": "repo",
   "visibility": "team",
   "sensitivity": "internal",
-  "status": "approved",
+  "status": "superseded",
   "confidence": 0.7,
   "tags": [
     "session-learning",
@@ -38,7 +38,10 @@
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
-    "verification": "repo_local_agent_capture"
+    "verification": "repo_local_agent_capture",
+    "superseded_at": "2026-06-12T12:48:52.523Z",
+    "superseded_by": "repo:https-github-com-kage-core-kage:code_explanation:stale-catch-change-time-invalidation-heartbeat-verified-v2-2-1-1781268532337",
+    "superseded_reason": "Newer repo memory supersedes this packet."
   },
   "edges": [
     {
@@ -46,6 +49,12 @@
       "to": "repo:memory:code_explanation:stale-catch-change-time-invalidation-heartbeat-stalecatch-kage-staleguard-178118",
       "evidence": "Newer repo memory supersedes this packet.",
       "created_at": "2026-06-12T11:54:13.096Z"
+    },
+    {
+      "relation": "superseded_by",
+      "to": "repo:https-github-com-kage-core-kage:code_explanation:stale-catch-change-time-invalidation-heartbeat-verified-v2-2-1-1781268532337",
+      "evidence": "Newer repo memory supersedes this packet.",
+      "created_at": "2026-06-12T12:48:52.523Z"
     }
   ],
   "quality": {
@@ -73,9 +82,11 @@
     "stale_reasons": [
       "linked path changed since memory was verified: mcp/kernel.ts"
     ],
-    "suggested_action": "update"
+    "suggested_action": "update",
+    "superseded_by": "repo:https-github-com-kage-core-kage:code_explanation:stale-catch-change-time-invalidation-heartbeat-verified-v2-2-1-1781268532337",
+    "superseded_reason": "Newer repo memory supersedes this packet."
   },
   "created_at": "2026-06-12T11:53:18.448Z",
-  "updated_at": "2026-06-12T12:03:57.706Z",
+  "updated_at": "2026-06-12T12:48:52.523Z",
   "author_branch": "master"
 }

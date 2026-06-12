@@ -8,7 +8,7 @@
   "scope": "repo",
   "visibility": "team",
   "sensitivity": "internal",
-  "status": "approved",
+  "status": "superseded",
   "confidence": 0.7,
   "tags": [
     "session-learning",
@@ -38,7 +38,10 @@
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
-    "verification": "repo_local_agent_capture"
+    "verification": "repo_local_agent_capture",
+    "superseded_at": "2026-06-12T12:48:51.897Z",
+    "superseded_by": "repo:https-github-com-kage-core-kage:convention:privacy-private-span-tags-redacted-by-stripprivatespans-before-any-write-verifie",
+    "superseded_reason": "Newer repo memory supersedes this packet."
   },
   "edges": [
     {
@@ -46,6 +49,12 @@
       "to": "repo:agent-a42c797e11994217c:convention:privacy-private-tags-are-redacted-by-stripprivatespans-before-any-memory-write-1",
       "evidence": "Newer repo memory supersedes this packet.",
       "created_at": "2026-06-12T11:52:47.975Z"
+    },
+    {
+      "relation": "superseded_by",
+      "to": "repo:https-github-com-kage-core-kage:convention:privacy-private-span-tags-redacted-by-stripprivatespans-before-any-write-verifie",
+      "evidence": "Newer repo memory supersedes this packet.",
+      "created_at": "2026-06-12T12:48:51.897Z"
     }
   ],
   "quality": {
@@ -73,9 +82,11 @@
     "stale_reasons": [
       "linked path changed since memory was verified: mcp/kernel.ts"
     ],
-    "suggested_action": "update"
+    "suggested_action": "update",
+    "superseded_by": "repo:https-github-com-kage-core-kage:convention:privacy-private-span-tags-redacted-by-stripprivatespans-before-any-write-verifie",
+    "superseded_reason": "Newer repo memory supersedes this packet."
   },
   "created_at": "2026-06-12T11:52:29.442Z",
-  "updated_at": "2026-06-12T12:03:57.706Z",
+  "updated_at": "2026-06-12T12:48:51.897Z",
   "author_branch": "master"
 }

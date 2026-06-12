@@ -1,0 +1,76 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:bug_fix:ci-kage-pr-check-blocks-only-on-hard-stale-memory-verified-v2-2-1-1781268529908",
+  "title": "CI: kage pr check blocks only on hard-stale memory (verified v2.2.1)",
+  "summary": "kage pr check exits 2 only on hard stale memory evidence gone and validation/graph freshness failures; soft stale linked path changed is a non blocking warning. Personal packets structurally excluded RecallResult.persona",
+  "body": "kage pr check exits 2 only on hard-stale memory (evidence gone) and validation/graph-freshness failures; soft-stale (linked path changed) is a non-blocking warning. Personal packets structurally excluded (RecallResult.personal). Unchanged by the 2.2.1 sync rebase/push fixes.",
+  "type": "bug_fix",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning"
+  ],
+  "paths": [
+    "mcp/kernel.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-12T12:48:49.908Z"
+    }
+  ],
+  "context": {
+    "fact": "kage pr check exits 2 only on hard-stale memory (evidence gone) and validation/graph-freshness failures; soft-stale (linked path changed) is a non-blocking warning. Personal packets structurally excluded (RecallResult.personal). Unchanged by the 2.2.1 sync rebase/push fixes."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-12T12:48:49.908Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "abae50ee8a49b342f2cf6954044aed904d27421cd25db79ec0ab03d2575a6631",
+        "size": 783618
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [
+    {
+      "relation": "supersedes",
+      "to": "repo:https-github-com-kage-core-kage:bug_fix:ci-kage-pr-check-blocks-only-on-hard-stale-memory-still-true-in-v2-2-0-178126514",
+      "evidence": "Newer repo memory supersedes this packet.",
+      "created_at": "2026-06-12T12:48:50.088Z"
+    }
+  ],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "discovery_tokens": 8000,
+    "discovery_tokens_estimated": true,
+    "score": 96,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "stale_reasons": [],
+    "estimated_tokens_saved": 69
+  },
+  "created_at": "2026-06-12T12:48:49.908Z",
+  "updated_at": "2026-06-12T12:48:50.088Z",
+  "author_branch": "master"
+}

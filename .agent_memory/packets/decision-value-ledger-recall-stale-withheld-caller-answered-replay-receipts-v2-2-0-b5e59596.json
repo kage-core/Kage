@@ -8,7 +8,7 @@
   "scope": "repo",
   "visibility": "team",
   "sensitivity": "internal",
-  "status": "approved",
+  "status": "superseded",
   "confidence": 0.7,
   "tags": [
     "session-learning",
@@ -38,7 +38,10 @@
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
-    "verification": "repo_local_agent_capture"
+    "verification": "repo_local_agent_capture",
+    "superseded_at": "2026-06-12T12:48:53.805Z",
+    "superseded_by": "repo:https-github-com-kage-core-kage:decision:value-ledger-events-replay-receipts-verified-v2-2-1-1781268533614",
+    "superseded_reason": "Newer repo memory supersedes this packet."
   },
   "edges": [
     {
@@ -46,6 +49,12 @@
       "to": "repo:agent-a2d7fc6b76e05334a:decision:value-ledger-records-recall-stale-withheld-and-caller-answered-receipts-17811877",
       "evidence": "Newer repo memory supersedes this packet.",
       "created_at": "2026-06-12T11:54:13.609Z"
+    },
+    {
+      "relation": "superseded_by",
+      "to": "repo:https-github-com-kage-core-kage:decision:value-ledger-events-replay-receipts-verified-v2-2-1-1781268533614",
+      "evidence": "Newer repo memory supersedes this packet.",
+      "created_at": "2026-06-12T12:48:53.805Z"
     }
   ],
   "quality": {
@@ -73,9 +82,11 @@
     "stale_reasons": [
       "linked path changed since memory was verified: mcp/kernel.ts"
     ],
-    "suggested_action": "update"
+    "suggested_action": "update",
+    "superseded_by": "repo:https-github-com-kage-core-kage:decision:value-ledger-events-replay-receipts-verified-v2-2-1-1781268533614",
+    "superseded_reason": "Newer repo memory supersedes this packet."
   },
   "created_at": "2026-06-12T11:53:18.630Z",
-  "updated_at": "2026-06-12T12:03:57.715Z",
+  "updated_at": "2026-06-12T12:48:53.805Z",
   "author_branch": "master"
 }
