@@ -8,7 +8,7 @@
   "scope": "repo",
   "visibility": "team",
   "sensitivity": "internal",
-  "status": "approved",
+  "status": "deprecated",
   "confidence": 0.62,
   "tags": [
     "change-memory",
@@ -160,8 +160,13 @@
     },
     "candidate_kind": "change_memory",
     "review_boundary": "git_or_pr",
-    "promotion_requires_review": true
+    "promotion_requires_review": true,
+    "stale": true,
+    "stale_reasons": [
+      "linked path changed since memory was verified: CHANGELOG.md, mcp/kernel.test.ts, mcp/kernel.ts"
+    ],
+    "suggested_action": "update"
   },
   "created_at": "2026-06-12T06:04:21.978Z",
-  "updated_at": "2026-06-12T06:04:37.516Z"
+  "updated_at": "2026-06-12T06:58:42.695Z"
 }

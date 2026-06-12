@@ -70,9 +70,14 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 234
+    "estimated_tokens_saved": 234,
+    "stale": true,
+    "stale_reasons": [
+      "linked path changed since memory was verified: mcp/kernel.ts, mcp/kernel.test.ts"
+    ],
+    "suggested_action": "update"
   },
   "created_at": "2026-06-12T06:04:06.345Z",
-  "updated_at": "2026-06-12T06:04:13.688Z",
+  "updated_at": "2026-06-12T06:58:36.879Z",
   "author_branch": "gap/private-tags"
 }
