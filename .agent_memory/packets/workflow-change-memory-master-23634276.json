@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
-  "summary": "Repo-local context for 4 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/bug_fix-kage-sync-ci-fix-rebase-identity-fallback-self-healing-non-fast-forward-push-ret-53e8be25.json\n- .agent_memory/packets/convention-privacy-private-span-tags-redacted-by-stripprivatespans-before-any-write-verifie-9ab4181d.json\n- .agent_memory/packets/gotcha-github-pages-serves-docs-statically-markdown-links-render-raw-re-verified-after--b8f4a369.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n...fallback-self-healing-non-fast-forward-push-ret-53e8be25.json | 7 ++++---\n ...d-by-stripprivatespans-before-any-write-verifie-9ab4181d.json | 7 ++++---\n ...ly-markdown-links-render-raw-re-verified-after--b8f4a369.json | 9 +++++++--\n .../packets/workflow-change-memory-master-23634276.json          | 3 +--\n 4 files changed, 16 insertions(+), 10 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "summary": "Repo-local context for 2 changed repo paths on master.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/gotcha-github-pages-serves-docs-statically-markdown-links-render-raw-re-verified-after--b8f4a369.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n...ally-markdown-links-render-raw-re-verified-after--b8f4a369.json | 7 ++++---\n .agent_memory/packets/workflow-change-memory-master-23634276.json  | 3 +--\n 2 files changed, 5 insertions(+), 5 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -17,8 +17,6 @@
     "branch:master"
   ],
   "paths": [
-    ".agent_memory/packets/bug_fix-kage-sync-ci-fix-rebase-identity-fallback-self-healing-non-fast-forward-push-ret-53e8be25.json",
-    ".agent_memory/packets/convention-privacy-private-span-tags-redacted-by-stripprivatespans-before-any-write-verifie-9ab4181d.json",
     ".agent_memory/packets/gotcha-github-pages-serves-docs-statically-markdown-links-render-raw-re-verified-after--b8f4a369.json",
     ".agent_memory/packets/workflow-change-memory-master-23634276.json"
   ],
@@ -27,11 +25,9 @@
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "da1504c6c6b469c70974b8991001aca0ab2e095f",
-      "merge_base": "da1504c6c6b469c70974b8991001aca0ab2e095f",
+      "head": "84160f971b26bc6e760ff0ca396e5918d33c76ef",
+      "merge_base": "84160f971b26bc6e760ff0ca396e5918d33c76ef",
       "changed_files": [
-        ".agent_memory/packets/bug_fix-kage-sync-ci-fix-rebase-identity-fallback-self-healing-non-fast-forward-push-ret-53e8be25.json",
-        ".agent_memory/packets/convention-privacy-private-span-tags-redacted-by-stripprivatespans-before-any-write-verifie-9ab4181d.json",
         ".agent_memory/packets/gotcha-github-pages-serves-docs-statically-markdown-links-render-raw-re-verified-after--b8f4a369.json",
         ".agent_memory/packets/workflow-change-memory-master-23634276.json"
       ],
@@ -39,7 +35,7 @@
     }
   ],
   "context": {
-    "fact": "Current branch master changes 4 repo paths.",
+    "fact": "Current branch master changes 2 repo paths.",
     "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
     "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
     "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
@@ -48,23 +44,13 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-12T16:34:25.581Z",
+    "last_verified_at": "2026-06-12T16:44:33.374Z",
     "ttl_days": 180,
     "path_fingerprints": [],
     "path_fingerprint_policy": "source_hash_staleness",
     "verification": "git_diff"
   },
   "edges": [
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-kage-sync-ci-fix-rebase-identity-fallback-self-healing-non-fast-forward-push-ret-53e8be25.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/convention-privacy-private-span-tags-redacted-by-stripprivatespans-before-any-write-verifie-9ab4181d.json",
-      "evidence": "git_diff"
-    },
     {
       "relation": "changes_path",
       "to": "path:.agent_memory/packets/gotcha-github-pages-serves-docs-statically-markdown-links-render-raw-re-verified-after--b8f4a369.json",
@@ -89,7 +75,7 @@
     "risks": [],
     "duplicate_candidates": [],
     "stale_reasons": [],
-    "estimated_tokens_saved": 387,
+    "estimated_tokens_saved": 284,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -107,6 +93,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-06-12T16:34:25.581Z",
-  "updated_at": "2026-06-12T16:34:25.581Z"
+  "created_at": "2026-06-12T16:44:33.374Z",
+  "updated_at": "2026-06-12T16:44:33.374Z"
 }
