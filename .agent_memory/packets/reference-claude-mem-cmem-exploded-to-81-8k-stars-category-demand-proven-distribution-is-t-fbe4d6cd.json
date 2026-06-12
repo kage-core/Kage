@@ -8,7 +8,7 @@
   "scope": "repo",
   "visibility": "team",
   "sensitivity": "internal",
-  "status": "approved",
+  "status": "deprecated",
   "confidence": 0.7,
   "tags": [
     "session-learning",
@@ -69,6 +69,6 @@
     "suggested_action": "update"
   },
   "created_at": "2026-06-12T03:08:38.536Z",
-  "updated_at": "2026-06-12T03:47:26.753Z",
+  "updated_at": "2026-06-12T03:51:20.273Z",
   "author_branch": "release/v2.0.1"
 }
