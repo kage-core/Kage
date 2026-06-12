@@ -5154,9 +5154,10 @@ test("two KAGE_HOME clones of one bare remote exchange personal packets round-tr
 
   // Machine B joins the same remote, receives A's packet, and pushes its own.
   const homeB = withKageHome((home) => {
-    assert.equal(syncSetup(remote).ok, true);
+    const setupB = syncSetup(remote);
+    assert.equal(setupB.ok, true, `machine B syncSetup failed: ${JSON.stringify(setupB.errors)}`);
     const pulled = syncPersonal();
-    assert.equal(pulled.ok, true);
+    assert.equal(pulled.ok, true, `machine B sync failed: ${JSON.stringify(pulled.errors ?? pulled)}`);
     const names = readdirSync(join(home, "memory", "packets")).filter((name) => name.endsWith(".json"));
     assert.equal(names.some((name) => /machine-a-habit/.test(name)), true);
 
@@ -5205,8 +5206,14 @@ test("sync conflicts resolve newest-updated_at-wins and preserve the loser under
   };
 
   // Both machines wired to the same remote, in sync.
-  onMachine(homeA, () => assert.equal(syncSetup(remote).ok, true));
-  onMachine(homeB, () => assert.equal(syncSetup(remote).ok, true));
+  onMachine(homeA, () => {
+    const setup = syncSetup(remote);
+    assert.equal(setup.ok, true, `machine A syncSetup failed: ${JSON.stringify(setup.errors)}`);
+  });
+  onMachine(homeB, () => {
+    const setup = syncSetup(remote);
+    assert.equal(setup.ok, true, `machine B syncSetup failed: ${JSON.stringify(setup.errors)}`);
+  });
 
   // A pushes the OLDER version; B concurrently (without pulling first) commits the NEWER one.
   onMachine(homeA, () => {
@@ -5216,7 +5223,7 @@ test("sync conflicts resolve newest-updated_at-wins and preserve the loser under
   onMachine(homeB, () => {
     writeFileSync(join(personalPacketsDir(), packetName), `${JSON.stringify(newerPacket, null, 2)}\n`, "utf8");
     const synced = syncPersonal();
-    assert.equal(synced.ok, true);
+    assert.equal(synced.ok, true, `machine B conflicted sync failed: ${JSON.stringify(synced)}`);
     assert.equal(synced.resolved, 1);
     assert.equal(synced.conflict_backups.length, 1);
 

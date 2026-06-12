@@ -18903,13 +18903,13 @@ interface SyncRebaseOutcome {
 function rebaseOntoUpstream(memoryDir: string, upstream: string): SyncRebaseOutcome {
   const conflictBackups: string[] = [];
   let resolved = 0;
-  let step = runSyncGit(memoryDir, ["-c", "core.editor=true", "rebase", upstream]);
+  let step = runSyncGit(memoryDir, [...syncIdentityArgs(memoryDir), "-c", "core.editor=true", "rebase", upstream]);
   while (!step.ok) {
     const conflicted = runSyncGit(memoryDir, ["diff", "--name-only", "--diff-filter=U"])
       .stdout.split("\n").map((line) => line.trim()).filter(Boolean);
     if (!conflicted.length) {
       // The resolved commit became empty (we kept the upstream side wholesale).
-      const skip = runSyncGit(memoryDir, ["-c", "core.editor=true", "rebase", "--skip"]);
+      const skip = runSyncGit(memoryDir, [...syncIdentityArgs(memoryDir), "-c", "core.editor=true", "rebase", "--skip"]);
       if (skip.ok) { step = skip; continue; }
       runSyncGit(memoryDir, ["rebase", "--abort"]);
       return { ok: false, resolved, conflictBackups, error: `git rebase failed: ${step.stderr || skip.stderr}` };
@@ -18929,7 +18929,7 @@ function rebaseOntoUpstream(memoryDir: string, upstream: string): SyncRebaseOutc
       const toAdd = [file, ...(resolution.backupPath ? [relative(memoryDir, resolution.backupPath)] : [])];
       runSyncGit(memoryDir, ["add", "--", ...toAdd]);
     }
-    step = runSyncGit(memoryDir, ["-c", "core.editor=true", "rebase", "--continue"]);
+    step = runSyncGit(memoryDir, [...syncIdentityArgs(memoryDir), "-c", "core.editor=true", "rebase", "--continue"]);
   }
   return { ok: true, resolved, conflictBackups };
 }
