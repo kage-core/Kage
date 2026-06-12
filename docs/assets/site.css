@@ -1,36 +1,36 @@
 /* Kage site shared tokens and primitives — V2 "receipts" theme.
    Used by docs/index.html, docs/guide.html, docs/releases.html, docs/benchmarks.html.
-   Light-first warm paper with editorial serif display type; deep verified-green is
-   reserved for gains/primary action. Dark-capable via prefers-color-scheme. */
+   Dark-first product look with editorial serif display type; verified-green is
+   reserved for gains/primary action. One look everywhere, like the product. */
 
 :root {
-  color-scheme: light dark;
+  color-scheme: dark light;
 
-  /* Surface */
-  --bg: #f6f4ef;
-  --paper: #fffdf9;
-  --paper-2: #efece4;
-  --line: #e2ded2;
-  --line-strong: #c9c4b4;
+  /* Surface — dark-first: the product look. Light is the variant. */
+  --bg: #121413;
+  --paper: #1a1d1b;
+  --paper-2: #212522;
+  --line: #2c302c;
+  --line-strong: #41463f;
 
   /* Ink */
-  --ink: #1c1e1a;
-  --muted: #5d635b;
-  --faint: #8b9088;
+  --ink: #edefe9;
+  --muted: #a4aba1;
+  --faint: #767d74;
 
-  /* Accents — deep verified green reserved for gains + primary action. */
-  --green: #0c7a4d;
-  --green-strong: #09935c;
-  --green-soft: rgba(12, 122, 77, 0.08);
+  /* Accents — verified green reserved for gains + primary action. */
+  --green: #43c98a;
+  --green-strong: #5fdca0;
+  --green-soft: rgba(67, 201, 138, 0.12);
 
-  --code: #155e9c;
-  --memory: #6d49b8;
-  --warn: #9a6b08;
-  --danger: #b03048;
+  --code: #6fb4e8;
+  --memory: #b095e8;
+  --warn: #d9a93f;
+  --danger: #e07a8c;
 
   /* Code — terminals stay dark in both schemes, like a printed receipt. */
-  --code-bg: #15181b;
-  --code-text: #d7e2da;
+  --code-bg: #0e1110;
+  --code-text: #cfe0d4;
 
   /* Type — editorial contrast: serif display, sans body, mono data.
      Webfonts (Fraunces / Inter / JetBrains Mono) are loaded per-page;
@@ -49,42 +49,13 @@
   --r-hero: 22px;
 
   /* Elevation + hairlines */
-  --shadow-card: 0 1px 2px rgba(28, 30, 26, 0.04), 0 14px 36px rgba(28, 30, 26, 0.06);
-  --shadow-pop: 0 24px 60px rgba(28, 30, 26, 0.14);
-  --glow-green: 0 10px 28px rgba(12, 122, 77, 0.28);
-  --hairline-green: rgba(12, 122, 77, 0.28);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.2), 0 14px 36px rgba(0, 0, 0, 0.3);
+  --shadow-pop: 0 24px 60px rgba(0, 0, 0, 0.45);
+  --glow-green: 0 10px 28px rgba(67, 201, 138, 0.22);
+  --hairline-green: rgba(67, 201, 138, 0.32);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #121413;
-    --paper: #1a1d1b;
-    --paper-2: #212522;
-    --line: #2c302c;
-    --line-strong: #41463f;
-
-    --ink: #edefe9;
-    --muted: #a4aba1;
-    --faint: #767d74;
-
-    --green: #43c98a;
-    --green-strong: #5fdca0;
-    --green-soft: rgba(67, 201, 138, 0.12);
-
-    --code: #6fb4e8;
-    --memory: #b095e8;
-    --warn: #d9a93f;
-    --danger: #e07a8c;
-
-    --code-bg: #0e1110;
-    --code-text: #cfe0d4;
-
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.2), 0 14px 36px rgba(0, 0, 0, 0.3);
-    --shadow-pop: 0 24px 60px rgba(0, 0, 0, 0.45);
-    --glow-green: 0 10px 28px rgba(67, 201, 138, 0.22);
-    --hairline-green: rgba(67, 201, 138, 0.32);
-  }
-}
+/* One look, like the product: dark everywhere. (Light tokens retired 2026-06-12.) */
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
