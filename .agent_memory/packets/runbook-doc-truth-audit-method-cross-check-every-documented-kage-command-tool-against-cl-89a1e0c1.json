@@ -75,13 +75,14 @@
     "estimated_tokens_saved": 159,
     "stale": true,
     "stale_reasons": [
+      "packet status is superseded",
       "linked path changed since memory was verified: docs/guide.html"
     ],
-    "suggested_action": "update",
+    "suggested_action": "mark_stale",
     "superseded_by": "repo:https-github-com-kage-core-kage:runbook:doc-truth-audit-method-re-verified-after-dark-first-site-flip-1781280362676",
     "superseded_reason": "Newer repo memory supersedes this packet."
   },
   "created_at": "2026-06-12T12:46:29.143Z",
-  "updated_at": "2026-06-12T16:06:14.330Z",
+  "updated_at": "2026-06-12T16:09:18.512Z",
   "author_branch": "master"
 }
