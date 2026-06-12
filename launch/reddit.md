@@ -51,3 +51,26 @@ Check what it sees in your repo first (read-only, ~1 min):
 Repo: https://github.com/kage-core/Kage · Live 30-min run on your repo: https://kage-core.com/demo.html
 
 Where would this break for you? Monorepos and worktrees especially.
+
+---
+
+## If a post gets "removed by Reddit's filters" (happened on r/mcp, 6/13)
+
+This is the automated spam filter (new account + multiple links), not a human.
+In order:
+
+1. DO NOT delete the post. Message the mods (sidebar > "Message the mods"):
+
+   Hi — my post "One teammate fixes a bug once..." was caught by Reddit's
+   filters a few minutes after posting. It's an open-source MCP server
+   (GPL-3.0, on the official MCP registry), which I figured was on-topic
+   here. Happy to adjust anything that violates sub rules — or if it's just
+   the new-account filter, would appreciate a manual approval. Thanks!
+
+2. Spend 10 minutes leaving 2-3 genuine comments on other threads in the sub.
+   Filters score the account; a little participation usually clears the next
+   post automatically.
+
+3. If no approval in ~24h, repost the ONE-LINK variant: same body but keep
+   only the GitHub link, drop the demo URL (offer the demo in a comment after
+   the post survives). One link total is the biggest filter signal.
