@@ -22,9 +22,7 @@ contractor with amnesia.
 
 The catch with shared memory is trust: recall "auth lives in src/auth.ts"
 three weeks after that file was deleted and the agent confidently builds on
-it. So memory here has to prove itself.
-
-So I built Kage with one rule: memory has to prove itself. Every memory cites
+it. So Kage has one rule — memory has to prove itself. Every memory cites
 the files it's about, and it's checked against the repo three times:
 
 - on write — citing a file that doesn't exist gets the memory refused
