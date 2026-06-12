@@ -128,17 +128,46 @@ hallucination rejection, stale exclusion, and live grounding — 100/100.
 
 Methodology, commands, and caveats: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 
+## Why Kage, when memory tools already exist
+
+Capture-everything memory ([claude-mem](https://github.com/thedotmack/claude-mem),
+mem0, Zep) solves *remembering*. Kage solves *trusting what's remembered*:
+every memory is checked against the code it cites — when it's written, when
+it's recalled, and when your diff changes the code underneath it.
+
+| | Kage | claude-mem | mem0 / Zep |
+|---|---|---|---|
+| Automatic capture + session-start recall | ✓ | ✓ | via SDK |
+| Hallucinated citations **rejected at write time** | ✓ | — | — |
+| Stale memory **withheld at recall** (evidence changed/deleted) | ✓ | — | — |
+| **Diff-time stale-catch** — your change invalidates a memory, you're warned before the PR | ✓ | — | — |
+| Memory reviewed in git, same PR as the code (plain files, no DB) | ✓ | SQLite + cloud | hosted API |
+| Savings receipts (tokens + $ per recall, value ledger) | ✓ | token index | — |
+| Truth Report on any repo, zero setup | ✓ | — | — |
+| Account / API key required | none | cloud optional | yes |
+
+A memory system that never re-verifies its own claims gets *less* trustworthy
+the longer you use it. Kage is the one that ages well.
+
 ## Quick start
 
-Requires Node.js 18+. Two steps to live memory:
+Requires Node.js 18+. One command from inside your repo:
+
+```bash
+npx -y @kage-core/kage-graph-mcp install
+```
+
+This creates `.agent_memory/`, builds the code graph, auto-detects your agents
+(Claude Code, Codex, Cursor, Windsurf, Gemini CLI, OpenCode, Goose, Aider) and
+wires them. Or install globally and wire agents one at a time:
 
 ```bash
 npm install -g @kage-core/kage-graph-mcp
 cd your-repo
-kage init --project .
+kage install                   # or: kage init --project . for memory only
 ```
 
-Then connect your agent (one command writes the MCP + hooks config):
+Connect an agent manually instead (one command writes the MCP + hooks config):
 
 ```bash
 kage setup claude-code --project . --write     # Claude Code

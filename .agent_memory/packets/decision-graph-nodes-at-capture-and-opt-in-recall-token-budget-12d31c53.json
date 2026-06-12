@@ -98,11 +98,19 @@
     "estimated_tokens_saved": 200,
     "stale": true,
     "stale_reasons": [
+<<<<<<< HEAD
+      "linked path changed since memory was verified: mcp/kernel.ts, mcp/cli.ts"
+=======
       "linked path changed since memory was verified: mcp/kernel.ts"
+>>>>>>> origin/master
     ],
     "suggested_action": "update"
   },
   "created_at": "2026-06-04T16:01:03.630Z",
+<<<<<<< HEAD
+  "updated_at": "2026-06-12T03:47:26.746Z",
+=======
   "updated_at": "2026-06-11T21:38:21.457Z",
+>>>>>>> origin/master
   "author_branch": "master"
 }

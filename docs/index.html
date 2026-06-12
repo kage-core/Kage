@@ -338,11 +338,9 @@
             <pre># see the trust wedge in 30 seconds — no setup, no API key
 npx -y @kage-core/kage-graph-mcp demo
 
-# then wire it into your repo + agent
-npm install -g @kage-core/kage-graph-mcp
-kage init --project .
-kage setup claude-code --project . --write   # or codex, cursor, windsurf…
-kage setup verify-agent --agent claude-code --project .</pre>
+# then wire it into your repo + agent — one command, auto-detects your agents
+npx -y @kage-core/kage-graph-mcp install
+kage setup verify-agent --agent claude-code --project .   # confirm it's live</pre>
           </div>
           <div class="actions">
             <a class="button primary" href="guide.html">Read the docs</a>

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdtempSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
@@ -105,6 +105,7 @@ import { buildGraphRegistryManifest } from "./graph-registry.js";
 const CORE_USAGE = `Kage — code-grounded memory for coding agents
 
 Core commands:
+  kage install [--project <dir>]             one-shot: init + index + auto-wire detected agents
   kage demo                                  30-second trust demo (temp dir)
   kage scan --project <dir>                  60-second truth report on any repo (zero setup)
   kage init --project <dir>                  create repo memory (.agent_memory only)
@@ -125,6 +126,7 @@ Usage:
   kage index --project <dir>
   kage scan --project <dir> [--json]
   kage demo [--project <dir>]
+  kage install [--project <dir>] [--agents a,b] [--no-agents] [--json]
   kage init --project <dir> [--with-policy]
   kage policy --project <dir>
   kage doctor --project <dir>
@@ -397,6 +399,67 @@ async function main(): Promise<void> {
     console.log("  kage setup <agent> --project . --write    wire your agent (claude-code, codex, cursor, ...)");
     console.log("  kage viewer --project .                   see the dashboard");
     if (!result.validation.ok) process.exit(2);
+    return;
+  }
+
+  if (command === "install") {
+    const project = projectArg(args);
+    const agentsFlag = takeArg(args, "--agents");
+    const skipAgents = args.includes("--no-agents");
+    const json = args.includes("--json");
+    const home = homedir();
+    // Detection is config-dir presence, not PATH: agents like Cursor never expose a binary.
+    const probes: Array<{ agent: SetupAgent; paths: string[] }> = [
+      { agent: "claude-code", paths: [join(home, ".claude.json"), join(home, ".claude")] },
+      { agent: "codex", paths: [join(home, ".codex")] },
+      { agent: "cursor", paths: [join(home, ".cursor")] },
+      { agent: "windsurf", paths: [join(home, ".codeium", "windsurf")] },
+      { agent: "gemini-cli", paths: [join(home, ".gemini")] },
+      { agent: "opencode", paths: [join(home, ".config", "opencode"), join(home, ".opencode")] },
+      { agent: "goose", paths: [join(home, ".config", "goose")] },
+      { agent: "aider", paths: [join(home, ".aider.conf.yml")] },
+    ];
+    const requested = agentsFlag
+      ? agentsFlag.split(",").map((a) => a.trim()).filter((a): a is SetupAgent => SETUP_AGENTS.includes(a as SetupAgent))
+      : null;
+    const detected = requested ?? probes.filter((p) => p.paths.some((path) => existsSync(path))).map((p) => p.agent);
+
+    const init = initProject(project, { policy: false });
+    const wired: Array<{ agent: SetupAgent; ok: boolean; config_path?: string; error?: string }> = [];
+    if (!skipAgents) {
+      for (const agent of detected) {
+        try {
+          const result = setupAgent(agent, project, { write: true });
+          wired.push({ agent, ok: result.wrote, config_path: result.config_path ?? undefined, error: result.wrote || result.write_supported ? undefined : `config is print-only — run: kage setup ${agent} --project . and paste it` });
+        } catch (error) {
+          wired.push({ agent, ok: false, error: error instanceof Error ? error.message : String(error) });
+        }
+      }
+    }
+    if (json) {
+      console.log(JSON.stringify({ project_dir: init.index.projectDir, packets: init.index.packets, validation_ok: init.validation.ok, agents: wired }, null, 2));
+      if (!init.validation.ok) process.exit(2);
+      return;
+    }
+    console.log(`Kage installed in ${init.index.projectDir}\n`);
+    console.log("  Memory      .agent_memory/ created — packets are plain files, reviewable in git");
+    console.log(`  Indexes     ${init.index.indexes.length} built (code graph, recall, structure)`);
+    if (skipAgents) {
+      console.log("  Agents      skipped (--no-agents)");
+    } else if (!wired.length) {
+      console.log("  Agents      none detected — wire one manually: kage setup <agent> --project . --write");
+    } else {
+      for (const w of wired) {
+        if (w.ok) console.log(`  Agents      ${w.agent} ✓ wired${w.config_path ? ` (${w.config_path})` : ""}`);
+        else console.log(`  Agents      ${w.agent} ✗ ${w.error ?? "print-only; run kage setup " + w.agent + " --project . --write"}`);
+      }
+    }
+    console.log("\nNext:");
+    console.log("  restart your agent — memory now recalls automatically at session start");
+    console.log("  kage scan --project .      60-second Truth Report on this repo");
+    console.log("  kage viewer --project .    local dashboard (gains, packets, graph)");
+    console.log("\nVersion control: commit .agent_memory/packets/, ignore .agent_memory/indexes/ and reports/.");
+    if (!init.validation.ok) process.exit(2);
     return;
   }
 
