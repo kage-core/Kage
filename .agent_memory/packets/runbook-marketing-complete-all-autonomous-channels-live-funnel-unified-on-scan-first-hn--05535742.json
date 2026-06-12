@@ -64,11 +64,12 @@
     "estimated_tokens_saved": 171,
     "stale": true,
     "stale_reasons": [
+      "packet status is deprecated",
       "linked path changed since memory was verified: launch/CHECKLIST.md"
     ],
-    "suggested_action": "update"
+    "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-12T18:34:58.370Z",
-  "updated_at": "2026-06-12T19:44:49.190Z",
+  "updated_at": "2026-06-12T21:19:17.739Z",
   "author_branch": "master"
 }
