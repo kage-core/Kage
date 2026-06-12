@@ -307,10 +307,11 @@
     "promotion_requires_review": true,
     "stale": true,
     "stale_reasons": [
+      "packet status is deprecated",
       "linked path changed since memory was verified: CHANGELOG.md, mcp/server.json"
     ],
-    "suggested_action": "update"
+    "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-12T03:47:27.664Z",
-  "updated_at": "2026-06-12T03:53:38.782Z"
+  "updated_at": "2026-06-12T03:56:02.628Z"
 }
