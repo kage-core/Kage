@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.2.4 - first-stranger fixes
+
+- **Fix: scan crashed on permission-locked directories.** The file walkers now
+  skip unreadable entries (macOS `~/.Trash`, chmod-locked folders) instead of
+  dying with EPERM. Found by a real first run.
+- **Home-directory guard.** `kage scan` pointed at `$HOME` now explains itself
+  and asks for a repo path instead of crawling everything you own.
+- **Runnable error hints.** Every `Try:` remediation now uses the full
+  `npx -y kage-graph-mcp ...` form, so npx users are never told to run a
+  binary they don't have. EPERM-class errors get their own hint.
+- **Unscoped alias `kage-graph-mcp` on npm.** Social sites auto-link
+  `@kage-core` as a mention and mangle the command; the alias forwards to the
+  scoped package so posted commands paste clean.
+
 ## v2.2.3 - scan ends where install begins
 
 - **Fix: scan's next steps stranded npx users.** The Truth Report ended by
