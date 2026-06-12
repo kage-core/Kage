@@ -4800,12 +4800,12 @@ test("splitConflictSides separates both sides and rejects unbalanced markers", (
 test("remediationFor maps error text to one copy-pasteable command", () => {
   assert.equal(
     remediationFor(new Error("ENOENT: no such file or directory, open '/repo/.agent_memory/indexes/catalog.json'")),
-    "kage init --project ."
+    "npx -y kage-graph-mcp init --project ."
   );
-  assert.equal(remediationFor(new SyntaxError("Unexpected token < in JSON at position 0")), "kage repair --project .");
-  assert.equal(remediationFor(new Error("code graph artifact missing; rebuild required")), "kage index --project .");
-  assert.equal(remediationFor(new Error("kaboom")), "kage doctor --project .");
-  assert.equal(remediationFor("plain string failure"), "kage doctor --project .");
+  assert.equal(remediationFor(new SyntaxError("Unexpected token < in JSON at position 0")), "npx -y kage-graph-mcp repair --project .");
+  assert.equal(remediationFor(new Error("code graph artifact missing; rebuild required")), "npx -y kage-graph-mcp index --project .");
+  assert.equal(remediationFor(new Error("kaboom")), "npx -y kage-graph-mcp doctor --project .");
+  assert.equal(remediationFor("plain string failure"), "npx -y kage-graph-mcp doctor --project .");
 });
 
 // ---------------------------------------------------------------------------
@@ -5126,6 +5126,20 @@ test("sync setup is idempotent and re-runs update the remote URL", () => {
     assert.equal(status.behind, 0);
     assert.equal(status.dirty, false);
   });
+});
+
+test("scan tolerates permission-locked directories instead of crashing", () => {
+  const project = tempProject();
+  writeFileSync(join(project, "src.ts"), "export const x = 1;\n", "utf8");
+  mkdirSync(join(project, "locked"), { recursive: true });
+  writeFileSync(join(project, "locked", "secret.ts"), "export const y = 2;\n", "utf8");
+  chmodSync(join(project, "locked"), 0o000);
+  try {
+    const report = truthReport(project);
+    assert.equal(report.totals.files_scanned >= 1, true);
+  } finally {
+    chmodSync(join(project, "locked"), 0o755);
+  }
 });
 
 test("doc-lie check resolves links relative to the doc's directory, not just repo root", () => {

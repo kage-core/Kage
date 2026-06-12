@@ -2,7 +2,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { daemonDoctor, readDaemonStatus, startDaemon, startViewer, stopDaemon } from "./daemon.js";
@@ -407,7 +407,14 @@ async function main(): Promise<void> {
   }
 
   if (command === "scan") {
-    const result = truthReport(projectArg(args));
+    const scanTarget = resolve(projectArg(args));
+    if (scanTarget === homedir()) {
+      console.log("That's your home directory, not a repo — scanning it would crawl everything you own.");
+      console.log("cd into a project and rerun, or point at one:");
+      console.log("  npx -y kage-graph-mcp scan --project /path/to/repo");
+      process.exit(2);
+    }
+    const result = truthReport(scanTarget);
     if (args.includes("--json")) {
       console.log(JSON.stringify(result, null, 2));
       return;

@@ -4058,9 +4058,22 @@ export function ensureMemoryDirs(projectDir: string): void {
 function walkFiles(root: string, predicate: (path: string) => boolean): string[] {
   if (!existsSync(root)) return [];
   const out: string[] = [];
-  for (const entry of readdirSync(root)) {
+  // Unreadable entries (macOS ~/.Trash, permission-locked dirs) are skipped,
+  // never fatal — a scan of an imperfect tree should report, not crash.
+  let entries: string[] = [];
+  try {
+    entries = readdirSync(root);
+  } catch {
+    return out;
+  }
+  for (const entry of entries) {
     const path = join(root, entry);
-    const stats = statSync(path);
+    let stats: Stats;
+    try {
+      stats = statSync(path);
+    } catch {
+      continue;
+    }
     if (stats.isDirectory()) out.push(...walkFiles(path, predicate));
     else if (predicate(path)) out.push(path);
   }
@@ -5494,7 +5507,14 @@ function scanStructuralFiles(projectDir: string): { files: string[]; ignoredSumm
 
   const visit = (dir: string) => {
     if (!existsSync(dir)) return;
-    for (const entry of readdirSync(dir)) {
+    let dirEntries: string[] = [];
+    try {
+      dirEntries = readdirSync(dir);
+    } catch {
+      ignore("unreadable_dir");
+      return;
+    }
+    for (const entry of dirEntries) {
       const absolutePath = join(dir, entry);
       const rel = relative(projectDir, absolutePath).replace(/\\/g, "/");
       if (shouldSkipCodePath(rel)) {
@@ -18206,11 +18226,15 @@ export function repairProject(projectDir: string, options: { homeDir?: string; s
 // Map a CLI failure to ONE copy-pasteable next command. Pure on purpose:
 // remediation must be unit-testable without throwing real errors.
 export function remediationFor(error: unknown): string {
+  const msg0 = String((error as Error)?.message ?? error ?? "");
+  if (/EPERM|EACCES|scandir/i.test(msg0)) {
+    return "point --project at a code repository (a permission-locked folder was hit; system folders like ~/.Trash can't be read)";
+  }
   const text = error instanceof Error ? error.message : String(error);
-  if (/ENOENT/i.test(text) && /\.agent_memory/.test(text)) return "kage init --project .";
-  if (/Unexpected token|Unexpected end of JSON|is not valid JSON|JSON\.parse|in JSON at position/i.test(text)) return "kage repair --project .";
-  if (/\bindex(es)?\b|\bgraph\b/i.test(text)) return "kage index --project .";
-  return "kage doctor --project .";
+  if (/ENOENT/i.test(text) && /\.agent_memory/.test(text)) return "npx -y kage-graph-mcp init --project .";
+  if (/Unexpected token|Unexpected end of JSON|is not valid JSON|JSON\.parse|in JSON at position/i.test(text)) return "npx -y kage-graph-mcp repair --project .";
+  if (/\bindex(es)?\b|\bgraph\b/i.test(text)) return "npx -y kage-graph-mcp index --project .";
+  return "npx -y kage-graph-mcp doctor --project .";
 }
 
 export function approvePending(projectDir: string, id: string): string {
