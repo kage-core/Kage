@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { createServer, get } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { daemonContextReport, daemonDoctor, viewerBenchmarkReport, viewerRedirectLocation, viewerReportPaths, viewerStaticHeaders, viewerUrl } from "./daemon.js";
+import { daemonContextReport, daemonDoctor, startLiveFeed, viewerBenchmarkReport, viewerRedirectLocation, viewerReportPaths, viewerStaticHeaders, viewerUrl } from "./daemon.js";
 import { capture, indexProject } from "./kernel.js";
 
 test("viewer bare routes redirect to index while preserving query params", () => {
@@ -106,6 +108,64 @@ test("viewer benchmark report exposes a proof ledger with runnable commands", ()
     assert.equal(typeof item.metric, "string");
     assert.equal(typeof item.next_action, "string");
     assert.equal(item.next_action.length > 0, true);
+  }
+});
+
+test("live feed streams packet writes and value ledger events over SSE", async () => {
+  const project = mkdtempSync(join(tmpdir(), "kage-live-feed-"));
+  mkdirSync(join(project, ".agent_memory", "packets"), { recursive: true });
+  mkdirSync(join(project, ".agent_memory", "reports"), { recursive: true });
+  const feed = startLiveFeed(project, { debounceMs: 25, heartbeatMs: 60_000 });
+  const server = createServer((req, res) => {
+    if (req.url === "/kage/events") {
+      feed.handleRequest(req, res);
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = (server.address() as AddressInfo).port;
+
+  let received = "";
+  const request = get(`http://127.0.0.1:${port}/kage/events`, (res) => {
+    assert.equal(res.statusCode, 200);
+    assert.match(String(res.headers["content-type"]), /text\/event-stream/);
+    res.on("data", (chunk) => { received += String(chunk); });
+  });
+  const waitFor = async (pattern: RegExp) => {
+    const deadline = Date.now() + 5000;
+    while (!pattern.test(received)) {
+      if (Date.now() > deadline) throw new Error(`timed out waiting for ${pattern}; received so far: ${received}`);
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  };
+
+  try {
+    await waitFor(/: connected/);
+    assert.equal(feed.clientCount(), 1);
+
+    // new packet file -> packet_written with the packet title
+    writeFileSync(join(project, ".agent_memory", "packets", "demo-packet.json"), JSON.stringify({ title: "Demo packet from the live feed" }), "utf8");
+    await waitFor(/"type":"packet_written"/);
+    await waitFor(/Demo packet from the live feed/);
+
+    // same file rewritten -> packet_updated
+    writeFileSync(join(project, ".agent_memory", "packets", "demo-packet.json"), JSON.stringify({ title: "Demo packet, revised" }), "utf8");
+    await waitFor(/"type":"packet_updated"/);
+
+    // value ledger append -> value_event carrying the ledger entry
+    writeFileSync(
+      join(project, ".agent_memory", "reports", "value.json"),
+      JSON.stringify({ totals: { tokens_saved: 1200 }, events: [{ kind: "recall_served", tokens_saved: 1200, at: new Date().toISOString() }] }),
+      "utf8"
+    );
+    await waitFor(/"type":"value_event"/);
+    await waitFor(/"kind":"recall_served"/);
+  } finally {
+    request.destroy();
+    feed.close();
+    await new Promise((resolve) => server.close(resolve));
   }
 });
 

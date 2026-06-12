@@ -1,0 +1,79 @@
+{
+  "schema_version": 2,
+  "id": "repo:agent-aff9900007e92076e:workflow:viewer-live-feed-sse-kage-events-from-fs-watch-on-agent-memory-1781244026841",
+  "title": "Viewer live feed: SSE /kage/events from fs.watch on .agent_memory",
+  "summary": "The local viewer server startViewer in mcp/daemon.ts serves GET /kage/events as text/event stream, backed by startLiveFeed projectRoot, { heartbeatMs, debounceMs } . The feed fs.watches .agent memory/packets new file pac",
+  "body": "The local viewer server (startViewer in mcp/daemon.ts) serves GET /kage/events as text/event-stream, backed by startLiveFeed(projectRoot, { heartbeatMs, debounceMs }). The feed fs.watches .agent_memory/packets (new file -> packet_written, rewrite -> packet_updated, title read from the packet JSON) and .agent_memory/reports for value.json appends (each new ledger entry -> value_event carrying the raw event). Duplicate fs.watch bursts are collapsed with a 100ms per-file debounce; clients get a \": connected\" comment on attach and \": heartbeat\" comments every 25s; close() tears down watchers, timers, and client responses. The viewer UI (mcp/viewer/console.js initLive) connects with EventSource and unhides the #livePanel on the Gains tab only after onopen — on static hosts with no daemon (GitHub Pages demo) the connection errors before opening and the panel stays hidden. The CSP connect-src 'self' already permits same-origin EventSource. Test seam: startLiveFeed is exported, so daemon.test.ts spins a plain node:http server around feed.handleRequest on port 0 and asserts streamed events after writing real files. Remember to bump the console.js?v=N cache-buster in index.html and mirror mcp/viewer/* to docs/viewer/* (kept as identical copies; CI pages.yml re-mirrors and diff-verifies).\nEvidence: mcp/daemon.test.ts \"live feed streams packet writes and value ledger events over SSE\"; manual curl -N of /kage/events showed packet_written, value_event, packet_updated, heartbeat\nVerified by: node --test dist/daemon.test.js (9 pass) and full suite 192 pass; browser verification of livePanel show/hide",
+  "type": "workflow",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "viewer",
+    "daemon",
+    "sse",
+    "live-feed",
+    "value-ledger"
+  ],
+  "paths": [
+    "mcp/daemon.ts",
+    "mcp/daemon.test.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-12T06:00:26.841Z"
+    }
+  ],
+  "context": {
+    "fact": "The local viewer server (startViewer in mcp/daemon.ts) serves GET /kage/events as text/event-stream, backed by startLiveFeed(projectRoot, { heartbeatMs, debounceMs }). The feed fs.watches .agent_memory/packets (new file -> packet_written, rewrite -> packet_updated, title read from the packet JSON) and .agent_memory/reports for value.json appends (each new ledger entry -> value_event carrying the raw event). Duplicate fs.watch bursts are collapsed with a 100ms per-file debounce; clients get a \": connected\" comment on attach and \": heartbeat\" comments every 25s; close() tears down watchers, timers, and client responses. The viewer UI (mcp/viewer/console.js initLive) connects with EventSource and unhides the #livePanel on the Gains tab only after onopen — on static hosts with no daemon (GitHub Pages demo) the connection errors before opening and the panel stays hidden. The CSP connect-src 'self' already permits same-origin EventSource. Test seam: startLiveFeed is exported, so daemon.test.ts spins a plain node:http server around feed.handleRequest on port 0 and asserts streamed events after writing real files. Remember to bump the console.js?v=N cache-buster in index.html and mirror mcp/viewer/* to docs/viewer/* (kept as identical copies; CI pages.yml re-mirrors and diff-verifies).\nEvidence: mcp/daemon.test.ts \"live feed streams packet writes and value ledger events over SSE\"; manual curl -N of /kage/events showed packet_written, value_event, packet_updated, heartbeat\nVerified by: node --test dist/daemon.test.js (9 pass) and full suite 192 pass; browser verification of livePanel show/hide",
+    "verification": "mcp/daemon.test.ts \"live feed streams packet writes and value ledger events over SSE\"; manual curl -N of /kage/events showed packet_written, value_event, packet_updated, heartbeat"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-12T06:00:26.841Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/daemon.ts",
+        "sha256": "4d558ba09071b09ab3d1a62d40af04edf17609c9ea98a571405883424cc1bf2f",
+        "size": 38423
+      },
+      {
+        "path": "mcp/daemon.test.ts",
+        "sha256": "63ad996b6dea0bb5b6db7b903df3332d03fd6b41729806994abd3ce4d1f8dc5e",
+        "size": 12163
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 403
+  },
+  "created_at": "2026-06-12T06:00:26.841Z",
+  "updated_at": "2026-06-12T06:00:35.036Z",
+  "author_branch": "adopt/sse-live-feed"
+}
