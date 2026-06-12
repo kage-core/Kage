@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
-  "summary": "Repo-local context for 3 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/gotcha-social-sites-mangle-scoped-npm-commands-use-unscoped-alias-kage-graph-mcp-in-all-b69bc9d6.json\n- .agent_memory/packets/runbook-marketing-complete-all-autonomous-channels-live-funnel-unified-on-scan-first-hn--05535742.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n...mmands-use-unscoped-alias-kage-graph-mcp-in-all-b69bc9d6.json | 9 +++++++--\n ...-channels-live-funnel-unified-on-scan-first-hn--05535742.json | 7 ++++---\n .../packets/workflow-change-memory-master-23634276.json          | 3 +--\n 3 files changed, 12 insertions(+), 7 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "summary": "Repo-local context for 2 changed repo paths on master.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/gotcha-social-sites-mangle-scoped-npm-commands-use-unscoped-alias-kage-graph-mcp-in-all-b69bc9d6.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n...commands-use-unscoped-alias-kage-graph-mcp-in-all-b69bc9d6.json | 7 ++++---\n .agent_memory/packets/workflow-change-memory-master-23634276.json  | 3 +--\n 2 files changed, 5 insertions(+), 5 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -18,7 +18,6 @@
   ],
   "paths": [
     ".agent_memory/packets/gotcha-social-sites-mangle-scoped-npm-commands-use-unscoped-alias-kage-graph-mcp-in-all-b69bc9d6.json",
-    ".agent_memory/packets/runbook-marketing-complete-all-autonomous-channels-live-funnel-unified-on-scan-first-hn--05535742.json",
     ".agent_memory/packets/workflow-change-memory-master-23634276.json"
   ],
   "stack": [],
@@ -26,18 +25,17 @@
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "894979efdd0ba5b5e355a0a94eff51bc1ddeba5c",
-      "merge_base": "894979efdd0ba5b5e355a0a94eff51bc1ddeba5c",
+      "head": "390e53b30d805969c97e38039cd5b920015d715d",
+      "merge_base": "390e53b30d805969c97e38039cd5b920015d715d",
       "changed_files": [
         ".agent_memory/packets/gotcha-social-sites-mangle-scoped-npm-commands-use-unscoped-alias-kage-graph-mcp-in-all-b69bc9d6.json",
-        ".agent_memory/packets/runbook-marketing-complete-all-autonomous-channels-live-funnel-unified-on-scan-first-hn--05535742.json",
         ".agent_memory/packets/workflow-change-memory-master-23634276.json"
       ],
       "summary_path": ".agent_memory/review/branch-summary-master.json"
     }
   ],
   "context": {
-    "fact": "Current branch master changes 3 repo paths.",
+    "fact": "Current branch master changes 2 repo paths.",
     "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
     "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
     "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
@@ -46,7 +44,7 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-12T21:19:23.552Z",
+    "last_verified_at": "2026-06-12T21:55:03.050Z",
     "ttl_days": 180,
     "path_fingerprints": [],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -56,11 +54,6 @@
     {
       "relation": "changes_path",
       "to": "path:.agent_memory/packets/gotcha-social-sites-mangle-scoped-npm-commands-use-unscoped-alias-kage-graph-mcp-in-all-b69bc9d6.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/runbook-marketing-complete-all-autonomous-channels-live-funnel-unified-on-scan-first-hn--05535742.json",
       "evidence": "git_diff"
     },
     {
@@ -82,7 +75,7 @@
     "risks": [],
     "duplicate_candidates": [],
     "stale_reasons": [],
-    "estimated_tokens_saved": 335,
+    "estimated_tokens_saved": 284,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -100,6 +93,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-06-12T21:19:23.552Z",
-  "updated_at": "2026-06-12T21:19:23.552Z"
+  "created_at": "2026-06-12T21:55:03.050Z",
+  "updated_at": "2026-06-12T21:55:03.050Z"
 }
