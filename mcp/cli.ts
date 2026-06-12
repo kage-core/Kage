@@ -75,6 +75,8 @@ import {
   recall,
   recallWithEmbeddings,
   recordFeedback,
+  remediationFor,
+  repairProject,
   gcProject,
   compactProject,
   verifyCitations,
@@ -116,6 +118,7 @@ Core commands:
   kage verify --project <dir>                check memory citations against code
   kage setup <agent> --project <dir> --write wire your agent (claude-code, codex, cursor, ...)
   kage doctor --project <dir>                health check
+  kage repair --project <dir>                fix what doctor finds (indexes, broken packets, wiring)
   kage viewer --project <dir>                local dashboard
 
 Run 'kage help --all' for the full command list (lifecycle, CI, benchmarks, daemon, workspace).`;
@@ -130,6 +133,7 @@ Usage:
   kage init --project <dir> [--with-policy]
   kage policy --project <dir>
   kage doctor --project <dir>
+  kage repair --project <dir> [--json]
   kage setup list
   kage setup <agent> --project <dir> [--write] [--json]
   kage setup doctor --project <dir> [--json]
@@ -491,7 +495,34 @@ async function main(): Promise<void> {
     if (result.validation.warnings.length) console.log(`Warnings:\n${result.validation.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
     console.log("\nRecall smoke test:\n");
     console.log(result.sampleRecall);
-    if (!result.validation.ok) process.exit(2);
+    if (!result.validation.ok) {
+      console.log("\nSomething broken? kage repair --project .");
+      process.exit(2);
+    }
+    return;
+  }
+
+  if (command === "repair") {
+    const result = repairProject(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      if (!result.ok || !result.validation.ok) process.exit(2);
+      return;
+    }
+    console.log(`Kage repair — ${result.project_dir}\n`);
+    const areaLabel: Record<string, string> = { packets: "Memory", indexes: "Indexes", locks: "Locks", agents: "Agents" };
+    for (const action of result.actions) {
+      const mark = action.status === "fixed" ? "✓" : action.status === "failed" ? "✗" : "•";
+      console.log(`  ${(areaLabel[action.area] ?? action.area).padEnd(12)}${mark} ${action.target} — ${action.detail}`);
+    }
+    console.log(`\n${result.fixed} fixed, ${result.skipped} already healthy, ${result.failed} failed`);
+    if (result.removed_packets.length) {
+      console.log(`\nRemoved ${result.removed_packets.length} unrecoverable packet(s) — backups kept in .agent_memory/backup/:`);
+      for (const removed of result.removed_packets) console.log(`  ${removed}`);
+    }
+    console.log(result.validation.ok ? "Validation: passed" : "Validation: still failing");
+    if (result.validation.errors.length) console.log(`Errors:\n${result.validation.errors.map((error) => `  - ${error}`).join("\n")}`);
+    if (!result.ok || !result.validation.ok) process.exit(2);
     return;
   }
 
@@ -2008,7 +2039,10 @@ async function main(): Promise<void> {
   usage();
 }
 
+// Remediation-first failure: lead with the message, follow with exactly ONE
+// copy-pasteable next command. Exit code stays 1, same as before.
 main().catch((error) => {
-  console.error(error);
+  console.error(error instanceof Error ? error.message : String(error));
+  console.error(`\nTry:\n  ${remediationFor(error)}`);
   process.exit(1);
 });

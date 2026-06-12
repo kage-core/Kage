@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- **`kage repair` — one-command recovery.** Detects and fixes the breakage
+  users actually hit, printing a receipt of every step (fixed / skipped /
+  failed): unparseable packet JSON is backed up to
+  `.agent_memory/backup/<name>.broken`, merge conflicts are auto-resolved
+  keeping the newest side when it parses (otherwise the packet is removed
+  loudly, backup kept); missing or stale indexes are rebuilt; leftover
+  `*.tmp`/`*.lock` files and dead daemon `status.json` are cleaned; agents that
+  were already wired but lost their hook scripts get the write path re-run
+  (repair never wires new agents).
+- **Remediation-first errors.** Any uncaught CLI failure now prints the error
+  message plus a single copy-pasteable `Try:` command (`kage init` / `kage
+  repair` / `kage index` / `kage doctor`) chosen from the error text
+  (`remediationFor()`); exit code unchanged.
+- **Doctor cross-link.** `kage doctor` ends with
+  "Something broken? kage repair --project ." when validation fails.
+
 ## v2.0.2 - one-shot install + plugin hooks
 
 - **`kage install` — one-shot setup.** `npx -y @kage-core/kage-graph-mcp install`

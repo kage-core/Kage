@@ -16786,6 +16786,272 @@ export function doctorProject(projectDir: string): DoctorResult {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Repair: failure paths are part of the product. `kage repair` detects the
+// breakage users actually hit (merge-conflicted packets, stale or missing
+// indexes, leftover lock/tmp files, drifted agent wiring), fixes what it can
+// safely fix, and reports every step as fixed/skipped/failed.
+
+export interface RepairAction {
+  area: "packets" | "indexes" | "locks" | "agents";
+  target: string;
+  status: "fixed" | "skipped" | "failed";
+  detail: string;
+}
+
+export interface RepairResult {
+  project_dir: string;
+  ok: boolean;
+  actions: RepairAction[];
+  fixed: number;
+  skipped: number;
+  failed: number;
+  removed_packets: string[];
+  validation: ValidationResult;
+}
+
+function repairBackupDir(projectDir: string): string {
+  return join(memoryRoot(projectDir), "backup");
+}
+
+// Split a git merge-conflicted file into its two sides. Returns null when no
+// complete conflict block is present. diff3-style base sections (`|||||||`)
+// belong to neither side and are dropped.
+export function splitConflictSides(content: string): { ours: string; theirs: string } | null {
+  let section: "both" | "ours" | "base" | "theirs" = "both";
+  let conflicts = 0;
+  const ours: string[] = [];
+  const theirs: string[] = [];
+  for (const line of content.split("\n")) {
+    if (section === "both" && /^<{7}(\s|$)/.test(line)) { section = "ours"; conflicts += 1; continue; }
+    if (section === "ours" && /^\|{7}(\s|$)/.test(line)) { section = "base"; continue; }
+    if ((section === "ours" || section === "base") && /^={7}$/.test(line.trimEnd())) { section = "theirs"; continue; }
+    if (section === "theirs" && /^>{7}(\s|$)/.test(line)) { section = "both"; continue; }
+    if (section === "both") { ours.push(line); theirs.push(line); }
+    else if (section === "ours") ours.push(line);
+    else if (section === "theirs") theirs.push(line);
+  }
+  if (!conflicts || section !== "both") return null;
+  return { ours: ours.join("\n"), theirs: theirs.join("\n") };
+}
+
+function packetRecency(packet: Partial<MemoryPacket>): string {
+  return String(packet.updated_at ?? packet.created_at ?? "");
+}
+
+// Auto-resolve a merge-conflicted packet by keeping the newest side — but only
+// when that side parses as JSON. Anything less certain stays a removal.
+function resolveConflictedPacket(content: string): MemoryPacket | null {
+  const sides = splitConflictSides(content);
+  if (!sides) return null;
+  const candidates: MemoryPacket[] = [];
+  for (const side of [sides.ours, sides.theirs]) {
+    try {
+      const parsed = JSON.parse(side) as MemoryPacket;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) candidates.push(parsed);
+    } catch {
+      // This side does not parse; the other side may still win.
+    }
+  }
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => packetRecency(b).localeCompare(packetRecency(a)));
+  return candidates[0];
+}
+
+export function repairProject(projectDir: string, options: { homeDir?: string; serverPath?: string } = {}): RepairResult {
+  ensureMemoryDirs(projectDir);
+  const actions: RepairAction[] = [];
+  const removedPackets: string[] = [];
+  let packetsTouched = false;
+
+  // 1. Unparseable packet JSON (merge conflicts, torn writes, hand edits).
+  //    Always back up the broken original before changing anything.
+  let brokenFound = 0;
+  const packetDirs: Array<[string, string]> = [
+    [packetsDir(projectDir), "packets"],
+    [pendingDir(projectDir), "pending"],
+    [publicCandidatesDir(projectDir), "public-candidates"],
+  ];
+  for (const [dir, label] of packetDirs) {
+    for (const path of walkFiles(dir, (candidate) => candidate.endsWith(".json"))) {
+      const target = `${label}/${basename(path)}`;
+      let raw: string;
+      try {
+        raw = readFileSync(path, "utf8");
+      } catch (error) {
+        actions.push({ area: "packets", target, status: "failed", detail: error instanceof Error ? error.message : String(error) });
+        continue;
+      }
+      try {
+        JSON.parse(raw);
+        continue; // healthy packet
+      } catch {
+        // fall through to repair
+      }
+      brokenFound += 1;
+      try {
+        ensureDir(repairBackupDir(projectDir));
+        const backupPath = join(repairBackupDir(projectDir), `${basename(path)}.broken`);
+        writeFileSync(backupPath, raw, "utf8");
+        const resolved = resolveConflictedPacket(raw);
+        if (resolved) {
+          writeJson(path, resolved);
+          packetsTouched = true;
+          actions.push({
+            area: "packets",
+            target,
+            status: "fixed",
+            detail: `merge conflict auto-resolved, kept newest side — original saved to ${relative(projectDir, backupPath)}`,
+          });
+        } else {
+          unlinkSync(path);
+          packetsTouched = true;
+          removedPackets.push(target);
+          actions.push({
+            area: "packets",
+            target,
+            status: "fixed",
+            detail: `REMOVED unparseable packet — original preserved at ${relative(projectDir, backupPath)}; restore it by hand if it mattered`,
+          });
+        }
+      } catch (error) {
+        actions.push({ area: "packets", target, status: "failed", detail: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  }
+  if (!brokenFound) {
+    actions.push({ area: "packets", target: "memory packets", status: "skipped", detail: "all packet files parse cleanly" });
+  }
+
+  // 2. Stale lock/temp files left behind by crashed writers, plus a daemon
+  //    status file whose pid is no longer running.
+  let lockFindings = 0;
+  for (const path of walkFiles(memoryRoot(projectDir), (candidate) => candidate.endsWith(".tmp") || candidate.endsWith(".lock"))) {
+    lockFindings += 1;
+    try {
+      unlinkSync(path);
+      actions.push({ area: "locks", target: relative(projectDir, path), status: "fixed", detail: "removed leftover temp/lock file" });
+    } catch (error) {
+      actions.push({ area: "locks", target: relative(projectDir, path), status: "failed", detail: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  const daemonStatusPath = join(daemonDir(projectDir), "status.json");
+  if (existsSync(daemonStatusPath)) {
+    let stale = true;
+    let pidLabel = "unknown";
+    try {
+      const status = readJson<{ pid?: number }>(daemonStatusPath);
+      if (typeof status.pid === "number") {
+        pidLabel = String(status.pid);
+        try {
+          process.kill(status.pid, 0);
+          stale = false;
+        } catch {
+          stale = true;
+        }
+      }
+    } catch {
+      stale = true; // unreadable status file is stale by definition
+    }
+    if (stale) {
+      lockFindings += 1;
+      try {
+        unlinkSync(daemonStatusPath);
+        actions.push({ area: "locks", target: relative(projectDir, daemonStatusPath), status: "fixed", detail: `removed stale daemon status (pid ${pidLabel} is not running)` });
+      } catch (error) {
+        actions.push({ area: "locks", target: relative(projectDir, daemonStatusPath), status: "failed", detail: error instanceof Error ? error.message : String(error) });
+      }
+    } else {
+      lockFindings += 1;
+      actions.push({ area: "locks", target: relative(projectDir, daemonStatusPath), status: "skipped", detail: `daemon pid ${pidLabel} is alive — left alone` });
+    }
+  }
+  if (!lockFindings) {
+    actions.push({ area: "locks", target: "lock/temp files", status: "skipped", detail: "no stale lock or temp files" });
+  }
+
+  // 3. Missing or stale indexes — rebuild. Packet surgery above also forces a
+  //    rebuild so the catalog never disagrees with what is on disk.
+  const expectedIndexes = ["catalog.json", "by-path.json", "by-tag.json", "by-type.json", "vector-local.json", "graph.json", "code-graph.json"];
+  const missingIndexes = expectedIndexes.filter((name) => !existsSync(join(indexesDir(projectDir), name)));
+  let staleCatalog = false;
+  const catalogPath = join(indexesDir(projectDir), "catalog.json");
+  if (existsSync(catalogPath)) {
+    try {
+      const catalog = readJson<{ packet_count?: number }>(catalogPath);
+      staleCatalog = catalog.packet_count !== loadPacketsFromDir(packetsDir(projectDir)).length;
+    } catch {
+      staleCatalog = true;
+    }
+  }
+  if (missingIndexes.length || staleCatalog || packetsTouched) {
+    try {
+      const rebuilt = indexProject(projectDir);
+      const reason = missingIndexes.length
+        ? `${missingIndexes.length} missing: ${missingIndexes.join(", ")}`
+        : staleCatalog
+          ? "catalog was out of date"
+          : "packets changed during repair";
+      actions.push({ area: "indexes", target: "indexes + graphs", status: "fixed", detail: `rebuilt ${rebuilt.indexes.length} indexes (${reason})` });
+    } catch (error) {
+      actions.push({ area: "indexes", target: "indexes + graphs", status: "failed", detail: error instanceof Error ? error.message : String(error) });
+    }
+  } else {
+    actions.push({ area: "indexes", target: "indexes + graphs", status: "skipped", detail: "present and current" });
+  }
+
+  // 4. Agent wiring drift — re-run the write path ONLY for agents that are
+  //    already configured (config file exists) but whose hook scripts went
+  //    missing. Repair never wires new agents.
+  try {
+    const doctor = setupDoctor(projectDir, { homeDir: options.homeDir, serverPath: options.serverPath });
+    let drifted = 0;
+    for (const item of doctor) {
+      // "Already configured" means the agent's config file exists AND already
+      // mentions the Kage MCP server. A bare config (every Claude Code user
+      // has ~/.claude.json) is NOT configured — repair never wires new agents.
+      const configured = Boolean(item.config_path && existsSync(item.config_path)) && configMentionsKage(item.config_path);
+      if (!configured) continue;
+      if (!item.hook_summary || item.hook_summary.ready) continue;
+      drifted += 1;
+      try {
+        const rewired = setupAgent(item.agent, projectDir, { write: true, homeDir: options.homeDir, serverPath: options.serverPath });
+        actions.push({
+          area: "agents",
+          target: item.agent,
+          status: rewired.wrote ? "fixed" : "failed",
+          detail: rewired.wrote
+            ? `re-ran setup, restored missing hooks (${item.hook_summary.missing.join(", ")})`
+            : `setup did not write — run: kage setup ${item.agent} --project . --write`,
+        });
+      } catch (error) {
+        actions.push({ area: "agents", target: item.agent, status: "failed", detail: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    if (!drifted) {
+      actions.push({ area: "agents", target: "agent wiring", status: "skipped", detail: "configured agents look intact" });
+    }
+  } catch (error) {
+    actions.push({ area: "agents", target: "agent wiring", status: "failed", detail: error instanceof Error ? error.message : String(error) });
+  }
+
+  const validation = validateProject(projectDir);
+  const fixed = actions.filter((action) => action.status === "fixed").length;
+  const skipped = actions.filter((action) => action.status === "skipped").length;
+  const failed = actions.filter((action) => action.status === "failed").length;
+  return { project_dir: projectDir, ok: failed === 0, actions, fixed, skipped, failed, removed_packets: removedPackets, validation };
+}
+
+// Map a CLI failure to ONE copy-pasteable next command. Pure on purpose:
+// remediation must be unit-testable without throwing real errors.
+export function remediationFor(error: unknown): string {
+  const text = error instanceof Error ? error.message : String(error);
+  if (/ENOENT/i.test(text) && /\.agent_memory/.test(text)) return "kage init --project .";
+  if (/Unexpected token|Unexpected end of JSON|is not valid JSON|JSON\.parse|in JSON at position/i.test(text)) return "kage repair --project .";
+  if (/\bindex(es)?\b|\bgraph\b/i.test(text)) return "kage index --project .";
+  return "kage doctor --project .";
+}
+
 export function approvePending(projectDir: string, id: string): string {
   const pendingFiles = walkFiles(pendingDir(projectDir), (path) => path.endsWith(".json"));
   for (const path of pendingFiles) {
