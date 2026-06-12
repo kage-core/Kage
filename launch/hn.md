@@ -1,52 +1,59 @@
 # Show HN draft
 
-Post from your account. First hour decides everything — I'll be in comment-support
-mode; paste any hard comment to me and post replies in your own words.
+Post from your account, weekday 7–9am Pacific. First hour decides everything —
+ping the session after posting and paste hard comments in; reply in your own
+words, fast. Concede real limitations (young project, single-repo focus,
+heuristic call-edges at low confidence) — HN rewards honesty over defense.
 
-**Title (pick one, ≤80 chars):**
+**Title (≤80 chars):**
 
-1. Show HN: Kage – memory for coding agents, verified against your code
-2. Show HN: Kage – my coding agent's memory now has to prove itself
-3. Show HN: Verified memory for coding agents (no account, syncs over your own git remote)
-
-Recommended: #1.
+Show HN: Kage – memory for coding agents that has to prove itself
 
 **URL:** https://github.com/kage-core/Kage
-(Repo over website for Show HN — HN prefers source. The README carries the story.)
 
-**Text (goes in the text field):**
+**Text:**
 
-Every memory system I tried for coding agents had the same failure mode: the
-longer you use it, the less you can trust it. Memory written weeks ago still
-gets recalled after the code it describes was refactored away — and an agent
-acting on wrong memory is worse than one with none.
+I kept watching my coding agents act on stale knowledge. A memory tool would
+faithfully recall "auth lives in src/auth.ts" weeks after that file was
+refactored away — and the agent would confidently build on it. The store only
+grows; nothing ever re-checks it. An agent acting on wrong memory is worse
+than one with none.
 
-Kage is my attempt at memory that has to prove itself. Every memory cites the
-files it's about, and it's checked against the repo three times:
+So I built Kage with one rule: memory has to prove itself. Every memory cites
+the files it's about, and it's checked against the repo three times:
 
-- on write: a memory citing a file that doesn't exist is refused
-- on recall: if the cited code was deleted or changed, the memory is withheld
-  and flagged instead of served
-- on your diff: `kage pr check` warns when a change you're about to merge
+- on write — citing a file that doesn't exist gets the memory refused
+- on recall — if the cited code changed or was deleted, the memory is
+  withheld and flagged instead of served
+- on your diff — `kage pr check` warns when a change you're about to merge
   invalidates something the team "knows"
 
-The rest of the loop runs on hooks: sessions that captured nothing get
-auto-distilled into drafts you review (a signal gate keeps junk out), the next
-session opens with a "previously…" digest, and every recall prints a receipt
-of tokens/dollars saved — measured per memory, not estimated.
+Two things I think are genuinely different from other memory tools:
 
-Memory lives as plain JSON in your repo (reviewed in the same PR as the code)
-plus a personal store that syncs over a private git remote you own. No
-account, no API key, no database. One command to install:
-`npx -y @kage-core/kage-graph-mcp install` — wires Claude Code, Codex, Cursor,
-Windsurf, and anything MCP.
+1. `kage scan` runs a read-only "Truth Report" on any repo with zero setup:
+   duplicate implementations, exported-but-never-called code, bus-factor-1
+   hot files, knowledge voids (high-churn files nobody wrote anything about),
+   and doc claims that don't match the code. Every finding cites file:line.
+   On a fresh Express clone it finds 7 knowledge voids in about a minute.
 
-Try the 30-second trust demo: `npx -y @kage-core/kage-graph-mcp demo`
+2. Receipts. Every packet records what it cost to learn (tokens), and every
+   recall prints what it saved you — measured, not estimated. `kage gains`
+   shows the running ledger.
 
-GPL-3.0. Would love the hard questions — especially from anyone who's watched
-an agent confidently act on stale knowledge.
+The loop runs on hooks: sessions that captured nothing get auto-distilled
+into drafts you review (a signal gate keeps junk out), each session opens
+with a "previously…" digest, and memory citing a file is injected the moment
+the agent reads that file. Storage is plain JSON in the repo, reviewed in
+the same PR as the code; personal memory syncs over a private git remote you
+own. No account, no API key, no database.
 
-**Timing:** weekday, 7–9am Pacific. Avoid Fri evening/weekend.
-**After posting:** reply to every substantive comment within minutes. Concede
-real limitations fast (single-repo focus, young project, heuristic call
-resolution at low confidence) — HN rewards honesty over defense.
+Try it (read-only) on your own repo:
+
+  npx -y @kage-core/kage-graph-mcp scan --project .
+
+Wire it in (auto-detects Claude Code, Codex, Cursor, Windsurf, anything MCP):
+
+  npx -y @kage-core/kage-graph-mcp install
+
+GPL-3.0. 241 tests. Young project — I'd genuinely value the hard questions,
+especially from anyone who's been burned by an agent trusting stale context.
