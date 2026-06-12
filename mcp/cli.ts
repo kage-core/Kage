@@ -83,6 +83,7 @@ import {
   recall,
   recallWithEmbeddings,
   recordFeedback,
+  reverifyMemory,
   remediationFor,
   repairProject,
   gcProject,
@@ -178,6 +179,7 @@ Usage:
   kage slots delete --project <dir> --label <label> [--json]
   kage handoff --project <dir> [--json]
   kage lifecycle --project <dir> [--json]
+  kage reverify --project <dir> --packet <id> [--json]
   kage reconcile --project <dir> [--session <id>] [--json]
   kage timeline --project <dir> [--days <n>] [--json]
   kage lineage --project <dir> [--json]
@@ -1387,6 +1389,23 @@ async function main(): Promise<void> {
         console.log(`  ${item.action}`);
       }
     }
+    return;
+  }
+
+  if (command === "reverify") {
+    const packetId = takeArg(args, "--packet");
+    if (!packetId) usage();
+    const result = reverifyMemory(projectArg(args), packetId!);
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+    } else if (result.ok) {
+      console.log(`Reverified ${result.packet_id}`);
+      console.log(`  grounding refreshed for ${result.refreshed_paths.length} path(s)${result.was_stale ? " · stale flag cleared" : ""}`);
+      if (result.missing_paths.length) console.log(`  dropped missing path(s): ${result.missing_paths.join(", ")}`);
+    } else {
+      console.log(`Reverify failed: ${result.errors.join("; ")}`);
+    }
+    if (!result.ok) process.exit(2);
     return;
   }
 

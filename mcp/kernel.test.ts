@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, delimiter, join } from "node:path";
 import { availableParallelism, tmpdir } from "node:os";
 import vm from "node:vm";
@@ -109,6 +109,7 @@ import {
   formatTokenCount,
   recordFeedback,
   refreshProject,
+  reverifyMemory,
   remediationFor,
   repairProject,
   splitConflictSides,
@@ -5125,6 +5126,44 @@ test("sync setup is idempotent and re-runs update the remote URL", () => {
     assert.equal(status.behind, 0);
     assert.equal(status.dirty, false);
   });
+});
+
+test("reverify refreshes grounding in place and clears stale flags", () => {
+  const project = tempProject();
+  writeFileSync(join(project, "lib.ts"), "export const v = 1;\n", "utf8");
+  const captured = learn({ projectDir: project, learning: "lib.ts holds the version constant.", paths: ["lib.ts"], type: "reference" });
+  assert.equal(captured.ok, true);
+  const id = captured.packet!.id;
+  const packetFile = () => {
+    const name = readdirSync(packetsDir(project)).find((f) => JSON.parse(readFileSync(join(packetsDir(project), f), "utf8")).id === id)!;
+    return join(packetsDir(project), name);
+  };
+  // mutate the cited file, then let refresh mark the packet stale (default branch persists flags)
+  writeFileSync(join(project, "lib.ts"), "export const v = 2;\n", "utf8");
+  refreshProject(project);
+  const before = JSON.parse(readFileSync(packetFile(), "utf8"));
+  const result = reverifyMemory(project, id);
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  assert.equal(result.refreshed_paths.includes("lib.ts"), true);
+  assert.equal(result.was_stale, before.quality?.stale === true);
+  const after = JSON.parse(readFileSync(packetFile(), "utf8"));
+  assert.equal(after.quality?.stale === true, false);
+  assert.equal(typeof after.quality?.reverified_at, "string");
+  // fingerprints now match current content — a fresh refresh re-marks nothing
+  refreshProject(project);
+  const settled = JSON.parse(readFileSync(packetFile(), "utf8"));
+  assert.equal(settled.quality?.stale === true, false);
+});
+
+test("reverify refuses when all cited evidence is gone", () => {
+  const project = tempProject();
+  writeFileSync(join(project, "gone.ts"), "export const x = 1;\n", "utf8");
+  const captured = learn({ projectDir: project, learning: "gone.ts explains the x constant.", paths: ["gone.ts"], type: "reference" });
+  assert.equal(captured.ok, true);
+  rmSync(join(project, "gone.ts"));
+  const result = reverifyMemory(project, captured.packet!.id);
+  assert.equal(result.ok, false);
+  assert.equal(result.errors.join(" ").includes("supersede"), true);
 });
 
 test("sync without setup fails with a pointer to sync setup", () => {

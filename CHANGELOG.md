@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **`kage reverify --packet <id>` — re-verify instead of supersede-churn.**
+  When code a memory cites changes but the memory's claim is still true,
+  reverify refreshes its grounding in place: re-checks cited paths, recomputes
+  fingerprints, stamps `last_verified_at`/`reverified_at`, and clears stale
+  flags. Refuses when all cited evidence is gone (that memory needs supersede
+  or stale, not a rubber stamp). The reconciliation instruction now offers it
+  as the first option for still-true memories — ending the same-packet
+  supersede churn the Stop hook produced on hot files.
+
 ## v2.2.1 - sync works on identityless machines
 
 - **Fix: `kage sync` on machines without a git identity (CI, fresh Linux).**

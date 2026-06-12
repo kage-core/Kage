@@ -3672,7 +3672,7 @@ function reconciliationInstruction(items: MemoryReconciliationItem[]): string {
   return [
     "Memory reconciliation required before final response.",
     "You changed code that is linked to existing repo memory. Update the memory yourself; do not push this to the user as a manual inbox chore.",
-    "For each item, call kage_learn to save the new behavior and kage_supersede when replacing the old packet, or mark stale only if the memory is no longer trusted.",
+    "If the memory's claim is unchanged and only the cited code moved, run kage reverify --packet <id> to refresh its grounding in place. Otherwise call kage_learn to save the new behavior and kage_supersede when replacing the old packet, or mark stale only if the memory is no longer trusted.",
     ...lines,
   ].join("\n");
 }
@@ -18376,6 +18376,70 @@ function packetSupersessionReason(packet: MemoryPacket): string {
   const edge = packet.edges.find((item) => packetEdgeValue(item, "relation") === "superseded_by");
   const evidence = edge ? packetEdgeValue(edge, "evidence") : "";
   return evidence || "This memory was superseded by newer repo knowledge.";
+}
+
+export interface ReverifyMemoryResult {
+  ok: boolean;
+  project_dir: string;
+  packet_id: string;
+  refreshed_paths: string[];
+  missing_paths: string[];
+  was_stale: boolean;
+  errors: string[];
+}
+
+// Re-verify a still-true packet in place: re-check cited paths, refresh
+// fingerprints and last_verified_at, and clear stale flags. The alternative to
+// supersede churn when code changed but the memory's claim did not. Refuses
+// when ALL cited evidence is gone — that memory needs supersede or stale, not
+// a rubber stamp.
+export function reverifyMemory(projectDir: string, packetId: string): ReverifyMemoryResult {
+  ensureMemoryDirs(projectDir);
+  const result: ReverifyMemoryResult = {
+    ok: false,
+    project_dir: projectDir,
+    packet_id: packetId,
+    refreshed_paths: [],
+    missing_paths: [],
+    was_stale: false,
+    errors: [],
+  };
+  const entries = loadPacketEntriesFromDir(packetsDir(projectDir));
+  const entry = entries.find((item) => item.packet.id === packetId);
+  if (!entry) {
+    result.errors.push(`Packet not found: ${packetId}`);
+    return result;
+  }
+  const packet = entry.packet;
+  const quality = (packet.quality ?? {}) as Record<string, unknown>;
+  result.was_stale = quality.stale === true;
+  const citedPaths = unique([
+    ...packet.paths,
+    ...packetStoredPathFingerprints(packet).map((fingerprint) => fingerprint.path),
+  ]).filter(fingerprintableMemoryPath);
+  result.missing_paths = citedPaths.filter((path) => !existsSync(join(projectDir, path)));
+  if (citedPaths.length && result.missing_paths.length === citedPaths.length) {
+    result.errors.push(
+      "All cited paths are gone — reverify would rubber-stamp dead evidence. Use kage supersede with a replacement, or mark the packet stale.",
+    );
+    return result;
+  }
+  const presentPaths = citedPaths.filter((path) => !result.missing_paths.includes(path));
+  const now = nowIso();
+  const freshness = { ...(packet.freshness ?? {}) } as Record<string, unknown>;
+  freshness.path_fingerprints = memoryPathFingerprints(projectDir, presentPaths);
+  freshness.last_verified_at = now;
+  const { stale: _stale, stale_reasons: _staleReasons, suggested_action: _suggestedAction, ...nextQuality } = quality;
+  writeJson(entry.path, {
+    ...packet,
+    paths: presentPaths.length ? presentPaths : packet.paths,
+    freshness,
+    quality: { ...nextQuality, reverified_at: now },
+    updated_at: now,
+  });
+  result.refreshed_paths = presentPaths;
+  result.ok = true;
+  return result;
 }
 
 export function supersedeMemory(projectDir: string, oldPacketId: string, replacementPacketId: string, reason = ""): SupersedeMemoryResult {
