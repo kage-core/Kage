@@ -8,7 +8,10 @@ import { stdin as input, stdout as output } from "node:process";
 import { daemonDoctor, readDaemonStatus, startDaemon, startViewer, stopDaemon } from "./daemon.js";
 import {
   SETUP_AGENTS,
+  auditClaudeMemStore,
   auditProject,
+  defaultClaudeMemStorePath,
+  renderClaudeMemAuditReceipt,
   benchmarkTaskComparison,
   benchmarkCodingMemoryQuality,
   benchmarkMemoryScale,
@@ -182,6 +185,7 @@ Usage:
   kage workspace --project <workspace-dir> [--json]
   kage workspace recall "<query>" --project <workspace-dir> [--json]
   kage audit --project <dir> [--json]
+  kage audit-claude-mem [--store <path>] [--project <dir>] [--json]
   kage inbox --project <dir> [--json]
   kage quality --project <dir> [--json]
   kage benchmark --project <dir> [--json]
@@ -1573,6 +1577,22 @@ async function main(): Promise<void> {
       }
     }
     if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
+    return;
+  }
+
+  if (command === "audit-claude-mem") {
+    const projectDir = projectArg(args);
+    const storePath = takeArg(args, "--store") ?? defaultClaudeMemStorePath();
+    const result = auditClaudeMemStore(projectDir, { storePath });
+    if (!result.ok) {
+      console.error(result.error);
+      process.exit(2);
+    }
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result.report, null, 2));
+      return;
+    }
+    console.log(renderClaudeMemAuditReceipt(result.report));
     return;
   }
 

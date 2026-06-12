@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import type { Stats } from "node:fs";
-import { availableParallelism, tmpdir } from "node:os";
+import { availableParallelism, homedir, tmpdir } from "node:os";
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { Worker } from "node:worker_threads";
 import * as ts from "typescript";
@@ -11158,6 +11158,360 @@ export function truthReport(projectDir: string): TruthReport {
       "kage viewer --project <dir>     watch the void close",
     ],
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// claude-mem audit: read-only truth report over a claude-mem SQLite store.
+// claude-mem (https://github.com/thedotmack/claude-mem) keeps its store at
+// <data-dir>/claude-mem.db (data dir defaults to ~/.claude-mem, overridable via
+// CLAUDE_MEM_DATA_DIR). Observations are keyed by project name = basename of
+// the git repo root (cwd basename outside a repo), cite paths as JSON-string
+// arrays in files_read / files_modified, and carry created_at as ISO text plus
+// created_at_epoch in milliseconds. We only ever SELECT — never write.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ClaudeMemObservationRow {
+  id: number;
+  project: string;
+  type: string | null;
+  title: string | null;
+  subtitle: string | null;
+  files_read: string | null;
+  files_modified: string | null;
+  created_at: string | null;
+  created_at_epoch: number | null;
+}
+
+export type ClaudeMemAuditStatus = "verified" | "drifted" | "gone" | "uncited";
+
+export interface ClaudeMemCitationCheck {
+  path: string;
+  status: "verified" | "drifted" | "gone";
+  changed_at: string | null;
+}
+
+export interface ClaudeMemAuditEntry {
+  id: number;
+  type: string | null;
+  title: string;
+  status: ClaudeMemAuditStatus;
+  created_at: string | null;
+  age_days: number | null;
+  citations: ClaudeMemCitationCheck[];
+}
+
+export interface ClaudeMemAuditReport {
+  schema_version: 1;
+  store_path: string;
+  project_dir: string;
+  project_key: string;
+  generated_at: string;
+  reader: "node:sqlite" | "sqlite3-cli";
+  totals: { observations: number; verified: number; drifted: number; gone: number; uncited: number };
+  span_days: number;
+  worst_offenders: Array<{ id: number; title: string; status: "drifted" | "gone"; age_days: number | null; path: string; what_changed: string }>;
+  observations: ClaudeMemAuditEntry[];
+  warnings: string[];
+}
+
+export type ClaudeMemAuditResult =
+  | { ok: true; report: ClaudeMemAuditReport }
+  | { ok: false; error: string };
+
+export function defaultClaudeMemStorePath(): string {
+  const dataDir = process.env.CLAUDE_MEM_DATA_DIR || join(homedir(), ".claude-mem");
+  return join(dataDir, "claude-mem.db");
+}
+
+export function claudeMemProjectKey(projectDir: string): string {
+  // claude-mem derives the project name from the git repo root basename so it
+  // stays stable across subdirectories and worktrees; mirror that here.
+  const repoRoot = readGit(projectDir, ["rev-parse", "--show-toplevel"]);
+  return basename(repoRoot || resolve(projectDir));
+}
+
+// Mirrors claude-mem's own lenient parseFileList: JSON array of strings, with
+// non-JSON values treated as a single raw path.
+export function parseClaudeMemFileList(value: string | null | undefined): string[] {
+  if (!value) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    parsed = [value];
+  }
+  const list = Array.isArray(parsed) ? parsed : [parsed];
+  return list
+    .map((item) => String(item).trim())
+    .filter((item) => item.length > 0 && !/^\[.*\]$/.test(item));
+}
+
+type ClaudeMemQueryResult =
+  | { ok: true; mechanism: "node:sqlite" | "sqlite3-cli"; rows: Array<Record<string, unknown>> }
+  | { ok: false; error: string };
+
+// Read-only SELECT against a claude-mem store. Prefers the built-in node:sqlite
+// module (Node 22+); falls back to the sqlite3 CLI with -json output. The
+// project key is inlined with quote-escaping for the CLI path because the CLI
+// has no parameter binding.
+function queryClaudeMemStore(storePath: string, sqlFor: (escapedKey: string) => string, projectKey: string | null): ClaudeMemQueryResult {
+  let nodeSqliteError: string | null = null;
+  try {
+    // Guarded require: node:sqlite only exists on Node 22.5+, and this package
+    // supports Node 18+. Compiled output is CJS, so require is available.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
+    const db = new DatabaseSync(storePath, { readOnly: true });
+    try {
+      const statement = db.prepare(sqlFor("?"));
+      const rows = (projectKey === null ? statement.all() : statement.all(projectKey)) as Array<Record<string, unknown>>;
+      return { ok: true, mechanism: "node:sqlite", rows };
+    } finally {
+      db.close();
+    }
+  } catch (error) {
+    nodeSqliteError = error instanceof Error ? error.message : String(error);
+  }
+  try {
+    const escaped = projectKey === null ? "''" : `'${projectKey.replace(/'/g, "''")}'`;
+    const out = execFileSync("sqlite3", ["-readonly", "-json", storePath, sqlFor(escaped)], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const trimmed = out.trim();
+    return { ok: true, mechanism: "sqlite3-cli", rows: trimmed ? (JSON.parse(trimmed) as Array<Record<string, unknown>>) : [] };
+  } catch {
+    return {
+      ok: false,
+      error: [
+        `Cannot read the claude-mem store at ${storePath}.`,
+        "Kage needs one of:",
+        "  - Node 22+ (ships the built-in node:sqlite module), or",
+        "  - the `sqlite3` command-line tool on PATH (with -json support, sqlite 3.33+).",
+        `node:sqlite said: ${nodeSqliteError ?? "unavailable"}`,
+        "The store is opened read-only either way — Kage never writes to it.",
+      ].join("\n"),
+    };
+  }
+}
+
+export type ClaudeMemReadResult =
+  | { ok: true; mechanism: "node:sqlite" | "sqlite3-cli"; rows: ClaudeMemObservationRow[] }
+  | { ok: false; error: string };
+
+export function readClaudeMemObservations(storePath: string, projectKey: string): ClaudeMemReadResult {
+  if (!existsSync(storePath)) {
+    return {
+      ok: false,
+      error: `No claude-mem store found at ${storePath}. Pass --store <path> if yours lives elsewhere (claude-mem default: ~/.claude-mem/claude-mem.db, or $CLAUDE_MEM_DATA_DIR/claude-mem.db).`,
+    };
+  }
+  const result = queryClaudeMemStore(
+    storePath,
+    (key) =>
+      `SELECT id, project, type, title, subtitle, files_read, files_modified, created_at, created_at_epoch FROM observations WHERE project = ${key} ORDER BY created_at_epoch ASC`,
+    projectKey,
+  );
+  if (!result.ok) return result;
+  return { ok: true, mechanism: result.mechanism, rows: result.rows as unknown as ClaudeMemObservationRow[] };
+}
+
+function readClaudeMemProjectNames(storePath: string): string[] {
+  const result = queryClaudeMemStore(storePath, () => "SELECT DISTINCT project FROM observations ORDER BY project", null);
+  if (!result.ok) return [];
+  return result.rows.map((row) => String(row.project ?? "")).filter(Boolean);
+}
+
+// claude-mem stores created_at_epoch in milliseconds; tolerate seconds too.
+function claudeMemObservationEpochSeconds(row: ClaudeMemObservationRow): number | null {
+  const epoch = Number(row.created_at_epoch);
+  if (Number.isFinite(epoch) && epoch > 0) return epoch > 1e12 ? Math.floor(epoch / 1000) : Math.floor(epoch);
+  if (row.created_at) {
+    const parsed = Date.parse(row.created_at);
+    if (Number.isFinite(parsed)) return Math.floor(parsed / 1000);
+  }
+  return null;
+}
+
+export interface ClaudeMemChangeSignal {
+  exists: (citedPath: string) => boolean;
+  // Last-change epoch in seconds for a cited path, or null when unknowable.
+  lastChangedEpoch: (citedPath: string) => number | null;
+}
+
+// One git pass over the whole history (same approach as truthReport): the
+// newest commit touching each path is its last-change signal. mtime is the
+// fallback for untracked or out-of-repo paths — fresh checkouts reset mtimes,
+// so git wins whenever it knows the path.
+export function buildClaudeMemChangeSignal(projectDir: string): ClaudeMemChangeSignal {
+  const absProject = resolve(projectDir);
+  const newestEpochByPath = new Map<string, number>();
+  if (gitHead(projectDir)) {
+    const raw = readGit(projectDir, ["log", "--no-renames", "--format=__KAGE_CM__%x1f%ct", "--name-only"]) ?? "";
+    const projectPrefix = gitProjectPrefix(projectDir) ?? "";
+    let epoch = 0;
+    for (const rawLine of raw.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line) continue;
+      if (line.startsWith("__KAGE_CM__")) {
+        epoch = Number(line.split("\x1f")[1] ?? 0) || 0;
+        continue;
+      }
+      const normalized = line.replace(/\\/g, "/").replace(/^\/+/, "");
+      const path = projectPrefix && normalized.startsWith(`${projectPrefix}/`) ? normalized.slice(projectPrefix.length + 1) : normalized;
+      // git log is newest-first: first sighting is the newest commit for the path.
+      if (!newestEpochByPath.has(path)) newestEpochByPath.set(path, epoch);
+    }
+  }
+  const resolveCited = (citedPath: string): { abs: string; rel: string | null } => {
+    const cleaned = citedPath.replace(/\\/g, "/");
+    if (/^(?:[A-Za-z]:)?\//.test(cleaned) || cleaned.startsWith("~/")) {
+      const abs = resolve(cleaned.startsWith("~/") ? join(homedir(), cleaned.slice(2)) : cleaned);
+      const rel = abs === absProject ? "" : abs.startsWith(absProject + sep) ? relative(absProject, abs).replace(/\\/g, "/") : null;
+      return { abs, rel };
+    }
+    const rel = cleaned.replace(/^\.\//, "");
+    return { abs: join(absProject, rel), rel };
+  };
+  return {
+    exists: (citedPath) => existsSync(resolveCited(citedPath).abs),
+    lastChangedEpoch: (citedPath) => {
+      const { abs, rel } = resolveCited(citedPath);
+      if (rel !== null) {
+        const fromGit = newestEpochByPath.get(rel);
+        if (fromGit !== undefined) return fromGit;
+      }
+      const stat = safeStat(abs);
+      return stat ? Math.floor(stat.mtimeMs / 1000) : null;
+    },
+  };
+}
+
+// Pure classifier over parsed rows: VERIFIED (all cited paths exist and are
+// unchanged since capture), DRIFTED (a cited path changed after capture), GONE
+// (a cited path no longer exists), UNCITED (no file citations at all).
+// GONE outranks DRIFTED outranks VERIFIED when citations disagree.
+export function classifyClaudeMemObservations(
+  rows: ClaudeMemObservationRow[],
+  signal: ClaudeMemChangeSignal,
+  nowEpochSeconds: number = Math.floor(Date.now() / 1000),
+): ClaudeMemAuditEntry[] {
+  return rows.map((row) => {
+    const cited = unique([...parseClaudeMemFileList(row.files_read), ...parseClaudeMemFileList(row.files_modified)]);
+    const obsEpoch = claudeMemObservationEpochSeconds(row);
+    const ageDays = obsEpoch === null ? null : Math.max(0, Math.floor((nowEpochSeconds - obsEpoch) / 86400));
+    const title = (row.title ?? "").trim() || (row.subtitle ?? "").trim() || `observation #${row.id}`;
+    if (!cited.length) {
+      return { id: row.id, type: row.type ?? null, title, status: "uncited" as const, created_at: row.created_at ?? null, age_days: ageDays, citations: [] };
+    }
+    const citations: ClaudeMemCitationCheck[] = cited.map((path) => {
+      if (!signal.exists(path)) return { path, status: "gone" as const, changed_at: null };
+      const changedEpoch = signal.lastChangedEpoch(path);
+      if (changedEpoch !== null && obsEpoch !== null && changedEpoch > obsEpoch) {
+        return { path, status: "drifted" as const, changed_at: new Date(changedEpoch * 1000).toISOString() };
+      }
+      return { path, status: "verified" as const, changed_at: null };
+    });
+    const status: ClaudeMemAuditStatus = citations.some((c) => c.status === "gone")
+      ? "gone"
+      : citations.some((c) => c.status === "drifted")
+        ? "drifted"
+        : "verified";
+    return { id: row.id, type: row.type ?? null, title, status, created_at: row.created_at ?? null, age_days: ageDays, citations };
+  });
+}
+
+export function auditClaudeMemStore(projectDir: string, options: { storePath?: string } = {}): ClaudeMemAuditResult {
+  const storePath = options.storePath ?? defaultClaudeMemStorePath();
+  const projectKey = claudeMemProjectKey(projectDir);
+  const read = readClaudeMemObservations(storePath, projectKey);
+  if (!read.ok) return { ok: false, error: read.error };
+
+  const warnings: string[] = [];
+  if (!read.rows.length) {
+    const others = readClaudeMemProjectNames(storePath);
+    warnings.push(
+      others.length
+        ? `No observations for project "${projectKey}". The store has: ${others.slice(0, 12).join(", ")}${others.length > 12 ? ", …" : ""}. Run from the matching directory or pass --project.`
+        : "The store has no observations at all.",
+    );
+  }
+  if (!gitHead(projectDir)) {
+    warnings.push("Git history is unavailable for this project; change detection falls back to file mtimes, which fresh checkouts reset.");
+  }
+
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  const entries = classifyClaudeMemObservations(read.rows, buildClaudeMemChangeSignal(projectDir), nowEpoch);
+  const count = (status: ClaudeMemAuditStatus) => entries.filter((entry) => entry.status === status).length;
+
+  const epochs = read.rows.map((row) => claudeMemObservationEpochSeconds(row)).filter((epoch): epoch is number => epoch !== null);
+  const spanDays = epochs.length ? Math.max(1, Math.ceil((Math.max(...epochs) - Math.min(...epochs)) / 86400)) : 0;
+
+  const worstOffenders = entries
+    .filter((entry): entry is ClaudeMemAuditEntry & { status: "drifted" | "gone" } => entry.status === "drifted" || entry.status === "gone")
+    .sort((a, b) => (b.age_days ?? 0) - (a.age_days ?? 0) || a.id - b.id)
+    .slice(0, 5)
+    .map((entry) => {
+      const offending = entry.citations.find((c) => c.status === entry.status) ?? entry.citations[0];
+      const whatChanged = offending.status === "gone"
+        ? "file no longer exists"
+        : `changed ${offending.changed_at?.slice(0, 10) ?? "after capture"}${entry.created_at ? ` (captured ${entry.created_at.slice(0, 10)})` : ""}`;
+      return { id: entry.id, title: entry.title, status: entry.status, age_days: entry.age_days, path: offending.path, what_changed: whatChanged };
+    });
+
+  return {
+    ok: true,
+    report: {
+      schema_version: 1,
+      store_path: storePath,
+      project_dir: projectDir,
+      project_key: projectKey,
+      generated_at: nowIso(),
+      reader: read.mechanism,
+      totals: {
+        observations: entries.length,
+        verified: count("verified"),
+        drifted: count("drifted"),
+        gone: count("gone"),
+        uncited: count("uncited"),
+      },
+      span_days: spanDays,
+      worst_offenders: worstOffenders,
+      observations: entries,
+      warnings,
+    },
+  };
+}
+
+export function renderClaudeMemAuditReceipt(report: ClaudeMemAuditReport): string {
+  const lines: string[] = [];
+  lines.push(`Kage audit — claude-mem store for ${report.project_key}`);
+  const total = report.totals.observations;
+  lines.push(`${total} observation${total === 1 ? "" : "s"} · captured over ${report.span_days} day${report.span_days === 1 ? "" : "s"}`);
+  if (total > 0) {
+    const pct = (n: number) => `${Math.round((n / total) * 100)}%`;
+    const row = (label: string, n: number, note: string) => `■ ${label.padEnd(10)} ${String(n).padStart(3)} (${pct(n)})  ${note}`;
+    lines.push(row("VERIFIED", report.totals.verified, "still match your code"));
+    lines.push(row("DRIFTED", report.totals.drifted, "cite files that changed since capture — may be stale"));
+    lines.push(row("GONE", report.totals.gone, "cite files that no longer exist"));
+    lines.push(row("UNCITED", report.totals.uncited, "no file citations — unverifiable by construction"));
+  }
+  if (report.worst_offenders.length) {
+    lines.push("");
+    lines.push("Worst offenders:");
+    for (const offender of report.worst_offenders) {
+      lines.push(`  • "${offender.title}" — ${offender.status.toUpperCase()}${offender.age_days !== null ? `, ${offender.age_days}d old` : ""}`);
+      lines.push(`    ${offender.path} — ${offender.what_changed}`);
+    }
+  }
+  if (report.warnings.length) {
+    lines.push("");
+    for (const warning of report.warnings) lines.push(`Warning: ${warning}`);
+  }
+  lines.push("");
+  lines.push("claude-mem remembers everything. Kage tells you what's still true.");
+  lines.push("Import coming soon — https://kage-core.github.io/Kage/");
+  return lines.join("\n");
 }
 
 export function kageReviewerSuggestions(projectDir: string, targets: string[] = [], changedFiles: string[] = []): KageReviewerSuggestionsReport {

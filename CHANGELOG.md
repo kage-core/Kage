@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **`kage audit-claude-mem` — truth report over a claude-mem store.** One
+  read-only command that audits an existing claude-mem user's memory
+  (`~/.claude-mem/claude-mem.db`, or `--store <path>`) against the current
+  repo. Each observation's cited files (`files_read`/`files_modified`) are
+  classified as VERIFIED (paths exist and unchanged since capture), DRIFTED
+  (cited file changed after capture), GONE (cited file no longer exists), or
+  UNCITED (no file citations — unverifiable by construction), using a single
+  git-history pass with mtime fallback. Prints a Truth-Report-style receipt
+  with worst offenders; `--json` emits the full classification. Reads via the
+  built-in `node:sqlite` module (Node 22+) with a `sqlite3` CLI fallback — no
+  new dependencies, and the store is never written to.
 - **Per-packet discovery cost (`discovery_tokens`).** Captures now store the
   approximate token cost of producing the knowledge (exploration + reasoning)
   under `quality.discovery_tokens`. Caller-reported via `kage_learn`
