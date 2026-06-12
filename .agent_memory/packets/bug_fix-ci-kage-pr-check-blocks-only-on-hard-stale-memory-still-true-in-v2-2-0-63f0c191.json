@@ -1,0 +1,76 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:bug_fix:ci-kage-pr-check-blocks-only-on-hard-stale-memory-still-true-in-v2-2-0-178126514",
+  "title": "CI: kage pr check blocks only on hard-stale memory (still true in v2.2.0)",
+  "summary": "kage pr check fails exit 2 only on hard stale memory cited evidence gone and missing validation/graph freshness; soft stale linked path changed since capture is a non blocking warning listed for review. Verified through",
+  "body": "kage pr check fails (exit 2) only on hard-stale memory (cited evidence gone) and missing validation/graph freshness; soft-stale (linked path changed since capture) is a non-blocking warning listed for review. Verified through v2.2.0: repair/signal-gate/personal-memory changes did not alter the blocking boundary. Personal packets are structurally excluded from pr-check entirely (RecallResult.personal, never results).",
+  "type": "bug_fix",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "ci"
+  ],
+  "paths": [
+    "mcp/kernel.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-12T11:52:28.819Z"
+    }
+  ],
+  "context": {
+    "fact": "kage pr check fails (exit 2) only on hard-stale memory (cited evidence gone) and missing validation/graph freshness; soft-stale (linked path changed since capture) is a non-blocking warning listed for review. Verified through v2.2.0: repair/signal-gate/personal-memory changes did not alter the blocking boundary. Personal packets are structurally excluded from pr-check entirely (RecallResult.personal, never results)."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-12T11:52:28.819Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "dd850d4105753866afe284732c0933deb94f4440684ddd5579f304dfdfd1734d",
+        "size": 782593
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [
+    {
+      "relation": "supersedes",
+      "to": "repo:memory:bug_fix:ci-kage-pr-check-must-block-only-on-hard-stale-memory-1780660446179",
+      "evidence": "Newer repo memory supersedes this packet.",
+      "created_at": "2026-06-12T11:52:46.619Z"
+    }
+  ],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "discovery_tokens": 8000,
+    "discovery_tokens_estimated": true,
+    "score": 96,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 105
+  },
+  "created_at": "2026-06-12T11:52:28.819Z",
+  "updated_at": "2026-06-12T11:54:26.168Z",
+  "author_branch": "master"
+}

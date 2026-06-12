@@ -1,0 +1,77 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:graph-nodes-at-capture-opt-in-recall-token-budget-still-true-in-v2-2-0-178126514",
+  "title": "graph_nodes at capture + opt-in recall token budget (still true in v2.2.0)",
+  "summary": "Capture links packets to code graph nodes at write time graph nodes ; recall token budget stays opt in/bounded. Still true through v2.2.0; layered on top without changing the decision: recall appends a Personal Memory se",
+  "body": "Capture links packets to code-graph nodes at write time (graph_nodes); recall token budget stays opt-in/bounded. Still true through v2.2.0; layered on top without changing the decision: recall appends a Personal Memory section (trimmed FIRST over budget, ranks last) and kage resume carries a separate ~800-token timeline cap. Receipts use max(read-vs-source, replay discovery_tokens math).",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "capture"
+  ],
+  "paths": [
+    "mcp/kernel.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-12T11:52:29.259Z"
+    }
+  ],
+  "context": {
+    "fact": "recall appends a Personal Memory section (trimmed FIRST over budget, ranks last) and kage resume carries a separate ~800-token timeline cap. Receipts use max(read-vs-source, replay discovery_tokens math)."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-12T11:52:29.259Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "dd850d4105753866afe284732c0933deb94f4440684ddd5579f304dfdfd1734d",
+        "size": 782593
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [
+    {
+      "relation": "supersedes",
+      "to": "repo:https-github-com-kage-core-kage:decision:graph-nodes-at-capture-and-opt-in-recall-token-budget-1780588863630",
+      "evidence": "Newer repo memory supersedes this packet.",
+      "created_at": "2026-06-12T11:52:47.531Z"
+    }
+  ],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "discovery_tokens": 4000,
+    "discovery_tokens_estimated": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 98
+  },
+  "created_at": "2026-06-12T11:52:29.259Z",
+  "updated_at": "2026-06-12T11:54:26.173Z",
+  "author_branch": "master"
+}

@@ -1,0 +1,77 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:workflow:auto-distill-fallback-and-kage-resume-continuity-v2-2-0-behavior-1781265030797",
+  "title": "Auto-distill fallback and kage resume continuity (v2.2.0 behavior)",
+  "summary": "Stop hook runs kage distill project session auto: drafts go to the pending inbox tagged auto distill, excluded from recall until kage review approval. Since v2.2.0 auto distill is signal gated: observationSignalScore ker",
+  "body": "Stop hook runs kage distill --project --session --auto: drafts go to the pending inbox tagged auto-distill, excluded from recall until kage review approval. Since v2.2.0 auto-distill is signal-gated: observationSignalScore (kernel.ts) must be >= AUTO_DISTILL_SIGNAL_THRESHOLD (0.4); raw JSON payloads, hook notifications, sub-50-char fragments, flag dumps, and kage self-echoes score 0 and are counted in skipped_low_signal. observe() tags low_signal at ingestion. kage resume prints the previously digest (last session, drafts count, reconciliation items) AND a Recent memory timeline: newest 15 packets one-line each, summaries for newest 3, capped ~800 tokens. SessionStart hook appends resume output to the injected policy; manual learn/capture/distill remain ungated.",
+  "type": "workflow",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "auto-distill"
+  ],
+  "paths": [
+    "mcp/kernel.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-12T11:50:30.797Z"
+    }
+  ],
+  "context": {
+    "fact": "Stop hook runs kage distill --project --session --auto: drafts go to the pending inbox tagged auto-distill, excluded from recall until kage review approval. Since v2.2.0 auto-distill is signal-gated: observationSignalScore (kernel.ts) must be >= AUTO_DISTILL_SIGNAL_THRESHOLD (0.4); raw JSON payloads, hook notifications, sub-50-char fragments, flag dumps, and kage self-echoes score 0 and are counted in skipped_low_signal. observe() tags low_signal at ingestion. kage resume prints the previously digest (last session, drafts count, reconciliation items) AND a Recent memory timeline: newest 15 packets one-line each, summaries for newest 3, capped ~800 tokens. SessionStart hook appends resume output to the injected policy; manual learn/capture/distill remain ungated."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-12T11:50:30.797Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "dd850d4105753866afe284732c0933deb94f4440684ddd5579f304dfdfd1734d",
+        "size": 782593
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [
+    {
+      "relation": "supersedes",
+      "to": "repo:agent-a9571b4b7b8fb514a:workflow:auto-distill-fallback-and-kage-resume-continuity-1781244361588",
+      "evidence": "Newer repo memory supersedes this packet.",
+      "created_at": "2026-06-12T11:50:46.379Z"
+    }
+  ],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "discovery_tokens": 2000,
+    "discovery_tokens_estimated": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 193
+  },
+  "created_at": "2026-06-12T11:50:30.797Z",
+  "updated_at": "2026-06-12T11:54:26.181Z",
+  "author_branch": "master"
+}
