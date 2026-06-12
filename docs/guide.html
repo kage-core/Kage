@@ -174,13 +174,17 @@
 
       <main>
         <header class="hero" id="overview">
-          <span class="eyebrow">kage://docs</span>
+          <span class="eyebrow">kage://docs · v2.2</span>
           <h1>Kage docs.</h1>
           <p class="lede">
-            Kage is a CLI and MCP server that gives AI coding agents repo-local memory. Stored as reviewable JSON
-            packets connected to code, recalled before future edits. This guide gets you from <code>npm install</code>
-            to a working setup, then explains the concepts and reference.
+            Kage gives coding agents <strong>verified memory</strong>: every packet is checked against your code
+            when it's written, when it's recalled, and when your diff changes what it cites. The session loop runs
+            itself — auto-capture with a signal gate, a "previously…" digest on every start, memory injected the
+            moment the agent reads a cited file, receipts for what it saves you — and personal memory follows you
+            across machines over your own git remote. This guide takes you from one install command to the full
+            reference.
           </p>
+          <pre style="margin-top:18px">npx -y @kage-core/kage-graph-mcp install</pre>
         </header>
 
         <section id="quickstart">
@@ -243,35 +247,37 @@ kage doctor --project .</pre>
 
         <section id="first-day">
           <h2>First-day workflow</h2>
-          <p>Use your coding agent normally. Kage is meant to feel ambient.</p>
+          <p>Use your coding agent normally — with the hooks installed, the loop below runs itself. Every command here is the manual equivalent of something Kage already does ambiently.</p>
           <div class="grid">
             <div class="card">
-              <h3>Before work</h3>
-              <p>Agents call <code>kage_context</code> (MCP) or <code>kage recall</code> (CLI) to load relevant memory and code graph facts.</p>
-              <pre>kage recall "how does auth work?" --project . --explain</pre>
+              <h3>Sessions start warm</h3>
+              <p>The SessionStart hook injects the memory policy plus a "previously…" digest and recent-memory timeline. When the agent reads a file, verified packets citing it are injected right then.</p>
+              <pre>kage resume --project .      # what the hook injects
+kage recall "how does auth work?" --project .</pre>
             </div>
             <div class="card">
-              <h3>After learning</h3>
-              <p>Capture decisions, gotchas, setup commands, and code explanations as concise packets.</p>
+              <h3>Learnings become packets — even forgotten ones</h3>
+              <p>Agents capture explicitly with <code>kage_learn</code>; sessions that saved nothing are auto-distilled into pending drafts at session end (signal-gated, reviewed by you).</p>
               <pre>kage learn --project . --type gotcha \
-  --learning "Do not merge these retry paths; one uses idempotency keys."</pre>
+  --learning "Do not merge these retry paths; one uses idempotency keys."
+kage inbox --project .       # review auto-distilled drafts</pre>
             </div>
             <div class="card">
-              <h3>After meaningful changes</h3>
-              <p>Refresh generated artifacts so recall, graph, metrics, and stale checks match the current tree.</p>
-              <pre>kage refresh --project .</pre>
+              <h3>Your diff gets checked</h3>
+              <p>The Stop hook refreshes memory and runs reconciliation; <code>kage pr check</code> leads with any team memories your change invalidated.</p>
+              <pre>kage pr check --project .
+kage gains --project .       # the receipt: tokens, $, stale blocked</pre>
             </div>
             <div class="card">
-              <h3>Before handoff</h3>
-              <p>Create branch change memory from the diff and run merge readiness.</p>
-              <pre>kage propose --project . --from-diff
-kage pr check --project . --json</pre>
+              <h3>When something breaks</h3>
+              <p>One command backs up, fixes, and rebuilds — broken packets, missing indexes, lost hooks. Every CLI error ends with a copy-pasteable <code>Try:</code>.</p>
+              <pre>kage repair --project .</pre>
             </div>
           </div>
           <h3 class="section-sub">Optional automation</h3>
-          <p>Install a marker-delimited git <code>post-commit</code> hook so Kage refreshes memory after commits. It preserves existing hook content and respects <code>KAGE_SKIP_HOOK=1</code>.</p>
+          <p>A marker-delimited git <code>post-commit</code> hook refreshes memory after commits (<code>kage hook install</code>); <code>kage staleguard</code> works as a pre-commit stale-catch. Both preserve existing hook content and respect <code>KAGE_SKIP_HOOK=1</code>.</p>
           <pre>kage hook install --project .
-kage hook status --project .</pre>
+kage staleguard --project .</pre>
         </section>
 
         <section id="concepts">
