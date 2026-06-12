@@ -6,6 +6,10 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { callTool, listTools } from "./index.js";
 
+// Hermetic personal store: recall reads $KAGE_HOME/memory, so tool tests must
+// never see the developer's real ~/.kage.
+if (!process.env.KAGE_HOME) process.env.KAGE_HOME = mkdtempSync(join(tmpdir(), "kage-mcp-home-"));
+
 function tempProject(): string {
   const dir = mkdtempSync(join(tmpdir(), "kage-mcp-test-"));
   mkdirSync(join(dir, ".agent_memory", "nodes"), { recursive: true });

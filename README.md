@@ -123,6 +123,18 @@ with a **"previously…" digest** (`kage resume`); the viewer streams memory
 events **live** as they happen; and when anything breaks, **`kage repair`**
 backs up, fixes, and rebuilds in one command.
 
+### Personal memory & sync
+
+Repo memory follows the repo; personal memory follows *you*. `kage learn
+--personal` writes to `~/.kage/memory`: packets may cite the current repo's
+files (re-verified on every recall, in any clone) or be citation-free —
+allowed only here, and labeled unverifiable. Recall appends them as a clearly
+separated, lower-trust `[personal]` section; repo memory always ranks first,
+and personal packets never enter pr-check/staleguard/refresh. Sync across
+machines with plain git: `kage sync setup --remote <git-url>` once, then
+`kage sync` anywhere (pushed/pulled/resolved receipt; conflicts resolve
+newest-wins with losers preserved under `~/.kage/memory/conflicts/`).
+
 Prove it on your own repo: `kage benchmark --trust --project .` measures
 hallucination rejection, stale exclusion, and live grounding — 100/100.
 

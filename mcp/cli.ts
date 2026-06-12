@@ -67,6 +67,7 @@ import {
   kageSessionCaptureReport,
   kageSessionReplay,
   learn,
+  learnPersonal,
   memoryInbox,
   mergePacketFiles,
   PACKET_MERGE_DRIVER_CONFIG,
@@ -98,6 +99,9 @@ import {
   staleCatch,
   formatStaleCatch,
   supersedeMemory,
+  syncPersonal,
+  syncSetup,
+  syncStatus,
   truthReport,
   validateProject,
   valueSummary,
@@ -216,7 +220,10 @@ Usage:
   kage replay --project <dir> [--session <id>] [--limit <n>] [--json]
   kage distill --project <dir> --session <id> [--auto] [--json]
   kage resume --project <dir> [--json]
-  kage learn --project <dir> --learning <text> [--title <title>] [--type <type>] [--evidence <text>] [--verified-by <text>] [--tags a,b] [--paths a,b] [--graph-nodes a,b] [--discovery-tokens <n>] [--allow-missing-paths]
+  kage learn --project <dir> --learning <text> [--personal] [--title <title>] [--type <type>] [--evidence <text>] [--verified-by <text>] [--tags a,b] [--paths a,b] [--graph-nodes a,b] [--discovery-tokens <n>] [--allow-missing-paths]
+  kage sync setup --remote <git-url>            init ~/.kage/memory as a git repo wired to your private remote
+  kage sync [--json]                            commit + pull --rebase + push personal memory (newest-wins conflicts)
+  kage sync --status [--json]                   ahead/behind/dirty for the personal store (fetch only)
   kage feedback --project <dir> --packet <packet-id> --kind helpful|wrong|stale
   kage capture --project <dir> --title <title> --body <body> [--type <type>] [--summary <summary>] [--tags a,b] [--paths a,b] [--stack a,b] [--graph-nodes a,b] [--allow-missing-paths]
   kage propose --project <dir> --from-diff
@@ -328,6 +335,61 @@ async function main(): Promise<void> {
     const result = mergePacketFiles(ours, base, theirs);
     console.error(result.detail);
     process.exit(result.ok ? 0 : 1);
+  }
+
+  if (command === "sync") {
+    // Personal-store sync (docs/CLOUD.md v1): plain git under the hood, no
+    // tree-sitter or repo indexes needed, so it runs before the heavy setup.
+    if (args[1] === "setup") {
+      const remote = takeArg(args, "--remote");
+      if (!remote) {
+        console.error("Usage: kage sync setup --remote <git-url>");
+        process.exit(2);
+      }
+      const result = syncSetup(remote);
+      if (args.includes("--json")) {
+        console.log(JSON.stringify(result, null, 2));
+        process.exit(result.ok ? 0 : 2);
+      }
+      if (!result.ok) {
+        console.error(`kage sync setup failed:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);
+        process.exit(2);
+      }
+      console.log(`Personal memory store: ${result.memory_dir}${result.initialized ? " (new git repo)" : ""}`);
+      console.log(`Remote: ${result.remote}${result.remote_updated ? " (updated)" : ""}`);
+      console.log(`Pushed ${result.branch ?? "HEAD"} to origin. Run \`kage sync\` on any machine to stay in sync.`);
+      return;
+    }
+    if (args.includes("--status")) {
+      const result = syncStatus();
+      if (args.includes("--json")) {
+        console.log(JSON.stringify(result, null, 2));
+        process.exit(result.ok ? 0 : 2);
+      }
+      if (!result.ok) {
+        console.error(`kage sync status failed:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);
+        process.exit(2);
+      }
+      console.log(`Personal memory store: ${result.memory_dir}`);
+      console.log(`Remote: ${result.remote} (branch ${result.branch ?? "unknown"})`);
+      console.log(`Ahead ${result.ahead}, behind ${result.behind}, ${result.dirty ? "uncommitted local changes" : "clean"}`);
+      for (const warning of result.warnings) console.log(`Warning: ${warning}`);
+      return;
+    }
+    const result = syncPersonal();
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      process.exit(result.ok ? 0 : 2);
+    }
+    if (!result.ok) {
+      console.error(`kage sync failed:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);
+      process.exit(2);
+    }
+    console.log(`kage sync: pushed ${result.pushed}, pulled ${result.pulled}, resolved ${result.resolved}`);
+    if (result.conflict_backups.length) {
+      console.log(`Conflict losers preserved:\n${result.conflict_backups.map((path) => `  - ${path}`).join("\n")}`);
+    }
+    return;
   }
 
   await ensureTreeSitterLanguages();
@@ -1809,7 +1871,8 @@ async function main(): Promise<void> {
   if (command === "learn") {
     const learning = takeArg(args, "--learning");
     if (!learning) usage();
-    const result = learn({
+    const personal = args.includes("--personal");
+    const result = (personal ? learnPersonal : learn)({
       projectDir: projectArg(args),
       learning,
       title: takeArg(args, "--title"),
@@ -1828,9 +1891,11 @@ async function main(): Promise<void> {
       console.error(`Learning capture blocked:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);
       process.exit(2);
     }
-    console.log(`Captured session learning: ${result.path}`);
+    console.log(`Captured ${personal ? "personal" : "session"} learning: ${result.path}`);
     if (result.warnings?.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
-    console.log("Repo-local memory is written immediately. Promotion to org/global still requires explicit review.");
+    console.log(personal
+      ? "Personal memory is recalled with lower trust and never enters repo review flows. Sync it across machines with `kage sync`."
+      : "Repo-local memory is written immediately. Promotion to org/global still requires explicit review.");
     return;
   }
 

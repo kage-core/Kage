@@ -94,6 +94,13 @@ import {
   recall,
   recallWithEmbeddings,
   recordValueEvent,
+  learnPersonal,
+  personalConflictsDir,
+  personalMemoryDir,
+  personalPacketsDir,
+  syncPersonal,
+  syncSetup,
+  syncStatus,
   staleCatch,
   formatStaleCatch,
   valueSummary,
@@ -122,10 +129,26 @@ import {
 } from "./kernel.js";
 import { buildGraphRegistryManifest } from "./graph-registry.js";
 
+// Hermetic personal store: recall now reads $KAGE_HOME/memory, so tests must
+// never see the developer's real ~/.kage. Individual tests override per-case.
+if (!process.env.KAGE_HOME) process.env.KAGE_HOME = mkdtempSync(join(tmpdir(), "kage-test-home-"));
+
 function tempProject(): string {
   const dir = mkdtempSync(join(tmpdir(), "kage-test-"));
   mkdirSync(join(dir, ".agent_memory", "nodes"), { recursive: true });
   return dir;
+}
+
+function withKageHome<T>(fn: (home: string) => T): T {
+  const home = mkdtempSync(join(tmpdir(), "kage-home-"));
+  const previous = process.env.KAGE_HOME;
+  process.env.KAGE_HOME = home;
+  try {
+    return fn(home);
+  } finally {
+    if (previous === undefined) delete process.env.KAGE_HOME;
+    else process.env.KAGE_HOME = previous;
+  }
 }
 
 const gitIdentityEnv = {
@@ -4856,4 +4879,273 @@ test("resume timeline indexes at most 15 recent packets within the token budget"
   assert.match(result.context_block, /App entry lives in src\/app\.ts|Summary for timeline packet/);
   // Token budget: ~4 chars per estimated token, capped at 800.
   assert.equal(Math.ceil(result.context_block.length / 4) <= 800, true);
+});
+
+// ---------------------------------------------------------------------------
+// Personal memory (~/.kage/memory) + kage sync
+// ---------------------------------------------------------------------------
+
+function tempBareRemote(): string {
+  const dir = mkdtempSync(join(tmpdir(), "kage-remote-"));
+  execFileSync("git", ["init", "--bare", "--initial-branch=main", dir], { stdio: "ignore" });
+  return dir;
+}
+
+test("personal learn writes to KAGE_HOME; citation-free is allowed only for personal packets", () => {
+  withKageHome((home) => {
+    const project = tempProject();
+    mkdirSync(join(project, "src"), { recursive: true });
+    writeFileSync(join(project, "src", "auth.ts"), "export const ttlMinutes = 30;\n", "utf8");
+
+    // Cited personal packet: validated + fingerprinted against the current project.
+    const cited = learnPersonal({
+      projectDir: project,
+      learning: "Gotcha: the auth ttl in src/auth.ts is minutes, not seconds.",
+      type: "gotcha",
+      paths: ["src/auth.ts"],
+    });
+    assert.equal(cited.ok, true);
+    assert.equal(cited.path?.startsWith(join(home, "memory", "packets")), true);
+    assert.equal(cited.packet?.scope, "personal");
+    assert.equal(cited.packet?.visibility, "private");
+    assert.equal((cited.packet?.freshness.path_fingerprints as unknown[]).length, 1);
+    assert.equal(cited.packet?.quality.unverifiable, false);
+
+    // Hallucinated personal citation is rejected, same write-time rule as repo memory.
+    const hallucinated = learnPersonal({
+      projectDir: project,
+      learning: "Use the helper in src/ghost.ts for retries.",
+      paths: ["src/ghost.ts"],
+    });
+    assert.equal(hallucinated.ok, false);
+    assert.match(hallucinated.errors[0], /Citation validation failed/);
+
+    // Citation-free is allowed ONLY for personal packets, and marked unverifiable.
+    const free = learnPersonal({
+      projectDir: project,
+      learning: "Convention: I always prefer conventional commit messages across repos.",
+      type: "convention",
+    });
+    assert.equal(free.ok, true);
+    assert.equal(free.packet?.quality.unverifiable, true);
+    assert.equal(free.packet?.freshness.verification, "unverifiable_personal");
+    assert.equal(free.warnings?.some((warning) => /unverifiable/.test(warning)), true);
+
+    // Repo learn without citations keeps failing in strict (CLI/agent) mode.
+    const repoUncited = learn({
+      projectDir: project,
+      learning: "An uncited repo note that should not be storable.",
+      strictCitations: true,
+    });
+    assert.equal(repoUncited.ok, false);
+    assert.match(repoUncited.errors[0], /Citation required/);
+    assert.match(repoUncited.errors[0], /--personal/);
+
+    // The repo packet store never receives personal packets (personal learn
+    // does not even create the repo memory dirs).
+    const repoPackets = existsSync(packetsDir(project))
+      ? readdirSync(packetsDir(project)).filter((name) => name.endsWith(".json"))
+      : [];
+    assert.equal(repoPackets.length, 0);
+  });
+});
+
+test("repo recall appends a separated, [personal]-tagged section and re-verifies citations per checkout", () => {
+  withKageHome(() => {
+    const project = tempProject();
+    mkdirSync(join(project, "src"), { recursive: true });
+    writeFileSync(join(project, "src", "payments.ts"), "export function charge() { return 'idempotent'; }\n", "utf8");
+
+    const repoPacket = capture({
+      projectDir: project,
+      title: "Payments idempotency invariant",
+      body: "charge() in src/payments.ts must stay idempotent to avoid double charges.",
+      type: "decision",
+      paths: ["src/payments.ts"],
+    });
+    assert.equal(repoPacket.ok, true);
+    const personalCited = learnPersonal({
+      projectDir: project,
+      learning: "Personal note: payments idempotency bugs usually hide in src/payments.ts retries.",
+      paths: ["src/payments.ts"],
+    });
+    assert.equal(personalCited.ok, true);
+    const personalFree = learnPersonal({
+      projectDir: project,
+      learning: "Personal habit: test payments idempotency with duplicate webhooks first.",
+    });
+    assert.equal(personalFree.ok, true);
+
+    const result = recall(project, "payments idempotency", 5, false, { trackAccess: false });
+    const block = result.context_block;
+    // Repo memory always ranks first: the personal section comes after it.
+    assert.match(block, /## Relevant Memory/);
+    assert.match(block, /## Personal Memory/);
+    assert.equal(block.indexOf("## Relevant Memory") < block.indexOf("## Personal Memory"), true);
+    // Lower-trust framing + per-line [personal] tags.
+    assert.match(block, /Lower trust than repo memory/);
+    const personalSection = block.slice(block.indexOf("## Personal Memory"));
+    assert.match(personalSection, /\[personal\] \[runbook \| confidence|\[personal\] \[/);
+    assert.match(personalSection, /unverifiable \(citation-free personal note\)/);
+    assert.match(personalSection, /citations re-verified against this checkout/);
+    // Personal packets never enter `results` (the repo flows' payload) and are capped at 3.
+    assert.equal(result.results.every((entry) => entry.packet.scope !== "personal"), true);
+    assert.equal((result.personal ?? []).length <= 3, true);
+    assert.equal((result.personal ?? []).every((entry) => entry.packet.scope === "personal"), true);
+
+    // A different checkout without the cited file withholds the cited packet
+    // (re-verified on recall) but still serves the unverifiable one, labeled.
+    const otherProject = tempProject();
+    writeFileSync(join(otherProject, "notes.md"), "payments idempotency scratch\n", "utf8");
+    const elsewhere = recall(otherProject, "payments idempotency", 5, false, { trackAccess: false });
+    const personalElsewhere = elsewhere.personal ?? [];
+    assert.equal(personalElsewhere.some((entry) => entry.unverifiable), true);
+    assert.equal(personalElsewhere.some((entry) => entry.packet.paths.includes("src/payments.ts")), false);
+  });
+});
+
+test("sync setup is idempotent and re-runs update the remote URL", () => {
+  withKageHome((home) => {
+    const remote = tempBareRemote();
+    const first = syncSetup(remote);
+    assert.equal(first.ok, true);
+    assert.equal(first.initialized, true);
+    assert.equal(first.remote_updated, true);
+    assert.equal(first.pushed, true);
+    assert.equal(existsSync(join(home, "memory", ".git")), true);
+
+    const again = syncSetup(remote);
+    assert.equal(again.ok, true);
+    assert.equal(again.initialized, false);
+    assert.equal(again.remote_updated, false);
+
+    const otherRemote = tempBareRemote();
+    const moved = syncSetup(otherRemote);
+    assert.equal(moved.ok, true);
+    assert.equal(moved.remote_updated, true);
+
+    const status = syncStatus();
+    assert.equal(status.ok, true);
+    assert.equal(status.remote, otherRemote);
+    assert.equal(status.ahead, 0);
+    assert.equal(status.behind, 0);
+    assert.equal(status.dirty, false);
+  });
+});
+
+test("sync without setup fails with a pointer to sync setup", () => {
+  withKageHome(() => {
+    const result = syncPersonal();
+    assert.equal(result.ok, false);
+    assert.match(result.errors[0], /kage sync setup --remote/);
+    const status = syncStatus();
+    assert.equal(status.ok, false);
+    assert.match(status.errors[0], /kage sync setup --remote/);
+  });
+});
+
+test("two KAGE_HOME clones of one bare remote exchange personal packets round-trip", () => {
+  const remote = tempBareRemote();
+  const project = tempProject();
+
+  // Machine A captures and pushes.
+  const homeA = withKageHome((home) => {
+    const captured = learnPersonal({ projectDir: project, learning: "Machine A habit: always run lint before pushing." });
+    assert.equal(captured.ok, true);
+    assert.equal(syncSetup(remote).ok, true);
+    const synced = syncPersonal();
+    assert.equal(synced.ok, true);
+    return home;
+  });
+
+  // Machine B joins the same remote, receives A's packet, and pushes its own.
+  const homeB = withKageHome((home) => {
+    assert.equal(syncSetup(remote).ok, true);
+    const pulled = syncPersonal();
+    assert.equal(pulled.ok, true);
+    const names = readdirSync(join(home, "memory", "packets")).filter((name) => name.endsWith(".json"));
+    assert.equal(names.some((name) => /machine-a-habit/.test(name)), true);
+
+    const captured = learnPersonal({ projectDir: project, learning: "Machine B habit: review diffs with --stat first." });
+    assert.equal(captured.ok, true);
+    const pushed = syncPersonal();
+    assert.equal(pushed.ok, true);
+    assert.equal(pushed.pushed >= 1, true);
+    return home;
+  });
+
+  // Machine A pulls B's packet back: full round trip.
+  const previous = process.env.KAGE_HOME;
+  process.env.KAGE_HOME = homeA;
+  try {
+    const synced = syncPersonal();
+    assert.equal(synced.ok, true);
+    assert.equal(synced.pulled >= 1, true);
+    const names = readdirSync(join(homeA, "memory", "packets")).filter((name) => name.endsWith(".json"));
+    assert.equal(names.some((name) => /machine-b-habit/.test(name)), true);
+    assert.equal(names.some((name) => /machine-a-habit/.test(name)), true);
+  } finally {
+    if (previous === undefined) delete process.env.KAGE_HOME;
+    else process.env.KAGE_HOME = previous;
+  }
+  void homeB;
+});
+
+test("sync conflicts resolve newest-updated_at-wins and preserve the loser under conflicts/", () => {
+  const remote = tempBareRemote();
+  const packetName = "gotcha-conflicting-note.json";
+  const olderPacket = { id: "personal:gotcha:conflicting-note", title: "older version", status: "approved", updated_at: "2026-01-01T00:00:00.000Z" };
+  const newerPacket = { id: "personal:gotcha:conflicting-note", title: "newer version", status: "approved", updated_at: "2026-06-01T00:00:00.000Z" };
+
+  const homeA = mkdtempSync(join(tmpdir(), "kage-home-a-"));
+  const homeB = mkdtempSync(join(tmpdir(), "kage-home-b-"));
+  const onMachine = <T,>(home: string, fn: () => T): T => {
+    const previous = process.env.KAGE_HOME;
+    process.env.KAGE_HOME = home;
+    try {
+      return fn();
+    } finally {
+      if (previous === undefined) delete process.env.KAGE_HOME;
+      else process.env.KAGE_HOME = previous;
+    }
+  };
+
+  // Both machines wired to the same remote, in sync.
+  onMachine(homeA, () => assert.equal(syncSetup(remote).ok, true));
+  onMachine(homeB, () => assert.equal(syncSetup(remote).ok, true));
+
+  // A pushes the OLDER version; B concurrently (without pulling first) commits the NEWER one.
+  onMachine(homeA, () => {
+    writeFileSync(join(personalPacketsDir(), packetName), `${JSON.stringify(olderPacket, null, 2)}\n`, "utf8");
+    assert.equal(syncPersonal().ok, true);
+  });
+  onMachine(homeB, () => {
+    writeFileSync(join(personalPacketsDir(), packetName), `${JSON.stringify(newerPacket, null, 2)}\n`, "utf8");
+    const synced = syncPersonal();
+    assert.equal(synced.ok, true);
+    assert.equal(synced.resolved, 1);
+    assert.equal(synced.conflict_backups.length, 1);
+
+    // Winner: newest updated_at, written as clean JSON (no conflict markers).
+    const winnerRaw = readFileSync(join(personalPacketsDir(), packetName), "utf8");
+    assert.equal((JSON.parse(winnerRaw) as { title: string }).title, "newer version");
+    assert.equal(winnerRaw.includes("<<<<<<<"), false);
+
+    // Loser preserved under conflicts/<name>.<unix-ts>.json — data is never lost.
+    const conflictFiles = readdirSync(personalConflictsDir());
+    assert.equal(conflictFiles.length, 1);
+    assert.match(conflictFiles[0], /^gotcha-conflicting-note\.\d+(-\d+)?\.json$/);
+    const loser = JSON.parse(readFileSync(join(personalConflictsDir(), conflictFiles[0]), "utf8")) as { title: string };
+    assert.equal(loser.title, "older version");
+  });
+
+  // A pulls the resolution back: winner content plus the preserved loser.
+  onMachine(homeA, () => {
+    const synced = syncPersonal();
+    assert.equal(synced.ok, true);
+    assert.equal(synced.pulled >= 1, true);
+    const winner = JSON.parse(readFileSync(join(personalPacketsDir(), packetName), "utf8")) as { title: string };
+    assert.equal(winner.title, "newer version");
+    assert.equal(readdirSync(personalConflictsDir()).length, 1);
+  });
 });
