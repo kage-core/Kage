@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- **Personal memory (`kage learn --personal`) + `kage sync`.** Cross-machine
+  personal packets live in `~/.kage/memory/packets` (override the store root
+  with `$KAGE_HOME`). Personal packets may cite the current project's files —
+  validated and fingerprinted like repo memory, re-verified against the local
+  checkout on every recall in any clone — or be citation-free, which is
+  allowed ONLY for personal packets and labeled "unverifiable" on recall; in
+  strict (CLI/agent) mode, repo `kage learn` without `--paths` is now
+  rejected with a pointer to `--personal`. Repo recall appends a clearly
+  separated, lower-trust "Personal Memory" section (max 3 packets, every line
+  tagged `[personal]`); repo memory always ranks first and personal packets
+  never enter pr-check/staleguard/refresh flows or recall `results`.
+  `kage sync setup --remote <git-url>` initializes `~/.kage/memory` as a git
+  repo wired to a private remote (idempotent; re-runs update the URL; a
+  second machine converges on the remote's branch). `kage sync` commits local
+  packet changes, pulls `--rebase`, and pushes, printing a
+  `pushed N, pulled M, resolved K` receipt; packet conflicts auto-resolve
+  newest-`updated_at`-wins with the losing version preserved under
+  `~/.kage/memory/conflicts/<name>.<unix-ts>.json` (never lost, never
+  conflict-markered). `kage sync --status` reports ahead/behind/dirty with
+  fetch as the only network access; missing setup or network failures exit 2
+  with the git error.
 - **Auto-distill low-signal quality gate.** New exported pure function
   `observationSignalScore(observation)` returns a 0..1 signal score, and
   auto-distill (`kage distill --auto`, the Stop-hook fallback) now requires
