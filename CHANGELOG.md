@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.2.1 - sync works on identityless machines
+
+- **Fix: `kage sync` on machines without a git identity (CI, fresh Linux).**
+  The convergence rebase in `kage sync setup` now carries the same
+  `kage-sync` identity fallback as commits, and a non-fast-forward push
+  self-heals with one fetch + rebase retry. Failed pushes report a repo-state
+  snapshot. Found by our own CI: the two sync tests passed on macOS and failed
+  on the runner.
+
+
 ## v2.2.0 - parity and beyond: sync, signal, and the audit wedge
 
 - **Personal memory (`kage learn --personal`) + `kage sync`.** Cross-machine
