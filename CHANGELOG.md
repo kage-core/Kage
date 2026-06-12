@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- **Auto-distill low-signal quality gate.** New exported pure function
+  `observationSignalScore(observation)` returns a 0..1 signal score, and
+  auto-distill (`kage distill --auto`, the Stop-hook fallback) now requires
+  observations to score at least `AUTO_DISTILL_SIGNAL_THRESHOLD` (0.4) before
+  they may seed a pending draft. Hard rejects (score 0): raw JSON or
+  key-value/punctuation noise, hook and system payloads (`task-notification`,
+  `tool-use-id`, `system-reminder`, `hookSpecificOutput`, ...), echoes of
+  Kage's own output (Truth Report headers, demo proof lines, value-receipt
+  fields), flag-token dumps (`isImage false noOutputExpected false ...`), and
+  fragments under 50 chars. Positive signal: imperative/causal language
+  (fixed, because, use, instead, run), file path citations, code identifiers,
+  and command lines. `observe` now tags below-threshold events with
+  `low_signal: true` at ingestion so distill skips them cheaply, and auto
+  `DistillResult`s report the gated count as `skipped_low_signal`. Manual
+  `kage learn`/`kage capture` and manual `kage distill` are never gated —
+  explicit intent outranks the heuristic. This stops real-world junk packets
+  like raw `<task-notification>` payloads, tool-result JSON fields, and demo
+  output from ever becoming memory drafts.
 - **Quiet refresh on non-default branches.** `kage refresh` (and `kage_refresh`)
   no longer persists metadata-only packet rewrites (stale flags, `updated_at`,
   fingerprint recomputation) when the current git branch is not the default

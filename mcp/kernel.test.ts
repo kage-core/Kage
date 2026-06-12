@@ -15,6 +15,8 @@ import {
   buildCodeGraph,
   buildIndexes,
   approvePending,
+  AUTO_DISTILL_SIGNAL_THRESHOLD,
+  observationSignalScore,
   createDenseEmbeddingProvider,
   buildKnowledgeGraph,
   buildBranchOverlay,
@@ -2378,6 +2380,98 @@ test("auto distill quietly skips empty sessions and sessions where the agent alr
   const packet = manual.candidates[0]?.packet;
   assert.equal(packet?.status, "approved");
   assert.equal(packet?.tags.includes("auto-distill"), false);
+});
+
+test("observation signal score hard-rejects machine noise and rewards genuine learnings", () => {
+  assert.equal(typeof AUTO_DISTILL_SIGNAL_THRESHOLD, "number");
+  assert.equal(AUTO_DISTILL_SIGNAL_THRESHOLD, 0.4);
+
+  // Real junk observed in the wild: a raw <task-notification> hook payload stored as a prompt.
+  const hookPayload = {
+    text: "<task-notification>task-id: a28796694fe6b88d6 tool-use-id: toolu_011BM1xTSW status: unresolved issue pending</task-notification>",
+  };
+  assert.equal(observationSignalScore(hookPayload), 0);
+
+  // Real junk: raw tool-result JSON fields became a "runbook" packet.
+  const toolResultJson = {
+    command: "npm test",
+    summary: '{"interrupted":false,"isImage":false,"noOutputExpected":false,"stderr":"","stdout":"kage refresh complete"}',
+  };
+  assert.equal(observationSignalScore(toolResultJson), 0);
+
+  // Real junk: kage demo output echoed back as a "workflow" memory.
+  const demoEcho = {
+    path: "docs/demo.md",
+    summary: "workflow file content refused hallucinated citations never enter storage N2 with receipts shown in the Truth Report demo output",
+  };
+  assert.equal(observationSignalScore(demoEcho), 0);
+
+  // Flag-token dumps and sub-50-char fragments are noise even without JSON syntax.
+  assert.equal(observationSignalScore({ summary: "interrupted false isImage false noOutputExpected false stderr stdout kage" }), 0);
+  assert.equal(observationSignalScore({ summary: "ran tests" }), 0);
+
+  // A genuine learning scores comfortably above the threshold.
+  const genuine = {
+    path: "mcp/daemon.ts",
+    summary: "Fixed the race in daemon.ts by debouncing fs events 100ms — fs.watch fires duplicate renames on macOS",
+  };
+  assert.ok(observationSignalScore(genuine) >= AUTO_DISTILL_SIGNAL_THRESHOLD);
+  assert.ok(observationSignalScore(genuine) <= 1);
+});
+
+test("auto distill skips low-signal observations and counts them instead of drafting junk", () => {
+  const project = tempProject();
+  // The three real junk shapes that previously became packets: each would clear the
+  // legacy keyword filters (they contain words like "issue", "test", "workflow"),
+  // so only the signal gate keeps them out of drafts.
+  const junkEvents = [
+    {
+      type: "user_prompt" as const,
+      session_id: "junk-session",
+      text: "<task-notification>task-id: a28796694fe6b88d6 tool-use-id: toolu_011BM1xTSW status: unresolved issue pending</task-notification>",
+    },
+    {
+      type: "command_result" as const,
+      session_id: "junk-session",
+      command: "npm test",
+      exit_code: 0,
+      summary: '{"interrupted":false,"isImage":false,"noOutputExpected":false,"stderr":"","stdout":"kage refresh complete"}',
+    },
+    {
+      type: "file_change" as const,
+      session_id: "junk-session",
+      path: "docs/demo.md",
+      summary: "workflow file content refused hallucinated citations never enter storage N2 with receipts shown in the Truth Report demo output",
+    },
+  ];
+  for (const event of junkEvents) {
+    const stored = observe(project, event);
+    assert.equal(stored.ok, true);
+    // Observe tags low-signal events at ingestion so distill can skip them cheaply.
+    assert.equal(stored.record?.low_signal, true);
+  }
+
+  const distilled = distillSession(project, "junk-session", { auto: true });
+  assert.equal(distilled.ok, true);
+  assert.equal(distilled.candidates.length, 0);
+  assert.equal(distilled.skipped_low_signal, 3);
+  assert.equal(loadPendingPackets(project).length, 0);
+
+  // A genuine learning in the same repo still drafts.
+  const genuine = observe(project, {
+    type: "file_change",
+    session_id: "real-session",
+    path: "mcp/daemon.ts",
+    summary: "Fixed the race in daemon.ts by debouncing fs events 100ms — fs.watch fires duplicate renames on macOS",
+  });
+  assert.equal(genuine.ok, true);
+  assert.equal(genuine.record?.low_signal, undefined);
+  const real = distillSession(project, "real-session", { auto: true });
+  assert.equal(real.ok, true);
+  assert.equal(real.skipped_low_signal, 0);
+  assert.equal(real.candidates.length, 1);
+  assert.match(real.candidates[0]?.packet?.title ?? "", /Fixed the race/);
+  assert.equal(real.candidates[0]?.packet?.status, "pending");
 });
 
 test("resume prints a previously block with prior session data and stays silent without it", () => {
