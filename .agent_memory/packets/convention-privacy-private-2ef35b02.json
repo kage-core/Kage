@@ -80,13 +80,14 @@
     "estimated_tokens_saved": 95,
     "stale": true,
     "stale_reasons": [
+      "packet status is superseded",
       "linked path changed since memory was verified: mcp/kernel.ts"
     ],
-    "suggested_action": "update",
+    "suggested_action": "mark_stale",
     "superseded_by": "repo:https-github-com-kage-core-kage:convention:privacy-private-span-tags-redacted-by-stripprivatespans-before-any-write-verifie",
     "superseded_reason": "Newer repo memory supersedes this packet."
   },
   "created_at": "2026-06-12T11:52:29.442Z",
-  "updated_at": "2026-06-12T12:48:51.897Z",
+  "updated_at": "2026-06-12T12:49:56.272Z",
   "author_branch": "master"
 }

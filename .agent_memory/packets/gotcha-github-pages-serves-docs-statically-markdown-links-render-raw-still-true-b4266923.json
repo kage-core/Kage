@@ -80,13 +80,14 @@
     "estimated_tokens_saved": 77,
     "stale": true,
     "stale_reasons": [
+      "packet status is superseded",
       "linked path changed since memory was verified: docs/index.html"
     ],
-    "suggested_action": "update",
+    "suggested_action": "mark_stale",
     "superseded_by": "repo:https-github-com-kage-core-kage:gotcha:github-pages-serves-docs-statically-markdown-renders-raw-verified-after-2-2-1-si",
     "superseded_reason": "Newer repo memory supersedes this packet."
   },
   "created_at": "2026-06-12T11:52:29.070Z",
-  "updated_at": "2026-06-12T12:48:50.692Z",
+  "updated_at": "2026-06-12T12:49:56.288Z",
   "author_branch": "master"
 }

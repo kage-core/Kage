@@ -76,10 +76,9 @@
         "status": "approved"
       }
     ],
-    "stale_reasons": [],
     "estimated_tokens_saved": 74
   },
   "created_at": "2026-06-12T12:48:51.115Z",
-  "updated_at": "2026-06-12T12:48:51.295Z",
+  "updated_at": "2026-06-12T12:49:56.275Z",
   "author_branch": "master"
 }

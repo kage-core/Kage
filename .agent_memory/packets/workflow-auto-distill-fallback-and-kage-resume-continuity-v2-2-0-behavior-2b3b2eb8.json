@@ -81,13 +81,14 @@
     "estimated_tokens_saved": 193,
     "stale": true,
     "stale_reasons": [
+      "packet status is superseded",
       "linked path changed since memory was verified: mcp/kernel.ts"
     ],
-    "suggested_action": "update",
+    "suggested_action": "mark_stale",
     "superseded_by": "repo:https-github-com-kage-core-kage:workflow:auto-distill-fallback-and-kage-resume-continuity-verified-v2-2-1-1781268529282",
     "superseded_reason": "Newer repo memory supersedes this packet."
   },
   "created_at": "2026-06-12T11:50:30.797Z",
-  "updated_at": "2026-06-12T12:48:49.482Z",
+  "updated_at": "2026-06-12T12:49:56.291Z",
   "author_branch": "master"
 }

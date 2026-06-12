@@ -80,13 +80,14 @@
     "estimated_tokens_saved": 118,
     "stale": true,
     "stale_reasons": [
+      "packet status is superseded",
       "linked path changed since memory was verified: mcp/kernel.ts"
     ],
-    "suggested_action": "update",
+    "suggested_action": "mark_stale",
     "superseded_by": "repo:https-github-com-kage-core-kage:decision:value-ledger-events-replay-receipts-verified-v2-2-1-1781268533614",
     "superseded_reason": "Newer repo memory supersedes this packet."
   },
   "created_at": "2026-06-12T11:53:18.630Z",
-  "updated_at": "2026-06-12T12:48:53.805Z",
+  "updated_at": "2026-06-12T12:49:56.285Z",
   "author_branch": "master"
 }
