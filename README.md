@@ -167,7 +167,8 @@ it's recalled, and when your diff changes the code underneath it.
 | Stale memory **withheld at recall** (evidence changed/deleted) | ✓ | — | — |
 | **Diff-time stale-catch** — your change invalidates a memory, you're warned before the PR | ✓ | — | — |
 | Memory reviewed in git, same PR as the code (plain files, no DB) | ✓ | SQLite + cloud | hosted API |
-| Savings receipts (tokens + $ per recall, value ledger) | ✓ | token index | — |
+| Savings receipts (tokens + $ per recall, value ledger) | ✓ per-packet | token index | — |
+| Cross-machine sync | ✓ your own git remote | their cloud | their cloud |
 | Truth Report on any repo, zero setup | ✓ | — | — |
 | Account / API key required | none | cloud optional | yes |
 
