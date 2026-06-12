@@ -90,11 +90,19 @@
     "estimated_tokens_saved": 225,
     "stale": true,
     "stale_reasons": [
+<<<<<<< HEAD
       "linked path changed since memory was verified: mcp/package.json, plugin/.claude-plugin/plugin.json, plugin/.codex-plugin/plugin.json"
+=======
+      "linked path changed since memory was verified: mcp/package.json"
+>>>>>>> origin/master
     ],
     "suggested_action": "update"
   },
   "created_at": "2026-06-11T15:23:34.916Z",
+<<<<<<< HEAD
   "updated_at": "2026-06-12T03:47:26.754Z",
+=======
+  "updated_at": "2026-06-11T21:38:21.468Z",
+>>>>>>> origin/master
   "author_branch": "release/v2.0.0"
 }
