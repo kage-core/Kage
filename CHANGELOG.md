@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v2.1.0 - the session loop closes itself
 
 - **Automatic capture fallback (`kage distill --auto`).** The Claude Code Stop
   hook now quietly distills the session's observations when the agent never
