@@ -19028,9 +19028,24 @@ export function syncSetup(remoteUrl: string): SyncSetupResult {
   }
   result.branch = runSyncGit(memoryDir, ["rev-parse", "--abbrev-ref", "HEAD"]).stdout || null;
 
-  const push = runSyncGit(memoryDir, ["push", "-u", "origin", "HEAD"]);
+  let push = runSyncGit(memoryDir, ["push", "-u", "origin", "HEAD"]);
+  if (!push.ok && /non-fast-forward|behind|fetch first/i.test(push.stderr)) {
+    // Some git versions leave the local branch behind the remote after the
+    // convergence rebase (observed on CI's git, not on macOS). A second
+    // fetch + rebase fast-forwards a behind branch, after which push succeeds.
+    runSyncGit(memoryDir, ["fetch", "origin"]);
+    const retryBranch = syncRemoteDefaultBranch(memoryDir) ?? result.branch;
+    if (retryBranch && runSyncGit(memoryDir, ["rev-parse", "--verify", "--quiet", `origin/${retryBranch}`]).ok) {
+      runSyncGit(memoryDir, ["branch", "-M", retryBranch]);
+      const retryRebase = rebaseOntoUpstream(memoryDir, `origin/${retryBranch}`);
+      if (retryRebase.ok) push = runSyncGit(memoryDir, ["push", "-u", "origin", "HEAD"]);
+    }
+  }
   if (!push.ok) {
-    result.errors.push(`git push failed: ${push.stderr}`);
+    const state = runSyncGit(memoryDir, ["log", "--oneline", "--all", "--decorate", "-n", "8"]).stdout;
+    result.errors.push(`git push failed: ${push.stderr}${state ? `
+repo state:
+${state}` : ""}`);
     return result;
   }
   result.pushed = true;
