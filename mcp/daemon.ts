@@ -200,6 +200,165 @@ export function viewerReportPaths(projectRoot: string): Record<string, string> {
   };
 }
 
+export interface LiveFeedEvent {
+  type: "packet_written" | "packet_updated" | "value_event";
+  title?: string;
+  path?: string;
+  event?: Record<string, unknown>;
+  ts: string;
+}
+
+export interface LiveFeed {
+  handleRequest: (req: IncomingMessage, res: ServerResponse) => void;
+  broadcast: (event: LiveFeedEvent) => void;
+  clientCount: () => number;
+  close: () => void;
+}
+
+const LIVE_FEED_HEARTBEAT_MS = 25_000;
+const LIVE_FEED_DEBOUNCE_MS = 100;
+
+function readPacketTitle(filePath: string): string | undefined {
+  try {
+    const parsed = JSON.parse(readFileSync(filePath, "utf8")) as { title?: unknown };
+    return typeof parsed.title === "string" && parsed.title ? parsed.title : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// Streams memory/value activity to viewer clients over SSE (GET /kage/events).
+// The engine already writes packets and the value ledger to .agent_memory/, so a
+// filesystem watch is the lightest possible event source — no queue, no new deps.
+export function startLiveFeed(projectRoot: string, options: { heartbeatMs?: number; debounceMs?: number } = {}): LiveFeed {
+  const heartbeatMs = options.heartbeatMs ?? LIVE_FEED_HEARTBEAT_MS;
+  const debounceMs = options.debounceMs ?? LIVE_FEED_DEBOUNCE_MS;
+  const packetsDir = join(projectRoot, ".agent_memory", "packets");
+  const reportsDir = join(projectRoot, ".agent_memory", "reports");
+  const valuePath = join(reportsDir, "value.json");
+  const clients = new Set<ServerResponse>();
+  const watchers: FSWatcher[] = [];
+  const timers = new Map<string, NodeJS.Timeout>();
+
+  const knownPackets = new Set<string>();
+  try {
+    mkdirSync(packetsDir, { recursive: true });
+    for (const name of readdirSync(packetsDir)) knownPackets.add(name);
+  } catch {
+    // packets dir unavailable: packet events simply won't fire
+  }
+
+  function readValueEvents(): Array<Record<string, unknown>> {
+    try {
+      const parsed = JSON.parse(readFileSync(valuePath, "utf8")) as { events?: unknown };
+      return Array.isArray(parsed.events) ? (parsed.events as Array<Record<string, unknown>>) : [];
+    } catch {
+      return [];
+    }
+  }
+  let seenValueEvents = readValueEvents().length;
+
+  function broadcast(event: LiveFeedEvent): void {
+    const payload = `data: ${JSON.stringify(event)}\n\n`;
+    for (const res of clients) res.write(payload);
+  }
+
+  function onPacketChange(name: string): void {
+    const filePath = join(packetsDir, name);
+    if (!existsSync(filePath)) {
+      knownPackets.delete(name);
+      return;
+    }
+    const isNew = !knownPackets.has(name);
+    knownPackets.add(name);
+    broadcast({
+      type: isNew ? "packet_written" : "packet_updated",
+      title: readPacketTitle(filePath) ?? name.replace(/\.json$/, ""),
+      path: join(".agent_memory", "packets", name),
+      ts: new Date().toISOString(),
+    });
+  }
+
+  function onValueChange(): void {
+    const events = readValueEvents();
+    if (events.length < seenValueEvents) seenValueEvents = 0; // ledger trimmed or rewritten
+    for (const event of events.slice(seenValueEvents)) {
+      broadcast({
+        type: "value_event",
+        title: typeof event.packet_title === "string" ? event.packet_title : undefined,
+        path: join(".agent_memory", "reports", "value.json"),
+        event,
+        ts: typeof event.at === "string" ? event.at : new Date().toISOString(),
+      });
+    }
+    seenValueEvents = events.length;
+  }
+
+  // fs.watch fires bursts of duplicate events for one logical write; collapse
+  // them per file with a short debounce before reading and broadcasting.
+  function debounced(key: string, run: () => void): void {
+    const existing = timers.get(key);
+    if (existing) clearTimeout(existing);
+    timers.set(key, setTimeout(() => {
+      timers.delete(key);
+      try {
+        run();
+      } catch {
+        // keep the feed alive even if a read races a write
+      }
+    }, debounceMs));
+  }
+
+  try {
+    watchers.push(watch(packetsDir, (_event, filename) => {
+      const name = String(filename ?? "");
+      if (!name.endsWith(".json")) return;
+      debounced(`packet:${name}`, () => onPacketChange(name));
+    }));
+  } catch {
+    // packets dir missing: no packet events
+  }
+  try {
+    mkdirSync(reportsDir, { recursive: true });
+    watchers.push(watch(reportsDir, (_event, filename) => {
+      if (String(filename ?? "") !== "value.json") return;
+      debounced("value", onValueChange);
+    }));
+  } catch {
+    // reports dir missing: no value events
+  }
+
+  const heartbeat = setInterval(() => {
+    for (const res of clients) res.write(`: heartbeat ${Date.now()}\n\n`);
+  }, heartbeatMs);
+  heartbeat.unref();
+
+  function handleRequest(req: IncomingMessage, res: ServerResponse): void {
+    res.writeHead(200, {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache, no-transform",
+      connection: "keep-alive",
+      "x-accel-buffering": "no",
+    });
+    res.write(": connected\n\n");
+    clients.add(res);
+    req.on("close", () => {
+      clients.delete(res);
+    });
+  }
+
+  function close(): void {
+    clearInterval(heartbeat);
+    for (const timer of timers.values()) clearTimeout(timer);
+    timers.clear();
+    for (const watcher of watchers) watcher.close();
+    for (const res of clients) res.end();
+    clients.clear();
+  }
+
+  return { handleRequest, broadcast, clientCount: () => clients.size, close };
+}
+
 export function viewerUrl(host: string, port: number, projectRoot: string): string {
   const query = Object.entries(viewerReportPaths(projectRoot))
     .map(([name, path]) => `${name}=${encodeURIComponent(path)}`)
@@ -732,9 +891,14 @@ export async function startViewer(projectDir: string, options: { host?: string; 
   }
 
   const url = viewerUrl(host, port, projectRoot);
+  const liveFeed = startLiveFeed(projectRoot);
 
   const server = createServer((req, res) => {
     const requestUrl = new URL(req.url ?? "/", `http://${host}:${port}`);
+    if (req.method === "GET" && requestUrl.pathname === "/kage/events") {
+      liveFeed.handleRequest(req, res);
+      return;
+    }
     let filePath: string | null = null;
     const redirectLocation = viewerRedirectLocation(requestUrl.pathname, requestUrl.search, new URL(url).search);
     if (redirectLocation) {
@@ -771,6 +935,7 @@ export async function startViewer(projectDir: string, options: { host?: string; 
   await new Promise<void>((resolveListen) => server.listen(port, host, resolveListen));
   console.log(`Kage viewer listening on ${url}`);
   process.on("SIGTERM", () => {
+    liveFeed.close();
     server.close(() => process.exit(0));
   });
   return { ok: true, project_dir: projectRoot, host, port, url };
