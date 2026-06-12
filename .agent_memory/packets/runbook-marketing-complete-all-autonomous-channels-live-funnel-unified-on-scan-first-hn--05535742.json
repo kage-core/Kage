@@ -8,7 +8,7 @@
   "scope": "repo",
   "visibility": "team",
   "sensitivity": "internal",
-  "status": "approved",
+  "status": "deprecated",
   "confidence": 0.7,
   "tags": [
     "session-learning",
@@ -61,9 +61,14 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 171
+    "estimated_tokens_saved": 171,
+    "stale": true,
+    "stale_reasons": [
+      "linked path changed since memory was verified: launch/CHECKLIST.md"
+    ],
+    "suggested_action": "update"
   },
   "created_at": "2026-06-12T18:34:58.370Z",
-  "updated_at": "2026-06-12T18:35:26.046Z",
+  "updated_at": "2026-06-12T19:44:49.190Z",
   "author_branch": "master"
 }
