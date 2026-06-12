@@ -7,17 +7,22 @@ heuristic call-edges at low confidence) — HN rewards honesty over defense.
 
 **Title (≤80 chars):**
 
-Show HN: Kage – memory for coding agents that has to prove itself
+Show HN: Kage – turn your coding agent into a teammate that remembers your repo
 
 **URL:** https://github.com/kage-core/Kage
 
 **Text:**
 
-I kept watching my coding agents act on stale knowledge. A memory tool would
-faithfully recall "auth lives in src/auth.ts" weeks after that file was
-refactored away — and the agent would confidently build on it. The store only
-grows; nothing ever re-checks it. An agent acting on wrong memory is worse
-than one with none.
+Every session, my agents started from zero on our codebase — re-deriving bug
+causes a teammate had already found, re-asking why a module is shaped the way
+it is. The knowledge existed; it was stuck in people's heads and dead chat
+logs. Kage makes it shared: one person (or one agent) learns something once,
+and every agent on the team remembers it — like a teammate instead of a
+contractor with amnesia.
+
+The catch with shared memory is trust: recall "auth lives in src/auth.ts"
+three weeks after that file was deleted and the agent confidently builds on
+it. So memory here has to prove itself.
 
 So I built Kage with one rule: memory has to prove itself. Every memory cites
 the files it's about, and it's checked against the repo three times:

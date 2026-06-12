@@ -9,16 +9,20 @@ problem, not the pitch. Good fits in order: r/mcp, r/ClaudeAI, r/ChatGPTCoding.
 
 ## r/mcp
 
-**Title:** I gave my coding agents memory that has to prove itself — every recall is re-checked against the repo
+**Title:** One teammate fixes a bug once — now every coding agent on the team remembers it
 
 **Body:**
 
-The thing that finally made me build this: a memory MCP server confidently
-told my agent "auth lives in src/auth.ts" three weeks after we'd deleted that
-file. The agent built on it anyway. Memory stores only grow — nothing ever
-re-checks what's in them against the code.
+My team kept paying the same tax: every agent session started cold, re-deriving
+bug causes someone had already found, re-learning conventions someone had
+already written down in a dead Slack thread. Agents felt like contractors with
+amnesia, not teammates.
 
-**Kage** is an MCP server (plus CLI) where memory is verified, not just stored:
+**Kage** is an MCP server (plus CLI) for shared repo memory: capture a learning
+once — a bug cause, a decision, a gotcha — and every agent on the team recalls
+it when it matters. And because shared memory you can't trust is worse than
+none (ask me about the time recall cited a file we'd deleted three weeks
+earlier), every memory is verified, not just stored:
 
 - A memory citing a file that doesn't exist is **refused at write time**.
 - If the cited code changed or was deleted, the memory is **withheld at
@@ -60,7 +64,7 @@ what would make you trust (or never trust) an agent's recalled context?
 
 ## r/ClaudeAI (post a day later, different angle)
 
-**Title:** Claude Code forgets your repo every session — I built verified memory for it (hooks + MCP, no account)
+**Title:** Claude Code now remembers your repo like a teammate — what one session learns, every session knows
 
 **Body:**
 
