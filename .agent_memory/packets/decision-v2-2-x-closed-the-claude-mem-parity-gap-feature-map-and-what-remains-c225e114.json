@@ -28,12 +28,12 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-12T18:21:26.791Z",
+    "last_verified_at": "2026-06-12T22:18:40.977Z",
     "path_fingerprints": [
       {
         "path": "CHANGELOG.md",
-        "sha256": "471bba3e5ff4248b0e0acfba2c798d8081ce88a993c31696f2fc8be9ec29227d",
-        "size": 32497
+        "sha256": "b094da7ec0e19f157faac050bec84afd421b7ea9d831fe367815acfb4ce197b1",
+        "size": 34832
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -68,14 +68,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 114,
-    "reverified_at": "2026-06-12T18:21:26.791Z",
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: CHANGELOG.md"
-    ],
-    "suggested_action": "update"
+    "reverified_at": "2026-06-12T22:18:40.977Z"
   },
   "created_at": "2026-06-12T12:48:52.965Z",
-  "updated_at": "2026-06-12T18:22:12.695Z",
+  "updated_at": "2026-06-12T22:18:40.977Z",
   "author_branch": "master"
 }
