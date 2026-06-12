@@ -96,15 +96,14 @@
         <div class="wrap">
           <div class="section-head">
             <span class="eyebrow">Current package</span>
-            <h2>v1.1.36</h2>
+            <h2>v2.2.1</h2>
           </div>
           <div class="stats">
-            <div class="stat"><strong>1.1.36</strong><span>latest npm version checked May 17, 2026</span></div>
-            <div class="stat"><strong>1,628</strong><span>npm downloads last week</span></div>
-            <div class="stat"><strong>3,575</strong><span>npm downloads last month</span></div>
+            <div class="stat"><strong>2.2.1</strong><span>latest on npm + the official MCP registry — June 12, 2026</span></div>
+            <div class="stat"><strong>238</strong><span>tests passing on every release</span></div>
+            <div class="stat"><strong>0</strong><span>dependencies, accounts, or API keys required</span></div>
           </div>
-          <pre style="margin-top: 18px;">npm install -g @kage-core/kage-graph-mcp
-kage init --project .</pre>
+          <pre style="margin-top: 18px;">npx -y @kage-core/kage-graph-mcp install</pre>
         </div>
       </section>
 
@@ -116,28 +115,28 @@ kage init --project .</pre>
           </div>
           <div class="highlights">
             <div class="highlight">
-              <strong>Pre-edit risk and impact checks</strong>
-              <span><code>kage risk</code> and the viewer surface dependents, co-change partners, churn, ownership silos, and missing tests before you edit shared files.</span>
+              <strong>v2.2 — memory that follows you</strong>
+              <span>Personal memory in <code>~/.kage/memory</code> with <code>kage sync</code> over your own git remote; conflicts resolve newest-wins with both versions preserved. Plus the <code>kage merge-packet</code> git driver, a signal gate that keeps junk out of auto-capture, and <code>kage audit-claude-mem</code> — a read-only truth report over an existing claude-mem store.</span>
             </div>
             <div class="highlight">
-              <strong>Workspace recall across sibling repos</strong>
-              <span><code>kage workspace</code> indexes a local parent directory and exposes package, route, topic, and git co-change links without copying memory.</span>
+              <strong>v2.1 — the session loop closes itself</strong>
+              <span>Auto-distill captures sessions the agent forgot to save (drafts, reviewed by you); <code>kage resume</code> opens each session with a "previously…" digest; <code>kage repair</code> fixes broken packets and indexes in one command; <code>&lt;private&gt;…&lt;/private&gt;</code> spans are never stored.</span>
             </div>
             <div class="highlight">
-              <strong>Conservative cleanup review input</strong>
-              <span><code>kage cleanup-candidates</code> reports unreferenced files, unused exports, and internal-looking unused symbols with confidence and reasons. It never deletes code.</span>
+              <strong>v2.0 — verified knowledge + receipts</strong>
+              <span>The Truth Report (<code>kage scan</code>), the per-repo value ledger behind <code>kage gains</code>, change-time stale-catch in <code>kage pr check</code>, tree-sitter AST extraction for five more languages, and the Gains-first viewer.</span>
             </div>
             <div class="highlight">
-              <strong>Mixed-language route and call indexing</strong>
-              <span>The code graph now recognizes FastAPI, Flask, Django, Rails, Laravel, Spring, Go, Rust, and ASP.NET routes, plus confidence-scored call edges.</span>
+              <strong>Receipts got real</strong>
+              <span>Every packet records what it cost to learn (<code>discovery_tokens</code>); recall receipts report measured replay value, never estimates dressed up as facts.</span>
             </div>
             <div class="highlight">
-              <strong>Optional post-commit refresh hook</strong>
-              <span><code>kage hook install</code> adds a marker-delimited git hook that refreshes memory and branch summaries after commits, preserving existing hook content.</span>
+              <strong>Memory at the moment of reading</strong>
+              <span>A PreToolUse hook injects verified packets the instant the agent reads a file they cite — checked against the code first, never blocking.</span>
             </div>
             <div class="highlight">
-              <strong>Viewer redesigned around tasks</strong>
-              <span>Overview, Graph, Memory, Risks, and Review pages with a focused inspector, search, and contextual path tracing &mdash; not a graph-engine cockpit.</span>
+              <strong>The viewer went live</strong>
+              <span>Packets and value events stream into the viewer in real time over SSE while the agent works.</span>
             </div>
           </div>
           <div class="links">

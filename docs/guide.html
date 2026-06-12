@@ -211,7 +211,7 @@ kage setup verify-agent --agent codex --project .</pre>
               <h3>Claude Code</h3>
               <pre>kage setup claude-code --project . --write
 kage setup verify-agent --agent claude-code --project .</pre>
-              <p>Installs MCP plus SessionStart, UserPromptSubmit, PostToolUse, PostToolUseFailure, PreCompact, Stop, and SessionEnd hooks for prompt-time recall, observation, distillation, handoff refresh, and memory reconciliation.</p>
+              <p>Installs MCP plus SessionStart, UserPromptSubmit, PreToolUse(Read), PostToolUse, PostToolUseFailure, PreCompact, Stop, and SessionEnd hooks — prompt-time recall, read-time memory injection, observation, auto-distillation, handoff refresh, and memory reconciliation.</p>
             </div>
             <div class="card">
               <h3>Cursor</h3>
@@ -407,7 +407,15 @@ kage hook status --project .</pre>
           <p>Use <code>--json</code> where automation needs structured output. Below: commands grouped by what you need to do.</p>
 
           <h3 class="section-sub">Setup and verification</h3>
-          <div class="method"><h3><code>kage init</code> Initialize a repo</h3><p>Creates memory structure, installs policy, builds the first index.</p><pre>kage init --project .</pre></div>
+          <div class="method"><h3><code>kage install</code> One-shot setup</h3><p>Init + index + auto-detects installed agents (Claude Code, Codex, Cursor, Windsurf, Gemini CLI, OpenCode, Goose, Aider) and wires them. The fastest path from zero to live memory.</p><pre>npx -y @kage-core/kage-graph-mcp install</pre></div>
+          <div class="method"><h3><code>kage scan</code> Truth Report</h3><p>Zero-setup, ~60-second report on any repo: duplicate implementations, ghost exports, bus-factor-1 hot files, knowledge voids, and doc lies — every finding cites <code>file:line</code> evidence.</p><pre>kage scan --project . [--json]</pre></div>
+          <div class="method"><h3><code>kage gains</code> Savings receipt</h3><p>What the memory harness actually did: tokens and dollars saved (measured, per-packet replay value), stale memories blocked, stale knowledge caught at change-time.</p><pre>kage gains --project .</pre></div>
+          <div class="method"><h3><code>kage resume</code> Session continuity</h3><p>The "previously…" digest: last session's work, distilled learnings, drafts awaiting review, unresolved reconciliation, and a compact timeline of recent memory. Injected automatically at session start.</p><pre>kage resume --project . [--json]</pre></div>
+          <div class="method"><h3><code>kage repair</code> One-command recovery</h3><p>Backs up and fixes broken packet JSON (including committed merge-conflict markers), rebuilds missing indexes, cleans stale locks, and re-wires agents that lost their hooks. Prints a receipt of every step.</p><pre>kage repair --project . [--json]</pre></div>
+          <div class="method"><h3><code>kage file-context</code> Memory for one file</h3><p>Up to three currently-verified packets citing a given file, as a compact context block. Powers the PreToolUse(Read) hook that injects memory the moment the agent opens a file.</p><pre>kage file-context --project . --path src/auth.ts</pre></div>
+          <div class="method"><h3><code>kage audit-claude-mem</code> Audit a claude-mem store</h3><p>Read-only truth report over an existing claude-mem database: every observation classified as VERIFIED, DRIFTED, GONE, or UNCITED against your current repo. Their memory, our verification.</p><pre>kage audit-claude-mem --project . [--store ~/.claude-mem/claude-mem.db]</pre></div>
+          <div class="method"><h3><code>kage merge-packet</code> Git merge driver</h3><p>Auto-resolves packet JSON conflicts (newest-wins, recovers committed conflict markers). <code>kage init</code>/<code>install</code> write the <code>.gitattributes</code> entry; enable per clone with one config line.</p><pre>git config merge.kage-packet.driver "npx -y @kage-core/kage-graph-mcp merge-packet %A %O %B"</pre></div>
+          <div class="method"><h3><code>kage init</code> Initialize a repo</h3><p>Creates memory structure, installs policy, builds the first index. Use when you want memory only, without agent wiring.</p><pre>kage init --project .</pre></div>
           <div class="method"><h3><code>kage setup</code> Configure agents</h3><p>Lists targets, writes agent config, verifies live integration. Claude Code setup also installs ambient hooks for prompt recall, observation, compaction distillation, and stop-time handoff refresh.</p><pre>kage setup list
 kage setup codex --project . --write
 kage setup verify-agent --agent codex --project . --json</pre></div>
@@ -483,12 +491,11 @@ kage benchmark --memory-quality --json
 kage benchmark --scale --sizes 240,1000,5000 --json</pre></div>
           <div class="method"><h3><code>kage inbox</code> / <code>kage review-artifact</code></h3><p>Pending, stale, duplicate packets, validation issues, recommended actions.</p><pre>kage inbox --project . --json</pre></div>
 
-          <h3 class="section-sub">Sharing (review-gated)</h3>
-          <div class="method"><h3><code>kage org</code> / <code>kage global</code> / <code>kage promote</code></h3><p>Org, global, public, registry, and marketplace surfaces are explicit and human-gated. Nothing publishes automatically.</p><pre>kage org status --project . --org acme --json
-kage org upload --project . --org acme --packet &lt;approved-packet-id&gt;
-kage layered-recall "query" --project . --org acme --global --json
-kage promote --project . --public &lt;packet-id&gt;
-kage global build --project . --json</pre></div>
+          <h3 class="section-sub">Personal memory &amp; sync</h3>
+          <div class="method"><h3><code>kage learn --personal</code> / <code>kage sync</code></h3><p>Personal packets live in <code>~/.kage/memory</code> and follow you, not the repo. Sync over your own private git remote — no account. Recall labels them <code>[personal]</code> and re-verifies citations in every clone; they never enter pr-check or staleguard.</p><pre>kage learn --personal --learning "Always run the full suite before releasing"
+kage sync setup --remote git@github.com:you/kage-memory.git   # once per machine
+kage sync            # pushed/pulled/resolved receipt; conflicts keep both versions
+kage sync --status   # ahead/behind/dirty, no network mutation</pre></div>
 
           <h3 class="section-sub">Viewer</h3>
           <div class="method"><h3><code>kage viewer</code></h3><p>Starts the local viewer with repo graph, code graph, metrics, review queue, pending memory, and reports preloaded.</p><pre>kage viewer --project . --port 3113</pre></div>
