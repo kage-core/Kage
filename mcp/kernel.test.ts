@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
-import { delimiter, join } from "node:path";
+import { basename, delimiter, join } from "node:path";
 import { availableParallelism, tmpdir } from "node:os";
 import vm from "node:vm";
 import {
@@ -91,6 +91,9 @@ import {
   formatTokenCount,
   recordFeedback,
   refreshProject,
+  remediationFor,
+  repairProject,
+  splitConflictSides,
   rejectPending,
   registryRecommendations,
   scanSensitiveText,
@@ -4140,4 +4143,143 @@ test("staleCatch detects working-tree changes from git when no file list is pass
   const deleted = staleCatch(project);
   assert.equal(deleted.invalidated.length, 1);
   assert.match(deleted.invalidated[0].reason, /deleted/);
+});
+
+// repair must never touch the developer's real home directory in tests.
+function tempRepairHome(): string {
+  return mkdtempSync(join(tmpdir(), "kage-repair-home-"));
+}
+
+test("repair backs up and auto-resolves a merge-conflicted packet keeping the newest side", () => {
+  const project = tempProject();
+  const captured = capture({
+    projectDir: project,
+    title: "Build the repo",
+    body: "Run npm run build inside mcp before running tests.",
+    type: "runbook",
+    tags: ["build"],
+  });
+  assert.equal(captured.ok, true);
+  const packetPath = captured.path!;
+  const oursSide = readFileSync(packetPath, "utf8").trim();
+  const newer = { ...JSON.parse(oursSide), title: "Build the repo (newest)", updated_at: "2099-01-01T00:00:00.000Z" };
+  const conflicted = `<<<<<<< HEAD\n${oursSide}\n=======\n${JSON.stringify(newer, null, 2)}\n>>>>>>> theirs\n`;
+  writeFileSync(packetPath, conflicted, "utf8");
+  assert.equal(validateProject(project).ok, false);
+
+  const result = repairProject(project, { homeDir: tempRepairHome() });
+
+  const backupPath = join(project, ".agent_memory", "backup", `${basename(packetPath)}.broken`);
+  assert.equal(existsSync(backupPath), true);
+  assert.equal(readFileSync(backupPath, "utf8"), conflicted);
+  const repaired = JSON.parse(readFileSync(packetPath, "utf8"));
+  assert.equal(repaired.title, "Build the repo (newest)");
+  const packetAction = result.actions.find((action) => action.area === "packets" && action.status === "fixed");
+  assert.ok(packetAction);
+  assert.match(packetAction.detail, /kept newest side/);
+  assert.equal(result.removed_packets.length, 0);
+  assert.equal(result.ok, true);
+  assert.equal(result.validation.ok, true);
+  assert.equal(validateProject(project).ok, true);
+});
+
+test("repair removes unrecoverable packets loudly, keeps a backup, and rebuilds indexes", () => {
+  const project = tempProject();
+  indexProject(project);
+  const brokenPath = join(packetsDir(project), "gotcha-broken-deadbeef.json");
+  writeFileSync(brokenPath, "{ definitely not json", "utf8");
+  assert.equal(validateProject(project).ok, false);
+
+  const result = repairProject(project, { homeDir: tempRepairHome() });
+
+  assert.equal(existsSync(brokenPath), false);
+  const backupPath = join(project, ".agent_memory", "backup", "gotcha-broken-deadbeef.json.broken");
+  assert.equal(existsSync(backupPath), true);
+  assert.deepEqual(result.removed_packets, ["packets/gotcha-broken-deadbeef.json"]);
+  const removal = result.actions.find((action) => action.area === "packets" && action.status === "fixed");
+  assert.ok(removal);
+  assert.match(removal.detail, /REMOVED/);
+  const indexAction = result.actions.find((action) => action.area === "indexes");
+  assert.ok(indexAction);
+  assert.equal(indexAction.status, "fixed");
+  assert.equal(result.ok, true);
+  assert.equal(result.validation.ok, true);
+});
+
+test("repair cleans stale temp files and dead daemon status, skips healthy areas", () => {
+  const project = tempProject();
+  indexProject(project);
+  const tmpFile = join(project, ".agent_memory", "indexes", "value.json.12345.tmp");
+  writeFileSync(tmpFile, "{}", "utf8");
+  const deadChild = spawnSync(process.execPath, ["-e", ""]);
+  const daemonStatus = join(project, ".agent_memory", "daemon", "status.json");
+  writeFileSync(daemonStatus, JSON.stringify({ pid: deadChild.pid }), "utf8");
+
+  const result = repairProject(project, { homeDir: tempRepairHome() });
+
+  assert.equal(existsSync(tmpFile), false);
+  assert.equal(existsSync(daemonStatus), false);
+  const lockActions = result.actions.filter((action) => action.area === "locks" && action.status === "fixed");
+  assert.equal(lockActions.length, 2);
+  const packetAction = result.actions.find((action) => action.area === "packets");
+  assert.ok(packetAction);
+  assert.equal(packetAction.status, "skipped");
+  const agentAction = result.actions.find((action) => action.area === "agents");
+  assert.ok(agentAction);
+  assert.equal(agentAction.status, "skipped");
+  assert.equal(result.ok, true);
+});
+
+test("repair never wires agents whose config does not mention kage", () => {
+  const project = tempProject();
+  const home = tempRepairHome();
+  // Every Claude Code user has ~/.claude.json — that alone must not count as
+  // "configured for Kage".
+  writeFileSync(join(home, ".claude.json"), JSON.stringify({ mcpServers: {} }), "utf8");
+
+  const result = repairProject(project, { homeDir: home });
+
+  const agentAction = result.actions.find((action) => action.area === "agents");
+  assert.ok(agentAction);
+  assert.equal(agentAction.status, "skipped");
+  assert.equal(existsSync(join(home, ".claude", "kage", "hooks", "session-start.sh")), false);
+});
+
+test("repair re-runs the write path for a kage-configured agent with missing hooks", () => {
+  const project = tempProject();
+  const home = tempRepairHome();
+  writeFileSync(
+    join(home, ".claude.json"),
+    JSON.stringify({ mcpServers: { kage: { command: "node", args: ["/tmp/kage/index.js"] } } }),
+    "utf8"
+  );
+
+  const result = repairProject(project, { homeDir: home });
+
+  const agentAction = result.actions.find((action) => action.area === "agents" && action.target === "claude-code");
+  assert.ok(agentAction);
+  assert.equal(agentAction.status, "fixed");
+  assert.equal(existsSync(join(home, ".claude", "kage", "hooks", "session-start.sh")), true);
+  assert.equal(existsSync(join(home, ".claude", "kage", "hooks", "observe.sh")), true);
+  assert.equal(existsSync(join(home, ".claude", "kage", "hooks", "stop.sh")), true);
+});
+
+test("splitConflictSides separates both sides and rejects unbalanced markers", () => {
+  const sides = splitConflictSides("shared\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> branch\ntail");
+  assert.ok(sides);
+  assert.equal(sides.ours, "shared\nours\ntail");
+  assert.equal(sides.theirs, "shared\ntheirs\ntail");
+  assert.equal(splitConflictSides("no markers here"), null);
+  assert.equal(splitConflictSides("<<<<<<< HEAD\nours only, never closed"), null);
+});
+
+test("remediationFor maps error text to one copy-pasteable command", () => {
+  assert.equal(
+    remediationFor(new Error("ENOENT: no such file or directory, open '/repo/.agent_memory/indexes/catalog.json'")),
+    "kage init --project ."
+  );
+  assert.equal(remediationFor(new SyntaxError("Unexpected token < in JSON at position 0")), "kage repair --project .");
+  assert.equal(remediationFor(new Error("code graph artifact missing; rebuild required")), "kage index --project .");
+  assert.equal(remediationFor(new Error("kaboom")), "kage doctor --project .");
+  assert.equal(remediationFor("plain string failure"), "kage doctor --project .");
 });

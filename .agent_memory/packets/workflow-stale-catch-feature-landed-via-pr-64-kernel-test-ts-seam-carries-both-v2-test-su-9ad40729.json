@@ -104,6 +104,10 @@
     "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-11T19:33:43.899Z",
+<<<<<<< HEAD
+  "updated_at": "2026-06-12T06:04:11.089Z",
+=======
   "updated_at": "2026-06-12T06:06:21.038Z",
+>>>>>>> origin/master
   "author_branch": "release/v2.0.0"
 }
