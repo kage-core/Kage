@@ -11,13 +11,15 @@ invalidate what your team knows. Plain files in your repo, reviewed in the
 same PR as the code. No API key, no database, no daemon.
 
 <p>
-  <a href="https://kage-core.github.io/Kage/">Website</a>
+  <a href="https://kage-core.com/">Website</a>
   ·
-  <a href="https://kage-core.github.io/Kage/guide.html">Docs</a>
+  <a href="https://kage-core.com/guide.html">Docs</a>
   ·
-  <a href="https://kage-core.github.io/Kage/viewer/">Viewer</a>
+  <a href="https://kage-core.com/viewer/">Viewer</a>
   ·
   <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a>
+  ·
+  <a href="https://kage-core.com/demo.html"><b>Book a demo</b></a>
 </p>
 
 <p>
