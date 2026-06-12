@@ -68,6 +68,8 @@ import {
   kageSessionReplay,
   learn,
   memoryInbox,
+  mergePacketFiles,
+  PACKET_MERGE_DRIVER_CONFIG,
   loadPendingPackets,
   MEMORY_TYPES,
   observe,
@@ -151,7 +153,8 @@ Usage:
   kage hook install --project <dir> [--json]
   kage hook status --project <dir> [--json]
   kage hook uninstall --project <dir> [--json]
-  kage refresh --project <dir> [--full] [--json]
+  kage refresh --project <dir> [--full] [--force] [--json]
+  kage merge-packet <ours> <base> <theirs>      git merge driver for .agent_memory/packets/*.json
   kage gc --project <dir> [--dry-run] [--force] [--json]
   kage compact --project <dir> [--dry-run] [--json]
   kage verify --project <dir> [--id <packet-id>] [--json]
@@ -312,6 +315,21 @@ async function main(): Promise<void> {
     console.log(args.includes("--all") ? FULL_USAGE : CORE_USAGE);
     return;
   }
+
+  if (command === "merge-packet") {
+    // Git merge driver (%A %O %B): runs before any heavy setup — merge drivers
+    // must be fast and dependency-free. Exit 0 = merged, 1 = leave conflict.
+    const [ours, base, theirs] = [args[1], args[2], args[3]];
+    if (!ours || !base || !theirs) {
+      console.error("Usage: kage merge-packet <ours> <base> <theirs>");
+      console.error(`Enable once per clone: ${PACKET_MERGE_DRIVER_CONFIG}`);
+      process.exit(1);
+    }
+    const result = mergePacketFiles(ours, base, theirs);
+    console.error(result.detail);
+    process.exit(result.ok ? 0 : 1);
+  }
+
   await ensureTreeSitterLanguages();
 
   if (command === "index") {
@@ -391,6 +409,7 @@ async function main(): Promise<void> {
     console.log(`Initialized Kage memory for ${result.index.projectDir}`);
     console.log("\nCreated:");
     console.log("  .agent_memory/            memory packets + indexes (only directory Kage owns)");
+    console.log(`  .gitattributes            kage-packet merge driver for packet JSON${result.gitAttributes.changed ? "" : " (already current)"}`);
     if (result.policyInstalled) {
       console.log("  AGENTS.md, CLAUDE.md      agent policy (requested via --with-policy)");
       console.log("  .claude/settings.json     allowed kage tools (requested via --with-policy)");
@@ -403,6 +422,8 @@ async function main(): Promise<void> {
     console.log("\nTip — version control:");
     console.log("  commit  .agent_memory/packets/    (your team's reviewed memory)");
     console.log("  ignore  .agent_memory/indexes/ .agent_memory/reports/    (regenerated)");
+    console.log("\nEnable the packet merge driver once per clone:");
+    console.log(`  ${PACKET_MERGE_DRIVER_CONFIG}`);
     if (!result.policyInstalled) {
       console.log("\nNot written (opt-in): agent policy files. Add them with `kage policy --project .`");
       console.log("or rerun `kage init --with-policy` when you're ready to commit them.");
@@ -471,6 +492,8 @@ async function main(): Promise<void> {
     console.log("  kage scan --project .      60-second Truth Report on this repo");
     console.log("  kage viewer --project .    local dashboard (gains, packets, graph)");
     console.log("\nVersion control: commit .agent_memory/packets/, ignore .agent_memory/indexes/ and reports/.");
+    console.log("Enable the packet merge driver once per clone:");
+    console.log(`  ${PACKET_MERGE_DRIVER_CONFIG}`);
     if (!init.validation.ok) process.exit(2);
     return;
   }
@@ -765,13 +788,14 @@ async function main(): Promise<void> {
   }
 
   if (command === "refresh") {
-    const result = refreshProject(projectArg(args), { full: args.includes("--full") });
+    const result = refreshProject(projectArg(args), { full: args.includes("--full"), force: args.includes("--force") });
     if (args.includes("--json")) {
       console.log(JSON.stringify(result, null, 2));
       if (!result.ok) process.exit(2);
       return;
     }
     console.log(`Refreshed ${result.project_dir}`);
+    if (result.quiet_refresh) console.log("Quiet refresh (non-default branch): packet metadata not rewritten on disk; use --force to persist.");
     console.log(`Packets indexed: ${result.index.packets}`);
     console.log(`Packet metadata updated: ${result.updated_packets}`);
     console.log(`Code graph: ${result.code_graph.files} files, ${result.code_graph.symbols} symbols, ${result.code_graph.imports} imports, ${result.code_graph.calls} calls`);

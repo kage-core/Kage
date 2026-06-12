@@ -77,6 +77,20 @@ test("MCP lists repo-local memory tools", () => {
   assert.equal(names.includes("kage_marketplace"), false);
   assert.equal(names.includes("kage_review_artifact"), true);
   assert.equal(names.includes("kage_validate"), true);
+  assert.equal(names.includes("kage_workflow"), true);
+});
+
+test("kage_workflow teaches the loop in its description and returns the same text", async () => {
+  const tool = listTools().find((item) => item.name === "kage_workflow");
+  assert.ok(tool);
+  assert.equal(tool.description.trim().split(/\s+/).length <= 150, true);
+  for (const step of ["kage_context", "kage_learn", "kage_refresh", "kage_pr_check", "<private>", "receipts"]) {
+    assert.equal(tool.description.includes(step), true, `description mentions ${step}`);
+  }
+  const result = await callTool("kage_workflow", {});
+  const first = result.content[0];
+  assert.equal(first.type, "text");
+  assert.equal(String(first.text), tool.description);
 });
 
 test("MCP kage_context returns combined repo context", async () => {
