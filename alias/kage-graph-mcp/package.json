@@ -1,0 +1,11 @@
+{
+  "name": "kage-graph-mcp",
+  "version": "2.2.3",
+  "description": "Kage — verified memory for coding agents. Unscoped alias of @kage-core/kage-graph-mcp (so commands paste cleanly on sites that auto-link @mentions).",
+  "license": "GPL-3.0-only",
+  "repository": { "type": "git", "url": "https://github.com/kage-core/Kage" },
+  "homepage": "https://kage-core.com",
+  "bin": { "kage-graph-mcp": "index.js", "kage-alias": "cli.js" },
+  "dependencies": { "@kage-core/kage-graph-mcp": "^2.2.3" },
+  "files": ["index.js", "cli.js", "README.md"]
+}

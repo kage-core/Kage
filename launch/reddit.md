@@ -22,7 +22,7 @@ Plain JSON in your repo, PR-reviewed. No account, no API key, no vector DB.
 
 Try the read-only scan on your repo (~1 min, finds knowledge voids and doc claims that don't match the code):
 
-    npx -y @kage-core/kage-graph-mcp scan --project .
+    npx -y kage-graph-mcp scan --project .
 
 Repo: https://github.com/kage-core/Kage · Want a live 30-min run on your repo instead? https://kage-core.com/demo.html
 
@@ -42,11 +42,11 @@ Every new Claude Code session starts cold. The memory tools I tried all had the 
 
 Kage closes the loop with hooks: a "previously..." digest at session start, verified memory injected when Claude reads a file it knows about, and a warning before your PR if your diff invalidated team knowledge. Sessions that saved nothing get auto-distilled into drafts you review.
 
-Setup is one command: `npx -y @kage-core/kage-graph-mcp install` (or `/plugin marketplace add kage-core/Kage`). Plain JSON in your repo, no account, no API key.
+Setup is one command: `npx -y kage-graph-mcp install` (or `/plugin marketplace add kage-core/Kage`). Plain JSON in your repo, no account, no API key.
 
 Check what it sees in your repo first (read-only, ~1 min):
 
-    npx -y @kage-core/kage-graph-mcp scan --project .
+    npx -y kage-graph-mcp scan --project .
 
 Repo: https://github.com/kage-core/Kage · Live 30-min run on your repo: https://kage-core.com/demo.html
 

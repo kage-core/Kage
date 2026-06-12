@@ -30,6 +30,12 @@ Framing rule: own story only — no competitor names, no teardown angle in outbo
 - awesome-mcp-servers PR #7480 (open), awesome-ai-devtools PR #642 (open)
 - PulseMCP / directory indexers (pull from official registry automatically)
 
+## Command for social posts
+
+ALWAYS use the unscoped alias in posts: `npx -y kage-graph-mcp ...`
+(X and Reddit auto-convert @kage-core into a user mention; the alias package
+kage-graph-mcp on npm depends on the scoped package and forwards the bins.)
+
 ## Cadence rules (so the channels keep working)
 
 - X: max 1 original post/day, alternate angles (trust loop / Truth Report

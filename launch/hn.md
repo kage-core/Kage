@@ -40,11 +40,11 @@ The loop runs on hooks. Sessions that captured nothing get auto-distilled into d
 
 Try it (read-only) on your own repo:
 
-  npx -y @kage-core/kage-graph-mcp scan --project .
+  npx -y kage-graph-mcp scan --project .
 
 Wire it in (auto-detects Claude Code, Codex, Cursor, Windsurf, anything MCP):
 
-  npx -y @kage-core/kage-graph-mcp install
+  npx -y kage-graph-mcp install
 
 GPL-3.0. 241 tests. Young project, so I'd genuinely value the hard questions, especially from anyone who's been burned by an agent trusting stale context.
 
@@ -56,4 +56,4 @@ If anyone wants to see it on their own repo before installing anything, I'm doin
 
 Or fully self-serve:
 
-  npx -y @kage-core/kage-graph-mcp scan --project .
+  npx -y kage-graph-mcp scan --project .
