@@ -1,0 +1,78 @@
+{
+  "schema_version": 2,
+  "id": "repo:agent-a42c797e11994217c:convention:privacy-private-tags-are-redacted-by-stripprivatespans-before-any-memory-write-1",
+  "title": "Privacy <private> tags are redacted by stripPrivateSpans before any memory write",
+  "summary": "Convention: all memory write paths must redact <private ...</private spans before persisting. The single shared sanitizer is stripPrivateSpans in mcp/kernel.ts exported for tests , backed by PRIVATE SPAN PATTERN — case i",
+  "body": "Convention: all memory write paths must redact <private>...</private> spans before persisting. The single shared sanitizer is stripPrivateSpans() in mcp/kernel.ts (exported for tests), backed by PRIVATE_SPAN_PATTERN — case-insensitive, multiline, and an unclosed <private> redacts to end-of-string. Hook points: capture() sanitizes title/summary/body/context at entry (before scanSensitiveText, so secrets inside private tags are stripped rather than blocking the write), learn() sanitizes learning/title/evidence/verifiedBy before deriving titles, and observe() sanitizes text/summary/command before hashing and writing observation records. Distill is covered transitively: it reads already-sanitized observations and writes through capture/learn. Any new write path that persists free text must call stripPrivateSpans first.\nVerified by: node --test --test-name-pattern \"private\" dist/kernel.test.js (7 pass) and full suite 155/155",
+  "type": "convention",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "privacy",
+    "sanitizer",
+    "memory-write",
+    "private-tags"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/kernel.test.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-12T06:04:06.345Z"
+    }
+  ],
+  "context": {
+    "fact": "Convention: all memory write paths must redact <private>...</private> spans before persisting. The single shared sanitizer is stripPrivateSpans() in mcp/kernel.ts (exported for tests), backed by PRIVATE_SPAN_PATTERN — case-insensitive, multiline, and an unclosed <private> redacts to end-of-string. Hook points: capture() sanitizes title/summary/body/context at entry (before scanSensitiveText, so secrets inside private tags are stripped rather than blocking the write), learn() sanitizes learning/title/evidence/verifiedBy before deriving titles, and observe() sanitizes text/summary/command before hashing and writing observation records. Distill is covered transitively: it reads already-sanitized observations and writes through capture/learn. Any new write path that persists free text must call stripPrivateSpans first.\nVerified by: node --test --test-name-pattern \"private\" dist/kernel.test.js (7 pass) and full suite 155/155",
+    "verification": "node --test --test-name-pattern \"private\" dist/kernel.test.js (7 pass) and full suite 155/155"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-12T06:04:06.345Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "fcd60dd37b36af6c282896d03a971505f9c034bfbbc55b2ce3237c15e9f4e55e",
+        "size": 695567
+      },
+      {
+        "path": "mcp/kernel.test.ts",
+        "sha256": "3674b35af15decbd9c95fd4e1ca58512ecb0121a804dce1c0398cae87dfbea38",
+        "size": 195826
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 234
+  },
+  "created_at": "2026-06-12T06:04:06.345Z",
+  "updated_at": "2026-06-12T06:04:13.688Z",
+  "author_branch": "gap/private-tags"
+}

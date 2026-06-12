@@ -73,7 +73,9 @@ import {
   loadApprovedPackets,
   memoryInbox,
   observe,
+  observationsDir,
   packetsDir,
+  stripPrivateSpans,
   pendingDir,
   prCheck,
   prSummarize,
@@ -2699,6 +2701,103 @@ test("sensitive scanner detects common leak shapes", () => {
   assert.equal(scanSensitiveText("STRIPE_SECRET_KEY=sk_test_1234567890abcdefghijklmnopqrstuvwxyz").includes("api key assignment"), true);
   assert.equal(scanSensitiveText("STRIPE_SECRET_KEY=sk_test_1234567890abcdefghijklmnopqrstuvwxyz").includes("stripe secret key"), true);
   assert.equal(scanSensitiveText("STRIPE_WEBHOOK_SECRET=whsec_1234567890abcdefghijklmnopqrstuvwxyz").includes("stripe webhook secret"), true);
+});
+
+test("stripPrivateSpans redacts private tags and leaves other text untouched", () => {
+  assert.equal(stripPrivateSpans("before <private>secret stuff</private> after"), "before [private] after");
+  assert.equal(stripPrivateSpans("a <PRIVATE>one</PRIVATE> b <Private>two</Private> c"), "a [private] b [private] c");
+  assert.equal(stripPrivateSpans("multi <private>line one\nline two\nline three</private> end"), "multi [private] end");
+  assert.equal(stripPrivateSpans("unclosed <private>leaks to the very end"), "unclosed [private]");
+  assert.equal(stripPrivateSpans("no tags here, including <privateish> markers"), "no tags here, including <privateish> markers");
+  assert.equal(stripPrivateSpans(""), "");
+});
+
+test("learn never writes private tag content into packet JSON", () => {
+  const project = tempProject();
+  const result = learn({
+    projectDir: project,
+    title: "Deploy runbook <private>internal codename HYDRA</private>",
+    learning: "Run npm run deploy after tests. <private>The rotation password is hunter2-rotation-secret.</private> Always verify staging first.",
+    evidence: "<private>pager duty escalation notes</private>",
+    verifiedBy: "npm test",
+  });
+  assert.equal(result.ok, true);
+  assert.ok(result.path);
+  const raw = readFileSync(result.path!, "utf8");
+  assert.equal(raw.includes("hunter2-rotation-secret"), false);
+  assert.equal(raw.includes("HYDRA"), false);
+  assert.equal(raw.includes("pager duty escalation"), false);
+  assert.equal(raw.toLowerCase().includes("<private>"), false);
+  assert.match(raw, /\[private\]/);
+  assert.match(raw, /Always verify staging first/);
+});
+
+test("capture never writes private tag content into packet JSON", () => {
+  const project = tempProject();
+  const result = capture({
+    projectDir: project,
+    title: "API gateway notes",
+    summary: "Gateway config <private>tenant acme-corp details</private> summary",
+    body: "The gateway retries twice. <private>password: super-secret-value-123</private> Timeouts are 30s.",
+    type: "reference",
+    context: { why: "Because <private>customer XYZ filed a sev1</private> retries were flaky." },
+  });
+  assert.equal(result.ok, true, result.errors.join("\n"));
+  assert.ok(result.path);
+  const raw = readFileSync(result.path!, "utf8");
+  assert.equal(raw.includes("super-secret-value-123"), false);
+  assert.equal(raw.includes("acme-corp"), false);
+  assert.equal(raw.includes("customer XYZ"), false);
+  assert.equal(raw.toLowerCase().includes("<private>"), false);
+  assert.match(raw, /\[private\]/);
+  assert.match(raw, /Timeouts are 30s/);
+});
+
+test("capture handles an unclosed private tag by redacting to end of string", () => {
+  const project = tempProject();
+  const result = capture({
+    projectDir: project,
+    title: "Unclosed tag capture",
+    body: "Public part stays. <private>everything after this must vanish password=oops-no-closing-tag",
+    type: "reference",
+  });
+  assert.equal(result.ok, true, result.errors.join("\n"));
+  const raw = readFileSync(result.path!, "utf8");
+  assert.equal(raw.includes("oops-no-closing-tag"), false);
+  assert.equal(raw.includes("everything after this"), false);
+  assert.match(raw, /Public part stays\. \[private\]/);
+});
+
+test("observe sanitizes private spans before writing observation events", () => {
+  const project = tempProject();
+  const result = observe(project, {
+    type: "user_prompt",
+    session_id: "private-session",
+    text: "Fix the login bug. <private>Use my staging password trustno1-staging.</private> Then rerun tests.",
+    summary: "login fix <private>secret summary detail</private>",
+    command: "curl -H 'X-Note: <private>token-in-command</private>' localhost",
+  });
+  assert.equal(result.ok, true, result.errors.join("\n"));
+  assert.equal(result.stored, true);
+  const raw = readFileSync(result.path!, "utf8");
+  assert.equal(raw.includes("trustno1-staging"), false);
+  assert.equal(raw.includes("secret summary detail"), false);
+  assert.equal(raw.includes("token-in-command"), false);
+  assert.equal(raw.toLowerCase().includes("<private>"), false);
+  assert.match(raw, /\[private\]/);
+  assert.match(raw, /Then rerun tests/);
+  const stored = readdirSync(observationsDir(project)).filter((name) => name.endsWith(".json"));
+  assert.equal(stored.length, 1);
+});
+
+test("non-tagged capture text is stored untouched by the private sanitizer", () => {
+  const project = tempProject();
+  const body = "Plain reference text with angle brackets like Array<string> and <div> markup.";
+  const result = capture({ projectDir: project, title: "Plain text", body, type: "reference" });
+  assert.equal(result.ok, true, result.errors.join("\n"));
+  assert.equal(result.packet?.body, body);
+  const raw = readFileSync(result.path!, "utf8");
+  assert.equal(raw.includes("[private]"), false);
 });
 
 test("project validation warns when indexes are missing", () => {

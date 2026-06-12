@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **`<private>` privacy tags.** Wrap anything in `<private>…</private>` and
+  Kage will never store it: spans (case-insensitive, multiline, and unclosed
+  tags to end-of-input) are replaced with `[private]` before any packet or
+  observation is written — applied across `capture`, `learn`, `observe`, and
+  the distill pipeline that feeds from them.
+
 ## v2.0.2 - one-shot install + plugin hooks
 
 - **`kage install` — one-shot setup.** `npx -y @kage-core/kage-graph-mcp install`

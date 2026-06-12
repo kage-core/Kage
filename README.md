@@ -110,6 +110,10 @@ trust at three points:
      fix: kage learn (update) | kage supersede --packet <id>
    ```
 
+And a privacy guarantee on top: wrap anything in `<private>…</private>` and
+Kage will never store it — the span is replaced with `[private]` before any
+packet or observation touches disk.
+
 Prove it on your own repo: `kage benchmark --trust --project .` measures
 hallucination rejection, stale exclusion, and live grounding — 100/100.
 

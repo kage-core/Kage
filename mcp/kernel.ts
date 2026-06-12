@@ -3845,6 +3845,29 @@ export function scanSensitiveText(text: string): string[] {
   return patterns.filter(([, pattern]) => pattern.test(text)).map(([name]) => name);
 }
 
+// Privacy tags: anything wrapped in <private>...</private> is redacted to
+// "[private]" BEFORE a packet or observation is written, so the content never
+// reaches disk. Matching is case-insensitive and spans newlines; an unclosed
+// <private> redacts to the end of the string so a malformed tag cannot leak.
+const PRIVATE_SPAN_PATTERN = /<private>[\s\S]*?(?:<\/private>|$)/gi;
+
+export function stripPrivateSpans(text: string): string {
+  if (!text || text.toLowerCase().indexOf("<private>") === -1) return text;
+  return text.replace(PRIVATE_SPAN_PATTERN, "[private]");
+}
+
+function stripPrivateFromContext(context: EngineeringMemoryContext): EngineeringMemoryContext {
+  const sanitized: EngineeringMemoryContext = { ...context };
+  for (const key of ["fact", "why", "trigger", "action", "verification", "risk_if_forgotten", "stale_when"] as const) {
+    const value = sanitized[key];
+    if (typeof value === "string") sanitized[key] = stripPrivateSpans(value);
+  }
+  if (sanitized.rejected_alternatives) {
+    sanitized.rejected_alternatives = sanitized.rejected_alternatives.map((entry) => stripPrivateSpans(entry));
+  }
+  return sanitized;
+}
+
 export function catalogDomainNodeCount(domain: PublicCatalogDomainShape): number {
   return domain.nodes ?? domain.node_count ?? 0;
 }
@@ -14407,6 +14430,15 @@ function hasStructuredEngineeringContext(packet: MemoryPacket): boolean {
 }
 
 export function learn(input: LearnInput): LearnResult {
+  // Redact <private> spans before deriving the title/summary so private text
+  // never leaks into derived fields; capture() re-applies the same sanitizer.
+  input = {
+    ...input,
+    learning: stripPrivateSpans(input.learning),
+    title: input.title === undefined ? undefined : stripPrivateSpans(input.title),
+    evidence: input.evidence === undefined ? undefined : stripPrivateSpans(input.evidence),
+    verifiedBy: input.verifiedBy === undefined ? undefined : stripPrivateSpans(input.verifiedBy),
+  };
   const type = inferLearningType(input);
   const title = input.title?.trim() || titleFromLearning(input.learning);
   const body = [
@@ -14433,6 +14465,15 @@ export function learn(input: LearnInput): LearnResult {
 
 export function capture(input: CaptureInput): CaptureResult {
   ensureMemoryDirs(input.projectDir);
+  // Privacy tags: redact <private> spans from every text field before any
+  // validation, scanning, or storage — private content must never hit disk.
+  input = {
+    ...input,
+    title: stripPrivateSpans(input.title),
+    summary: input.summary === undefined ? undefined : stripPrivateSpans(input.summary),
+    body: stripPrivateSpans(input.body),
+    context: input.context ? stripPrivateFromContext(input.context) : input.context,
+  };
   const type = input.type ?? "reference";
   if (!MEMORY_TYPES.includes(type)) {
     return { ok: false, errors: [`Invalid memory type: ${type}`] };
@@ -15224,6 +15265,14 @@ function observationHash(projectDir: string, event: ObservationEvent): string {
 
 export function observe(projectDir: string, event: ObservationEvent): ObserveResult {
   ensureMemoryDirs(projectDir);
+  // Privacy tags: redact <private> spans from free-text fields before hashing,
+  // scanning, or persisting the observation record.
+  event = {
+    ...event,
+    text: event.text === undefined ? undefined : stripPrivateSpans(event.text),
+    summary: event.summary === undefined ? undefined : stripPrivateSpans(event.summary),
+    command: event.command === undefined ? undefined : stripPrivateSpans(event.command),
+  };
   const allowed: ObservationEventType[] = ["session_start", "user_prompt", "tool_use", "tool_result", "file_change", "command_result", "test_result", "session_end"];
   if (!allowed.includes(event.type)) return { ok: false, stored: false, duplicate: false, errors: [`Invalid observation type: ${event.type}`] };
   const text = [event.text, event.summary, event.command, event.path, JSON.stringify(event.metadata ?? {})].filter(Boolean).join("\n");
