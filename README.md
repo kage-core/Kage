@@ -114,6 +114,13 @@ And a privacy guarantee on top: wrap anything in `<private>…</private>` and
 Kage will never store it — the span is replaced with `[private]` before any
 packet or observation touches disk.
 
+The session loop takes care of itself: if the agent never captured anything,
+the session's observations are **auto-distilled into pending drafts** at
+session end (reviewed by you, never trusted blindly); the next session opens
+with a **"previously…" digest** (`kage resume`); the viewer streams memory
+events **live** as they happen; and when anything breaks, **`kage repair`**
+backs up, fixes, and rebuilds in one command.
+
 Prove it on your own repo: `kage benchmark --trust --project .` measures
 hallucination rejection, stale exclusion, and live grounding — 100/100.
 
