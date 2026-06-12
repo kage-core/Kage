@@ -62,26 +62,6 @@ Scanned 142 files, 3160 symbols, 1 doc file(s)
 
 Every finding cites `file:line` evidence from *your* code — nothing is generated.
 
-## The 30-second trust demo
-
-```bash
-npx -y @kage-core/kage-graph-mcp demo
-```
-
-```text
-1. Hallucinated citation — REJECTED on write:
-   ✗ "Use the helper in src/ghost.ts"
-     Citation validation failed: none of the referenced paths exist in this repo.
-
-2. Stale memory (cited file deleted) — WITHHELD from recall:
-   ⊘ Legacy retry helper is the fallback
-     all cited files deleted since capture: src/legacy-retry.ts
-
-3. Recall returns only grounded, current memory:
-   ✓ Payments must be idempotent
-   ✓ Auth uses jose, not jsonwebtoken
-```
-
 ## Receipts, not vibes
 
 Kage keeps a per-repo value ledger and shows you what the memory harness
@@ -139,6 +119,8 @@ newest-wins with losers preserved under `~/.kage/memory/conflicts/`).
 
 Prove it on your own repo: `kage benchmark --trust --project .` measures
 hallucination rejection, stale exclusion, and live grounding — 100/100.
+(Want to watch the reject/withhold loop run live in a sandbox first?
+`npx -y @kage-core/kage-graph-mcp demo`.)
 
 ## The numbers
 
