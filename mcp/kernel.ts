@@ -506,6 +506,8 @@ export interface ObservationRecord extends ObservationEvent {
   session_id: string;
   timestamp: string;
   stored_at: string;
+  /** Tagged at ingestion when observationSignalScore fell below AUTO_DISTILL_SIGNAL_THRESHOLD, so auto-distill can skip the event without rescoring. */
+  low_signal?: boolean;
 }
 
 export interface ObserveResult {
@@ -527,6 +529,8 @@ export interface DistillResult {
   mode?: "manual" | "auto";
   /** Set when auto mode quietly skipped a session (no observations, or memory was already captured). */
   skipped_reason?: "no_observations" | "session_already_captured";
+  /** Auto mode only: candidate observations gated out because observationSignalScore was below AUTO_DISTILL_SIGNAL_THRESHOLD. */
+  skipped_low_signal?: number;
 }
 
 export interface ResumeReport {
@@ -15980,6 +15984,9 @@ export function observe(projectDir: string, event: ObservationEvent): ObserveRes
   const path = observationPath(projectDir, id);
   if (existsSync(path)) return { ok: true, stored: false, duplicate: true, path, errors: [] };
   const timestamp = event.timestamp ? new Date(event.timestamp).toISOString() : nowIso();
+  // Tag low-signal events at ingestion (manual learn/capture is never gated, but
+  // auto-distill skips tagged events cheaply without rescoring).
+  const lowSignal = observationSignalScore(event) < AUTO_DISTILL_SIGNAL_THRESHOLD;
   const record: ObservationRecord = {
     ...event,
     schema_version: 1,
@@ -15989,6 +15996,7 @@ export function observe(projectDir: string, event: ObservationEvent): ObserveRes
     session_id: event.session_id || "default",
     timestamp,
     stored_at: nowIso(),
+    ...(lowSignal ? { low_signal: true } : {}),
   };
   writeJson(path, record);
   return { ok: true, stored: true, duplicate: false, record, path, errors: [] };
@@ -16000,6 +16008,139 @@ function loadObservations(projectDir: string, sessionId?: string): ObservationRe
     .map((path) => readJson<ObservationRecord>(path))
     .filter((record) => !sessionId || record.session_id === sessionId)
     .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+}
+
+// Auto-distill quality gate. Observations must score at least this (0..1) on
+// observationSignalScore before they may seed an auto-distilled draft. 0.4 was picked
+// so genuine learnings clear it comfortably (causal prose plus a path, command, or
+// code identifier lands around 0.45-0.65) while machine noise hard-rejects to 0:
+// raw JSON payloads, hook/system envelopes, flag-token dumps, sub-50-char fragments,
+// and echoes of Kage's own demo/receipt output. Manual `kage learn`/`kage capture`
+// and manual `kage distill` are never gated — explicit intent outranks the heuristic.
+export const AUTO_DISTILL_SIGNAL_THRESHOLD = 0.4;
+
+// Markers of hook/system plumbing payloads that sometimes leak into observation text
+// (e.g. a raw <task-notification> block stored as a "user prompt").
+const HOOK_PAYLOAD_MARKERS = [
+  "task-notification",
+  "task_notification",
+  "tool-use-id",
+  "tool_use_id",
+  "toolu_",
+  "system-reminder",
+  "system_reminder",
+  "hookspecificoutput",
+  "hook_event_name",
+  "stop_hook_active",
+  "sessionstart hook",
+];
+
+// Markers of Kage's own output being echoed back as "memory" (truth-report headers,
+// demo proof lines, value-receipt fields). Storing our own output is feedback noise.
+const KAGE_ECHO_MARKERS = [
+  "truth report",
+  "hallucinated citations never enter storage",
+  "hallucinated citation",
+  "value_receipt",
+  "stale_withheld",
+  "# previously (kage)",
+];
+
+function jsonNoiseText(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    try {
+      JSON.parse(trimmed);
+      return true;
+    } catch {
+      // Not parseable; fall through to the density heuristics.
+    }
+  }
+  // Three or more quoted-key patterns reads as serialized data, not prose.
+  if ((text.match(/"[\w$.-]+"\s*:/g) ?? []).length >= 3) return true;
+  const dense = text.replace(/\s+/g, "");
+  if (!dense.length) return true;
+  const jsonPunctuation = (text.match(/[{}[\]":,]/g) ?? []).length;
+  return jsonPunctuation / dense.length > 0.5;
+}
+
+function flagTokenNoise(lower: string): boolean {
+  // Dumps like "interrupted false isImage false noOutputExpected false" or
+  // "x=false y=true": several key/boolean pairs making up a large share of the text.
+  const pairs = (lower.match(/\b[a-z][\w-]*\s*[=:]?\s*(true|false|null|undefined)\b/g) ?? []).length;
+  if (pairs < 2) return false;
+  const words = lower.split(/\s+/).filter(Boolean).length;
+  return words > 0 && (pairs * 2) / words >= 0.4;
+}
+
+// Imperative/causal vocabulary that marks durable, future-facing knowledge.
+const SIGNAL_CAUSAL_MARKERS = [
+  "fixed",
+  "because",
+  "use ",
+  "instead",
+  "run ",
+  "must",
+  "should",
+  "requires",
+  "prefer",
+  "avoid",
+  "fail",
+  "caused",
+  "root cause",
+  "why",
+  "decision",
+  "convention",
+  "gotcha",
+  "workaround",
+  "hypothesis",
+  "issue",
+  "explains",
+  "invariant",
+  "maps ",
+  "after changing",
+  "when changing",
+  "never",
+  "always",
+];
+
+/**
+ * Pure 0..1 signal score for an observation: how likely its text is durable,
+ * human-meaningful repo knowledge rather than machine noise. Hard rejects (0):
+ * raw JSON / key-value noise, hook or system payloads, echoes of Kage's own
+ * output, flag-token dumps, and fragments under 50 chars. Positive signal:
+ * imperative/causal language, file path citations, code identifiers, commands.
+ */
+export function observationSignalScore(
+  observation: Pick<ObservationEvent, "text" | "summary" | "command" | "path">
+): number {
+  const prose = [observation.summary, observation.text].filter(Boolean).join("\n").trim();
+  const combined = [prose, observation.command].filter(Boolean).join("\n").trim();
+  if (combined.length < 50) return 0;
+  const lower = combined.toLowerCase();
+  if (HOOK_PAYLOAD_MARKERS.some((marker) => lower.includes(marker))) return 0;
+  if (KAGE_ECHO_MARKERS.some((marker) => lower.includes(marker))) return 0;
+  if (jsonNoiseText(combined)) return 0;
+  if (flagTokenNoise(lower)) return 0;
+
+  let score = 0;
+  const causalHits = SIGNAL_CAUSAL_MARKERS.filter((marker) => lower.includes(marker)).length;
+  if (causalHits > 0) score += Math.min(0.35, 0.25 + (causalHits - 1) * 0.05);
+  const citesPath = Boolean(observation.path)
+    || /\b[\w.-]+\/[\w./-]+\b/.test(prose)
+    || /\b[\w-]+\.(ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|rb|json|ya?ml|toml|md|sh|css|html|sql)\b/i.test(prose);
+  if (citesPath) score += 0.2;
+  const codeIdentifier = /\b[a-z][a-z0-9]*[A-Z]\w*\b/.test(prose) // camelCase
+    || /\b[a-z0-9]+_[a-z0-9_]+\b/.test(prose) // snake_case
+    || /`[^`]+`/.test(prose)
+    || /\b\w+\(\)/.test(prose);
+  if (codeIdentifier) score += 0.15;
+  const commandLine = Boolean(observation.command)
+    || /(^|\s)(npm|pnpm|yarn|npx|node|git|cargo|make|pytest|go|tsc|kage)\s+[\w.-]/.test(prose);
+  if (commandLine) score += 0.15;
+  const words = combined.split(/\s+/).filter(Boolean).length;
+  if (combined.length >= 80 && words >= 10) score += 0.1;
+  return Math.min(1, score);
 }
 
 function reusableFileObservation(event: ObservationRecord): string {
@@ -16492,10 +16633,10 @@ export function distillSession(projectDir: string, sessionId: string, options: {
   const mode = auto ? ("auto" as const) : ("manual" as const);
   const observations = loadObservations(projectDir, sessionId);
   if (auto && observations.length === 0) {
-    return { ok: true, session_id: sessionId, observations: 0, candidates: [], errors: [], mode, skipped_reason: "no_observations" };
+    return { ok: true, session_id: sessionId, observations: 0, candidates: [], errors: [], mode, skipped_reason: "no_observations", skipped_low_signal: 0 };
   }
   if (auto && sessionAlreadyCaptured(projectDir, sessionId, observations)) {
-    return { ok: true, session_id: sessionId, observations: observations.length, candidates: [], errors: [], mode, skipped_reason: "session_already_captured" };
+    return { ok: true, session_id: sessionId, observations: observations.length, candidates: [], errors: [], mode, skipped_reason: "session_already_captured", skipped_low_signal: 0 };
   }
   const candidates: CaptureResult[] = [];
   const errors: string[] = [];
@@ -16530,9 +16671,22 @@ export function distillSession(projectDir: string, sessionId: string, options: {
     return result;
   };
   const autoTags = auto ? [AUTO_DISTILL_TAG] : [];
-  const commandEvents = observations.filter((event) => event.type === "command_result" && event.command);
-  const fileEvents = observations.filter((event) => event.type === "file_change" && event.path);
-  const promptEvents = observations.filter((event) => event.type === "user_prompt" && (event.text || event.summary));
+  // Auto-distill quality gate: drafts may only be seeded by observations scoring at
+  // least AUTO_DISTILL_SIGNAL_THRESHOLD. Events tagged low_signal at ingestion skip
+  // cheaply; untagged (older) records are scored here. Manual distill is not gated.
+  let skippedLowSignal = 0;
+  const signalGate = (events: ObservationRecord[]): ObservationRecord[] => {
+    if (!auto) return events;
+    return events.filter((event) => {
+      const lowSignal = event.low_signal === true
+        || (event.low_signal === undefined && observationSignalScore(event) < AUTO_DISTILL_SIGNAL_THRESHOLD);
+      if (lowSignal) skippedLowSignal += 1;
+      return !lowSignal;
+    });
+  };
+  const commandEvents = signalGate(observations.filter((event) => event.type === "command_result" && event.command));
+  const fileEvents = signalGate(observations.filter((event) => event.type === "file_change" && event.path));
+  const promptEvents = signalGate(observations.filter((event) => event.type === "user_prompt" && (event.text || event.summary)));
 
   const meaningfulCommandEvents = commandEvents
     .map((event) => ({ event, reusable: reusableCommandObservation(event, knownRepoCommands(projectDir)) }))
@@ -16585,7 +16739,15 @@ export function distillSession(projectDir: string, sessionId: string, options: {
   }
 
   for (const result of candidates) if (!result.ok) errors.push(...result.errors);
-  return { ok: errors.length === 0, session_id: sessionId, observations: observations.length, candidates, errors, mode };
+  return {
+    ok: errors.length === 0,
+    session_id: sessionId,
+    observations: observations.length,
+    candidates,
+    errors,
+    mode,
+    ...(auto ? { skipped_low_signal: skippedLowSignal } : {}),
+  };
 }
 
 // Session continuity: a compact "previously…" digest the SessionStart hook injects so a new
