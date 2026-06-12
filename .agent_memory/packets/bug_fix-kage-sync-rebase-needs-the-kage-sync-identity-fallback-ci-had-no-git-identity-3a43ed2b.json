@@ -72,12 +72,17 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "stale_reasons": [],
+    "stale_reasons": [
+      "packet status is superseded",
+      "linked path changed since memory was verified: mcp/kernel.ts"
+    ],
     "estimated_tokens_saved": 143,
     "superseded_by": "repo:https-github-com-kage-core-kage:bug_fix:kage-sync-ci-fix-rebase-identity-fallback-self-healing-non-fast-forward-push-ret",
-    "superseded_reason": "Newer repo memory supersedes this packet."
+    "superseded_reason": "Newer repo memory supersedes this packet.",
+    "stale": true,
+    "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-12T12:05:41.738Z",
-  "updated_at": "2026-06-12T12:09:29.296Z",
+  "updated_at": "2026-06-12T12:10:32.279Z",
   "author_branch": "master"
 }
