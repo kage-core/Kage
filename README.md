@@ -27,6 +27,8 @@ same PR as the code. No API key, no database, no daemon.
   <img src="https://img.shields.io/badge/trust%20benchmark-100%2F100-41ff8f" alt="trust 100/100">
 </p>
 
+🌐 English · [简体中文](translations/README.zh-CN.md) · [日本語](translations/README.ja.md) · [한국어](translations/README.ko.md) · [Español](translations/README.es.md) · [Português (Brasil)](translations/README.pt-BR.md) · [Français](translations/README.fr.md) · [Deutsch](translations/README.de.md) · [हिन्दी](translations/README.hi.md)
+
 **Works with** Claude Code · Codex · Cursor · Windsurf · Gemini CLI · Cline ·
 Goose · Roo Code · Kilo Code · OpenCode · Aider · Claude Desktop · any MCP client
 
