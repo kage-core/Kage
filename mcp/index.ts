@@ -842,6 +842,7 @@ export function listTools() {
           stack: { type: "array", items: { type: "string" } },
           graph_nodes: { type: "array", items: { type: "string" } },
           allow_missing_paths: { type: "boolean" },
+          discovery_tokens: { type: "number", description: "Approximate token cost of producing this knowledge (exploration + reasoning). Stored on the packet so recall receipts can report replay value; a conservative per-type default is estimated when omitted." },
         },
         required: ["project_dir", "learning"],
       },
@@ -1608,6 +1609,7 @@ export async function callTool(name: string, args: Record<string, unknown> | und
       graphNodes: arrayArg(args?.graph_nodes),
       allowMissingPaths: Boolean(args?.allow_missing_paths),
       strictCitations: true,
+      discoveryTokens: args?.discovery_tokens === undefined ? undefined : Number(args.discovery_tokens),
     });
     const learnWarnings = result.warnings?.length ? `\nWarnings:\n${result.warnings.map((warning) => `- ${warning}`).join("\n")}` : "";
     return {

@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+- **Per-packet discovery cost (`discovery_tokens`).** Captures now store the
+  approximate token cost of producing the knowledge (exploration + reasoning)
+  under `quality.discovery_tokens`. Caller-reported via `kage_learn`
+  `discovery_tokens` / `kage learn --discovery-tokens <n>`; when omitted, a
+  conservative per-type default is stored (bug_fix/gotcha 8000, decision 4000,
+  others 2000) and flagged `discovery_tokens_estimated: true`. Auto-distilled
+  packets estimate it from the session's observation material.
+- **Knowledge replay receipts.** Recall receipts now report
+  `max(read-vs-source, sum(discovery_tokens of served packets) − context cost)`
+  — savings never drop below the previous estimate and never go negative. The
+  value ledger tracks `replay_tokens` per served recall and `kage gains` prints
+  a "Knowledge replay value" line (discovery cost of served memories vs their
+  compressed read cost).
+- **`kage file-context --project <dir> --path <file> [--json]`.** Returns up to
+  three currently-verified packets (citations checked, not stale — same
+  staleness machinery as recall) that cite the given file, as a ≤20-line
+  context block; prints nothing when none qualify. Non-empty results record a
+  value-ledger event.
+- **PreToolUse(Read) memory injection for Claude Code.** `kage setup
+  claude-code --write` installs `~/.claude/kage/hooks/kage-read-context.sh`
+  plus a `PreToolUse` hook with matcher `Read`: just before the agent reads a
+  file, verified memory citing that file is injected as `additionalContext`.
+  Defensive by design — skips files outside the project, skips uninitialized
+  repos, dedups to one injection per file per session via a `/tmp` state file,
+  and never blocks the Read. Mirrored in `plugin/hooks/kage-read-context.sh`
+  with a `PreToolUse` entry in `plugin/hooks/hooks.json`.
+
 ## v2.1.0 - the session loop closes itself
 
 - **Automatic capture fallback (`kage distill --auto`).** The Claude Code Stop
