@@ -3,7 +3,7 @@
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
   "summary": "Repo-local context for 2 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/gotcha-social-sites-mangle-scoped-npm-commands-use-unscoped-alias-kage-graph-mcp-in-all-b69bc9d6.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n...commands-use-unscoped-alias-kage-graph-mcp-in-all-b69bc9d6.json | 7 ++++---\n .agent_memory/packets/workflow-change-memory-master-23634276.json  | 3 +--\n 2 files changed, 5 insertions(+), 5 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/gotcha-reddit-filter-removal-playbook-modmail-first-one-link-repost-variant-karma-via-c-9fa945b9.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n...ook-modmail-first-one-link-repost-variant-karma-via-c-9fa945b9.json | 3 +--\n .agent_memory/packets/workflow-change-memory-master-23634276.json      | 3 +--\n 2 files changed, 2 insertions(+), 4 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -17,7 +17,7 @@
     "branch:master"
   ],
   "paths": [
-    ".agent_memory/packets/gotcha-social-sites-mangle-scoped-npm-commands-use-unscoped-alias-kage-graph-mcp-in-all-b69bc9d6.json",
+    ".agent_memory/packets/gotcha-reddit-filter-removal-playbook-modmail-first-one-link-repost-variant-karma-via-c-9fa945b9.json",
     ".agent_memory/packets/workflow-change-memory-master-23634276.json"
   ],
   "stack": [],
@@ -25,10 +25,10 @@
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "390e53b30d805969c97e38039cd5b920015d715d",
-      "merge_base": "390e53b30d805969c97e38039cd5b920015d715d",
+      "head": "ed54aa99d2b2defea003b65c7503e61dd258071b",
+      "merge_base": "ed54aa99d2b2defea003b65c7503e61dd258071b",
       "changed_files": [
-        ".agent_memory/packets/gotcha-social-sites-mangle-scoped-npm-commands-use-unscoped-alias-kage-graph-mcp-in-all-b69bc9d6.json",
+        ".agent_memory/packets/gotcha-reddit-filter-removal-playbook-modmail-first-one-link-repost-variant-karma-via-c-9fa945b9.json",
         ".agent_memory/packets/workflow-change-memory-master-23634276.json"
       ],
       "summary_path": ".agent_memory/review/branch-summary-master.json"
@@ -44,7 +44,7 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-12T21:55:03.050Z",
+    "last_verified_at": "2026-06-12T22:04:17.409Z",
     "ttl_days": 180,
     "path_fingerprints": [],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -53,7 +53,7 @@
   "edges": [
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/gotcha-social-sites-mangle-scoped-npm-commands-use-unscoped-alias-kage-graph-mcp-in-all-b69bc9d6.json",
+      "to": "path:.agent_memory/packets/gotcha-reddit-filter-removal-playbook-modmail-first-one-link-repost-variant-karma-via-c-9fa945b9.json",
       "evidence": "git_diff"
     },
     {
@@ -75,7 +75,7 @@
     "risks": [],
     "duplicate_candidates": [],
     "stale_reasons": [],
-    "estimated_tokens_saved": 284,
+    "estimated_tokens_saved": 285,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -93,6 +93,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-06-12T21:55:03.050Z",
-  "updated_at": "2026-06-12T21:55:03.050Z"
+  "created_at": "2026-06-12T22:04:17.409Z",
+  "updated_at": "2026-06-12T22:04:17.409Z"
 }
