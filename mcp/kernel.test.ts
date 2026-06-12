@@ -19,8 +19,11 @@ import {
   buildKnowledgeGraph,
   buildBranchOverlay,
   buildStructuralIndex,
+  auditClaudeMemStore,
   auditProject,
   capture,
+  classifyClaudeMemObservations,
+  renderClaudeMemAuditReceipt,
   kageActivity,
   catalogDomainNodeCount,
   createReviewArtifact,
@@ -4090,6 +4093,180 @@ test("truth report on a doc-less repo skips doc checks and still finds bus-facto
   assert.ok(bus);
   assert.match(bus.detail, /test@example.com/);
   assert.equal(report.findings.some((finding) => finding.kind === "doc_lie"), false);
+});
+
+interface ClaudeMemFixtureRow {
+  id: number;
+  project: string;
+  type?: string;
+  title?: string | null;
+  subtitle?: string | null;
+  files_read?: string | null;
+  files_modified?: string | null;
+  created_at: string;
+  created_at_epoch: number;
+}
+
+// Builds a fixture claude-mem store through the same mechanisms the reader
+// uses: node:sqlite when the runtime has it, else the sqlite3 CLI. Returns
+// null when neither is available so callers can skip.
+function createClaudeMemFixtureStore(rows: ClaudeMemFixtureRow[]): string | null {
+  const storePath = join(mkdtempSync(join(tmpdir(), "kage-cm-fixture-")), "claude-mem.db");
+  const ddl = "CREATE TABLE observations (id INTEGER PRIMARY KEY, memory_session_id TEXT, project TEXT NOT NULL, type TEXT, title TEXT, subtitle TEXT, facts TEXT, narrative TEXT, files_read TEXT, files_modified TEXT, created_at TEXT NOT NULL, created_at_epoch INTEGER NOT NULL)";
+  const columns = ["id", "project", "type", "title", "subtitle", "files_read", "files_modified", "created_at", "created_at_epoch"] as const;
+  const values = (row: ClaudeMemFixtureRow): Array<string | number | null> => [
+    row.id, row.project, row.type ?? "discovery", row.title ?? null, row.subtitle ?? null,
+    row.files_read ?? null, row.files_modified ?? null, row.created_at, row.created_at_epoch,
+  ];
+  try {
+    const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
+    const db = new DatabaseSync(storePath);
+    db.exec(ddl);
+    const stmt = db.prepare(`INSERT INTO observations (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`);
+    for (const row of rows) stmt.run(...values(row));
+    db.close();
+    return storePath;
+  } catch {
+    // node:sqlite unavailable on this runtime; try the sqlite3 CLI below.
+  }
+  try {
+    const literal = (value: string | number | null): string =>
+      value === null ? "NULL" : typeof value === "number" ? String(value) : `'${value.replace(/'/g, "''")}'`;
+    const statements = [
+      `${ddl};`,
+      ...rows.map((row) => `INSERT INTO observations (${columns.join(", ")}) VALUES (${values(row).map(literal).join(", ")});`),
+    ];
+    execFileSync("sqlite3", [storePath], { input: statements.join("\n"), stdio: ["pipe", "ignore", "ignore"] });
+    return storePath;
+  } catch {
+    return null;
+  }
+}
+
+function commitAllAt(project: string, message: string, isoDate: string): void {
+  execFileSync("git", ["add", "."], { cwd: project, stdio: "ignore" });
+  execFileSync("git", ["commit", "-m", message], {
+    cwd: project,
+    stdio: "ignore",
+    env: { ...gitIdentityEnv, GIT_AUTHOR_DATE: isoDate, GIT_COMMITTER_DATE: isoDate },
+  });
+}
+
+test("claude-mem audit classifies a fixture store against a temp git repo", (t) => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  const captureIso = "2026-02-01T00:00:00.000Z";
+  const captureEpochMs = Date.parse(captureIso);
+  writeFileSync(join(project, "src", "stable.ts"), "export const stable = 1;\n", "utf8");
+  writeFileSync(join(project, "src", "moving.ts"), "export const moving = 1;\n", "utf8");
+  commitAllAt(project, "initial", "2026-01-01T00:00:00Z");
+  writeFileSync(join(project, "src", "moving.ts"), "export const moving = 2;\n", "utf8");
+  commitAllAt(project, "change moving after capture", "2026-03-01T00:00:00Z");
+
+  const projectKey = basename(execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd: project, encoding: "utf8" }).trim());
+  const storePath = createClaudeMemFixtureStore([
+    // VERIFIED: cites a relative and an absolute path, both unchanged since capture.
+    { id: 1, project: projectKey, title: "Stable helper documented", files_read: JSON.stringify(["src/stable.ts", join(project, "src", "stable.ts")]), created_at: captureIso, created_at_epoch: captureEpochMs },
+    // DRIFTED: cited file committed again after the observation was captured.
+    { id: 2, project: projectKey, title: "Moving part assumptions", files_modified: JSON.stringify(["src/moving.ts"]), created_at: captureIso, created_at_epoch: captureEpochMs },
+    // GONE: cited file never existed in the repo.
+    { id: 3, project: projectKey, title: "Deleted module notes", files_read: JSON.stringify(["src/deleted.ts"]), created_at: captureIso, created_at_epoch: captureEpochMs },
+    // UNCITED: no file citations at all.
+    { id: 4, project: projectKey, title: "Vibes-only observation", files_read: "[]", created_at: captureIso, created_at_epoch: captureEpochMs },
+    // Different project: must be excluded from this audit entirely.
+    { id: 5, project: "some-other-project", title: "Foreign observation", files_read: JSON.stringify(["src/stable.ts"]), created_at: captureIso, created_at_epoch: captureEpochMs },
+  ]);
+  if (!storePath) {
+    t.skip("neither node:sqlite nor the sqlite3 CLI is available in this environment");
+    return;
+  }
+
+  const result = auditClaudeMemStore(project, { storePath });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  const report = result.report;
+  assert.equal(report.project_key, projectKey);
+  assert.equal(["node:sqlite", "sqlite3-cli"].includes(report.reader), true);
+  assert.deepEqual(report.totals, { observations: 4, verified: 1, drifted: 1, gone: 1, uncited: 1 });
+  assert.equal(report.span_days >= 1, true);
+
+  const byId = new Map(report.observations.map((entry) => [entry.id, entry]));
+  assert.equal(byId.get(1)?.status, "verified");
+  assert.equal(byId.get(2)?.status, "drifted");
+  assert.equal(byId.get(2)?.citations[0]?.changed_at?.slice(0, 10), "2026-03-01");
+  assert.equal(byId.get(3)?.status, "gone");
+  assert.equal(byId.get(4)?.status, "uncited");
+  assert.equal(byId.has(5), false);
+
+  assert.equal(report.worst_offenders.length, 2);
+  const offenderPaths = report.worst_offenders.map((offender) => offender.path).sort();
+  assert.deepEqual(offenderPaths, ["src/deleted.ts", "src/moving.ts"]);
+  const goneOffender = report.worst_offenders.find((offender) => offender.status === "gone");
+  assert.equal(goneOffender?.what_changed, "file no longer exists");
+  const driftedOffender = report.worst_offenders.find((offender) => offender.status === "drifted");
+  assert.match(driftedOffender?.what_changed ?? "", /changed 2026-03-01/);
+
+  const receipt = renderClaudeMemAuditReceipt(report);
+  const lines = receipt.split("\n");
+  assert.equal(lines[0], `Kage audit — claude-mem store for ${projectKey}`);
+  assert.match(lines[1], /^4 observations · captured over \d+ days?$/);
+  assert.match(receipt, /■ VERIFIED\s+1 \(25%\)\s+still match your code/);
+  assert.match(receipt, /■ DRIFTED\s+1 \(25%\)\s+cite files that changed since capture — may be stale/);
+  assert.match(receipt, /■ GONE\s+1 \(25%\)\s+cite files that no longer exist/);
+  assert.match(receipt, /■ UNCITED\s+1 \(25%\)\s+no file citations — unverifiable by construction/);
+  assert.match(receipt, /Worst offenders:/);
+  assert.match(receipt, /src\/deleted\.ts — file no longer exists/);
+  assert.match(receipt, /src\/moving\.ts — changed 2026-03-01/);
+  assert.match(receipt, /claude-mem remembers everything\. Kage tells you what's still true\./);
+  assert.match(receipt, /Import coming soon — https:\/\/kage-core\.github\.io\/Kage\//);
+});
+
+test("claude-mem audit reports a friendly error for a missing store and warns on a project-key miss", (t) => {
+  const project = tempProject();
+  const missing = auditClaudeMemStore(project, { storePath: join(project, "nope", "claude-mem.db") });
+  assert.equal(missing.ok, false);
+  if (!missing.ok) assert.match(missing.error, /--store <path>/);
+
+  const storePath = createClaudeMemFixtureStore([
+    { id: 1, project: "ghost-project", title: "Belongs elsewhere", files_read: JSON.stringify(["src/x.ts"]), created_at: "2026-01-01T00:00:00.000Z", created_at_epoch: Date.parse("2026-01-01T00:00:00Z") },
+  ]);
+  if (!storePath) {
+    t.skip("neither node:sqlite nor the sqlite3 CLI is available in this environment");
+    return;
+  }
+  const result = auditClaudeMemStore(project, { storePath });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.report.totals.observations, 0);
+  assert.match(result.report.warnings.join("\n"), /ghost-project/);
+  const receipt = renderClaudeMemAuditReceipt(result.report);
+  assert.match(receipt, /0 observations · captured over 0 days/);
+  assert.match(receipt, /Warning: No observations for project/);
+});
+
+test("claude-mem classifier is pure: epoch units, lenient citation parsing, and status priority", () => {
+  const nowEpoch = Math.floor(Date.parse("2026-06-01T00:00:00Z") / 1000);
+  const captureEpochSeconds = Math.floor(Date.parse("2026-05-01T00:00:00Z") / 1000);
+  const signal = {
+    exists: (path: string) => path !== "src/gone.ts",
+    lastChangedEpoch: (path: string) => (path === "src/changed.ts" ? captureEpochSeconds + 3600 : captureEpochSeconds - 3600),
+  };
+  const rows = [
+    // Seconds-based epoch (legacy tolerance) and a raw non-JSON files_read value.
+    { id: 1, project: "p", type: "discovery", title: "raw path", subtitle: null, files_read: "src/fine.ts", files_modified: null, created_at: null, created_at_epoch: captureEpochSeconds },
+    // GONE must outrank DRIFTED when an observation cites both kinds.
+    { id: 2, project: "p", type: "discovery", title: "mixed", subtitle: null, files_read: JSON.stringify(["src/changed.ts", "src/gone.ts"]), files_modified: null, created_at: null, created_at_epoch: captureEpochSeconds * 1000 },
+    // Placeholder citations are dropped, leaving the row uncited.
+    { id: 3, project: "p", type: "discovery", title: null, subtitle: "untitled", files_read: JSON.stringify(["[path/to/file]"]), files_modified: null, created_at: null, created_at_epoch: captureEpochSeconds * 1000 },
+  ];
+  const entries = classifyClaudeMemObservations(rows, signal, nowEpoch);
+  assert.equal(entries[0].status, "verified");
+  assert.equal(entries[0].age_days, 31);
+  assert.equal(entries[1].status, "gone");
+  assert.equal(entries[1].citations.find((citation) => citation.path === "src/changed.ts")?.status, "drifted");
+  assert.equal(entries[2].status, "uncited");
+  assert.equal(entries[2].title, "untitled");
 });
 
 test("value ledger accumulates events and valueSummary computes window math", () => {
