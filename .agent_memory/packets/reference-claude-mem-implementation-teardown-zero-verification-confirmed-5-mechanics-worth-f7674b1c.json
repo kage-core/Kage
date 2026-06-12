@@ -1,0 +1,68 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:reference:claude-mem-implementation-teardown-zero-verification-confirmed-5-mechanics-worth",
+  "title": "claude-mem implementation teardown: zero verification confirmed; 5 mechanics worth adopting",
+  "summary": "Deep teardown of thedotmack/claude mem v13.5.6 ~66k LOC TS, clone studied 2026 06 12 . CONFIRMED zero memory verification: no staleness checks against code, observations' files read/files modified stored as JSON strings",
+  "body": "Deep teardown of thedotmack/claude-mem v13.5.6 (~66k LOC TS, clone studied 2026-06-12). CONFIRMED zero memory verification: no staleness checks against code, observations' files_read/files_modified stored as JSON strings never re-resolved, no citation checking, no supersede logic — their 'stale' code is all process hygiene. Their capture: PostToolUse hooks -> durable SQLite queue -> persistent Claude Agent SDK observer session (burns the USER's Claude quota) that emits XML observations. Their '95% token savings' is real math: discovery_tokens (cumulative SDK tokens spent producing each observation) minus read-cost of the compressed observation. Recall: SessionStart timeline index (~800 tokens, one-liners + full detail for newest K), 3-layer search->timeline->get_observations MCP workflow taught via a no-op '__IMPORTANT' tool description, PLUS PreToolUse(Read) hook injecting file-relevant observations at read time. Weaknesses: Node+Bun+Python/uv+daemon+chroma sprawl, observer quota burns, half-finished v2 server. ADOPT (ranked): 1) discovery_tokens per packet -> 'this packet saved N tokens' receipts; 2) PreToolUse(Read) injection of VERIFIED packets at file-read moment (our code graph makes it strictly better); 3) workflow-teaching pseudo-tool; 4) timeline-as-index injection format; 5) SSE live viewer feed. Positioning: they optimize capture volume + visible savings, no answer to 'is it still true' — pair their value mechanics with our verification.",
+  "type": "reference",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "claude-mem"
+  ],
+  "paths": [
+    "mcp/kernel.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-12T05:35:58.250Z"
+    }
+  ],
+  "context": {
+    "fact": "Deep teardown of thedotmack/claude-mem v13.5.6 (~66k LOC TS, clone studied 2026-06-12). CONFIRMED zero memory verification: no staleness checks against code, observations' files_read/files_modified stored as JSON strings never re-resolved, no citation checking, no supersede logic — their 'stale' code is all process hygiene. Their capture: PostToolUse hooks -> durable SQLite queue -> persistent Claude Agent SDK observer session (burns the USER's Claude quota) that emits XML observations. Their '95% token savings' is real math: discovery_tokens (cumulative SDK tokens spent producing each observation) minus read-cost of the compressed observation. Recall: SessionStart timeline index (~800 tokens, one-liners + full detail for newest K), 3-layer search->timeline->get_observations MCP workflow taught via a no-op '__IMPORTANT' tool description, PLUS PreToolUse(Read) hook injecting file-relevant observations at read time. Weaknesses: Node+Bun+Python/uv+daemon+chroma sprawl, observer quota burns, half-finished v2 server. ADOPT (ranked): 1) discovery_tokens per packet -> 'this packet saved N tokens' receipts; 2) PreToolUse(Read) injection of VERIFIED packets at file-read moment (our code graph makes it strictly better); 3) workflow-teaching pseudo-tool; 4) timeline-as-index injection format; 5) SSE live viewer feed. Positioning: they optimize capture volume + visible savings, no answer to 'is it still true' — pair their value mechanics with our verification.",
+    "verification": "no staleness checks against code, observations' files_read/files_modified stored as JSON strings never re-resolved, no citation checking, no supersede logic — their 'stale' code is all process hygiene. Their capture: PostToolUse hooks -> durable SQLite queue -> persistent Claude Agent SDK observer session (burns the USER's Claude quota) that emits XML observations. Their '95% token savings' is real math: discovery_tokens (cumulative SDK tokens spent producing each observation) minus read-cost of the compressed observation. Recall: SessionStart timeline index (~800 tokens, one-liners + full detail for newest K), 3-layer search->timeline->get_observations MCP workflow taught via a no-op '__IMPORTANT' tool description, PLUS PreToolUse(Read) hook injecting file-relevant observations at read time. Weaknesses: Node+Bun+Python/uv+daemon+chroma sprawl, observer quota burns, half-finished v2 server. ADOPT (ranked): 1) discovery_tokens per packet -> 'this packet saved N tokens' receipts; 2) PreToolUse(Read) injection of VERIFIED packets at file-read moment (our code graph makes it strictly better); 3) workflow-teaching pseudo-tool; 4) timeline-as-index injection format; 5) SSE live viewer feed. Positioning: they optimize capture volume + visible savings, no answer to 'is it still true' — pair their value mechanics with our verification."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-12T05:35:58.250Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "e0aef410d5b09d6c8659667602646fb332259bb61f330c6df4306a5ec899dd54",
+        "size": 693043
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 82,
+    "reasons": [
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "stale_reasons": [],
+    "estimated_tokens_saved": 368
+  },
+  "created_at": "2026-06-12T05:35:58.250Z",
+  "updated_at": "2026-06-12T05:35:58.250Z",
+  "author_branch": "master"
+}

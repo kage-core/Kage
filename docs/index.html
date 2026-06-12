@@ -23,10 +23,16 @@
     <meta name="twitter:title" content="Kage — memory your coding agent can trust" />
     <meta name="twitter:description" content="Trustworthy, code-grounded memory for coding agents. Hallucinated and stale memory never reach the agent." />
     <meta name="twitter:image" content="https://kage-core.com/assets/kage-cover.png" />
-    <link rel="stylesheet" href="assets/site.css?v=1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..600&display=swap"
+    />
+    <link rel="stylesheet" href="assets/site.css?v=2" />
     <style>
       /* Page-specific layout */
-      .hero { padding: 64px 0 40px; }
+      .hero { padding: 84px 0 56px; }
       .hero-grid {
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(340px, 0.72fr);
@@ -38,21 +44,6 @@
       .hero-copy { margin-top: 16px; max-width: 540px; color: var(--muted); font: 400 18px/1.55 var(--sans); }
       .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
       .badges img { height: 20px; }
-
-      .trust-row {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 12px;
-        margin-top: 44px;
-      }
-      .trust {
-        padding: 14px 16px;
-        border: 1px solid var(--line);
-        border-radius: var(--r-card);
-        background: var(--paper);
-      }
-      .trust strong { display: block; font: 700 20px/1 var(--sans); }
-      .trust span { display: block; margin-top: 4px; color: var(--muted); font: 400 12px/1.4 var(--sans); }
 
       .why-grid {
         display: grid;
@@ -147,14 +138,19 @@
       <section class="hero">
         <div class="wrap hero-grid">
           <div>
-            <span class="eyebrow">Verified repo knowledge for coding agents</span>
-            <h1>Verified repo knowledge for coding agents — <span class="accent">and you see exactly what it saves you.</span></h1>
+            <span class="eyebrow">Verified memory for coding agents</span>
+            <h1>Memory your agent can <span class="accent">prove.</span></h1>
             <p class="hero-copy">
-              Kage gives every agent session your repo's hard-won knowledge — validated
-              against the code, withheld the moment it goes stale — and prints the
-              receipt: tokens and dollars saved, bad memories caught. Git-native, zero
-              dependencies, no API key.
+              Every memory is checked against your code — when it's written, when it's
+              recalled, and when your diff changes what it cites. Hallucinated and stale
+              knowledge never reach the agent, and you get the receipt: tokens and
+              dollars saved. Git-native, zero dependencies, no API key.
             </p>
+            <div class="cmd">
+              <span class="ps1">$</span>
+              <span id="install-cmd">npx -y @kage-core/kage-graph-mcp install</span>
+              <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('install-cmd').textContent).then(()=>{this.textContent='copied';setTimeout(()=>this.textContent='copy',1200)})">copy</button>
+            </div>
             <div class="actions">
               <a class="button primary" href="guide.html#quickstart">Install Kage</a>
               <a class="button" href="viewer/">Open viewer demo</a>
@@ -183,11 +179,11 @@
         </div>
 
         <div class="wrap">
-          <div class="trust-row" aria-label="Kage signals">
-            <div class="trust"><strong>100/100</strong><span>trust benchmark</span></div>
-            <div class="trust"><strong>0</strong><span>dependencies · no API key</span></div>
-            <div class="trust"><strong>Code-grounded</strong><span>memory linked to your graph</span></div>
-            <div class="trust"><strong>Git-native</strong><span>reviewed in your PR</span></div>
+          <div class="stat-strip" aria-label="Kage signals">
+            <div class="stat-chip"><strong>100/100</strong><span>trust benchmark — hallucination &amp; staleness</span></div>
+            <div class="stat-chip"><strong>0 deps</strong><span>no API key, no database, no daemon</span></div>
+            <div class="stat-chip"><strong>13 agents</strong><span>Claude Code, Codex, Cursor &amp; any MCP client</span></div>
+            <div class="stat-chip"><strong>Git-native</strong><span>memory reviewed in the same PR as code</span></div>
           </div>
         </div>
       </section>
@@ -212,6 +208,78 @@
               <h3>✓ Grounded to your code</h3>
               <p>Memory links to your code graph, so recall returns the <b>bounded blast radius</b> of a change — not just matching text.</p>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="wrap">
+          <div class="section-head">
+            <span class="eyebrow">Compare</span>
+            <h2>Remembering is solved. Trusting isn't.</h2>
+            <p class="lede">Capture-everything memory solves <em>remembering</em>. Kage solves <em>trusting what's remembered</em> — and a memory system that never re-verifies its own claims gets less trustworthy the longer you use it.</p>
+          </div>
+          <div class="compare-scroll">
+            <table class="compare">
+              <thead>
+                <tr>
+                  <th scope="col"></th>
+                  <th scope="col" class="is-kage">Kage</th>
+                  <th scope="col">claude-mem</th>
+                  <th scope="col">mem0 / Zep</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Automatic capture + session-start recall</th>
+                  <td class="is-kage"><span class="yes">✓</span></td>
+                  <td><span class="yes">✓</span></td>
+                  <td>via SDK</td>
+                </tr>
+                <tr>
+                  <th scope="row">Hallucinated citations rejected at write time</th>
+                  <td class="is-kage"><span class="yes">✓</span></td>
+                  <td><span class="no">—</span></td>
+                  <td><span class="no">—</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">Stale memory withheld at recall</th>
+                  <td class="is-kage"><span class="yes">✓</span></td>
+                  <td><span class="no">—</span></td>
+                  <td><span class="no">—</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">Diff-time stale-catch before the PR lands</th>
+                  <td class="is-kage"><span class="yes">✓</span></td>
+                  <td><span class="no">—</span></td>
+                  <td><span class="no">—</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">Memory reviewed in git, same PR as the code</th>
+                  <td class="is-kage"><span class="yes">✓</span> plain files</td>
+                  <td>SQLite + cloud</td>
+                  <td>hosted API</td>
+                </tr>
+                <tr>
+                  <th scope="row">Savings receipts (tokens + $ per recall)</th>
+                  <td class="is-kage"><span class="yes">✓</span></td>
+                  <td>token index</td>
+                  <td><span class="no">—</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">Truth Report on any repo, zero setup</th>
+                  <td class="is-kage"><span class="yes">✓</span></td>
+                  <td><span class="no">—</span></td>
+                  <td><span class="no">—</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">Account / API key required</th>
+                  <td class="is-kage">none</td>
+                  <td>cloud optional</td>
+                  <td>yes</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
@@ -352,13 +420,28 @@ kage setup verify-agent --agent claude-code --project .   # confirm it's live</p
 
     <footer class="footer">
       <div class="wrap footer-inner">
-        <span>Kage &middot; verified repo knowledge for coding agents</span>
         <span>
-          <a href="guide.html">Docs</a> &middot;
-          <a href="viewer/">Viewer</a> &middot;
-          <a href="releases.html">Releases</a> &middot;
-          <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a> &middot;
-          <a href="https://github.com/kage-core/Kage">GitHub</a>
+          <strong style="color:var(--ink);font:700 14px/1 var(--serif)">Kage</strong><br />
+          Memory your agent can prove.<br />
+          <span style="color:var(--faint);font-size:12px">GPL-3.0 · no account, no API key</span>
+        </span>
+        <span>
+          <strong style="color:var(--ink)">Product</strong><br />
+          <a href="guide.html#quickstart">Quickstart</a><br />
+          <a href="viewer/">Viewer</a><br />
+          <a href="benchmarks.html">Benchmarks</a>
+        </span>
+        <span>
+          <strong style="color:var(--ink)">Docs</strong><br />
+          <a href="guide.html">Guide</a><br />
+          <a href="releases.html">Releases</a><br />
+          <a href="guide.html#choose-agent">Supported agents</a>
+        </span>
+        <span>
+          <strong style="color:var(--ink)">Community</strong><br />
+          <a href="https://github.com/kage-core/Kage">GitHub</a><br />
+          <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a><br />
+          <a href="https://github.com/kage-core/Kage/issues">Issues</a>
         </span>
       </div>
     </footer>
