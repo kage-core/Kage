@@ -8,7 +8,7 @@
   "scope": "repo",
   "visibility": "team",
   "sensitivity": "internal",
-  "status": "deprecated",
+  "status": "superseded",
   "confidence": 0.7,
   "tags": [
     "session-learning"
@@ -37,7 +37,10 @@
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
-    "verification": "repo_local_agent_capture"
+    "verification": "repo_local_agent_capture",
+    "superseded_at": "2026-06-12T16:06:14.824Z",
+    "superseded_by": "repo:https-github-com-kage-core-kage:gotcha:github-pages-serves-docs-statically-markdown-links-render-raw-re-verified-after-",
+    "superseded_reason": "Newer repo memory supersedes this packet."
   },
   "edges": [
     {
@@ -45,6 +48,12 @@
       "to": "repo:https-github-com-kage-core-kage:gotcha:github-pages-serves-docs-statically-markdown-links-render-raw-still-true-1781265",
       "evidence": "Newer repo memory supersedes this packet.",
       "created_at": "2026-06-12T12:48:50.692Z"
+    },
+    {
+      "relation": "superseded_by",
+      "to": "repo:https-github-com-kage-core-kage:gotcha:github-pages-serves-docs-statically-markdown-links-render-raw-re-verified-after-",
+      "evidence": "Newer repo memory supersedes this packet.",
+      "created_at": "2026-06-12T16:06:14.824Z"
     }
   ],
   "quality": {
@@ -72,9 +81,11 @@
     "stale_reasons": [
       "linked path changed since memory was verified: docs/index.html"
     ],
-    "suggested_action": "update"
+    "suggested_action": "update",
+    "superseded_by": "repo:https-github-com-kage-core-kage:gotcha:github-pages-serves-docs-statically-markdown-links-render-raw-re-verified-after-",
+    "superseded_reason": "Newer repo memory supersedes this packet."
   },
   "created_at": "2026-06-12T12:48:50.511Z",
-  "updated_at": "2026-06-12T13:03:21.699Z",
+  "updated_at": "2026-06-12T16:06:14.824Z",
   "author_branch": "master"
 }
