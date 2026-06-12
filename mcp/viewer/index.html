@@ -6,35 +6,24 @@
     <title>Kage — memory dashboard</title>
     <style>
       /* V2 "receipts" theme. Tokens mirror docs/assets/site.css so the dashboard
-         matches the site: light-first warm paper, editorial serif display type,
-         deep verified-green for gains, dark-capable via prefers-color-scheme. */
+         matches the site: dark-first product look, editorial serif display type,
+         verified-green for gains. One look everywhere. */
       :root {
-        color-scheme: light dark;
-        --bg: #f6f4ef; --paper: #fffdf9; --paper-2: #efece4;
-        --line: #e2ded2; --line-strong: #c9c4b4;
-        --ink: #1c1e1a; --muted: #5d635b; --faint: #8b9088;
-        --gain: #0c7a4d; --gain-strong: #09935c; --gain-soft: rgba(12, 122, 77, 0.08);
-        --code: #155e9c; --memory: #6d49b8; --warn: #9a6b08; --danger: #b03048;
-        --warn-soft: rgba(154, 107, 8, 0.10);
-        --code-bg: #15181b; --code-text: #d7e2da;
-        --tip-bg: #fffdf9; --shadow: 0 14px 40px rgba(28, 30, 26, 0.12);
+        color-scheme: dark;
+        --bg: #121413; --paper: #1a1d1b; --paper-2: #212522;
+        --line: #2c302c; --line-strong: #41463f;
+        --ink: #edefe9; --muted: #a4aba1; --faint: #767d74;
+        --gain: #43c98a; --gain-strong: #5fdca0; --gain-soft: rgba(67, 201, 138, 0.12);
+        --code: #6fb4e8; --memory: #b095e8; --warn: #d9a93f; --danger: #e07a8c;
+        --warn-soft: rgba(217, 169, 63, 0.10);
+        --code-bg: #0e1110; --code-text: #cfe0d4;
+        --tip-bg: #212522; --shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
         --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
         --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
         --r-control: 4px; --r-panel: 6px; --r-card: 8px;
       }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: #121413; --paper: #1a1d1b; --paper-2: #212522;
-          --line: #2c302c; --line-strong: #41463f;
-          --ink: #edefe9; --muted: #a4aba1; --faint: #767d74;
-          --gain: #43c98a; --gain-strong: #5fdca0; --gain-soft: rgba(67, 201, 138, 0.12);
-          --code: #6fb4e8; --memory: #b095e8; --warn: #d9a93f; --danger: #e07a8c;
-          --warn-soft: rgba(217, 169, 63, 0.10);
-          --code-bg: #0e1110; --code-text: #cfe0d4;
-          --tip-bg: #212522; --shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
-        }
-      }
+      /* Dark-first: one product look (light tokens retired 2026-06-12). */
       * { box-sizing: border-box; }
       html, body { margin: 0; }
       body { background: var(--bg); color: var(--ink); font: 400 14px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
