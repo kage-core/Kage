@@ -780,4 +780,65 @@
     fitView();
     cancelAnimationFrame(G.raf); tick();
   }
+
+  // ---- live feed (SSE from the local viewer daemon) ----
+  // Connects to /kage/events when this page is served by `kage viewer`. The
+  // hosted demo on GitHub Pages has no daemon: the stream never opens, so the
+  // panel stays hidden and the dashboard is otherwise unchanged.
+  var LIVE_CAP = 30;
+  var LIVE_LABEL = {
+    packet_written: ["＋", "Memory written"],
+    packet_updated: ["✎", "Memory updated"],
+    recall_served: ["✓", "Recall served"],
+    stale_withheld: ["⊘", "Stale memory withheld"],
+    caller_answered: ["◆", "Graph answer served"],
+    stale_caught: ["⊘", "Stale memory caught"],
+  };
+  function liveRow(e) {
+    var kind = e.type === "value_event" ? ((e.event && e.event.kind) || "value_event") : e.type;
+    var meta = LIVE_LABEL[kind] || ["•", String(kind).replace(/_/g, " ")];
+    var row = el("div", "vev fresh " + kind);
+    row.appendChild(el("span", "vi", meta[0]));
+    var mid = el("div", "vt");
+    mid.appendChild(document.createTextNode(meta[1]));
+    if (kind === "recall_served" && e.event && e.event.tokens_saved > 0) {
+      mid.appendChild(document.createTextNode(" — saved "));
+      mid.appendChild(el("b", null, "~" + fmt(e.event.tokens_saved) + " tokens"));
+    } else if (e.title) {
+      mid.appendChild(document.createTextNode(" — "));
+      mid.appendChild(el("b", null, e.title));
+    }
+    row.appendChild(mid);
+    row.appendChild(el("span", "when", relTime(e.ts) || "just now"));
+    return row;
+  }
+  function initLive() {
+    if (typeof window.EventSource === "undefined") return;
+    var panel = document.getElementById("livePanel"), feed = document.getElementById("liveFeed");
+    if (!panel || !feed) return;
+    var es;
+    try { es = new EventSource("/kage/events"); } catch (err) { return; }
+    var opened = false;
+    es.onopen = function () {
+      opened = true;
+      panel.hidden = false;
+      if (!feed.childNodes.length) feed.appendChild(el("div", "empty", "Connected. New memories and value events stream in here live."));
+    };
+    es.onerror = function () {
+      // Never connected (no daemon behind this page): close and hide quietly.
+      // After a successful open, EventSource reconnects on its own — keep the panel.
+      if (!opened) { es.close(); panel.hidden = true; }
+    };
+    es.onmessage = function (msg) {
+      var e;
+      try { e = JSON.parse(msg.data); } catch (err) { return; }
+      if (!e || !e.type) return;
+      var placeholder = feed.querySelector(".empty");
+      if (placeholder) feed.removeChild(placeholder);
+      feed.className = "vfeed";
+      feed.insertBefore(liveRow(e), feed.firstChild);
+      while (feed.childNodes.length > LIVE_CAP) feed.removeChild(feed.lastChild);
+    };
+  }
+  initLive();
 })();
