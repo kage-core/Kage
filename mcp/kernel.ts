@@ -309,6 +309,8 @@ export interface CaptureInput {
   allowMissingPaths?: boolean;
   strictCitations?: boolean;
   graphNodes?: string[];
+  /** Write the packet to the pending inbox (status "pending") instead of approved memory. */
+  pendingReview?: boolean;
 }
 
 export interface CaptureResult {
@@ -333,6 +335,8 @@ export interface LearnInput {
   allowMissingPaths?: boolean;
   strictCitations?: boolean;
   graphNodes?: string[];
+  /** Write the packet to the pending inbox (status "pending") instead of approved memory. */
+  pendingReview?: boolean;
 }
 
 export type LearnResult = CaptureResult;
@@ -504,6 +508,42 @@ export interface DistillResult {
   observations: number;
   candidates: CaptureResult[];
   errors: string[];
+  /** "auto" when invoked by the Stop-hook fallback; candidates land in the pending inbox. */
+  mode?: "manual" | "auto";
+  /** Set when auto mode quietly skipped a session (no observations, or memory was already captured). */
+  skipped_reason?: "no_observations" | "session_already_captured";
+}
+
+export interface ResumeReport {
+  schema_version: 1;
+  project_dir: string;
+  generated_at: string;
+  /** False when there is no prior session data; context_block is empty in that case. */
+  has_content: boolean;
+  last_session?: {
+    session_id: string;
+    first_at: string;
+    last_at: string;
+    observations: number;
+    paths: string[];
+    commands: string[];
+    distilled_titles: string[];
+  };
+  last_change_memory?: {
+    id: string;
+    title: string;
+    summary: string;
+    updated_at: string;
+  };
+  pending_auto_distilled: number;
+  pending_total: number;
+  review_command?: string;
+  reconciliation: {
+    unresolved_count: number;
+    items: Array<{ packet_id: string; title: string }>;
+  };
+  /** ≤15-line "previously…" block for SessionStart injection; empty when has_content is false. */
+  context_block: string;
 }
 
 export interface SessionCaptureReport {
@@ -3947,8 +3987,14 @@ export function loadPendingPackets(projectDir: string): MemoryPacket[] {
   return loadPacketsFromDir(pendingDir(projectDir));
 }
 
+// Hook-driven auto-distilled drafts carry this tag so they are distinguishable from
+// agent-reviewed memory and never surface in recall until a human or agent approves them.
+export const AUTO_DISTILL_TAG = "auto-distill";
+
 function recallablePendingPackets(projectDir: string): MemoryPacket[] {
-  return loadPendingPackets(projectDir).filter((packet) => !packet.tags.includes("diff-proposal"));
+  return loadPendingPackets(projectDir).filter(
+    (packet) => !packet.tags.includes("diff-proposal") && !packet.tags.includes(AUTO_DISTILL_TAG)
+  );
 }
 
 function writePacket(projectDir: string, packet: MemoryPacket, statusDir: "packets" | "pending"): string {
@@ -14460,6 +14506,7 @@ export function learn(input: LearnInput): LearnResult {
     allowMissingPaths: input.allowMissingPaths,
     strictCitations: input.strictCitations,
     graphNodes: input.graphNodes,
+    pendingReview: input.pendingReview,
   });
 }
 
@@ -14529,7 +14576,7 @@ export function capture(input: CaptureInput): CaptureResult {
     scope: "repo",
     visibility: "team",
     sensitivity: "internal",
-    status: "approved",
+    status: input.pendingReview ? "pending" : "approved",
     confidence: DEFAULT_CONFIDENCE,
     tags: input.tags ?? [],
     paths: groundedPaths,
@@ -14570,7 +14617,7 @@ export function capture(input: CaptureInput): CaptureResult {
     ...packet.quality,
     ...evaluateMemoryQuality(input.projectDir, packet),
   };
-  const path = writePacket(input.projectDir, packet, "packets");
+  const path = writePacket(input.projectDir, packet, input.pendingReview ? "pending" : "packets");
   recordMemoryAudit(input.projectDir, "capture", [packet], {
     type: packet.type,
     status: packet.status,
@@ -14808,6 +14855,16 @@ Before finishing a task that changed files: kage_pr_summarize or kage_propose_fr
 If recalled memory helped: kage_feedback helpful. If wrong or stale: kage_feedback wrong or stale."
 fi
 
+# Session continuity: append a compact "previously…" digest when prior session data exists.
+if command -v kage >/dev/null 2>&1; then
+  PREVIOUSLY="$(kage resume --project "$CWD" 2>/dev/null || true)"
+  if [[ -n "$PREVIOUSLY" ]]; then
+    POLICY="$POLICY
+
+$PREVIOUSLY"
+  fi
+fi
+
 KAGE_MSG="$POLICY" python3 -c "import json,os; print(json.dumps({'systemMessage': os.environ['KAGE_MSG']}))"
 `;
     const stopHookScript = `#!/usr/bin/env bash
@@ -14842,6 +14899,20 @@ print(d.get("agent_instruction") or "Kage memory reconciliation required before 
 ' >&2
     exit 2
   fi
+fi
+
+# Automatic capture fallback: if this session recorded observations but produced no new
+# memory packets, quietly distill them into pending drafts for later review. Best-effort;
+# kage distill --auto is silent on empty or already-captured sessions and never blocks.
+SESSION="$(printf "%s" "$PAYLOAD" | python3 -c 'import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    d = {}
+print(d.get("session_id") or d.get("sessionId") or "")
+' 2>/dev/null || echo "")"
+if [[ -n "$SESSION" && -d "$CWD/.agent_memory/observations" ]]; then
+  kage distill --project "$CWD" --session "$SESSION" --auto --json >/dev/null 2>&1 || true
 fi
 
 exit 0
@@ -15775,8 +15846,30 @@ export function kageSessionLearningLedger(
   };
 }
 
-export function distillSession(projectDir: string, sessionId: string): DistillResult {
+// Mechanical packets (branch change memory, prior auto-distilled drafts) never count as the
+// agent having captured memory; only deliberate captures/learns/distills suppress the
+// Stop-hook auto-distill fallback.
+function sessionAlreadyCaptured(projectDir: string, sessionId: string, observations: ObservationRecord[]): boolean {
+  const firstAt = observations[0]?.timestamp ?? "";
+  const mechanicalTags = ["diff-proposal", "change-memory", AUTO_DISTILL_TAG];
+  return [...loadApprovedPackets(projectDir), ...loadPendingPackets(projectDir)].some((packet) => {
+    if (packet.source_refs.some((ref) => ref.kind === "observation_session" && ref.session_id === sessionId)) return true;
+    if (packet.type === "repo_map" || packet.quality?.reviewer === "kage-indexer") return false; // generated by indexing
+    if (packet.tags.some((tag) => mechanicalTags.includes(tag))) return false;
+    return Boolean(firstAt) && packet.created_at >= firstAt;
+  });
+}
+
+export function distillSession(projectDir: string, sessionId: string, options: { auto?: boolean } = {}): DistillResult {
+  const auto = Boolean(options.auto);
+  const mode = auto ? ("auto" as const) : ("manual" as const);
   const observations = loadObservations(projectDir, sessionId);
+  if (auto && observations.length === 0) {
+    return { ok: true, session_id: sessionId, observations: 0, candidates: [], errors: [], mode, skipped_reason: "no_observations" };
+  }
+  if (auto && sessionAlreadyCaptured(projectDir, sessionId, observations)) {
+    return { ok: true, session_id: sessionId, observations: observations.length, candidates: [], errors: [], mode, skipped_reason: "session_already_captured" };
+  }
   const candidates: CaptureResult[] = [];
   const errors: string[] = [];
   const observationIds = observations.map((event) => event.id);
@@ -15792,13 +15885,14 @@ export function distillSession(projectDir: string, sessionId: string): DistillRe
     ];
     result.packet.quality = {
       ...result.packet.quality,
-      distillation: "automatic_observation_candidate",
+      distillation: auto ? "auto_distill" : "automatic_observation_candidate",
       admission: evaluateMemoryAdmission(projectDir, result.packet),
       suggested_review_action: suggestedAction(classifyPacket(projectDir, result.packet), result.packet.status),
     };
     writeJson(result.path, result.packet);
     return result;
   };
+  const autoTags = auto ? [AUTO_DISTILL_TAG] : [];
   const commandEvents = observations.filter((event) => event.type === "command_result" && event.command);
   const fileEvents = observations.filter((event) => event.type === "file_change" && event.path);
   const promptEvents = observations.filter((event) => event.type === "user_prompt" && (event.text || event.summary));
@@ -15816,8 +15910,9 @@ export function distillSession(projectDir: string, sessionId: string): DistillRe
       summary: `Observed commands: ${commands.slice(0, 3).join(", ")}`,
       body: `Reusable command observation distilled from session ${sessionId}:\n\n${meaningfulCommandEvents.map((item) => `- ${item.reusable.command}: ${item.reusable.learning}`).join("\n")}\n\nReview before approving as a durable runbook.`,
       type: "runbook",
-      tags: ["observed-session", "commands", "runbook"],
+      tags: ["observed-session", "commands", "runbook", ...autoTags],
       paths: unique(meaningfulCommandEvents.map((item) => item.event.path).filter(Boolean) as string[]),
+      pendingReview: auto,
     })));
   }
 
@@ -15834,8 +15929,9 @@ export function distillSession(projectDir: string, sessionId: string): DistillRe
       summary: lead,
       body: `Reusable file observation distilled from session ${sessionId}:\n\n${meaningfulFileEvents.map((item) => `- ${item.event.path}: ${item.learning}`).join("\n")}\n\nReview before approving as durable repo memory.`,
       type: "workflow",
-      tags: ["observed-session", "workflow"],
+      tags: ["observed-session", "workflow", ...autoTags],
       paths,
+      pendingReview: auto,
     })));
   }
 
@@ -15846,12 +15942,95 @@ export function distillSession(projectDir: string, sessionId: string): DistillRe
       title: titleFromLearning(text),
       learning: text,
       evidence: `Observation session: ${sessionId}`,
-      tags: ["observed-session", "intent"],
+      tags: ["observed-session", "intent", ...autoTags],
+      pendingReview: auto,
     })));
   }
 
   for (const result of candidates) if (!result.ok) errors.push(...result.errors);
-  return { ok: errors.length === 0, session_id: sessionId, observations: observations.length, candidates, errors };
+  return { ok: errors.length === 0, session_id: sessionId, observations: observations.length, candidates, errors, mode };
+}
+
+// Session continuity: a compact "previously…" digest the SessionStart hook injects so a new
+// session starts with last session's context instead of cold. Empty when there is no prior data.
+export function kageResume(projectDir: string): ResumeReport {
+  ensureMemoryDirs(projectDir);
+  const approved = loadApprovedPackets(projectDir);
+  const pending = loadPendingPackets(projectDir);
+  const observations = loadObservations(projectDir);
+
+  const bySession = new Map<string, ObservationRecord[]>();
+  for (const observation of observations) {
+    const rows = bySession.get(observation.session_id) ?? [];
+    rows.push(observation);
+    bySession.set(observation.session_id, rows);
+  }
+  const latestRows = Array.from(bySession.values())
+    .sort((a, b) => (b.at(-1)?.timestamp ?? "").localeCompare(a.at(-1)?.timestamp ?? ""))[0];
+  const lastSession = latestRows?.length
+    ? (() => {
+        const sessionId = latestRows[0].session_id;
+        const distilledTitles = [...approved, ...pending]
+          .filter((packet) => packet.source_refs.some((ref) => ref.kind === "observation_session" && ref.session_id === sessionId))
+          .map((packet) => packet.title);
+        return {
+          session_id: sessionId,
+          first_at: latestRows[0]?.timestamp ?? "",
+          last_at: latestRows.at(-1)?.timestamp ?? "",
+          observations: latestRows.length,
+          paths: unique(latestRows.map((event) => event.path).filter(Boolean) as string[]).slice(0, 6),
+          commands: unique(latestRows.map((event) => event.command).filter(Boolean) as string[]).slice(0, 3),
+          distilled_titles: unique(distilledTitles).slice(0, 3),
+        };
+      })()
+    : undefined;
+
+  const changeMemory = approved
+    .filter((packet) => packet.tags.includes("change-memory"))
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0];
+  const lastChangeMemory = changeMemory
+    ? { id: changeMemory.id, title: changeMemory.title, summary: changeMemory.summary, updated_at: changeMemory.updated_at }
+    : undefined;
+
+  const pendingAutoDistilled = pending.filter((packet) => packet.tags.includes(AUTO_DISTILL_TAG)).length;
+  const reconciliation = kageMemoryReconciliation(projectDir, { limit: 5 });
+  const reconciliationItems = reconciliation.items.map((item) => ({ packet_id: item.packet_id, title: item.title }));
+
+  const hasContent = Boolean(lastSession || lastChangeMemory || pendingAutoDistilled || reconciliation.unresolved_count);
+  const lines: string[] = [];
+  if (hasContent) {
+    lines.push("# Previously (Kage)");
+    if (lastSession) {
+      lines.push(`Last session ${lastSession.session_id} (${lastSession.observations} observation${lastSession.observations === 1 ? "" : "s"}, ended ${lastSession.last_at}).`);
+      if (lastSession.paths.length) lines.push(`Worked on: ${lastSession.paths.join(", ")}`);
+      if (lastSession.commands.length) lines.push(`Commands: ${lastSession.commands.join("; ")}`);
+      if (lastSession.distilled_titles.length) lines.push(`Learned: ${lastSession.distilled_titles.join("; ")}`);
+    }
+    if (lastChangeMemory) {
+      lines.push(`Change memory: ${lastChangeMemory.title} — ${lastChangeMemory.summary}`);
+    }
+    if (pendingAutoDistilled) {
+      lines.push(`Pending: ${pendingAutoDistilled} auto-distilled draft${pendingAutoDistilled === 1 ? "" : "s"} awaiting review — run: kage review --project ${projectDir}`);
+    }
+    if (reconciliation.unresolved_count) {
+      lines.push(`Reconcile: ${reconciliation.unresolved_count} linked memory item${reconciliation.unresolved_count === 1 ? "" : "s"} need update — run: kage reconcile --project ${projectDir}`);
+      for (const item of reconciliationItems.slice(0, 3)) lines.push(`  - ${item.packet_id}: ${item.title}`);
+    }
+  }
+
+  return {
+    schema_version: 1,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    has_content: hasContent,
+    last_session: lastSession,
+    last_change_memory: lastChangeMemory,
+    pending_auto_distilled: pendingAutoDistilled,
+    pending_total: pending.length,
+    ...(pendingAutoDistilled ? { review_command: `kage review --project ${projectDir}` } : {}),
+    reconciliation: { unresolved_count: reconciliation.unresolved_count, items: reconciliationItems },
+    context_block: lines.slice(0, 15).join("\n"),
+  };
 }
 
 function createDiffChangeMemory(projectDir: string, summary: BranchReviewSummary): { packet: MemoryPacket; path: string } {
@@ -16833,6 +17012,272 @@ export function doctorProject(projectDir: string): DoctorResult {
     validation,
     sampleRecall: sampleRecall.context_block,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Repair: failure paths are part of the product. `kage repair` detects the
+// breakage users actually hit (merge-conflicted packets, stale or missing
+// indexes, leftover lock/tmp files, drifted agent wiring), fixes what it can
+// safely fix, and reports every step as fixed/skipped/failed.
+
+export interface RepairAction {
+  area: "packets" | "indexes" | "locks" | "agents";
+  target: string;
+  status: "fixed" | "skipped" | "failed";
+  detail: string;
+}
+
+export interface RepairResult {
+  project_dir: string;
+  ok: boolean;
+  actions: RepairAction[];
+  fixed: number;
+  skipped: number;
+  failed: number;
+  removed_packets: string[];
+  validation: ValidationResult;
+}
+
+function repairBackupDir(projectDir: string): string {
+  return join(memoryRoot(projectDir), "backup");
+}
+
+// Split a git merge-conflicted file into its two sides. Returns null when no
+// complete conflict block is present. diff3-style base sections (`|||||||`)
+// belong to neither side and are dropped.
+export function splitConflictSides(content: string): { ours: string; theirs: string } | null {
+  let section: "both" | "ours" | "base" | "theirs" = "both";
+  let conflicts = 0;
+  const ours: string[] = [];
+  const theirs: string[] = [];
+  for (const line of content.split("\n")) {
+    if (section === "both" && /^<{7}(\s|$)/.test(line)) { section = "ours"; conflicts += 1; continue; }
+    if (section === "ours" && /^\|{7}(\s|$)/.test(line)) { section = "base"; continue; }
+    if ((section === "ours" || section === "base") && /^={7}$/.test(line.trimEnd())) { section = "theirs"; continue; }
+    if (section === "theirs" && /^>{7}(\s|$)/.test(line)) { section = "both"; continue; }
+    if (section === "both") { ours.push(line); theirs.push(line); }
+    else if (section === "ours") ours.push(line);
+    else if (section === "theirs") theirs.push(line);
+  }
+  if (!conflicts || section !== "both") return null;
+  return { ours: ours.join("\n"), theirs: theirs.join("\n") };
+}
+
+function packetRecency(packet: Partial<MemoryPacket>): string {
+  return String(packet.updated_at ?? packet.created_at ?? "");
+}
+
+// Auto-resolve a merge-conflicted packet by keeping the newest side — but only
+// when that side parses as JSON. Anything less certain stays a removal.
+function resolveConflictedPacket(content: string): MemoryPacket | null {
+  const sides = splitConflictSides(content);
+  if (!sides) return null;
+  const candidates: MemoryPacket[] = [];
+  for (const side of [sides.ours, sides.theirs]) {
+    try {
+      const parsed = JSON.parse(side) as MemoryPacket;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) candidates.push(parsed);
+    } catch {
+      // This side does not parse; the other side may still win.
+    }
+  }
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => packetRecency(b).localeCompare(packetRecency(a)));
+  return candidates[0];
+}
+
+export function repairProject(projectDir: string, options: { homeDir?: string; serverPath?: string } = {}): RepairResult {
+  ensureMemoryDirs(projectDir);
+  const actions: RepairAction[] = [];
+  const removedPackets: string[] = [];
+  let packetsTouched = false;
+
+  // 1. Unparseable packet JSON (merge conflicts, torn writes, hand edits).
+  //    Always back up the broken original before changing anything.
+  let brokenFound = 0;
+  const packetDirs: Array<[string, string]> = [
+    [packetsDir(projectDir), "packets"],
+    [pendingDir(projectDir), "pending"],
+    [publicCandidatesDir(projectDir), "public-candidates"],
+  ];
+  for (const [dir, label] of packetDirs) {
+    for (const path of walkFiles(dir, (candidate) => candidate.endsWith(".json"))) {
+      const target = `${label}/${basename(path)}`;
+      let raw: string;
+      try {
+        raw = readFileSync(path, "utf8");
+      } catch (error) {
+        actions.push({ area: "packets", target, status: "failed", detail: error instanceof Error ? error.message : String(error) });
+        continue;
+      }
+      try {
+        JSON.parse(raw);
+        continue; // healthy packet
+      } catch {
+        // fall through to repair
+      }
+      brokenFound += 1;
+      try {
+        ensureDir(repairBackupDir(projectDir));
+        const backupPath = join(repairBackupDir(projectDir), `${basename(path)}.broken`);
+        writeFileSync(backupPath, raw, "utf8");
+        const resolved = resolveConflictedPacket(raw);
+        if (resolved) {
+          writeJson(path, resolved);
+          packetsTouched = true;
+          actions.push({
+            area: "packets",
+            target,
+            status: "fixed",
+            detail: `merge conflict auto-resolved, kept newest side — original saved to ${relative(projectDir, backupPath)}`,
+          });
+        } else {
+          unlinkSync(path);
+          packetsTouched = true;
+          removedPackets.push(target);
+          actions.push({
+            area: "packets",
+            target,
+            status: "fixed",
+            detail: `REMOVED unparseable packet — original preserved at ${relative(projectDir, backupPath)}; restore it by hand if it mattered`,
+          });
+        }
+      } catch (error) {
+        actions.push({ area: "packets", target, status: "failed", detail: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  }
+  if (!brokenFound) {
+    actions.push({ area: "packets", target: "memory packets", status: "skipped", detail: "all packet files parse cleanly" });
+  }
+
+  // 2. Stale lock/temp files left behind by crashed writers, plus a daemon
+  //    status file whose pid is no longer running.
+  let lockFindings = 0;
+  for (const path of walkFiles(memoryRoot(projectDir), (candidate) => candidate.endsWith(".tmp") || candidate.endsWith(".lock"))) {
+    lockFindings += 1;
+    try {
+      unlinkSync(path);
+      actions.push({ area: "locks", target: relative(projectDir, path), status: "fixed", detail: "removed leftover temp/lock file" });
+    } catch (error) {
+      actions.push({ area: "locks", target: relative(projectDir, path), status: "failed", detail: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  const daemonStatusPath = join(daemonDir(projectDir), "status.json");
+  if (existsSync(daemonStatusPath)) {
+    let stale = true;
+    let pidLabel = "unknown";
+    try {
+      const status = readJson<{ pid?: number }>(daemonStatusPath);
+      if (typeof status.pid === "number") {
+        pidLabel = String(status.pid);
+        try {
+          process.kill(status.pid, 0);
+          stale = false;
+        } catch {
+          stale = true;
+        }
+      }
+    } catch {
+      stale = true; // unreadable status file is stale by definition
+    }
+    if (stale) {
+      lockFindings += 1;
+      try {
+        unlinkSync(daemonStatusPath);
+        actions.push({ area: "locks", target: relative(projectDir, daemonStatusPath), status: "fixed", detail: `removed stale daemon status (pid ${pidLabel} is not running)` });
+      } catch (error) {
+        actions.push({ area: "locks", target: relative(projectDir, daemonStatusPath), status: "failed", detail: error instanceof Error ? error.message : String(error) });
+      }
+    } else {
+      lockFindings += 1;
+      actions.push({ area: "locks", target: relative(projectDir, daemonStatusPath), status: "skipped", detail: `daemon pid ${pidLabel} is alive — left alone` });
+    }
+  }
+  if (!lockFindings) {
+    actions.push({ area: "locks", target: "lock/temp files", status: "skipped", detail: "no stale lock or temp files" });
+  }
+
+  // 3. Missing or stale indexes — rebuild. Packet surgery above also forces a
+  //    rebuild so the catalog never disagrees with what is on disk.
+  const expectedIndexes = ["catalog.json", "by-path.json", "by-tag.json", "by-type.json", "vector-local.json", "graph.json", "code-graph.json"];
+  const missingIndexes = expectedIndexes.filter((name) => !existsSync(join(indexesDir(projectDir), name)));
+  let staleCatalog = false;
+  const catalogPath = join(indexesDir(projectDir), "catalog.json");
+  if (existsSync(catalogPath)) {
+    try {
+      const catalog = readJson<{ packet_count?: number }>(catalogPath);
+      staleCatalog = catalog.packet_count !== loadPacketsFromDir(packetsDir(projectDir)).length;
+    } catch {
+      staleCatalog = true;
+    }
+  }
+  if (missingIndexes.length || staleCatalog || packetsTouched) {
+    try {
+      const rebuilt = indexProject(projectDir);
+      const reason = missingIndexes.length
+        ? `${missingIndexes.length} missing: ${missingIndexes.join(", ")}`
+        : staleCatalog
+          ? "catalog was out of date"
+          : "packets changed during repair";
+      actions.push({ area: "indexes", target: "indexes + graphs", status: "fixed", detail: `rebuilt ${rebuilt.indexes.length} indexes (${reason})` });
+    } catch (error) {
+      actions.push({ area: "indexes", target: "indexes + graphs", status: "failed", detail: error instanceof Error ? error.message : String(error) });
+    }
+  } else {
+    actions.push({ area: "indexes", target: "indexes + graphs", status: "skipped", detail: "present and current" });
+  }
+
+  // 4. Agent wiring drift — re-run the write path ONLY for agents that are
+  //    already configured (config file exists) but whose hook scripts went
+  //    missing. Repair never wires new agents.
+  try {
+    const doctor = setupDoctor(projectDir, { homeDir: options.homeDir, serverPath: options.serverPath });
+    let drifted = 0;
+    for (const item of doctor) {
+      // "Already configured" means the agent's config file exists AND already
+      // mentions the Kage MCP server. A bare config (every Claude Code user
+      // has ~/.claude.json) is NOT configured — repair never wires new agents.
+      const configured = Boolean(item.config_path && existsSync(item.config_path)) && configMentionsKage(item.config_path);
+      if (!configured) continue;
+      if (!item.hook_summary || item.hook_summary.ready) continue;
+      drifted += 1;
+      try {
+        const rewired = setupAgent(item.agent, projectDir, { write: true, homeDir: options.homeDir, serverPath: options.serverPath });
+        actions.push({
+          area: "agents",
+          target: item.agent,
+          status: rewired.wrote ? "fixed" : "failed",
+          detail: rewired.wrote
+            ? `re-ran setup, restored missing hooks (${item.hook_summary.missing.join(", ")})`
+            : `setup did not write — run: kage setup ${item.agent} --project . --write`,
+        });
+      } catch (error) {
+        actions.push({ area: "agents", target: item.agent, status: "failed", detail: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    if (!drifted) {
+      actions.push({ area: "agents", target: "agent wiring", status: "skipped", detail: "configured agents look intact" });
+    }
+  } catch (error) {
+    actions.push({ area: "agents", target: "agent wiring", status: "failed", detail: error instanceof Error ? error.message : String(error) });
+  }
+
+  const validation = validateProject(projectDir);
+  const fixed = actions.filter((action) => action.status === "fixed").length;
+  const skipped = actions.filter((action) => action.status === "skipped").length;
+  const failed = actions.filter((action) => action.status === "failed").length;
+  return { project_dir: projectDir, ok: failed === 0, actions, fixed, skipped, failed, removed_packets: removedPackets, validation };
+}
+
+// Map a CLI failure to ONE copy-pasteable next command. Pure on purpose:
+// remediation must be unit-testable without throwing real errors.
+export function remediationFor(error: unknown): string {
+  const text = error instanceof Error ? error.message : String(error);
+  if (/ENOENT/i.test(text) && /\.agent_memory/.test(text)) return "kage init --project .";
+  if (/Unexpected token|Unexpected end of JSON|is not valid JSON|JSON\.parse|in JSON at position/i.test(text)) return "kage repair --project .";
+  if (/\bindex(es)?\b|\bgraph\b/i.test(text)) return "kage index --project .";
+  return "kage doctor --project .";
 }
 
 export function approvePending(projectDir: string, id: string): string {

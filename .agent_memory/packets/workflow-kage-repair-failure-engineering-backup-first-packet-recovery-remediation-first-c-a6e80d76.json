@@ -1,0 +1,84 @@
+{
+  "schema_version": 2,
+  "id": "repo:agent-a21c02d3985861371:workflow:kage-repair-failure-engineering-backup-first-packet-recovery-remediation-first-c",
+  "title": "kage repair: failure engineering — backup-first packet recovery, remediation-first CLI errors",
+  "summary": "kage repair project <dir json kernel repairProject fixes the four real world breakages in order: 1 unparseable packet JSON in packets/, pending/, and public candidates/ — always backed up to .agent memory/backup/<name .b",
+  "body": "`kage repair --project <dir> [--json]` (kernel repairProject) fixes the four real-world breakages in order: (1) unparseable packet JSON in packets/, pending/, and public-candidates/ — always backed up to .agent_memory/backup/<name>.broken first; merge conflicts auto-resolve via splitConflictSides keeping the newest side (updated_at/created_at) only when that side parses as JSON, otherwise the packet is removed loudly with the backup kept; (2) leftover *.tmp/*.lock files under .agent_memory plus daemon/status.json whose pid is dead; (3) missing or stale indexes (catalog packet_count mismatch) rebuilt via indexProject — packet surgery always forces a rebuild; (4) agent wiring drift: setupAgent(write:true) is re-run ONLY for agents whose config exists AND already mentions kage (configMentionsKage) with missing hook scripts — repair must never wire new agents (every Claude Code user has ~/.claude.json; bare config presence is NOT \"configured\"). Uncaught CLI errors route through remediationFor(error) — a pure, unit-tested heuristic returning exactly one command: ENOENT+.agent_memory→kage init, JSON parse→kage repair, index/graph→kage index, default→kage doctor. kage doctor cross-links \"Something broken? kage repair --project .\" when validation fails. Tests must pass a temp homeDir to repairProject or they will rewire the developer's real ~/.claude.json.\nEvidence: npm test: 207/207 pass including 7 new repair/remediation tests; smoke test: corrupt packet + corrupt catalog.json → kage validate fails with \"Try: kage repair --project .\" → kage repair fixes both → validate passes\nVerified by: node --test dist/kernel.test.js (207 pass) and manual CLI smoke run on a temp project",
+  "type": "workflow",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "repair",
+    "cli",
+    "failure-paths",
+    "remediation",
+    "installer"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/cli.ts",
+    "mcp/kernel.test.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-12T06:04:28.372Z"
+    }
+  ],
+  "context": {
+    "fact": "`kage repair --project <dir> [--json]` (kernel repairProject) fixes the four real-world breakages in order: (1) unparseable packet JSON in packets/, pending/, and public-candidates/ — always backed up to .agent_memory/backup/<name>.broken first; merge conflicts auto-resolve via splitConflictSides keeping the newest side (updated_at/created_at) only when that side parses as JSON, otherwise the packet is removed loudly with the backup kept; (2) leftover *.tmp/*.lock files under .agent_memory plus daemon/status.json whose pid is dead; (3) missing or stale indexes (catalog packet_count mismatch) rebuilt via indexProject — packet surgery always forces a rebuild; (4) agent wiring drift: setupAgent(write:true) is re-run ONLY for agents whose config exists AND already mentions kage (configMentionsKage) with missing hook scripts — repair must never wire new agents (every Claude Code user has ~/.claude.json; bare config presence is NOT \"configured\"). Uncaught CLI errors route through remediationFor(error) — a pure, unit-tested heuristic returning exactly one command: ENOENT+.agent_memory→kage init, JSON parse→kage repair, index/graph→kage index, default→kage doctor. kage doctor cross-links \"Something broken? kage repair --project .\" when validation fails. Tests must pass a temp homeDir to repairProject or they will rewire the developer's real ~/.claude.json.\nEvidence: npm test: 207/207 pass including 7 new repair/remediation tests; smoke test: corrupt packet + corrupt catalog.json → kage validate fails with \"Try: kage repair --project .\" → kage repair fixes both → validate passes\nVerified by: node --test dist/kernel.test.js (207 pass) and manual CLI smoke run on a temp project",
+    "verification": "npm test: 207/207 pass including 7 new repair/remediation tests; smoke test: corrupt packet + corrupt catalog.json → kage validate fails with \"Try: kage repair --project .\" → kage repair fixes both → validate passes"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-12T06:04:28.372Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "5800863c72b354033f011b59e8ab1646f6c675ef38998091e084bb0e910a56f3",
+        "size": 705062
+      },
+      {
+        "path": "mcp/cli.ts",
+        "sha256": "700ca531b2d06d1fbf689980a2882c5221c352119dacaec358073e2a84cb1dfd",
+        "size": 95521
+      },
+      {
+        "path": "mcp/kernel.test.ts",
+        "sha256": "550ce1a54b0a0042dcf4e4c5e564cc2fc2e6b39898d3ce1706d9f6b751273548",
+        "size": 197685
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 94,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 424
+  },
+  "created_at": "2026-06-12T06:04:28.372Z",
+  "updated_at": "2026-06-12T06:05:11.890Z",
+  "author_branch": "gap/repair-remediation"
+}

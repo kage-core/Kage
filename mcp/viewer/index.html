@@ -95,6 +95,14 @@
       .receipt .r-line b.warn { color: var(--warn); } .receipt .r-line b.gain { color: var(--gain); }
       .receipt .r-foot { border-top: 1px dashed var(--line-strong); padding: 11px 24px; color: var(--faint); font: 400 11px/1.5 var(--mono); }
 
+      /* live feed (SSE from the local daemon; hidden on the hosted demo) */
+      .livedot { display: inline-block; width: 8px; height: 8px; border-radius: 99px; background: var(--gain); margin-right: 9px; animation: livepulse 2s ease infinite; }
+      @keyframes livepulse { 0%, 100% { box-shadow: 0 0 0 0 var(--gain-soft); } 50% { box-shadow: 0 0 0 6px var(--gain-soft); } }
+      .vev.fresh { animation: levin 1.2s ease; }
+      @keyframes levin { from { background: var(--gain-soft); } to { background: transparent; } }
+      .vev.packet_written .vi, .vev.packet_updated .vi { color: var(--memory); }
+      .vev.stale_caught .vi { color: var(--warn); }
+
       /* gains timeline */
       .vfeed { display: grid; }
       .vev { display: grid; grid-template-columns: 20px 1fr auto; gap: 0 13px; align-items: baseline; padding: 11px 4px; border-top: 1px solid var(--line); }
@@ -298,6 +306,7 @@
           <section class="section active" id="section-gains">
             <div class="receipt" id="gainsHero"></div>
             <div class="tiles" id="gainsTiles"></div>
+            <div class="panel" id="livePanel" hidden><h2><span class="livedot" aria-hidden="true"></span>Live <span class="sub">— memories and value events as they happen</span></h2><div id="liveFeed"></div></div>
             <div class="panel"><h2>Value timeline <span class="sub">— every saved recall and withheld stale memory, as it happened</span></h2><div id="gainsTimeline"></div></div>
           </section>
 
@@ -361,6 +370,6 @@
     </div>
     <div class="drawer-backdrop" id="detailBackdrop"></div>
     <aside class="drawer" id="detail" aria-hidden="true"></aside>
-    <script src="./console.js?v=16"></script>
+    <script src="./console.js?v=17"></script>
   </body>
 </html>
