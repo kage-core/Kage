@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v2.2.0 - parity and beyond: sync, signal, and the audit wedge
 
 - **Personal memory (`kage learn --personal`) + `kage sync`.** Cross-machine
   personal packets live in `~/.kage/memory/packets` (override the store root
