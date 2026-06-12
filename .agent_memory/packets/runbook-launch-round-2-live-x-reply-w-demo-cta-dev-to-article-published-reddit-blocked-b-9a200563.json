@@ -61,10 +61,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "stale_reasons": [],
     "estimated_tokens_saved": 204
   },
   "created_at": "2026-06-12T18:00:41.191Z",
-  "updated_at": "2026-06-12T18:00:41.191Z",
+  "updated_at": "2026-06-12T18:01:12.182Z",
   "author_branch": "master"
 }
