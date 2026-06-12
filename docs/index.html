@@ -10,7 +10,6 @@
     <title>Kage — memory your agent can prove</title>
     <link rel="icon" type="image/svg+xml" href="assets/kage-eye.svg" />
     <link rel="canonical" href="https://kage-core.com/" />
-    <!-- Social / branding -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Kage" />
     <meta property="og:url" content="https://kage-core.com/" />
@@ -31,98 +30,31 @@
     />
     <link rel="stylesheet" href="assets/site.css?v=3" />
     <style>
-      /* Page-specific layout */
-      .hero { padding: 84px 0 56px; }
+      /* ——— Hero ——— */
+      .hero { padding: 96px 0 64px; }
       .hero-grid {
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(340px, 0.72fr);
-        gap: 40px;
+        gap: clamp(32px, 5vw, 64px);
         align-items: center;
       }
-      .hero h1 { max-width: 680px; }
+      .hero h1 { max-width: 640px; }
       .hero h1 .accent { color: var(--green); font-style: italic; }
-      .hero-copy { margin-top: 16px; max-width: 540px; color: var(--muted); font: 400 18px/1.55 var(--sans); }
-      .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
-      .badges img { height: 20px; }
+      .hero-copy { margin-top: 18px; max-width: 520px; color: var(--muted); font: 400 18px/1.6 var(--sans); }
 
-      .why-grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 12px;
-      }
-      .why-card { padding: 18px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--paper); }
-      .why-card h3 { font: 600 15px/1.3 var(--sans); }
-      .why-card p { margin-top: 8px; font-size: 14px; }
-
-      .steps {
-        display: grid;
-        gap: 8px;
-      }
-      .step {
-        display: grid;
-        grid-template-columns: 28px 1fr;
-        gap: 12px;
-        padding: 14px 16px;
-        border: 1px solid var(--line);
-        border-radius: var(--r-card);
-        background: var(--paper);
-      }
-      .num {
-        display: grid;
-        place-items: center;
-        width: 22px; height: 22px;
-        margin-top: 1px;
-        border-radius: 999px;
-        background: var(--green-soft);
-        color: var(--green);
-        font: 700 12px/1 var(--mono);
-      }
-      .step b { display: block; font: 600 15px/1.3 var(--sans); color: var(--ink); }
-      .step span { display: block; margin-top: 4px; color: var(--muted); font: 400 14px/1.5 var(--sans); }
-
-      .agents {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 10px;
-      }
-      .agent {
-        padding: 14px;
-        border: 1px solid var(--line);
-        border-radius: var(--r-card);
-        background: var(--paper);
-        text-align: center;
-      }
-      .agent strong { display: block; font: 600 14px/1.3 var(--sans); }
-      .agent span { display: block; margin-top: 4px; color: var(--muted); font: 400 12px/1.4 var(--sans); }
-
-      .trust-points { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-      .trust-point { padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--paper); }
-      .trust-point strong { display: block; color: var(--ink); font: 600 14px/1.3 var(--sans); }
-      .trust-point span { display: block; margin-top: 4px; color: var(--muted); font: 400 13px/1.5 var(--sans); }
-
-      .demo {
-        overflow: hidden;
-        border: 1px solid var(--line);
-        border-radius: var(--r-card);
-        background: var(--paper);
-      }
-      .demo img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--paper-2); }
-      .demo-caption { display: flex; justify-content: space-between; gap: 14px; padding: 12px 14px; border-top: 1px solid var(--line); color: var(--muted); font: 400 13px/1.4 var(--sans); }
-      .demo-caption strong { color: var(--ink); font-weight: 600; }
-
-      /* Feature rows — alternating text + product artifact, cmem-style. */
+      /* ——— Feature rows: text + product artifact ——— */
       .feature {
         display: grid;
-        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-        gap: clamp(28px, 5vw, 64px);
+        grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+        gap: clamp(28px, 5vw, 72px);
         align-items: center;
       }
-      .feature.flip { grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); }
       .feature.flip > .feature-copy { order: 2; }
       .feature-copy h2 { max-width: 420px; }
       .feature-copy .lede { font-size: 16px; }
+      .feature-copy .more { display: inline-block; margin-top: 14px; color: var(--green); font: 600 14px/1 var(--sans); }
+      .feature-copy .more:hover { color: var(--green-strong); }
 
-      /* Memory stream — packets as they're written, verification visible. */
       .stream { display: grid; gap: 10px; }
       .pktcard {
         padding: 14px 16px;
@@ -141,7 +73,6 @@
       .pktcard.is-withheld { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); opacity: 0.92; }
       .pktcard.is-withheld .check { color: var(--warn); }
 
-      /* Session-start injection mock. */
       .sysmsg {
         overflow: hidden;
         border: 1px solid var(--hairline-green);
@@ -156,7 +87,6 @@
       .sysmsg .g { color: var(--green-strong); }
       .sysmsg .dim { color: #8d968e; }
 
-      /* PR stale-catch artifact. */
       .prwarn {
         border: 1px solid color-mix(in srgb, var(--warn) 50%, var(--line));
         border-radius: var(--r-card);
@@ -171,7 +101,6 @@
       .prwarn .row span { color: var(--muted); font: 400 12.5px/1.5 var(--mono); }
       .prwarn .row .fix { color: var(--green); }
 
-      /* Sync chip — the "memory follows you" status artifact. */
       .syncwrap { display: grid; gap: 12px; }
       .syncchip {
         display: flex;
@@ -189,10 +118,35 @@
       .syncchip .dot { width: 9px; height: 9px; border-radius: 999px; background: var(--green); box-shadow: 0 0 10px var(--green); flex: 0 0 auto; }
       .syncchip .st { margin-left: auto; color: var(--muted); font-size: 12px; }
 
+      /* ——— Agents row ——— */
+      .agents { display: flex; flex-wrap: wrap; gap: 8px; }
+      .agent {
+        padding: 9px 15px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--paper);
+        color: var(--muted);
+        font: 500 13px/1 var(--sans);
+      }
+
+      /* ——— Early access: waitlist + demo ——— */
+      .access {
+        border: 1px solid var(--hairline-green);
+        border-radius: var(--r-hero);
+        background: linear-gradient(180deg, color-mix(in srgb, var(--green) 7%, var(--paper)) 0%, var(--paper) 70%);
+        box-shadow: var(--shadow-pop);
+        padding: clamp(32px, 5vw, 56px);
+        text-align: center;
+      }
+      .access h2 { margin: 0 auto; max-width: 560px; }
+      .access .lede { margin: 14px auto 0; max-width: 560px; }
+      .access .actions { justify-content: center; margin-top: 26px; }
+      .access .fine { margin-top: 16px; color: var(--faint); font: 400 12.5px/1.6 var(--sans); }
+      .access .fine a { color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+      .access .fine a:hover { color: var(--green); }
+
       @media (max-width: 820px) {
         .hero-grid { grid-template-columns: 1fr; }
-        .trust-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .why-grid, .agents, .trust-points { grid-template-columns: 1fr; }
         .feature, .feature.flip { grid-template-columns: 1fr; }
         .feature.flip > .feature-copy { order: 0; }
       }
@@ -205,27 +159,27 @@
         <span>Kage</span>
       </a>
       <div class="nav-links">
-        <a href="guide.html#quickstart">Quickstart</a>
+        <a href="#how">How it works</a>
+        <a href="#compare">Compare</a>
+        <a href="#pricing">Pricing</a>
         <a href="guide.html">Docs</a>
-        <a href="benchmarks.html">Benchmarks</a>
         <a href="viewer/">Viewer</a>
-        <a href="releases.html">Releases</a>
         <a href="https://github.com/kage-core/Kage">GitHub</a>
       </div>
-      <a class="nav-cta" href="guide.html#quickstart">Install Kage</a>
+      <a class="nav-cta" href="#access">Get early access</a>
     </nav>
 
     <main>
+      <!-- ——————————————— HERO ——————————————— -->
       <section class="hero">
         <div class="wrap hero-grid">
           <div>
             <span class="eyebrow">Verified memory for coding agents</span>
             <h1>Memory your agent can <span class="accent">prove.</span></h1>
             <p class="hero-copy">
-              Every memory is checked against your code — when it's written, when it's
-              recalled, and when your diff changes what it cites. Hallucinated and stale
-              knowledge never reach the agent, and you get the receipt: tokens and
-              dollars saved. Git-native, zero dependencies, no API key.
+              Kage checks every memory against your code — when it's written, when
+              it's recalled, and when your diff changes what it cites. Wrong knowledge
+              never reaches the agent. You get the receipt.
             </p>
             <div class="cmd">
               <span class="ps1">$</span>
@@ -233,14 +187,8 @@
               <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('install-cmd').textContent).then(()=>{this.textContent='copied';setTimeout(()=>this.textContent='copy',1200)})">copy</button>
             </div>
             <div class="actions">
-              <a class="button primary" href="guide.html#quickstart">Install Kage</a>
-              <a class="button" href="viewer/">Open viewer demo</a>
-            </div>
-            <div class="badges" aria-label="Project badges">
-              <img alt="npm version" src="https://img.shields.io/npm/v/@kage-core/kage-graph-mcp?style=flat-square&color=0c7a4d" />
-              <img alt="npm monthly downloads" src="https://img.shields.io/npm/dm/@kage-core/kage-graph-mcp?style=flat-square&color=0c7a4d" />
-              <img alt="GitHub stars" src="https://img.shields.io/github/stars/kage-core/Kage?style=flat-square&color=41463f" />
-              <img alt="license" src="https://img.shields.io/npm/l/@kage-core/kage-graph-mcp?style=flat-square&color=41463f" />
+              <a class="button primary" href="#access">Get early access</a>
+              <a class="button" href="guide.html#quickstart">Read the docs</a>
             </div>
           </div>
 
@@ -255,7 +203,7 @@
               <div class="r-line"><span>Hallucinated citations rejected</span><span class="dots"></span><b class="warn">2</b></div>
               <div class="r-line"><span>Caller questions answered from the graph</span><span class="dots"></span><b>11</b></div>
             </div>
-            <div class="r-foot">your numbers, from your repo · run <span style="color:var(--ink)">kage gains</span> or open the viewer's Gains tab</div>
+            <div class="r-foot">your numbers, from your repo · <span style="color:var(--ink)">kage gains</span> or the viewer's live feed</div>
           </div>
         </div>
 
@@ -269,31 +217,112 @@
         </div>
       </section>
 
-      <section class="section">
-        <div class="wrap">
-          <div class="section-head">
-            <span class="eyebrow">Why Kage</span>
-            <h2>Three guarantees no other agent memory makes.</h2>
-            <p class="lede">Every agent remembers now — the danger is acting on memory that's wrong. An agent that trusts a stale or hallucinated memory is worse than one with none. Kage is built so it can't.</p>
+      <!-- ——————————————— FEATURES ——————————————— -->
+      <section class="section" id="how">
+        <div class="wrap feature">
+          <div class="feature-copy">
+            <span class="eyebrow">Capture — with proof</span>
+            <h2>It takes notes. Then it checks them.</h2>
+            <p class="lede">Learnings become packets as the agent works — explicitly, or auto-distilled from the session with a signal gate. Every citation is validated against your repo <em>before</em> it's written. A memory citing a file that doesn't exist is refused on the spot.</p>
+            <a class="more" href="guide.html#lifecycle">How a packet earns trust →</a>
           </div>
-          <div class="why-grid">
-            <div class="why-card">
-              <h3>✓ Validated on write</h3>
-              <p>A memory that cites a file which doesn't exist is <b>rejected</b> — hallucinated knowledge never enters the store.</p>
+          <div class="stream" aria-label="Memory packets being written, verification visible">
+            <div class="pktcard">
+              <div class="meta"><span class="kind">gotcha</span><span class="t">09:24</span></div>
+              <b>Don't merge the retry paths — one uses idempotency keys</b>
+              <span class="check">✓ citations verified · src/payments/retry.ts · fingerprinted</span>
             </div>
-            <div class="why-card">
-              <h3>✓ Withheld on recall</h3>
-              <p>When the code a memory cites is deleted or refactored, Kage <b>withholds it from the agent</b> and flags it for you under "Needs review."</p>
+            <div class="pktcard">
+              <div class="meta"><span class="kind">decision</span><span class="t">09:41</span></div>
+              <b>Auth uses jose, not jsonwebtoken — CVE in the transitive dep</b>
+              <span class="check">✓ citations verified · src/auth/session.ts · fingerprinted</span>
             </div>
-            <div class="why-card">
-              <h3>✓ Grounded to your code</h3>
-              <p>Memory links to your code graph, so recall returns the <b>bounded blast radius</b> of a change — not just matching text.</p>
+            <div class="pktcard is-rejected">
+              <div class="meta"><span class="kind">refused</span><span class="t">09:52</span></div>
+              <b>"Use the helper in src/ghost.ts"</b>
+              <span class="check">✗ rejected on write — no such path in this repo</span>
+            </div>
+            <div class="pktcard is-withheld">
+              <div class="meta"><span class="kind">stale</span><span class="t">10:05</span></div>
+              <b>Legacy retry helper is the fallback</b>
+              <span class="check">⊘ withheld from recall — cited file deleted since capture</span>
             </div>
           </div>
         </div>
       </section>
 
       <section class="section">
+        <div class="wrap feature flip">
+          <div class="feature-copy">
+            <span class="eyebrow">Recall — already warm</span>
+            <h2>Every session starts knowing.</h2>
+            <p class="lede">A "previously…" digest and a timeline of recent memory open each session automatically — and when the agent reads a file, verified packets citing <em>that file</em> are injected right then. Each recall prints the receipt.</p>
+            <a class="more" href="viewer/">Watch memory stream in, live →</a>
+          </div>
+          <div class="sysmsg" aria-label="What Kage injects at session start">
+            <div class="head"><span>SessionStart · injected</span><span>~800 tokens</span></div>
+            <div class="body"><span class="g"># Previously (Kage)</span>
+Working on: payment retry consolidation
+Learned: retry paths must stay separate <span class="dim">(gotcha, 2d)</span>
+Drafts awaiting review: 1 · <span class="dim">kage inbox</span>
+
+<span class="g"># Recent memory</span>
+<span class="dim">[a3f9c2e1]</span> gotcha    retry paths — idempotency keys <span class="dim">(2d)</span>
+<span class="dim">[7b21d4f8]</span> decision  auth uses jose, not jsonwebtoken <span class="dim">(5d)</span>
+<span class="dim">[e8c50a93]</span> runbook   npm test --prefix mcp before release <span class="dim">(1w)</span>
+
+<span class="g">↳ saved ~12K tokens vs re-reading source</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="wrap feature">
+          <div class="feature-copy">
+            <span class="eyebrow">Catch — before it merges</span>
+            <h2>Your diff gets fact-checked.</h2>
+            <p class="lede">No other memory tool does this: when your change invalidates what the team knows, <code>kage pr check</code> says so — in the same review as the code, with the fix one command away.</p>
+            <a class="more" href="guide.html#cli">The stale-catch commands →</a>
+          </div>
+          <div class="prwarn" aria-label="kage pr check stale-catch output">
+            <div class="head">⚠ Your changes invalidated 2 team memories</div>
+            <div class="row">
+              <b>Auth uses jose, not jsonwebtoken</b>
+              <span>cites src/auth/session.ts — file changed in this diff</span>
+              <span class="fix">fix: kage reverify --packet auth-jose · or kage supersede</span>
+            </div>
+            <div class="row">
+              <b>Webhook retries are capped at 3</b>
+              <span>cites src/webhooks/retry.ts — constant removed</span>
+              <span class="fix">fix: kage learn (update) — then this warning disappears</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="wrap feature flip">
+          <div class="feature-copy">
+            <span class="eyebrow">Sync — no account</span>
+            <h2>Memory that follows you.</h2>
+            <p class="lede">Personal memory lives in <code>~/.kage/memory</code> and syncs over a private git remote <em>you</em> own. Conflicts resolve newest-wins with both versions kept — and synced packets are re-verified against the local checkout before any recall trusts them.</p>
+            <a class="more" href="CLOUD.md">The sync &amp; cloud design →</a>
+          </div>
+          <div class="syncwrap">
+            <div class="syncchip"><span class="dot"></span>git@github.com:you/kage-memory.git<span class="st">● synced · 2 machines</span></div>
+            <div class="terminal">
+              <div class="terminal-head"><span>kage sync</span><span>your remote, your keys</span></div>
+              <pre>$ kage sync
+pushed 2, pulled 1, resolved 0
+$ kage learn --personal --learning "Always run the full suite before releasing"
+✓ captured · personal · re-verified on every machine</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ——————————————— COMPARE ——————————————— -->
+      <section class="section" id="compare">
         <div class="wrap">
           <div class="section-head">
             <span class="eyebrow">Compare</span>
@@ -343,15 +372,15 @@
                 </tr>
                 <tr>
                   <th scope="row">Savings receipts (tokens + $ per recall)</th>
-                  <td class="is-kage"><span class="yes">✓</span></td>
+                  <td class="is-kage"><span class="yes">✓</span> per-packet</td>
                   <td>token index</td>
                   <td><span class="no">—</span></td>
                 </tr>
                 <tr>
-                  <th scope="row">Truth Report on any repo, zero setup</th>
-                  <td class="is-kage"><span class="yes">✓</span></td>
-                  <td><span class="no">—</span></td>
-                  <td><span class="no">—</span></td>
+                  <th scope="row">Cross-machine sync</th>
+                  <td class="is-kage"><span class="yes">✓</span> your own git remote</td>
+                  <td>their cloud</td>
+                  <td>their cloud</td>
                 </tr>
                 <tr>
                   <th scope="row">Account / API key required</th>
@@ -362,131 +391,17 @@
               </tbody>
             </table>
           </div>
-          <p class="lede" style="margin-top:18px; font-size:15px;">Already running claude-mem? Audit your existing store against your repo — read-only, no account: <code>npx -y @kage-core/kage-graph-mcp audit-claude-mem</code> classifies every observation as verified, drifted, gone, or unciteable.</p>
+          <p class="lede" style="margin-top:18px; font-size:15px;">Already running claude-mem? Audit your existing store — read-only, no account: <code>npx -y @kage-core/kage-graph-mcp audit-claude-mem</code> classifies every observation as verified, drifted, gone, or unciteable.</p>
         </div>
       </section>
 
-      <section class="section">
-        <div class="wrap">
-          <div class="section-head">
-            <span class="eyebrow">How it works</span>
-            <h2>Capture what matters. Recall it when it matters.</h2>
-          </div>
-          <div class="steps">
-            <div class="step"><span class="num">1</span><div><b>One command installs everything</b><span><code>npx -y @kage-core/kage-graph-mcp install</code> creates repo memory, builds the code graph, and auto-wires every agent on your machine.</span></div></div>
-            <div class="step"><span class="num">2</span><div><b>Memory accrues — even when the agent forgets to save</b><span>Explicit learnings become packets; if a session captured nothing, its observations are auto-distilled into drafts you review. A signal gate keeps noise out.</span></div></div>
-            <div class="step"><span class="num">3</span><div><b>Every session starts warm</b><span>A "previously…" digest plus a timeline of recent memory opens each session, and verified packets are injected the moment the agent reads a file they cite.</span></div></div>
-            <div class="step"><span class="num">4</span><div><b>Your diff gets checked against what the team knows</b><span><code>kage pr check</code> leads with the memories your change just invalidated — before the PR lands, in the same review as the code.</span></div></div>
-          </div>
-
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="wrap feature">
-          <div class="feature-copy">
-            <span class="eyebrow">Capture — with proof</span>
-            <h2>It takes notes. Then it checks them.</h2>
-            <p class="lede">Learnings become packets as the agent works — explicitly, or auto-distilled from the session with a signal gate. Every packet's citations are validated against your repo <em>before</em> it's written. A memory citing a file that doesn't exist is refused on the spot.</p>
-          </div>
-          <div class="stream" aria-label="Memory packets being written, verification visible">
-            <div class="pktcard">
-              <div class="meta"><span class="kind">gotcha</span><span class="t">09:24</span></div>
-              <b>Don't merge the retry paths — one uses idempotency keys</b>
-              <span class="check">✓ citations verified · src/payments/retry.ts · fingerprinted</span>
-            </div>
-            <div class="pktcard">
-              <div class="meta"><span class="kind">decision</span><span class="t">09:41</span></div>
-              <b>Auth uses jose, not jsonwebtoken — CVE in the transitive dep</b>
-              <span class="check">✓ citations verified · src/auth/session.ts · fingerprinted</span>
-            </div>
-            <div class="pktcard is-rejected">
-              <div class="meta"><span class="kind">refused</span><span class="t">09:52</span></div>
-              <b>"Use the helper in src/ghost.ts"</b>
-              <span class="check">✗ rejected on write — no such path in this repo</span>
-            </div>
-            <div class="pktcard is-withheld">
-              <div class="meta"><span class="kind">stale</span><span class="t">10:05</span></div>
-              <b>Legacy retry helper is the fallback</b>
-              <span class="check">⊘ withheld from recall — cited file deleted since capture</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="wrap feature flip">
-          <div class="feature-copy">
-            <span class="eyebrow">Recall — already warm</span>
-            <h2>Every session starts knowing.</h2>
-            <p class="lede">A "previously…" digest and a timeline of recent memory open each session automatically — and when the agent reads a file, verified packets citing <em>that file</em> are injected right then. Each recall prints the receipt.</p>
-          </div>
-          <div class="sysmsg" aria-label="What Kage injects at session start">
-            <div class="head"><span>SessionStart · injected</span><span>~800 tokens</span></div>
-            <div class="body"><span class="g"># Previously (Kage)</span>
-Working on: payment retry consolidation
-Learned: retry paths must stay separate <span class="dim">(gotcha, 2d)</span>
-Drafts awaiting review: 1 · <span class="dim">kage inbox</span>
-
-<span class="g"># Recent memory</span>
-<span class="dim">[a3f9c2e1]</span> gotcha    retry paths — idempotency keys <span class="dim">(2d)</span>
-<span class="dim">[7b21d4f8]</span> decision  auth uses jose, not jsonwebtoken <span class="dim">(5d)</span>
-<span class="dim">[e8c50a93]</span> runbook   npm test --prefix mcp before release <span class="dim">(1w)</span>
-
-<span class="g">↳ saved ~12K tokens vs re-reading source</span></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="wrap feature">
-          <div class="feature-copy">
-            <span class="eyebrow">Catch — before it merges</span>
-            <h2>Your diff gets fact-checked.</h2>
-            <p class="lede">No other memory tool does this: when your change invalidates what the team knows, <code>kage pr check</code> says so — in the same review as the code, with the fix one command away.</p>
-          </div>
-          <div class="prwarn" aria-label="kage pr check stale-catch output">
-            <div class="head">⚠ Your changes invalidated 2 team memories</div>
-            <div class="row">
-              <b>Auth uses jose, not jsonwebtoken</b>
-              <span>cites src/auth/session.ts — file changed in this diff</span>
-              <span class="fix">fix: kage reverify --packet auth-jose · or kage supersede</span>
-            </div>
-            <div class="row">
-              <b>Webhook retries are capped at 3</b>
-              <span>cites src/webhooks/retry.ts — constant removed</span>
-              <span class="fix">fix: kage learn (update) — then this warning disappears</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="wrap feature flip">
-          <div class="feature-copy">
-            <span class="eyebrow">Sync — no account</span>
-            <h2>Memory that follows you.</h2>
-            <p class="lede">Personal memory lives in <code>~/.kage/memory</code> and syncs over a private git remote <em>you</em> own. Conflicts resolve newest-wins with both versions kept — and synced packets are re-verified against the local checkout before any recall trusts them.</p>
-          </div>
-          <div class="syncwrap">
-            <div class="syncchip"><span class="dot"></span>git@github.com:you/kage-memory.git<span class="st">● synced · 2 machines</span></div>
-            <div class="terminal">
-              <div class="terminal-head"><span>kage sync</span><span>your remote, your keys</span></div>
-              <pre>$ kage sync
-pushed 2, pulled 1, resolved 0
-$ kage learn --personal --learning "Always run the full suite before releasing"
-✓ captured · personal · re-verified on every machine</pre>
-            </div>
-          </div>
-        </div>
-      </section>
-
+      <!-- ——————————————— PROOF ——————————————— -->
       <section class="section">
         <div class="wrap">
           <div class="section-head">
             <span class="eyebrow">Proof</span>
             <h2>Trust you can measure — on your own repo.</h2>
-            <p class="lede">Most memory tools benchmark recall. Kage benchmarks the thing that matters when an agent acts: whether the memory can be trusted.</p>
+            <p class="lede">Most memory tools benchmark recall. Kage benchmarks the thing that matters when an agent acts: whether the memory can be trusted. Run it yourself; every number traces to a logged event.</p>
           </div>
           <div class="terminal">
             <div class="terminal-head">
@@ -505,66 +420,39 @@ $ kage learn --personal --learning "Always run the full suite before releasing"
         </div>
       </section>
 
+      <!-- ——————————————— AGENTS ——————————————— -->
       <section class="section">
         <div class="wrap">
           <div class="section-head">
             <span class="eyebrow">Works with your agent</span>
-            <h2>One package. Any MCP-capable coding agent.</h2>
-            <p class="lede">Kage ships a stdio MCP server and a CLI. <code>kage install</code> auto-detects and wires every agent on your machine; <code>kage setup &lt;agent&gt; --write</code> wires one by hand. Claude Code users can also <code>/plugin marketplace add kage-core/Kage</code>.</p>
+            <h2>One package. Every MCP agent.</h2>
+            <p class="lede"><code>kage install</code> auto-detects and wires everything on your machine. Claude Code users can also <code>/plugin marketplace add kage-core/Kage</code>.</p>
           </div>
           <div class="agents">
-            <div class="agent"><strong>Claude Code</strong><span>kage setup claude-code</span></div>
-            <div class="agent"><strong>Codex</strong><span>kage setup codex</span></div>
-            <div class="agent"><strong>Cursor</strong><span>kage setup cursor</span></div>
-            <div class="agent"><strong>Windsurf</strong><span>kage setup windsurf</span></div>
-            <div class="agent"><strong>Gemini CLI</strong><span>kage setup gemini-cli</span></div>
-            <div class="agent"><strong>Cline</strong><span>kage setup cline</span></div>
-            <div class="agent"><strong>Goose</strong><span>kage setup goose</span></div>
-            <div class="agent"><strong>Any MCP client</strong><span>kage setup generic-mcp</span></div>
+            <span class="agent">Claude Code</span>
+            <span class="agent">Codex</span>
+            <span class="agent">Cursor</span>
+            <span class="agent">Windsurf</span>
+            <span class="agent">Gemini CLI</span>
+            <span class="agent">Cline</span>
+            <span class="agent">Goose</span>
+            <span class="agent">Roo Code</span>
+            <span class="agent">Kilo Code</span>
+            <span class="agent">OpenCode</span>
+            <span class="agent">Aider</span>
+            <span class="agent">Claude Desktop</span>
+            <span class="agent">any MCP client</span>
           </div>
         </div>
       </section>
 
-      <section class="section">
-        <div class="wrap">
-          <div class="section-head">
-            <span class="eyebrow">Trust model</span>
-            <h2>Local-first by default. Sharing is explicit.</h2>
-          </div>
-          <div class="trust-points">
-            <div class="trust-point"><strong>Repo-local memory</strong><span>Packets live in <code>.agent_memory/</code> next to the code, reviewable as JSON.</span></div>
-            <div class="trust-point"><strong>No hosted service required</strong><span>Recall, viewer, and graphs work without external databases or API keys.</span></div>
-            <div class="trust-point"><strong>Secrets filtered, <code>&lt;private&gt;</code> honored</strong><span>Credentials and PII are scanned out, and anything you wrap in <code>&lt;private&gt;…&lt;/private&gt;</code> is never stored — redacted before any packet or observation touches disk.</span></div>
-            <div class="trust-point"><strong>Sharing is human-gated</strong><span>Org, global, and public promotion require explicit review commands.</span></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="wrap">
-          <div class="section-head">
-            <span class="eyebrow">Viewer</span>
-            <h2>Watch memory happen, live.</h2>
-            <p class="lede">The viewer leads with your Gains receipt and a live feed — packets and value events stream in as the agent works. Drill into packets, code links, risks, and the review queue when you need to trust what was retrieved.</p>
-          </div>
-          <div class="demo">
-            <a href="viewer/" aria-label="Open Kage viewer">
-              <img src="assets/kage-viewer-demo-poster.png" alt="Kage viewer — Memory Trust dashboard with live recall stats and the memory↔code map" />
-            </a>
-            <div class="demo-caption">
-              <strong>Open the hosted viewer</strong>
-              <span>Search packets, follow memory-to-code links, and check risks before edits.</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="section">
+      <!-- ——————————————— PRICING ——————————————— -->
+      <section class="section" id="pricing">
         <div class="wrap">
           <div class="section-head">
             <span class="eyebrow">Pricing</span>
             <h2>Free where it matters. Verified everywhere.</h2>
-            <p class="lede">The open-source core is complete on its own — verification, receipts, sync over your own git remote. Nothing recalls unless it still checks out against the code.</p>
+            <p class="lede">The open-source core is complete on its own — verification, receipts, sync over your own git remote. Local-first, private by default: secrets are scanned out and <code>&lt;private&gt;…&lt;/private&gt;</code> is never stored.</p>
           </div>
           <div class="cards">
             <div class="card">
@@ -576,34 +464,50 @@ $ kage learn --personal --learning "Always run the full suite before releasing"
               <h3>Kage Cloud</h3>
               <p style="font: 600 26px/1 var(--serif); color: var(--ink); margin-top: 10px;">$0 <span style="font: 400 13px/1 var(--sans); color: var(--muted);">early access</span></p>
               <p>Memory that follows you: your packets on every machine behind one private MCP link — verification stays client-side, so the cloud never sees your code.</p>
-              <p style="margin-top: 12px;"><a class="button primary" href="https://github.com/kage-core/Kage/issues/74">Join the waitlist</a></p>
+              <p style="margin-top: 12px;"><a class="button primary" href="#access">Join the waitlist</a></p>
             </div>
             <div class="card">
               <h3>Team</h3>
               <p style="font: 600 26px/1 var(--serif); color: var(--ink); margin-top: 10px;">Coming soon</p>
-              <p>Shared team memory with review gates — the same PR-reviewed trust model, hosted. Early waitlist comments shape it.</p>
-              <p style="margin-top: 12px;"><a class="button" href="CLOUD.md">Read the design</a></p>
+              <p>Shared team memory with review gates — the same PR-reviewed trust model, hosted. Early design partners shape it.</p>
+              <p style="margin-top: 12px;"><a class="button" href="#access">Book a demo</a></p>
             </div>
           </div>
         </div>
       </section>
 
+      <!-- ——————————————— EARLY ACCESS ——————————————— -->
+      <section class="section" id="access">
+        <div class="wrap">
+          <div class="access">
+            <span class="eyebrow">Early access</span>
+            <h2>Stop letting your agent forget.</h2>
+            <p class="lede">The open-source core installs in 60 seconds. Kage Cloud — memory on every machine behind one private MCP link — is rolling out to the waitlist first.</p>
+            <div class="actions">
+              <a class="button primary" href="https://github.com/kage-core/Kage/issues/74">Join the Cloud waitlist</a>
+              <a class="button" href="mailto:18kushaljain@gmail.com?subject=Kage%20demo%20request&body=Hi%20—%20I%27d%20like%20a%20demo%20of%20Kage%20for%20my%20team.%0A%0ATeam%20size%3A%0AAgents%20we%20use%3A%0ARepos%2Flanguages%3A">Book a demo</a>
+            </div>
+            <p class="fine">Waitlist is one click on GitHub — 👍 or comment to join. Demos are 30 minutes, your repo, live. Or skip the line: <a href="guide.html#quickstart">install the open-source core now</a>.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ——————————————— QUICKSTART ——————————————— -->
       <section class="section">
         <div class="wrap">
           <div class="section-head">
             <span class="eyebrow">Quickstart</span>
-            <h2>Start with one repo.</h2>
-            <p class="lede">Requires Node.js 18 or newer. The package installs two binaries: <code>kage</code> and <code>kage-graph-mcp</code>.</p>
+            <h2>Sixty seconds to verified memory.</h2>
           </div>
           <div class="terminal">
             <div class="terminal-head">
               <span>quickstart</span>
               <span>npm</span>
             </div>
-            <pre># see the trust wedge in 30 seconds — no setup, no API key
+            <pre># see the trust demo — no setup, no API key
 npx -y @kage-core/kage-graph-mcp demo
 
-# then wire it into your repo + agent — one command, auto-detects your agents
+# wire it into your repo + agents — one command, auto-detects everything
 npx -y @kage-core/kage-graph-mcp install
 kage setup verify-agent --agent claude-code --project .   # confirm it's live</pre>
           </div>
@@ -624,21 +528,24 @@ kage setup verify-agent --agent claude-code --project .   # confirm it's live</p
         </span>
         <span>
           <strong style="color:var(--ink)">Product</strong><br />
-          <a href="guide.html#quickstart">Quickstart</a><br />
-          <a href="viewer/">Viewer</a><br />
-          <a href="benchmarks.html">Benchmarks</a>
+          <a href="#how">How it works</a><br />
+          <a href="#compare">Compare</a><br />
+          <a href="#pricing">Pricing</a><br />
+          <a href="viewer/">Viewer</a>
         </span>
         <span>
           <strong style="color:var(--ink)">Docs</strong><br />
+          <a href="guide.html#quickstart">Quickstart</a><br />
           <a href="guide.html">Guide</a><br />
-          <a href="releases.html">Releases</a><br />
-          <a href="guide.html#choose-agent">Supported agents</a>
+          <a href="benchmarks.html">Benchmarks</a><br />
+          <a href="releases.html">Releases</a>
         </span>
         <span>
           <strong style="color:var(--ink)">Community</strong><br />
           <a href="https://github.com/kage-core/Kage">GitHub</a><br />
           <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a><br />
-          <a href="https://github.com/kage-core/Kage/issues">Issues</a>
+          <a href="https://github.com/kage-core/Kage/issues/74">Cloud waitlist</a><br />
+          <a href="mailto:18kushaljain@gmail.com?subject=Kage%20demo%20request">Book a demo</a>
         </span>
       </div>
     </footer>
