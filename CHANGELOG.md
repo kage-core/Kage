@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v2.0.2 - one-shot install + plugin hooks
 
 - **`kage install` — one-shot setup.** `npx -y @kage-core/kage-graph-mcp install`
   now runs init + index, auto-detects installed agents (Claude Code, Codex,
