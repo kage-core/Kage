@@ -32,4 +32,14 @@ Before finishing a task that changed files: kage_pr_summarize or kage_propose_fr
 If recalled memory helped: kage_feedback helpful. If wrong or stale: kage_feedback wrong or stale."
 fi
 
+# Session continuity: append a compact "previously…" digest when prior session data exists.
+if command -v kage >/dev/null 2>&1; then
+  PREVIOUSLY="$(kage resume --project "$CWD" 2>/dev/null || true)"
+  if [[ -n "$PREVIOUSLY" ]]; then
+    POLICY="$POLICY
+
+$PREVIOUSLY"
+  fi
+fi
+
 KAGE_MSG="$POLICY" python3 -c "import json,os; print(json.dumps({'systemMessage': os.environ['KAGE_MSG']}))"
