@@ -8,7 +8,7 @@
   "scope": "repo",
   "visibility": "team",
   "sensitivity": "internal",
-  "status": "approved",
+  "status": "deprecated",
   "confidence": 0.7,
   "tags": [
     "session-learning",
@@ -62,9 +62,14 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 159
+    "estimated_tokens_saved": 159,
+    "stale": true,
+    "stale_reasons": [
+      "linked path changed since memory was verified: docs/guide.html"
+    ],
+    "suggested_action": "update"
   },
   "created_at": "2026-06-12T12:46:29.143Z",
-  "updated_at": "2026-06-12T12:46:52.510Z",
+  "updated_at": "2026-06-12T13:03:21.701Z",
   "author_branch": "master"
 }
