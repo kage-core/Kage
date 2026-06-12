@@ -25,6 +25,7 @@ import {
   classifyClaudeMemObservations,
   renderClaudeMemAuditReceipt,
   kageActivity,
+  kageFileContext,
   catalogDomainNodeCount,
   createReviewArtifact,
   createPublicCandidate,
@@ -2059,6 +2060,20 @@ test("setup generates all-agent MCP configuration and writes Codex config idempo
   const observeHookPath = join(home, ".claude", "kage", "hooks", "observe.sh");
   execFileSync("bash", ["-n", observeHookPath]);
   execFileSync("bash", ["-n", join(home, ".claude", "kage", "hooks", "stop.sh")]);
+  // PreToolUse(Read) memory injection: dedicated script + a "Read"-matcher hook entry.
+  const readContextHookPath = join(home, ".claude", "kage", "hooks", "kage-read-context.sh");
+  const readContextHook = readFileSync(readContextHookPath, "utf8");
+  execFileSync("bash", ["-n", readContextHookPath]);
+  assert.match(readContextHook, /kage file-context --project "\$CWD" --path "\$FILE_PATH"/);
+  assert.match(readContextHook, /hookSpecificOutput/);
+  assert.match(readContextHook, /additionalContext/);
+  assert.equal(claudeSettings.hooks.PreToolUse.length, 2);
+  assert.equal(claudeSettings.hooks.PreToolUse[1].matcher, "Read");
+  assert.match(claudeSettings.hooks.PreToolUse[1].hooks[0].command, /kage-read-context\.sh/);
+  // The vendored plugin copy stays in sync with the generated script's behavior.
+  const pluginReadContext = readFileSync(join(__dirname, "..", "..", "plugin", "hooks", "kage-read-context.sh"), "utf8");
+  assert.match(pluginReadContext, /kage file-context --project "\$CWD" --path "\$FILE_PATH"/);
+  assert.match(pluginReadContext, /hookSpecificOutput/);
   const fakeBin = join(home, "bin");
   mkdirSync(fakeBin, { recursive: true });
   const fakeLog = join(home, "kage.log");
@@ -4328,6 +4343,115 @@ test("recall records value ledger receipts for served and withheld memory", () =
   const ledger = JSON.parse(readFileSync(join(project, ".agent_memory", "reports", "value.json"), "utf8"));
   assert.equal(ledger.events.some((event: { kind: string }) => event.kind === "recall_served"), true);
   assert.equal(ledger.events.some((event: { kind: string; packet_title?: string }) => event.kind === "stale_withheld" && event.packet_title === "Gone billing note"), true);
+});
+
+test("capture stores discovery_tokens: caller-reported values kept, conservative per-type defaults estimated", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "auth.ts"), "export const tokenTtlMinutes = 60;\n", "utf8");
+
+  const reported = capture({ projectDir: project, title: "Auth ttl invariant", body: "Auth token ttl is configured in src/auth.ts and rotates hourly.", type: "decision", paths: ["src/auth.ts"], discoveryTokens: 12345 });
+  assert.equal(reported.ok, true);
+  assert.equal(reported.packet?.quality.discovery_tokens, 12345);
+  assert.equal(reported.packet?.quality.discovery_tokens_estimated, false);
+
+  const bugFix = capture({ projectDir: project, title: "Auth ttl off-by-one fix", body: "Fixed the ttl off-by-one in src/auth.ts; root cause was minute rounding.", type: "bug_fix", paths: ["src/auth.ts"] });
+  assert.equal(bugFix.packet?.quality.discovery_tokens, 8000);
+  assert.equal(bugFix.packet?.quality.discovery_tokens_estimated, true);
+
+  const reference = capture({ projectDir: project, title: "Auth module reference", body: "The auth module lives in src/auth.ts and exports the ttl constant.", type: "reference", paths: ["src/auth.ts"] });
+  assert.equal(reference.packet?.quality.discovery_tokens, 2000);
+  assert.equal(reference.packet?.quality.discovery_tokens_estimated, true);
+
+  const viaLearn = learn({ projectDir: project, learning: "Gotcha: ttl in src/auth.ts is minutes, not seconds. Watch out for unit confusion.", type: "gotcha", paths: ["src/auth.ts"], discoveryTokens: 555 });
+  assert.equal(viaLearn.ok, true);
+  assert.equal(viaLearn.packet?.quality.discovery_tokens, 555);
+  assert.equal(viaLearn.packet?.quality.discovery_tokens_estimated, false);
+});
+
+test("recall receipt uses knowledge replay value when larger, floored at the read-vs-source estimate", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  // Tiny cited file: the read-vs-source estimate is ~0, so the replay value must win.
+  writeFileSync(join(project, "src", "billing.ts"), "export const billing = 1;\n", "utf8");
+  capture({ projectDir: project, title: "Billing retry rule", body: "Billing retries use idempotency keys in src/billing.ts.", type: "decision", paths: ["src/billing.ts"], discoveryTokens: 50_000 });
+
+  const result = recall(project, "billing retry idempotency", 5);
+  assert.equal(result.results.some((entry) => entry.packet.title === "Billing retry rule"), true);
+  assert.ok(result.value_receipt);
+  const expectedReplay = Math.max(0, 50_000 - Math.ceil(result.context_block.length / 4));
+  assert.equal(result.value_receipt.replay_tokens, expectedReplay);
+  assert.equal(result.value_receipt.tokens_saved, expectedReplay);
+  assert.equal(expectedReplay > 40_000, true);
+
+  // The replay value lands in the ledger so `kage gains` can report it.
+  const summary = valueSummary(project);
+  assert.equal(summary.all_time.replay_tokens, expectedReplay);
+  assert.equal(summary.all_time.tokens_saved, expectedReplay);
+
+  // Floor: a large cited source with a tiny discovery cost never reports less
+  // than the pre-discovery_tokens read-vs-source behavior.
+  const floored = tempProject();
+  mkdirSync(join(floored, "src"), { recursive: true });
+  writeFileSync(join(floored, "src", "big.ts"), `// big module\n${"export const line = 1;\n".repeat(4000)}`, "utf8");
+  capture({ projectDir: floored, title: "Big module invariant", body: "Big module exports stable line constants from src/big.ts.", type: "reference", paths: ["src/big.ts"], discoveryTokens: 10 });
+  const flooredResult = recall(floored, "big module line constants", 5);
+  assert.equal(flooredResult.results.some((entry) => entry.packet.title === "Big module invariant"), true);
+  assert.ok(flooredResult.value_receipt);
+  // discovery (10) < context cost, so replay is 0 and read-vs-source carries the receipt.
+  assert.equal(flooredResult.value_receipt.replay_tokens, undefined);
+  assert.equal(flooredResult.value_receipt.tokens_saved > 10_000, true);
+});
+
+test("file-context returns only verified packets citing the file, capped at three, empty otherwise", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "auth.ts"), "export const tokenTtlMinutes = 60;\n", "utf8");
+
+  const valid = capture({ projectDir: project, title: "Auth ttl rule", body: "Auth tokens rotate hourly; ttl lives in src/auth.ts.", type: "decision", paths: ["src/auth.ts"] });
+  assert.equal(valid.ok, true);
+  const stale = capture({ projectDir: project, title: "Stale auth note", body: "Old auth rotation behavior documented in src/auth.ts.", type: "decision", paths: ["src/auth.ts"] });
+  assert.equal(stale.ok, true);
+  // Mark the second packet reported-stale on disk: it must never be injected.
+  const stalePacket = JSON.parse(readFileSync(stale.path!, "utf8"));
+  stalePacket.quality.reports_stale = 1;
+  writeFileSync(stale.path!, JSON.stringify(stalePacket, null, 2), "utf8");
+
+  const result = kageFileContext(project, "src/auth.ts");
+  assert.equal(result.packets.length, 1);
+  assert.equal(result.packets[0].title, "Auth ttl rule");
+  assert.match(result.context_block, /# Kage File Context: src\/auth\.ts/);
+  assert.match(result.context_block, /Auth ttl rule/);
+  assert.doesNotMatch(result.context_block, /Stale auth note/);
+  assert.equal(result.context_block.split("\n").length <= 20, true);
+  // A non-empty injection records a value event.
+  assert.equal(valueSummary(project).all_time.recalls >= 1, true);
+
+  // Absolute paths inside the project resolve to the same packets.
+  const absolute = kageFileContext(project, join(project, "src", "auth.ts"));
+  assert.equal(absolute.packets.length, 1);
+
+  // A changed cited file makes the memory unverified — excluded, not injected.
+  writeFileSync(join(project, "src", "auth.ts"), "export const tokenTtlMinutes = 120; // changed\n", "utf8");
+  const afterChange = kageFileContext(project, "src/auth.ts");
+  assert.equal(afterChange.packets.length, 0);
+  assert.equal(afterChange.context_block, "");
+
+  // Cap: at most three verified packets even when more cite the file.
+  writeFileSync(join(project, "src", "billing.ts"), "export const billing = 1;\n", "utf8");
+  for (const title of ["Billing rule A", "Billing rule B", "Billing rule C", "Billing rule D", "Billing rule E"]) {
+    assert.equal(capture({ projectDir: project, title, body: `${title}: billing invariants live in src/billing.ts.`, type: "decision", paths: ["src/billing.ts"] }).ok, true);
+  }
+  const capped = kageFileContext(project, "src/billing.ts");
+  assert.equal(capped.packets.length, 3);
+  assert.equal(capped.context_block.split("\n").length <= 20, true);
+
+  // Empty cases stay clean: uncited files, files outside the project, blank paths.
+  const uncited = kageFileContext(project, "src/none.ts");
+  assert.equal(uncited.packets.length, 0);
+  assert.equal(uncited.context_block, "");
+  assert.equal(kageFileContext(project, "/etc/hosts").context_block, "");
+  assert.equal(kageFileContext(project, "  ").context_block, "");
 });
 
 test("caller-intent code graph answers record caller_answered value events", () => {

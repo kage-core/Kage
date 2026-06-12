@@ -42,6 +42,7 @@ import {
   kageDecisionIntelligence,
   deleteContextSlot,
   kageDependencyPath,
+  kageFileContext,
   kageGraphInsights,
   kageHookInstall,
   kageHookStatus,
@@ -206,12 +207,13 @@ Usage:
   kage graph-registry --project <dir> [--json]
   kage embeddings build --project <dir> [--model Xenova/all-MiniLM-L6-v2] [--json]
   kage recall "<query>" --project <dir> [--json] [--explain] [--embeddings] [--max-context-tokens <n>] [--structural-hops <n>]
+  kage file-context --project <dir> --path <file> [--json]
   kage observe --project <dir> --event <json>
   kage sessions --project <dir> [--json]
   kage replay --project <dir> [--session <id>] [--limit <n>] [--json]
   kage distill --project <dir> --session <id> [--auto] [--json]
   kage resume --project <dir> [--json]
-  kage learn --project <dir> --learning <text> [--title <title>] [--type <type>] [--evidence <text>] [--verified-by <text>] [--tags a,b] [--paths a,b] [--graph-nodes a,b] [--allow-missing-paths]
+  kage learn --project <dir> --learning <text> [--title <title>] [--type <type>] [--evidence <text>] [--verified-by <text>] [--tags a,b] [--paths a,b] [--graph-nodes a,b] [--discovery-tokens <n>] [--allow-missing-paths]
   kage feedback --project <dir> --packet <packet-id> --kind helpful|wrong|stale
   kage capture --project <dir> --title <title> --body <body> [--type <type>] [--summary <summary>] [--tags a,b] [--paths a,b] [--stack a,b] [--graph-nodes a,b] [--allow-missing-paths]
   kage propose --project <dir> --from-diff
@@ -1225,6 +1227,23 @@ async function main(): Promise<void> {
       `${window.caller_answers} caller ${plural(window.caller_answers, "answer", "answers")}`;
     console.log(windowLine("Today:   ", summary.today));
     console.log(windowLine("All time:", summary.all_time));
+    if (summary.all_time.replay_tokens > 0) {
+      console.log(
+        `Knowledge replay value: ~${formatTokenCount(week.replay_tokens)} tokens this week · ` +
+        `~${formatTokenCount(summary.all_time.replay_tokens)} all time ` +
+        `(discovery cost of served memories vs their compressed read cost)`
+      );
+    }
+    return;
+  }
+
+  if (command === "file-context") {
+    const path = takeArg(args, "--path");
+    if (!path) usage();
+    const result = kageFileContext(projectArg(args), path);
+    if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
+    else if (result.context_block) console.log(result.context_block);
+    // No verified packets cite this file: print nothing so hooks can gate on empty output.
     return;
   }
 
@@ -1779,6 +1798,7 @@ async function main(): Promise<void> {
       graphNodes: listArg(takeArg(args, "--graph-nodes")),
       allowMissingPaths: args.includes("--allow-missing-paths"),
       strictCitations: true,
+      discoveryTokens: args.includes("--discovery-tokens") ? numberArg(args, "--discovery-tokens", 0) : undefined,
     });
     if (!result.ok) {
       console.error(`Learning capture blocked:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);

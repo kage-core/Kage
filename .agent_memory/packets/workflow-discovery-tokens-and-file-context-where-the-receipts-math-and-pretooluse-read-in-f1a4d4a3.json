@@ -1,0 +1,91 @@
+{
+  "schema_version": 2,
+  "id": "repo:agent-a0db5deec36d8765d:workflow:discovery-tokens-and-file-context-where-the-receipts-math-and-pretooluse-read-in",
+  "title": "discovery_tokens and file-context: where the receipts math and PreToolUse(Read) injection live",
+  "summary": "Per packet discovery cost lives under quality.discovery tokens capture in mcp/kernel.ts; conservative per type defaults in DEFAULT DISCOVERY TOKENS, flagged discovery tokens estimated when not caller reported; auto disti",
+  "body": "Per-packet discovery cost lives under quality.discovery_tokens (capture() in mcp/kernel.ts; conservative per-type defaults in DEFAULT_DISCOVERY_TOKENS, flagged discovery_tokens_estimated when not caller-reported; auto-distill estimates from session observation material). Recall receipts take max(read-vs-source, replayTokensSaved()) so savings never regress; replay_tokens flows into the value ledger and the 'Knowledge replay value' line in kage gains. kageFileContext() (kernel.ts) returns <=3 verified packets citing a file — it reuses staleMemoryReasons() so ANY stale reason excludes a packet; CLI command is 'kage file-context --project <dir> --path <file>'. The Claude Code PreToolUse(Read) hook kage-read-context.sh is generated in setupAgent() and vendored in plugin/hooks/kage-read-context.sh (keep both in sync); it dedups one injection per file per session via /tmp/kage-read-context/<sha(session|path)> state files and always exits 0.\nVerified by: npm test in mcp/: 220 tests pass, including new tests for discovery_tokens defaults, receipt floor math, and file-context verification gating",
+  "type": "workflow",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "value-ledger",
+    "receipts",
+    "hooks",
+    "claude-mem-adoption"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/cli.ts",
+    "plugin/hooks/kage-read-context.sh",
+    "plugin/hooks/hooks.json"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-12T07:39:52.056Z"
+    }
+  ],
+  "context": {
+    "fact": "Per-packet discovery cost lives under quality.discovery_tokens (capture() in mcp/kernel.ts; conservative per-type defaults in DEFAULT_DISCOVERY_TOKENS, flagged discovery_tokens_estimated when not caller-reported; auto-distill estimates from session observation material). Recall receipts take max(read-vs-source, replayTokensSaved()) so savings never regress; replay_tokens flows into the value ledger and the 'Knowledge replay value' line in kage gains. kageFileContext() (kernel.ts) returns <=3 verified packets citing a file — it reuses staleMemoryReasons() so ANY stale reason excludes a packet; CLI command is 'kage file-context --project <dir> --path <file>'. The Claude Code PreToolUse(Read) hook kage-read-context.sh is generated in setupAgent() and vendored in plugin/hooks/kage-read-context.sh (keep both in sync); it dedups one injection per file per session via /tmp/kage-read-context/<sha(session|path)> state files and always exits 0.\nVerified by: npm test in mcp/: 220 tests pass, including new tests for discovery_tokens defaults, receipt floor math, and file-context verification gating",
+    "verification": "npm test in mcp/: 220 tests pass, including new tests for discovery_tokens defaults, receipt floor math, and file-context verification gating"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-12T07:39:52.056Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "938f4dbe69ba275d6172b6e2c01e382ef22b233a75423b555aa0fee993157946",
+        "size": 726179
+      },
+      {
+        "path": "mcp/cli.ts",
+        "sha256": "61150c7062d22def512bc6e03c28107dc4936ddc08cf4c0d350e2bffa820a876",
+        "size": 97464
+      },
+      {
+        "path": "plugin/hooks/kage-read-context.sh",
+        "sha256": "2cd1e31ae20f2af802f23e464190a8c42bd472891a1aa586a0d67ea687b43186",
+        "size": 2412
+      },
+      {
+        "path": "plugin/hooks/hooks.json",
+        "sha256": "b3004a45f9e656573062fdfc7d32abfabd35f226adf974d9c818c621f26a514b",
+        "size": 781
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "stale_reasons": [],
+    "estimated_tokens_saved": 276
+  },
+  "created_at": "2026-06-12T07:39:52.056Z",
+  "updated_at": "2026-06-12T07:39:52.056Z",
+  "author_branch": "adopt/receipts-and-read-context"
+}

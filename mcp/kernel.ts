@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import type { Stats } from "node:fs";
 import { availableParallelism, homedir, tmpdir } from "node:os";
-import { basename, delimiter, dirname, join, relative, resolve, sep } from "node:path";
+import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { Worker } from "node:worker_threads";
 import * as ts from "typescript";
 import { createPublicCandidateBundleManifest, createSignedManifest, generateOrgRegistryManifest } from "./registry/index.js";
@@ -185,8 +185,10 @@ export interface RecallResult {
   explanations?: RecallExplanation[];
   suppressed?: Array<{ id: string; title: string; reason: string }>;
   // Value receipt for this recall: tokens the agent avoided spending by not
-  // re-reading the cited source files, plus how many stale packets were withheld.
-  value_receipt?: { tokens_saved: number; stale_withheld: number };
+  // re-reading the cited source files (or, when larger, the knowledge-replay value
+  // of the served packets' discovery_tokens), plus how many stale packets were
+  // withheld. replay_tokens is present when served packets carried discovery costs.
+  value_receipt?: { tokens_saved: number; stale_withheld: number; replay_tokens?: number };
 }
 
 export interface RecallScoreBreakdown {
@@ -311,6 +313,11 @@ export interface CaptureInput {
   graphNodes?: string[];
   /** Write the packet to the pending inbox (status "pending") instead of approved memory. */
   pendingReview?: boolean;
+  /**
+   * Approximate token cost of producing this knowledge (exploration + reasoning).
+   * When omitted, a conservative per-type default is stored and marked estimated.
+   */
+  discoveryTokens?: number;
 }
 
 export interface CaptureResult {
@@ -337,6 +344,11 @@ export interface LearnInput {
   graphNodes?: string[];
   /** Write the packet to the pending inbox (status "pending") instead of approved memory. */
   pendingReview?: boolean;
+  /**
+   * Approximate token cost of producing this knowledge (exploration + reasoning).
+   * When omitted, a conservative per-type default is stored and marked estimated.
+   */
+  discoveryTokens?: number;
 }
 
 export type LearnResult = CaptureResult;
@@ -3027,7 +3039,7 @@ const VALUE_LEDGER_EVENT_CAP = 5000;
 const VALUE_DOLLARS_PER_MILLION_TOKENS = 15;
 
 export type ValueEvent =
-  | { kind: "recall_served"; tokens_saved: number }
+  | { kind: "recall_served"; tokens_saved: number; replay_tokens?: number }
   | { kind: "stale_withheld"; packet_title: string }
   | { kind: "stale_caught"; packet_title: string }
   | { kind: "caller_answered" };
@@ -3036,18 +3048,22 @@ interface ValueLedgerEvent {
   at: string;
   kind: ValueEvent["kind"];
   tokens_saved?: number;
+  // Knowledge replay value of a served recall: discovery_tokens of the served
+  // packets minus the compressed cost of re-reading them as context.
+  replay_tokens?: number;
   packet_title?: string;
 }
 
 interface ValueLedger {
   schema_version: number;
   // All-time rollups survive the event cap: events get trimmed, totals never lose history.
-  totals: { tokens_saved: number; stale_withheld: number; stale_caught: number; recalls: number; caller_answers: number };
+  totals: { tokens_saved: number; replay_tokens: number; stale_withheld: number; stale_caught: number; recalls: number; caller_answers: number };
   events: ValueLedgerEvent[];
 }
 
 export interface ValueWindowSummary {
   tokens_saved: number;
+  replay_tokens: number;
   stale_withheld: number;
   stale_caught: number;
   recalls: number;
@@ -3070,7 +3086,7 @@ function valueLedgerPath(projectDir: string): string {
 function emptyValueLedger(): ValueLedger {
   return {
     schema_version: VALUE_LEDGER_SCHEMA_VERSION,
-    totals: { tokens_saved: 0, stale_withheld: 0, stale_caught: 0, recalls: 0, caller_answers: 0 },
+    totals: { tokens_saved: 0, replay_tokens: 0, stale_withheld: 0, stale_caught: 0, recalls: 0, caller_answers: 0 },
     events: [],
   };
 }
@@ -3099,6 +3115,7 @@ function readValueLedger(projectDir: string): ValueLedger {
       schema_version: VALUE_LEDGER_SCHEMA_VERSION,
       totals: {
         tokens_saved: nonNegativeCount(totals.tokens_saved),
+        replay_tokens: nonNegativeCount(totals.replay_tokens),
         stale_withheld: nonNegativeCount(totals.stale_withheld),
         stale_caught: nonNegativeCount(totals.stale_caught),
         recalls: nonNegativeCount(totals.recalls),
@@ -3120,7 +3137,9 @@ function recordValueEvents(projectDir: string, events: ValueEvent[]): void {
       const record: ValueLedgerEvent = { at, kind: event.kind };
       if (event.kind === "recall_served") {
         record.tokens_saved = nonNegativeCount(event.tokens_saved);
+        record.replay_tokens = nonNegativeCount(event.replay_tokens);
         ledger.totals.tokens_saved += record.tokens_saved;
+        ledger.totals.replay_tokens += record.replay_tokens;
         ledger.totals.recalls += 1;
       } else if (event.kind === "stale_withheld") {
         record.packet_title = event.packet_title;
@@ -3155,13 +3174,14 @@ function estimatedTokenDollars(tokensSaved: number): number {
 }
 
 function summarizeValueWindow(events: ValueLedgerEvent[], cutoff: number): ValueWindowSummary {
-  const window = { tokens_saved: 0, stale_withheld: 0, stale_caught: 0, recalls: 0, caller_answers: 0 };
+  const window = { tokens_saved: 0, replay_tokens: 0, stale_withheld: 0, stale_caught: 0, recalls: 0, caller_answers: 0 };
   for (const event of events) {
     const at = Date.parse(event.at);
     if (!Number.isFinite(at) || at < cutoff) continue;
     if (event.kind === "recall_served") {
       window.recalls += 1;
       window.tokens_saved += nonNegativeCount(event.tokens_saved);
+      window.replay_tokens += nonNegativeCount(event.replay_tokens);
     } else if (event.kind === "stale_withheld") {
       window.stale_withheld += 1;
     } else if (event.kind === "stale_caught") {
@@ -3209,6 +3229,98 @@ function recallTokensSaved(projectDir: string, results: RecallResult["results"],
     }
   }
   return Math.max(0, Math.floor(sourceBytes / 4) - Math.floor(contextBlock.length / 4));
+}
+
+// Conservative per-type defaults for discovery_tokens — the approximate exploration +
+// reasoning tokens an agent typically burns to produce knowledge of this type — used
+// when a capture does not report its actual discovery cost. Deliberately low so
+// knowledge-replay receipts under-claim rather than over-claim.
+const DEFAULT_DISCOVERY_TOKENS: Partial<Record<MemoryType, number>> = {
+  bug_fix: 8000,
+  gotcha: 8000,
+  decision: 4000,
+};
+const DEFAULT_DISCOVERY_TOKENS_FALLBACK = 2000;
+
+function defaultDiscoveryTokens(type: MemoryType): number {
+  return DEFAULT_DISCOVERY_TOKENS[type] ?? DEFAULT_DISCOVERY_TOKENS_FALLBACK;
+}
+
+function packetDiscoveryTokens(packet: MemoryPacket): number {
+  const value = Number((packet.quality as Record<string, unknown> | undefined)?.discovery_tokens);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+// Knowledge replay value: the tokens originally spent discovering the served packets'
+// knowledge minus the compressed cost of re-reading them as context. Floored at zero.
+// Recall receipts take the max of this and the read-vs-source estimate, so reported
+// savings never drop below the pre-discovery_tokens behavior and never go negative.
+function replayTokensSaved(packets: MemoryPacket[], contextBlock: string): number {
+  const discovery = packets.reduce((sum, packet) => sum + packetDiscoveryTokens(packet), 0);
+  if (discovery <= 0) return 0;
+  return Math.max(0, discovery - estimateTokens(contextBlock));
+}
+
+export interface FileContextResult {
+  schema_version: 1;
+  project_dir: string;
+  path: string;
+  packets: Array<{ id: string; title: string; type: MemoryType; summary: string; confidence: number }>;
+  context_block: string;
+}
+
+const FILE_CONTEXT_PACKET_CAP = 3;
+
+// PreToolUse(Read) injection: verified memory at the moment of relevance. Returns at
+// most three currently-verified packets that cite the file an agent is about to read,
+// as a compact context block. Reuses the same staleness machinery as recall — a packet
+// with ANY stale reason (deprecated/superseded, reported stale, ttl expired, missing or
+// changed citations) is never injected, so the block only ever carries verified memory.
+export function kageFileContext(projectDir: string, filePath: string): FileContextResult {
+  const result: FileContextResult = {
+    schema_version: 1,
+    project_dir: resolve(projectDir),
+    path: "",
+    packets: [],
+    context_block: "",
+  };
+  if (!filePath || !filePath.trim()) return result;
+  let rel = filePath.trim().replace(/\\/g, "/");
+  if (isAbsolute(rel)) rel = relative(resolve(projectDir), rel).replace(/\\/g, "/");
+  rel = rel.replace(/^\.\//, "").replace(/^\/+/, "");
+  result.path = rel;
+  // Files outside the project (or an uninitialized project) never produce context.
+  if (!rel || rel.startsWith("..") || !existsSync(memoryRoot(projectDir))) return result;
+  const fingerprintCache = new Map<string, MemoryPathFingerprint | null>();
+  const qualityScore = (packet: MemoryPacket): number => {
+    const score = Number((packet.quality as Record<string, unknown> | undefined)?.score);
+    return Number.isFinite(score) ? score : 0;
+  };
+  const verified = loadApprovedPackets(projectDir)
+    .filter((packet) => packetPathSet(packet).has(rel))
+    .filter((packet) => staleMemoryReasons(projectDir, packet, fingerprintCache).length === 0)
+    .sort((a, b) => qualityScore(b) - qualityScore(a) || b.updated_at.localeCompare(a.updated_at) || a.title.localeCompare(b.title))
+    .slice(0, FILE_CONTEXT_PACKET_CAP);
+  if (!verified.length) return result;
+  const lines = [
+    `# Kage File Context: ${rel}`,
+    ...verified.flatMap((packet, index) => [
+      `${index + 1}. [${packet.type} | confidence ${packet.confidence.toFixed(2)}] ${packet.title}`,
+      `   ${packet.summary}`,
+    ]),
+    `_${verified.length} verified memor${verified.length === 1 ? "y" : "ies"} citing this file (citations checked, not stale)._`,
+  ];
+  result.context_block = lines.join("\n");
+  result.packets = verified.map((packet) => ({
+    id: packet.id,
+    title: packet.title,
+    type: packet.type,
+    summary: packet.summary,
+    confidence: packet.confidence,
+  }));
+  const replay = replayTokensSaved(verified, result.context_block);
+  recordValueEvent(projectDir, { kind: "recall_served", tokens_saved: replay, replay_tokens: replay });
+  return result;
 }
 
 // A chronological activity feed: every recall an agent made (from access telemetry)
@@ -9579,15 +9691,20 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
         }))
       : undefined,
   };
+  // Per-recall savings: never less than the read-vs-source estimate (prior behavior),
+  // raised to the knowledge-replay value when served packets carry discovery_tokens.
+  const readVsSourceTokens = scored.length ? recallTokensSaved(projectDir, result.results, result.context_block) : 0;
+  const replayTokens = scored.length ? replayTokensSaved(scored.map((entry) => entry.packet), result.context_block) : 0;
   result.value_receipt = {
-    tokens_saved: scored.length ? recallTokensSaved(projectDir, result.results, result.context_block) : 0,
+    tokens_saved: Math.max(readVsSourceTokens, replayTokens),
     stale_withheld: suppressed.length,
+    ...(replayTokens > 0 ? { replay_tokens: replayTokens } : {}),
   };
   if (inputs.trackAccess !== false) {
     recordRecallAccess(projectDir, result.results);
     recordValueEvents(projectDir, [
       ...suppressed.map((entry): ValueEvent => ({ kind: "stale_withheld", packet_title: entry.title })),
-      ...(scored.length ? [{ kind: "recall_served", tokens_saved: result.value_receipt.tokens_saved } satisfies ValueEvent] : []),
+      ...(scored.length ? [{ kind: "recall_served", tokens_saved: result.value_receipt.tokens_saved, replay_tokens: replayTokens } satisfies ValueEvent] : []),
     ]);
   }
   return result;
@@ -14861,6 +14978,7 @@ export function learn(input: LearnInput): LearnResult {
     strictCitations: input.strictCitations,
     graphNodes: input.graphNodes,
     pendingReview: input.pendingReview,
+    discoveryTokens: input.discoveryTokens,
   });
 }
 
@@ -14958,6 +15076,12 @@ export function capture(input: CaptureInput): CaptureResult {
       reports_stale: 0,
       review_boundary: "git_or_pr",
       promotion_requires_review: true,
+      // Discovery cost receipt: what producing this knowledge cost (exploration +
+      // reasoning tokens). Caller-reported when available; otherwise a conservative
+      // per-type default, flagged estimated so receipts can qualify the claim.
+      ...(Number.isFinite(Number(input.discoveryTokens)) && Number(input.discoveryTokens) > 0
+        ? { discovery_tokens: Math.floor(Number(input.discoveryTokens)), discovery_tokens_estimated: false }
+        : { discovery_tokens: defaultDiscoveryTokens(type), discovery_tokens_estimated: true }),
     },
     created_at: createdAt,
     updated_at: createdAt,
@@ -15396,12 +15520,81 @@ fi
 
 exit 0
 `;
+    const readContextHookScript = `#!/usr/bin/env bash
+# Kage PreToolUse(Read) hook — injects verified file-linked memory right before the agent reads a file.
+# Only currently-verified packets (citations checked, not stale) are ever injected.
+# Silent if Kage is not initialized in the current project. Never blocks the Read.
+set -euo pipefail
+
+PAYLOAD="$(cat || true)"
+CWD="$(PAYLOAD="$PAYLOAD" python3 -c 'import json, os
+try:
+    d = json.loads(os.environ.get("PAYLOAD") or "{}")
+except Exception:
+    d = {}
+print(d.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or "")
+' 2>/dev/null || echo "")"
+
+[[ -d "$CWD/.agent_memory" ]] || exit 0
+command -v kage >/dev/null 2>&1 || exit 0
+
+FILE_PATH="$(PAYLOAD="$PAYLOAD" python3 -c 'import json, os
+try:
+    d = json.loads(os.environ.get("PAYLOAD") or "{}")
+except Exception:
+    d = {}
+tool_input = d.get("tool_input") or d.get("toolInput") or {}
+path = tool_input.get("file_path") if isinstance(tool_input, dict) else ""
+print(path or "")
+' 2>/dev/null || echo "")"
+[[ -n "$FILE_PATH" ]] || exit 0
+[[ "$FILE_PATH" = /* ]] || FILE_PATH="$CWD/$FILE_PATH"
+
+# Skip files outside the project: memory is repo-scoped.
+case "$FILE_PATH" in
+  "$CWD"/*) ;;
+  *) exit 0 ;;
+esac
+
+SESSION="$(PAYLOAD="$PAYLOAD" python3 -c 'import json, os
+try:
+    d = json.loads(os.environ.get("PAYLOAD") or "{}")
+except Exception:
+    d = {}
+print(d.get("session_id") or d.get("sessionId") or "default")
+' 2>/dev/null || echo "default")"
+
+# Dedup: inject at most once per file per session via a tiny /tmp state file
+# keyed by session_id+path. Failure to track must never block the Read.
+STATE_DIR="/tmp/kage-read-context"
+mkdir -p "$STATE_DIR" 2>/dev/null || true
+KEY="$(printf "%s|%s" "$SESSION" "$FILE_PATH" | python3 -c 'import hashlib, sys
+print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest()[:24])
+' 2>/dev/null || echo "")"
+if [[ -n "$KEY" && -d "$STATE_DIR" ]]; then
+  [[ -e "$STATE_DIR/$KEY" ]] && exit 0
+  : > "$STATE_DIR/$KEY" 2>/dev/null || true
+fi
+
+CONTEXT="$(kage file-context --project "$CWD" --path "$FILE_PATH" 2>/dev/null || true)"
+if [[ -n "$CONTEXT" ]]; then
+  KAGE_CONTEXT="$CONTEXT" python3 -c 'import json, os
+print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": os.environ.get("KAGE_CONTEXT", "")}}))
+' 2>/dev/null || true
+fi
+
+exit 0
+`;
     const settingsPath = join(home, ".claude", "settings.json");
     const hookEntry = {
       hooks: {
         SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/session-start.sh", timeout: 5 }] }],
         UserPromptSubmit: [{ hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 12 }] }],
-        PreToolUse: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 5 }] }],
+        PreToolUse: [
+          { matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 5 }] },
+          // Verified memory at the moment of relevance: short timeout, never blocks the Read.
+          { matcher: "Read", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/kage-read-context.sh", timeout: 6 }] },
+        ],
         PostToolUse: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 5 }] }],
         PostToolUseFailure: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 5 }] }],
         PreCompact: [{ hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 20 }] }],
@@ -15413,7 +15606,7 @@ exit 0
     setSnippet(path, JSON.stringify({ mcpServers: { kage: server } }, null, 2), [
       "Add the MCP server to ~/.claude.json, then restart Claude Code.",
       "alwaysLoad: true makes Kage tools immediately visible without requiring ToolSearch.",
-      `Also create ${hookDir}/session-start.sh, observe.sh, and stop.sh with the hook scripts and add SessionStart/UserPromptSubmit/PostToolUse/PostToolUseFailure/PreCompact/Stop/SessionEnd hooks to ~/.claude/settings.json.`,
+      `Also create ${hookDir}/session-start.sh, observe.sh, kage-read-context.sh, and stop.sh with the hook scripts and add SessionStart/UserPromptSubmit/PreToolUse/PostToolUse/PostToolUseFailure/PreCompact/Stop/SessionEnd hooks to ~/.claude/settings.json.`,
       "Run `kage init --project <repo>` inside each repo to install the ambient memory policy.",
     ], true);
     if (options.write) {
@@ -15422,6 +15615,7 @@ exit 0
       mkdirSync(hookDir, { recursive: true });
       writeFileSync(join(hookDir, "session-start.sh"), hookScript, { mode: 0o755 });
       writeFileSync(join(hookDir, "observe.sh"), observeHookScript, { mode: 0o755 });
+      writeFileSync(join(hookDir, "kage-read-context.sh"), readContextHookScript, { mode: 0o755 });
       writeFileSync(join(hookDir, "stop.sh"), stopHookScript, { mode: 0o755 });
       upsertJsonSettings(settingsPath, hookEntry);
       result.wrote = true;
@@ -15566,7 +15760,7 @@ function claudeHookEventConfigured(settings: Record<string, unknown>, event: str
 function claudeAmbientHookSummary(homeDir: string): AgentHookSummary {
   const settingsPath = join(homeDir, ".claude", "settings.json");
   const hookDir = join(homeDir, ".claude", "kage", "hooks");
-  const scriptPaths = [join(hookDir, "session-start.sh"), join(hookDir, "observe.sh"), join(hookDir, "stop.sh")];
+  const scriptPaths = [join(hookDir, "session-start.sh"), join(hookDir, "observe.sh"), join(hookDir, "kage-read-context.sh"), join(hookDir, "stop.sh")];
   let settings: Record<string, unknown> = {};
   if (existsSync(settingsPath)) {
     const parsed = readJson<unknown>(settingsPath);
@@ -16227,6 +16421,13 @@ export function distillSession(projectDir: string, sessionId: string, options: {
   const candidates: CaptureResult[] = [];
   const errors: string[] = [];
   const observationIds = observations.map((event) => event.id);
+  // Discovery cost of distilled knowledge: the token estimate of the session material
+  // that produced it. Still an estimate (the agent's reasoning tokens are unknown),
+  // so it stays flagged discovery_tokens_estimated.
+  const sessionDiscoveryTokens = observations.reduce(
+    (sum, event) => sum + estimateTokens([event.summary, event.text, event.command, event.path].filter(Boolean).join(" ")),
+    0
+  );
   const annotate = (result: CaptureResult): CaptureResult => {
     if (!result.ok || !result.packet || !result.path) return result;
     result.packet.source_refs = [
@@ -16239,6 +16440,9 @@ export function distillSession(projectDir: string, sessionId: string, options: {
     ];
     result.packet.quality = {
       ...result.packet.quality,
+      ...(sessionDiscoveryTokens > 0
+        ? { discovery_tokens: sessionDiscoveryTokens, discovery_tokens_estimated: true }
+        : {}),
       distillation: auto ? "auto_distill" : "automatic_observation_candidate",
       admission: evaluateMemoryAdmission(projectDir, result.packet),
       suggested_review_action: suggestedAction(classifyPacket(projectDir, result.packet), result.packet.status),
