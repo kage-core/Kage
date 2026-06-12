@@ -57,3 +57,12 @@ Wire it in (auto-detects Claude Code, Codex, Cursor, Windsurf, anything MCP):
 
 GPL-3.0. 241 tests. Young project — I'd genuinely value the hard questions,
 especially from anyone who's been burned by an agent trusting stale context.
+
+---
+
+## Prepared HN comment (post as a REPLY when someone asks about teams/trying it — never in the Show HN body, where it reads as lead-gen)
+
+> If anyone wants to see it on their own repo before installing anything,
+> I'm doing live 30-minute runs this week — the scan, a stale-catch on a
+> real diff, and the receipt at the end: https://kage-core.com/demo.html
+> Or fully self-serve: `npx -y @kage-core/kage-graph-mcp scan --project .`

@@ -49,6 +49,10 @@ anything MCP):
 
 Site: https://kage-core.com · Repo (GPL-3.0): https://github.com/kage-core/Kage
 
+If you'd rather watch before installing: I'm doing live 30-minute runs on
+people's actual repos this week — scan, a stale-catch on a real diff, the
+receipt at the end. Grab a slot: https://kage-core.com/demo.html
+
 Genuinely after feedback: how are you handling memory staleness today, and
 what would make you trust (or never trust) an agent's recalled context?
 
@@ -92,4 +96,6 @@ repo — it's the 60-second version of "is this useful to me":
 Site: https://kage-core.com · Repo (GPL-3.0): https://github.com/kage-core/Kage
 
 Would love to hear where this breaks for your setup — monorepos, multiple
-worktrees, whatever you've got.
+worktrees, whatever you've got. And if you want me to run it live on your
+repo before you install anything, I'm doing 30-min sessions this week:
+https://kage-core.com/demo.html
