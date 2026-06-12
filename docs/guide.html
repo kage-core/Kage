@@ -312,7 +312,7 @@ kage staleguard --project .</pre>
 
           <h3 class="section-sub">1. The journey of a packet</h3>
           <ol class="steps">
-            <li><strong>Capture</strong> &mdash; an agent records a learning with <code>kage_learn</code> (or <code>kage propose-from-diff</code>): a title, body, type, and the source paths it is about.</li>
+            <li><strong>Capture</strong> &mdash; an agent records a learning with <code>kage_learn</code> (or <code>kage propose --from-diff</code>): a title, body, type, and the source paths it is about.</li>
             <li><strong>Citation check</strong> &mdash; Kage rejects a strict capture whose cited paths don't exist. Memory can't be grounded to files that aren't there &mdash; this is the anti-hallucination gate. Paths your repo declares non-knowledge in <code>.kageignore</code> are dropped here, never stored as grounding.</li>
             <li><strong>Grounding</strong> &mdash; the surviving paths are fingerprinted (content hashes). This is the link between a memory and the code it describes.</li>
             <li><strong>Approve</strong> &mdash; repo-local captures are written as git-tracked JSON in <code>.agent_memory/packets/</code>. Org/public promotion is separate and human-gated.</li>
@@ -529,7 +529,8 @@ kage sync --status   # ahead/behind/dirty, no network mutation</pre></div>
           <div class="method"><h3><code>kage_metrics</code>, <code>kage_audit</code>, <code>kage_inbox</code>, <code>kage_quality</code>, <code>kage_benchmark</code>, <code>kage_memory_handoff</code>, <code>kage_memory_audit</code></h3><p>Inspect readiness, quality, duplicates, stale packets, benchmark estimates, profile, handoff, lifecycle, memory timeline, lineage, and mutation audit reports.</p></div>
           <div class="method"><h3><code>kage_setup_agent</code>, <code>kage_verify_agent</code>, <code>kage_install_policy</code></h3><p>Install or verify agent harness configuration.</p></div>
           <div class="method"><h3><code>kage_search</code>, <code>kage_fetch</code>, <code>kage_list_domains</code></h3><p>Optional community knowledge graph search. Returned public context is advisory.</p></div>
-          <div class="method"><h3><code>kage_org_*</code>, <code>kage_layered_recall</code>, <code>kage_global_build</code></h3><p>Review-gated sharing and layered recall. Repo-local memory wins when context conflicts.</p></div>
+          <div class="method"><h3><code>kage_workflow</code></h3><p>A no-op tool whose description teaches agents the loop — context first, learn reusables, refresh after changes, pr-check before finishing — so any MCP client learns the workflow just by listing tools.</p></div>
+          <p>The server exposes more specialized tools (lifecycle, lineage, timelines, structural index, benchmarks); run <code>kage help --all</code> or list tools from your agent for the full set.</p>
         </section>
 
         <section id="viewer">
