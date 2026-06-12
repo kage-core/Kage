@@ -159,14 +159,14 @@
         <span>Kage</span>
       </a>
       <div class="nav-links">
-        <a href="#how">How it works</a>
-        <a href="#compare">Compare</a>
-        <a href="#pricing">Pricing</a>
+        <a href="./#how">How it works</a>
+        <a href="./#compare">Compare</a>
+        <a href="./#pricing">Pricing</a>
         <a href="guide.html">Docs</a>
         <a href="viewer/">Viewer</a>
         <a href="https://github.com/kage-core/Kage">GitHub</a>
       </div>
-      <a class="nav-cta" href="#access">Get early access</a>
+      <a class="nav-cta" href="./#access">Get early access</a>
     </nav>
 
     <main>
@@ -207,18 +207,26 @@
           </div>
         </div>
 
+        </section>
+
+      <!-- ——————————————— HOW IT WORKS ——————————————— -->
+      <section class="section" id="how">
         <div class="wrap">
-          <div class="stat-strip" aria-label="Kage signals">
-            <div class="stat-chip"><strong>100/100</strong><span>trust benchmark — hallucination &amp; staleness</span></div>
-            <div class="stat-chip"><strong>0 deps</strong><span>no API key, no database, no daemon</span></div>
-            <div class="stat-chip"><strong>13 agents</strong><span>Claude Code, Codex, Cursor &amp; any MCP client</span></div>
-            <div class="stat-chip"><strong>Git-native</strong><span>memory reviewed in the same PR as code</span></div>
+          <div class="section-head">
+            <span class="eyebrow">How it works</span>
+            <h2>Install once. It runs itself.</h2>
+          </div>
+          <div class="cards" style="grid-template-columns: repeat(4, minmax(0,1fr));">
+            <div class="card"><h3>1 · Install</h3><p>One command creates repo memory, builds the code graph, and auto-wires every agent on your machine.</p></div>
+            <div class="card"><h3>2 · It takes notes</h3><p>Learnings become packets — explicit or auto-distilled — and every citation is verified against your repo before it's written.</p></div>
+            <div class="card"><h3>3 · Sessions start warm</h3><p>A "previously…" digest opens each session; verified memory is injected the moment the agent reads a cited file.</p></div>
+            <div class="card"><h3>4 · Diffs get checked</h3><p><code>kage pr check</code> warns when your change invalidates team memory — before the PR lands.</p></div>
           </div>
         </div>
       </section>
 
       <!-- ——————————————— FEATURES ——————————————— -->
-      <section class="section" id="how">
+      <section class="section">
         <div class="wrap feature">
           <div class="feature-copy">
             <span class="eyebrow">Capture — with proof</span>
@@ -420,12 +428,28 @@ $ kage learn --personal --learning "Always run the full suite before releasing"
         </div>
       </section>
 
-      <!-- ——————————————— AGENTS ——————————————— -->
+      <!-- ——————————————— TESTIMONIALS ——————————————— -->
       <section class="section">
         <div class="wrap">
           <div class="section-head">
-            <span class="eyebrow">Works with your agent</span>
-            <h2>One package. Every MCP agent.</h2>
+            <span class="eyebrow">Early users</span>
+            <h2>The receipts speak first.</h2>
+            <p class="lede">Kage is days old in its current form — we'd rather show you a blank wall than fake quotes. These three spots belong to the first teams who run it.</p>
+          </div>
+          <div class="cards">
+            <div class="card"><p style="font-style: italic;">"Your quote here — after we run the Truth Report on your repo, live."</p><p style="margin-top:12px; color: var(--faint); font-size: 13px;">— First design partner · <a href="demo.html" style="color: var(--green);">book the demo</a></p></div>
+            <div class="card"><p style="font-style: italic;">"Your quote here — after the first stale-catch saves your PR."</p><p style="margin-top:12px; color: var(--faint); font-size: 13px;">— Second design partner · <a href="demo.html" style="color: var(--green);">book the demo</a></p></div>
+            <div class="card"><p style="font-style: italic;">"Your quote here — after a week of receipts."</p><p style="margin-top:12px; color: var(--faint); font-size: 13px;">— Third design partner · <a href="demo.html" style="color: var(--green);">book the demo</a></p></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ——————————————— USED EVERYWHERE ——————————————— -->
+      <section class="section">
+        <div class="wrap">
+          <div class="section-head">
+            <span class="eyebrow">Used everywhere</span>
+            <h2>Every MCP agent. Built in the open.</h2>
             <p class="lede"><code>kage install</code> auto-detects and wires everything on your machine. Claude Code users can also <code>/plugin marketplace add kage-core/Kage</code>.</p>
           </div>
           <div class="agents">
@@ -442,6 +466,17 @@ $ kage learn --personal --learning "Always run the full suite before releasing"
             <span class="agent">Aider</span>
             <span class="agent">Claude Desktop</span>
             <span class="agent">any MCP client</span>
+          </div>
+          <div class="stat-strip" aria-label="Kage signals">
+            <div class="stat-chip"><strong>100/100</strong><span>trust benchmark — hallucination &amp; staleness</span></div>
+            <div class="stat-chip"><strong>0 deps</strong><span>no API key, no database, no daemon</span></div>
+            <div class="stat-chip"><strong>238</strong><span>tests passing on every release</span></div>
+            <div class="stat-chip"><strong>Git-native</strong><span>memory reviewed in the same PR as code</span></div>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:18px; flex-wrap:wrap;">
+            <img alt="npm version" src="https://img.shields.io/npm/v/@kage-core/kage-graph-mcp?style=flat-square&color=43c98a" style="height:20px" />
+            <img alt="npm downloads" src="https://img.shields.io/npm/dm/@kage-core/kage-graph-mcp?style=flat-square&color=43c98a" style="height:20px" />
+            <img alt="GitHub stars" src="https://img.shields.io/github/stars/kage-core/Kage?style=flat-square&color=41463f" style="height:20px" />
           </div>
         </div>
       </section>
@@ -470,7 +505,7 @@ $ kage learn --personal --learning "Always run the full suite before releasing"
               <h3>Team</h3>
               <p style="font: 600 26px/1 var(--serif); color: var(--ink); margin-top: 10px;">Coming soon</p>
               <p>Shared team memory with review gates — the same PR-reviewed trust model, hosted. Early design partners shape it.</p>
-              <p style="margin-top: 12px;"><a class="button" href="#access">Book a demo</a></p>
+              <p style="margin-top: 12px;"><a class="button" href="demo.html">Book a demo</a></p>
             </div>
           </div>
         </div>
@@ -485,38 +520,13 @@ $ kage learn --personal --learning "Always run the full suite before releasing"
             <p class="lede">The open-source core installs in 60 seconds. Kage Cloud — memory on every machine behind one private MCP link — is rolling out to the waitlist first.</p>
             <div class="actions">
               <a class="button primary" href="https://github.com/kage-core/Kage/issues/74">Join the Cloud waitlist</a>
-              <a class="button" href="mailto:18kushaljain@gmail.com?subject=Kage%20demo%20request&body=Hi%20—%20I%27d%20like%20a%20demo%20of%20Kage%20for%20my%20team.%0A%0ATeam%20size%3A%0AAgents%20we%20use%3A%0ARepos%2Flanguages%3A">Book a demo</a>
+              <a class="button" href="demo.html">Book a demo</a>
             </div>
             <p class="fine">Waitlist is one click on GitHub — 👍 or comment to join. Demos are 30 minutes, your repo, live. Or skip the line: <a href="guide.html#quickstart">install the open-source core now</a>.</p>
           </div>
         </div>
       </section>
 
-      <!-- ——————————————— QUICKSTART ——————————————— -->
-      <section class="section">
-        <div class="wrap">
-          <div class="section-head">
-            <span class="eyebrow">Quickstart</span>
-            <h2>Sixty seconds to verified memory.</h2>
-          </div>
-          <div class="terminal">
-            <div class="terminal-head">
-              <span>quickstart</span>
-              <span>npm</span>
-            </div>
-            <pre># see the trust demo — no setup, no API key
-npx -y @kage-core/kage-graph-mcp demo
-
-# wire it into your repo + agents — one command, auto-detects everything
-npx -y @kage-core/kage-graph-mcp install
-kage setup verify-agent --agent claude-code --project .   # confirm it's live</pre>
-          </div>
-          <div class="actions">
-            <a class="button primary" href="guide.html">Read the docs</a>
-            <a class="button" href="https://github.com/kage-core/Kage">View on GitHub</a>
-          </div>
-        </div>
-      </section>
     </main>
 
     <footer class="footer">
@@ -524,28 +534,28 @@ kage setup verify-agent --agent claude-code --project .   # confirm it's live</p
         <span>
           <strong style="color:var(--ink);font:700 14px/1 var(--serif)">Kage</strong><br />
           Memory your agent can prove.<br />
-          <span style="color:var(--faint);font-size:12px">GPL-3.0 · no account, no API key</span>
+          <span style="color:var(--faint);font-size:12px">© 2026 Kage · GPL-3.0 · no account, no API key</span>
         </span>
         <span>
           <strong style="color:var(--ink)">Product</strong><br />
-          <a href="#how">How it works</a><br />
-          <a href="#compare">Compare</a><br />
-          <a href="#pricing">Pricing</a><br />
+          <a href="./#how">How it works</a><br />
+          <a href="./#compare">Compare</a><br />
+          <a href="./#pricing">Pricing</a><br />
           <a href="viewer/">Viewer</a>
         </span>
         <span>
-          <strong style="color:var(--ink)">Docs</strong><br />
+          <strong style="color:var(--ink)">Learn</strong><br />
           <a href="guide.html#quickstart">Quickstart</a><br />
-          <a href="guide.html">Guide</a><br />
+          <a href="guide.html">Docs</a><br />
           <a href="benchmarks.html">Benchmarks</a><br />
           <a href="releases.html">Releases</a>
         </span>
         <span>
-          <strong style="color:var(--ink)">Community</strong><br />
+          <strong style="color:var(--ink)">Company</strong><br />
           <a href="https://github.com/kage-core/Kage">GitHub</a><br />
           <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a><br />
           <a href="https://github.com/kage-core/Kage/issues/74">Cloud waitlist</a><br />
-          <a href="mailto:18kushaljain@gmail.com?subject=Kage%20demo%20request">Book a demo</a>
+          <a href="demo.html">Book a demo</a>
         </span>
       </div>
     </footer>
