@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- **`kage install` — one-shot setup.** `npx -y @kage-core/kage-graph-mcp install`
+  now runs init + index, auto-detects installed agents (Claude Code, Codex,
+  Cursor, Windsurf, Gemini CLI, OpenCode, Goose, Aider) by config-dir presence,
+  wires the writable ones, and prints a receipt. `--agents a,b`, `--no-agents`,
+  `--json` supported.
+- **Claude Code plugin upgraded.** `/plugin marketplace add kage-core/Kage` now
+  ships hooks (SessionStart policy injection + Stop-time refresh/reconcile
+  gate) and slash commands (`/kage:scan`, `/kage:gains`, `/kage:init`) alongside
+  the MCP server. Plugin manifest validates with `claude plugin validate`.
+- **README/site:** quick start leads with the one-command install; new honest
+  comparison table (Kage vs claude-mem vs mem0/Zep) centered on verification.
+
 ## v2.0.0 - verified repo knowledge, receipts, and the Truth Report
 
 The 2.0 release reframes Kage around one story: every claim cited against your
