@@ -8,7 +8,7 @@
   "scope": "repo",
   "visibility": "team",
   "sensitivity": "internal",
-  "status": "approved",
+  "status": "deprecated",
   "confidence": 0.7,
   "tags": [
     "session-learning",
@@ -61,9 +61,14 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 204
+    "estimated_tokens_saved": 204,
+    "stale": true,
+    "stale_reasons": [
+      "linked path changed since memory was verified: launch/reddit.md"
+    ],
+    "suggested_action": "update"
   },
   "created_at": "2026-06-12T18:00:41.191Z",
-  "updated_at": "2026-06-12T18:20:41.475Z",
+  "updated_at": "2026-06-12T18:41:03.606Z",
   "author_branch": "master"
 }
