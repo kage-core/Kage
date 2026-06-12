@@ -187,10 +187,11 @@
     "promotion_requires_review": true,
     "stale": true,
     "stale_reasons": [
+      "packet status is deprecated",
       "linked path changed since memory was verified: CHANGELOG.md, mcp/cli.ts, mcp/kernel.test.ts, mcp/kernel.ts"
     ],
-    "suggested_action": "update"
+    "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-12T06:06:29.440Z",
-  "updated_at": "2026-06-12T06:58:42.692Z"
+  "updated_at": "2026-06-12T07:19:12.345Z"
 }
