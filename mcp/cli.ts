@@ -58,6 +58,7 @@ import {
   kageRepoXray,
   kageWorkspace,
   kageWorkspaceRecall,
+  kageResume,
   kageReviewerSuggestions,
   kageSessionCaptureReport,
   kageSessionReplay,
@@ -204,7 +205,8 @@ Usage:
   kage observe --project <dir> --event <json>
   kage sessions --project <dir> [--json]
   kage replay --project <dir> [--session <id>] [--limit <n>] [--json]
-  kage distill --project <dir> --session <id>
+  kage distill --project <dir> --session <id> [--auto] [--json]
+  kage resume --project <dir> [--json]
   kage learn --project <dir> --learning <text> [--title <title>] [--type <type>] [--evidence <text>] [--verified-by <text>] [--tags a,b] [--paths a,b] [--graph-nodes a,b] [--allow-missing-paths]
   kage feedback --project <dir> --packet <packet-id> --kind helpful|wrong|stale
   kage capture --project <dir> --title <title> --body <body> [--type <type>] [--summary <summary>] [--tags a,b] [--paths a,b] [--stack a,b] [--graph-nodes a,b] [--allow-missing-paths]
@@ -1936,15 +1938,34 @@ async function main(): Promise<void> {
   if (command === "distill") {
     const sessionId = takeArg(args, "--session");
     if (!sessionId) usage();
-    const result = distillSession(projectArg(args), sessionId);
+    const project = projectArg(args);
+    const auto = args.includes("--auto");
+    const result = distillSession(project, sessionId, { auto });
     if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
-    else {
+    else if (auto) {
+      // Auto mode is quiet: no output for empty or already-captured sessions; one line otherwise.
+      const drafted = result.candidates.filter((candidate) => candidate.ok).length;
+      if (!result.skipped_reason && drafted > 0) {
+        console.log(`Auto-distilled ${drafted} pending draft${drafted === 1 ? "" : "s"} from session ${sessionId}. Review with: kage review --project ${project}`);
+      }
+    } else {
       console.log(`Distilled session: ${sessionId}`);
       console.log(`Observations: ${result.observations}`);
       console.log(`Candidates: ${result.candidates.filter((candidate) => candidate.ok).length}`);
       if (result.errors.length) console.log(`Errors:\n${result.errors.map((error) => `  - ${error}`).join("\n")}`);
     }
-    if (!result.ok) process.exit(2);
+    if (!result.ok && !auto) process.exit(2);
+    return;
+  }
+
+  if (command === "resume") {
+    const result = kageResume(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    // Prints nothing when there is no prior session data, so hooks can append output verbatim.
+    if (result.has_content && result.context_block) console.log(result.context_block);
     return;
   }
 

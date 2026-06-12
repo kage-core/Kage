@@ -34,4 +34,18 @@ print(d.get("agent_instruction") or "Kage memory reconciliation required before 
   fi
 fi
 
+# Automatic capture fallback: if this session recorded observations but produced no new
+# memory packets, quietly distill them into pending drafts for later review. Best-effort;
+# kage distill --auto is silent on empty or already-captured sessions and never blocks.
+SESSION="$(printf "%s" "$PAYLOAD" | python3 -c 'import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    d = {}
+print(d.get("session_id") or d.get("sessionId") or "")
+' 2>/dev/null || echo "")"
+if [[ -n "$SESSION" && -d "$CWD/.agent_memory/observations" ]]; then
+  kage distill --project "$CWD" --session "$SESSION" --auto --json >/dev/null 2>&1 || true
+fi
+
 exit 0

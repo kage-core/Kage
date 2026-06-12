@@ -309,6 +309,8 @@ export interface CaptureInput {
   allowMissingPaths?: boolean;
   strictCitations?: boolean;
   graphNodes?: string[];
+  /** Write the packet to the pending inbox (status "pending") instead of approved memory. */
+  pendingReview?: boolean;
 }
 
 export interface CaptureResult {
@@ -333,6 +335,8 @@ export interface LearnInput {
   allowMissingPaths?: boolean;
   strictCitations?: boolean;
   graphNodes?: string[];
+  /** Write the packet to the pending inbox (status "pending") instead of approved memory. */
+  pendingReview?: boolean;
 }
 
 export type LearnResult = CaptureResult;
@@ -504,6 +508,42 @@ export interface DistillResult {
   observations: number;
   candidates: CaptureResult[];
   errors: string[];
+  /** "auto" when invoked by the Stop-hook fallback; candidates land in the pending inbox. */
+  mode?: "manual" | "auto";
+  /** Set when auto mode quietly skipped a session (no observations, or memory was already captured). */
+  skipped_reason?: "no_observations" | "session_already_captured";
+}
+
+export interface ResumeReport {
+  schema_version: 1;
+  project_dir: string;
+  generated_at: string;
+  /** False when there is no prior session data; context_block is empty in that case. */
+  has_content: boolean;
+  last_session?: {
+    session_id: string;
+    first_at: string;
+    last_at: string;
+    observations: number;
+    paths: string[];
+    commands: string[];
+    distilled_titles: string[];
+  };
+  last_change_memory?: {
+    id: string;
+    title: string;
+    summary: string;
+    updated_at: string;
+  };
+  pending_auto_distilled: number;
+  pending_total: number;
+  review_command?: string;
+  reconciliation: {
+    unresolved_count: number;
+    items: Array<{ packet_id: string; title: string }>;
+  };
+  /** ≤15-line "previously…" block for SessionStart injection; empty when has_content is false. */
+  context_block: string;
 }
 
 export interface SessionCaptureReport {
@@ -3924,8 +3964,14 @@ export function loadPendingPackets(projectDir: string): MemoryPacket[] {
   return loadPacketsFromDir(pendingDir(projectDir));
 }
 
+// Hook-driven auto-distilled drafts carry this tag so they are distinguishable from
+// agent-reviewed memory and never surface in recall until a human or agent approves them.
+export const AUTO_DISTILL_TAG = "auto-distill";
+
 function recallablePendingPackets(projectDir: string): MemoryPacket[] {
-  return loadPendingPackets(projectDir).filter((packet) => !packet.tags.includes("diff-proposal"));
+  return loadPendingPackets(projectDir).filter(
+    (packet) => !packet.tags.includes("diff-proposal") && !packet.tags.includes(AUTO_DISTILL_TAG)
+  );
 }
 
 function writePacket(projectDir: string, packet: MemoryPacket, statusDir: "packets" | "pending"): string {
@@ -14428,6 +14474,7 @@ export function learn(input: LearnInput): LearnResult {
     allowMissingPaths: input.allowMissingPaths,
     strictCitations: input.strictCitations,
     graphNodes: input.graphNodes,
+    pendingReview: input.pendingReview,
   });
 }
 
@@ -14488,7 +14535,7 @@ export function capture(input: CaptureInput): CaptureResult {
     scope: "repo",
     visibility: "team",
     sensitivity: "internal",
-    status: "approved",
+    status: input.pendingReview ? "pending" : "approved",
     confidence: DEFAULT_CONFIDENCE,
     tags: input.tags ?? [],
     paths: groundedPaths,
@@ -14529,7 +14576,7 @@ export function capture(input: CaptureInput): CaptureResult {
     ...packet.quality,
     ...evaluateMemoryQuality(input.projectDir, packet),
   };
-  const path = writePacket(input.projectDir, packet, "packets");
+  const path = writePacket(input.projectDir, packet, input.pendingReview ? "pending" : "packets");
   recordMemoryAudit(input.projectDir, "capture", [packet], {
     type: packet.type,
     status: packet.status,
@@ -14767,6 +14814,16 @@ Before finishing a task that changed files: kage_pr_summarize or kage_propose_fr
 If recalled memory helped: kage_feedback helpful. If wrong or stale: kage_feedback wrong or stale."
 fi
 
+# Session continuity: append a compact "previously…" digest when prior session data exists.
+if command -v kage >/dev/null 2>&1; then
+  PREVIOUSLY="$(kage resume --project "$CWD" 2>/dev/null || true)"
+  if [[ -n "$PREVIOUSLY" ]]; then
+    POLICY="$POLICY
+
+$PREVIOUSLY"
+  fi
+fi
+
 KAGE_MSG="$POLICY" python3 -c "import json,os; print(json.dumps({'systemMessage': os.environ['KAGE_MSG']}))"
 `;
     const stopHookScript = `#!/usr/bin/env bash
@@ -14801,6 +14858,20 @@ print(d.get("agent_instruction") or "Kage memory reconciliation required before 
 ' >&2
     exit 2
   fi
+fi
+
+# Automatic capture fallback: if this session recorded observations but produced no new
+# memory packets, quietly distill them into pending drafts for later review. Best-effort;
+# kage distill --auto is silent on empty or already-captured sessions and never blocks.
+SESSION="$(printf "%s" "$PAYLOAD" | python3 -c 'import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    d = {}
+print(d.get("session_id") or d.get("sessionId") or "")
+' 2>/dev/null || echo "")"
+if [[ -n "$SESSION" && -d "$CWD/.agent_memory/observations" ]]; then
+  kage distill --project "$CWD" --session "$SESSION" --auto --json >/dev/null 2>&1 || true
 fi
 
 exit 0
@@ -15726,8 +15797,30 @@ export function kageSessionLearningLedger(
   };
 }
 
-export function distillSession(projectDir: string, sessionId: string): DistillResult {
+// Mechanical packets (branch change memory, prior auto-distilled drafts) never count as the
+// agent having captured memory; only deliberate captures/learns/distills suppress the
+// Stop-hook auto-distill fallback.
+function sessionAlreadyCaptured(projectDir: string, sessionId: string, observations: ObservationRecord[]): boolean {
+  const firstAt = observations[0]?.timestamp ?? "";
+  const mechanicalTags = ["diff-proposal", "change-memory", AUTO_DISTILL_TAG];
+  return [...loadApprovedPackets(projectDir), ...loadPendingPackets(projectDir)].some((packet) => {
+    if (packet.source_refs.some((ref) => ref.kind === "observation_session" && ref.session_id === sessionId)) return true;
+    if (packet.type === "repo_map" || packet.quality?.reviewer === "kage-indexer") return false; // generated by indexing
+    if (packet.tags.some((tag) => mechanicalTags.includes(tag))) return false;
+    return Boolean(firstAt) && packet.created_at >= firstAt;
+  });
+}
+
+export function distillSession(projectDir: string, sessionId: string, options: { auto?: boolean } = {}): DistillResult {
+  const auto = Boolean(options.auto);
+  const mode = auto ? ("auto" as const) : ("manual" as const);
   const observations = loadObservations(projectDir, sessionId);
+  if (auto && observations.length === 0) {
+    return { ok: true, session_id: sessionId, observations: 0, candidates: [], errors: [], mode, skipped_reason: "no_observations" };
+  }
+  if (auto && sessionAlreadyCaptured(projectDir, sessionId, observations)) {
+    return { ok: true, session_id: sessionId, observations: observations.length, candidates: [], errors: [], mode, skipped_reason: "session_already_captured" };
+  }
   const candidates: CaptureResult[] = [];
   const errors: string[] = [];
   const observationIds = observations.map((event) => event.id);
@@ -15743,13 +15836,14 @@ export function distillSession(projectDir: string, sessionId: string): DistillRe
     ];
     result.packet.quality = {
       ...result.packet.quality,
-      distillation: "automatic_observation_candidate",
+      distillation: auto ? "auto_distill" : "automatic_observation_candidate",
       admission: evaluateMemoryAdmission(projectDir, result.packet),
       suggested_review_action: suggestedAction(classifyPacket(projectDir, result.packet), result.packet.status),
     };
     writeJson(result.path, result.packet);
     return result;
   };
+  const autoTags = auto ? [AUTO_DISTILL_TAG] : [];
   const commandEvents = observations.filter((event) => event.type === "command_result" && event.command);
   const fileEvents = observations.filter((event) => event.type === "file_change" && event.path);
   const promptEvents = observations.filter((event) => event.type === "user_prompt" && (event.text || event.summary));
@@ -15767,8 +15861,9 @@ export function distillSession(projectDir: string, sessionId: string): DistillRe
       summary: `Observed commands: ${commands.slice(0, 3).join(", ")}`,
       body: `Reusable command observation distilled from session ${sessionId}:\n\n${meaningfulCommandEvents.map((item) => `- ${item.reusable.command}: ${item.reusable.learning}`).join("\n")}\n\nReview before approving as a durable runbook.`,
       type: "runbook",
-      tags: ["observed-session", "commands", "runbook"],
+      tags: ["observed-session", "commands", "runbook", ...autoTags],
       paths: unique(meaningfulCommandEvents.map((item) => item.event.path).filter(Boolean) as string[]),
+      pendingReview: auto,
     })));
   }
 
@@ -15785,8 +15880,9 @@ export function distillSession(projectDir: string, sessionId: string): DistillRe
       summary: lead,
       body: `Reusable file observation distilled from session ${sessionId}:\n\n${meaningfulFileEvents.map((item) => `- ${item.event.path}: ${item.learning}`).join("\n")}\n\nReview before approving as durable repo memory.`,
       type: "workflow",
-      tags: ["observed-session", "workflow"],
+      tags: ["observed-session", "workflow", ...autoTags],
       paths,
+      pendingReview: auto,
     })));
   }
 
@@ -15797,12 +15893,95 @@ export function distillSession(projectDir: string, sessionId: string): DistillRe
       title: titleFromLearning(text),
       learning: text,
       evidence: `Observation session: ${sessionId}`,
-      tags: ["observed-session", "intent"],
+      tags: ["observed-session", "intent", ...autoTags],
+      pendingReview: auto,
     })));
   }
 
   for (const result of candidates) if (!result.ok) errors.push(...result.errors);
-  return { ok: errors.length === 0, session_id: sessionId, observations: observations.length, candidates, errors };
+  return { ok: errors.length === 0, session_id: sessionId, observations: observations.length, candidates, errors, mode };
+}
+
+// Session continuity: a compact "previously…" digest the SessionStart hook injects so a new
+// session starts with last session's context instead of cold. Empty when there is no prior data.
+export function kageResume(projectDir: string): ResumeReport {
+  ensureMemoryDirs(projectDir);
+  const approved = loadApprovedPackets(projectDir);
+  const pending = loadPendingPackets(projectDir);
+  const observations = loadObservations(projectDir);
+
+  const bySession = new Map<string, ObservationRecord[]>();
+  for (const observation of observations) {
+    const rows = bySession.get(observation.session_id) ?? [];
+    rows.push(observation);
+    bySession.set(observation.session_id, rows);
+  }
+  const latestRows = Array.from(bySession.values())
+    .sort((a, b) => (b.at(-1)?.timestamp ?? "").localeCompare(a.at(-1)?.timestamp ?? ""))[0];
+  const lastSession = latestRows?.length
+    ? (() => {
+        const sessionId = latestRows[0].session_id;
+        const distilledTitles = [...approved, ...pending]
+          .filter((packet) => packet.source_refs.some((ref) => ref.kind === "observation_session" && ref.session_id === sessionId))
+          .map((packet) => packet.title);
+        return {
+          session_id: sessionId,
+          first_at: latestRows[0]?.timestamp ?? "",
+          last_at: latestRows.at(-1)?.timestamp ?? "",
+          observations: latestRows.length,
+          paths: unique(latestRows.map((event) => event.path).filter(Boolean) as string[]).slice(0, 6),
+          commands: unique(latestRows.map((event) => event.command).filter(Boolean) as string[]).slice(0, 3),
+          distilled_titles: unique(distilledTitles).slice(0, 3),
+        };
+      })()
+    : undefined;
+
+  const changeMemory = approved
+    .filter((packet) => packet.tags.includes("change-memory"))
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0];
+  const lastChangeMemory = changeMemory
+    ? { id: changeMemory.id, title: changeMemory.title, summary: changeMemory.summary, updated_at: changeMemory.updated_at }
+    : undefined;
+
+  const pendingAutoDistilled = pending.filter((packet) => packet.tags.includes(AUTO_DISTILL_TAG)).length;
+  const reconciliation = kageMemoryReconciliation(projectDir, { limit: 5 });
+  const reconciliationItems = reconciliation.items.map((item) => ({ packet_id: item.packet_id, title: item.title }));
+
+  const hasContent = Boolean(lastSession || lastChangeMemory || pendingAutoDistilled || reconciliation.unresolved_count);
+  const lines: string[] = [];
+  if (hasContent) {
+    lines.push("# Previously (Kage)");
+    if (lastSession) {
+      lines.push(`Last session ${lastSession.session_id} (${lastSession.observations} observation${lastSession.observations === 1 ? "" : "s"}, ended ${lastSession.last_at}).`);
+      if (lastSession.paths.length) lines.push(`Worked on: ${lastSession.paths.join(", ")}`);
+      if (lastSession.commands.length) lines.push(`Commands: ${lastSession.commands.join("; ")}`);
+      if (lastSession.distilled_titles.length) lines.push(`Learned: ${lastSession.distilled_titles.join("; ")}`);
+    }
+    if (lastChangeMemory) {
+      lines.push(`Change memory: ${lastChangeMemory.title} — ${lastChangeMemory.summary}`);
+    }
+    if (pendingAutoDistilled) {
+      lines.push(`Pending: ${pendingAutoDistilled} auto-distilled draft${pendingAutoDistilled === 1 ? "" : "s"} awaiting review — run: kage review --project ${projectDir}`);
+    }
+    if (reconciliation.unresolved_count) {
+      lines.push(`Reconcile: ${reconciliation.unresolved_count} linked memory item${reconciliation.unresolved_count === 1 ? "" : "s"} need update — run: kage reconcile --project ${projectDir}`);
+      for (const item of reconciliationItems.slice(0, 3)) lines.push(`  - ${item.packet_id}: ${item.title}`);
+    }
+  }
+
+  return {
+    schema_version: 1,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    has_content: hasContent,
+    last_session: lastSession,
+    last_change_memory: lastChangeMemory,
+    pending_auto_distilled: pendingAutoDistilled,
+    pending_total: pending.length,
+    ...(pendingAutoDistilled ? { review_command: `kage review --project ${projectDir}` } : {}),
+    reconciliation: { unresolved_count: reconciliation.unresolved_count, items: reconciliationItems },
+    context_block: lines.slice(0, 15).join("\n"),
+  };
 }
 
 function createDiffChangeMemory(projectDir: string, summary: BranchReviewSummary): { packet: MemoryPacket; path: string } {

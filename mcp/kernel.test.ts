@@ -66,11 +66,13 @@ import {
   kageModuleHealth,
   kageProjectProfile,
   kageRepoXray,
+  kageResume,
   kageReviewerSuggestions,
   kageWorkspace,
   kageWorkspaceRecall,
   learn,
   loadApprovedPackets,
+  loadPendingPackets,
   memoryInbox,
   observe,
   packetsDir,
@@ -2082,6 +2084,8 @@ esac
   assert.match(readFileSync(join(home, ".claude", "kage", "hooks", "stop.sh"), "utf8"), /kage pr summarize/);
   assert.match(readFileSync(join(home, ".claude", "kage", "hooks", "stop.sh"), "utf8"), /kage reconcile/);
   assert.match(readFileSync(join(home, ".claude", "kage", "hooks", "stop.sh"), "utf8"), /exit 2/);
+  assert.match(readFileSync(join(home, ".claude", "kage", "hooks", "stop.sh"), "utf8"), /kage distill --project "\$CWD" --session "\$SESSION" --auto/);
+  assert.match(readFileSync(join(home, ".claude", "kage", "hooks", "session-start.sh"), "utf8"), /kage resume --project "\$CWD"/);
 
   const doctor = setupDoctor(project, { homeDir: home });
   assert.equal(doctor.length, SETUP_AGENTS.length);
@@ -2277,6 +2281,122 @@ test("distillation keeps ordinary prompts episodic and admits durable prompt lea
   const issue = distilled.candidates[0]?.packet;
   assert.equal(issue?.type, "issue_context");
   assert.match(issue?.body ?? "", /Hypothesis/);
+});
+
+test("auto distill writes pending drafts that never pollute trusted recall", () => {
+  const project = tempProject();
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
+  assert.equal(observe(project, {
+    type: "command_result",
+    session_id: "auto-session",
+    command: "npm test -- webhooks",
+    exit_code: 0,
+    summary: "Use this command after changing webhook signature verification.",
+  }).ok, true);
+
+  const distilled = distillSession(project, "auto-session", { auto: true });
+  assert.equal(distilled.ok, true);
+  assert.equal(distilled.mode, "auto");
+  assert.equal(distilled.skipped_reason, undefined);
+  const candidate = distilled.candidates[0];
+  assert.equal(candidate?.packet?.status, "pending");
+  assert.equal(candidate?.packet?.tags.includes("auto-distill"), true);
+  assert.equal(candidate?.packet?.quality.distillation, "auto_distill");
+  assert.equal(candidate?.path?.startsWith(pendingDir(project)), true);
+  // Drafts land only in the pending inbox, never in approved memory.
+  assert.equal(loadApprovedPackets(project).length, 0);
+  assert.equal(loadPendingPackets(project).length, 1);
+
+  // Pending drafts stay out of recall: only approved memory in results, no working-memory leakage.
+  const recalled = recall(project, "webhook signature verification command", 5, true);
+  assert.equal(recalled.results.some((entry) => entry.packet.id === candidate?.packet?.id), false);
+  assert.equal(recalled.results.every((entry) => entry.packet.status === "approved"), true);
+  assert.doesNotMatch(recalled.context_block, /Working Memory \(Pending Review\)/);
+  assert.equal(recalled.context_block.includes(candidate?.packet?.title ?? "missing-title"), false);
+
+  // Re-running auto distill on the same session is a quiet no-op (already distilled).
+  const repeat = distillSession(project, "auto-session", { auto: true });
+  assert.equal(repeat.skipped_reason, "session_already_captured");
+  assert.equal(loadPendingPackets(project).length, 1);
+
+  // Approving the draft promotes it into trusted, recallable memory.
+  assert.equal(typeof approvePending(project, candidate?.packet?.id ?? ""), "string");
+  assert.equal(loadApprovedPackets(project).some((packet) => packet.id === candidate?.packet?.id), true);
+});
+
+test("auto distill quietly skips empty sessions and sessions where the agent already captured memory", () => {
+  const project = tempProject();
+  const empty = distillSession(project, "no-such-session", { auto: true });
+  assert.equal(empty.ok, true);
+  assert.equal(empty.mode, "auto");
+  assert.equal(empty.skipped_reason, "no_observations");
+  assert.equal(empty.candidates.length, 0);
+
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
+  assert.equal(observe(project, {
+    type: "command_result",
+    session_id: "captured-session",
+    command: "npm test -- webhooks",
+    exit_code: 0,
+    summary: "Use this command after changing webhook signature verification.",
+  }).ok, true);
+  assert.equal(learn({
+    projectDir: project,
+    learning: "Webhook fixtures must be regenerated because CI replays recorded signatures.",
+  }).ok, true);
+
+  const skipped = distillSession(project, "captured-session", { auto: true });
+  assert.equal(skipped.skipped_reason, "session_already_captured");
+  assert.equal(loadPendingPackets(project).length, 0);
+
+  // Manual distill is unchanged: candidates are written as approved repo memory without the auto tag.
+  const manual = distillSession(project, "captured-session");
+  assert.equal(manual.mode, "manual");
+  const packet = manual.candidates[0]?.packet;
+  assert.equal(packet?.status, "approved");
+  assert.equal(packet?.tags.includes("auto-distill"), false);
+});
+
+test("resume prints a previously block with prior session data and stays silent without it", () => {
+  const project = tempProject();
+  const empty = kageResume(project);
+  assert.equal(empty.has_content, false);
+  assert.equal(empty.context_block, "");
+  assert.equal(empty.pending_auto_distilled, 0);
+  assert.equal(empty.reconciliation.unresolved_count, 0);
+
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "server.ts"), "export const app = 1;\n", "utf8");
+  assert.equal(observe(project, {
+    type: "file_change",
+    session_id: "resume-session",
+    path: "src/server.ts",
+    summary: "Server dispatcher maps GET /tasks and GET /summary through createApp.",
+  }).ok, true);
+  assert.equal(observe(project, {
+    type: "command_result",
+    session_id: "resume-session",
+    command: "npm test -- webhooks",
+    exit_code: 0,
+    summary: "Use this command after changing webhook signature verification.",
+  }).ok, true);
+  assert.equal(distillSession(project, "resume-session", { auto: true }).ok, true);
+
+  const result = kageResume(project);
+  assert.equal(result.has_content, true);
+  assert.equal(result.last_session?.session_id, "resume-session");
+  assert.equal(result.last_session?.observations, 2);
+  assert.equal(result.last_session?.paths.includes("src/server.ts"), true);
+  assert.equal((result.last_session?.distilled_titles.length ?? 0) > 0, true);
+  assert.equal(result.pending_auto_distilled, loadPendingPackets(project).length);
+  assert.equal(result.pending_auto_distilled > 0, true);
+  assert.match(result.review_command ?? "", /kage review --project/);
+  assert.match(result.context_block, /^# Previously \(Kage\)/);
+  assert.match(result.context_block, /Last session resume-session/);
+  assert.match(result.context_block, /auto-distilled draft/);
+  assert.match(result.context_block, /kage review --project/);
+  assert.equal(result.context_block.split("\n").length <= 15, true);
 });
 
 test("session capture report shows distillable observations without raw replay", () => {

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Automatic capture fallback (`kage distill --auto`).** The Claude Code Stop
+  hook now quietly distills the session's observations when the agent never
+  called `kage_learn`: drafts are written to the pending inbox (never approved
+  memory), tagged `auto-distill`, and excluded from recall until reviewed with
+  `kage review`. Auto mode is silent on empty sessions and skips sessions that
+  already produced memory packets; it never blocks the hook.
+- **Session continuity (`kage resume`).** New CLI command prints a compact
+  (≤15-line) "previously…" digest — last session's observations, distilled
+  learnings, latest change-memory packet, pending auto-distilled draft count,
+  and unresolved reconciliation items. Prints nothing when there is no prior
+  session data. The SessionStart hook appends it to the injected memory policy
+  so new sessions start warm.
 - **`kage repair` — one-command recovery.** Detects and fixes the breakage
   users actually hit, printing a receipt of every step (fixed / skipped /
   failed): unparseable packet JSON is backed up to

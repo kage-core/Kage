@@ -1,0 +1,87 @@
+{
+  "schema_version": 2,
+  "id": "repo:agent-a9571b4b7b8fb514a:workflow:auto-distill-fallback-and-kage-resume-continuity-1781244361588",
+  "title": "Auto-distill fallback and kage resume continuity",
+  "summary": "kage distill accepts auto: it writes distilled session candidates to the pending inbox .agent memory/pending, status \"pending\", tag \"auto distill\", quality.distillation \"auto distill\" instead of approved memory, and quie",
+  "body": "kage distill accepts --auto: it writes distilled session candidates to the pending inbox (.agent_memory/pending, status \"pending\", tag \"auto-distill\", quality.distillation \"auto_distill\") instead of approved memory, and quietly skips sessions with no observations or sessions where the agent already captured memory (sessionAlreadyCaptured in mcp/kernel.ts ignores mechanical packets: repo_map/kage-indexer generated, diff-proposal, change-memory, auto-distill). Auto-distilled pending drafts are excluded from recall entirely (recallablePendingPackets filters the auto-distill tag). kage resume prints a <=15-line \"previously\" digest (last session, distilled titles, change memory, pending auto-distill count, reconciliation items) and prints nothing when there is no prior session data. The claude-code Stop hook calls distill --auto after refresh/reconcile and the SessionStart hook appends kage resume output to the injected policy; both hook scripts exist in TWO copies that must stay in sync: the templates in setupAgent (mcp/kernel.ts) and the vendored plugin/hooks/stop.sh + session-start.sh.",
+  "type": "workflow",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "auto-distill",
+    "session-continuity",
+    "hooks"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/cli.ts",
+    "plugin/hooks/stop.sh",
+    "plugin/hooks/session-start.sh"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-12T06:06:01.588Z"
+    }
+  ],
+  "context": {
+    "fact": "kage distill accepts --auto: it writes distilled session candidates to the pending inbox (.agent_memory/pending, status \"pending\", tag \"auto-distill\", quality.distillation \"auto_distill\") instead of approved memory, and quietly skips sessions with no observations or sessions where the agent already captured memory (sessionAlreadyCaptured in mcp/kernel.ts ignores mechanical packets: repo_map/kage-indexer generated, diff-proposal, change-memory, auto-distill). Auto-distilled pending drafts are excluded from recall entirely (recallablePendingPackets filters the auto-distill tag). kage resume prints a <=15-line \"previously\" digest (last session, distilled titles, change memory, pending auto-distill count, reconciliation items) and prints nothing when there is no prior session data. The claude-code Stop hook calls distill --auto after refresh/reconcile and the SessionStart hook appends kage resume output to the injected policy; both hook scripts exist in TWO copies that must stay in sync: the templates in setupAgent (mcp/kernel.ts) and the vendored plugin/hooks/stop.sh + session-start.sh."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-12T06:06:01.588Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "1141e2889c74d29bccbf09fba7e32f4e17d2b73b33fd558c77e958ffeaea8363",
+        "size": 701748
+      },
+      {
+        "path": "mcp/cli.ts",
+        "sha256": "353fba70962c448f903cd9a36d0642e14873faf641e4547d44c12e3e6e2397bc",
+        "size": 94616
+      },
+      {
+        "path": "plugin/hooks/stop.sh",
+        "sha256": "7c4b7870bb49dd1b66eb6a8c90a6fdeda4729ebfb384912da8cc5a4ab2e22a84",
+        "size": 2105
+      },
+      {
+        "path": "plugin/hooks/session-start.sh",
+        "sha256": "c56aef5f98ae30cb2b3fb6601695b7a9255d60aeb9fa7b58290242c2796a6c5b",
+        "size": 1919
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "score": 96,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 275
+  },
+  "created_at": "2026-06-12T06:06:01.588Z",
+  "updated_at": "2026-06-12T06:06:21.036Z",
+  "author_branch": "gap/auto-capture-continuity"
+}
