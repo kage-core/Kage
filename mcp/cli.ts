@@ -440,9 +440,18 @@ async function main(): Promise<void> {
       }
       console.log("");
     }
-    if (!result.findings.length) console.log("No surprising findings — this repo's knowledge is unusually well distributed.\n");
+    if (!result.findings.length) {
+      const small = result.totals.files_scanned < 30;
+      const noGit = result.warnings.some((warning) => warning.includes("Git history"));
+      if (small || noGit) {
+        console.log(`Nothing alarming found — though ${small ? "a repo this small" : "a repo without git history"} gives these signals little to work with.`);
+        console.log("Where Kage pays off here is the memory loop: what you and your agents learn while building this gets kept, verified, and recalled.\n");
+      } else {
+        console.log("No surprising findings — this repo's knowledge is unusually well distributed.\n");
+      }
+    }
     if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}\n`);
-    console.log("Fix the void:");
+    console.log(result.findings.length ? "Fix the void:" : "Next:");
     for (const action of result.next_actions) console.log(`  ${action}`);
     return;
   }

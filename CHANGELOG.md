@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.2.5 - honest empty reports
+
+- **Scan's empty report stops flattering small repos.** A repo with under 30
+  files or no git history now gets "these signals have little to work with"
+  plus the memory-loop pitch, instead of "unusually well distributed". The
+  next-steps header reads "Next:" when there are no findings ("Fix the void:"
+  only when there's a void to fix).
+
 ## v2.2.4 - first-stranger fixes
 
 - **Fix: scan crashed on permission-locked directories.** The file walkers now
