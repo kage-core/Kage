@@ -448,22 +448,42 @@ async function main(): Promise<void> {
       console.log(JSON.stringify(result, null, 2));
       return;
     }
-    console.log("Kage demo — can you trust your agent's memory?\n");
-    console.log(`Seeded ${result.captured.length} grounded memories in a throwaway project (${result.project_dir})\n`);
-    console.log("1. Hallucinated citation — REJECTED on write:");
+    console.log("Kage demo — a live experiment in a sandbox repo. Nothing here is canned:");
+    console.log(`every step below ran for real, just now, in ${result.project_dir}\n`);
+    console.log("  Created a small repo: src/auth.ts, src/payments.ts, src/legacy-retry.ts");
+    console.log(`  Captured ${result.captured.length} memories, each citing real files — accepted and fingerprinted.\n`);
+    console.log("1. Then we tried to save a memory citing a file that does NOT exist:");
     if (result.rejected_hallucination) {
-      console.log(`   ✗ "${result.rejected_hallucination.title}"`);
+      console.log(`   ✗ "${result.rejected_hallucination.title}" — REFUSED at write time:`);
       console.log(`     ${result.rejected_hallucination.error}\n`);
     }
-    console.log("2. Stale memory (cited file deleted) — WITHHELD from recall:");
-    for (const w of result.withheld) console.log(`   ⊘ ${w.title}\n     ${w.reason}`);
-    console.log("\n3. Recall returns only grounded, current memory:");
+    console.log("2. Then we DELETED src/legacy-retry.ts and asked for recall again:");
+    for (const w of result.withheld) console.log(`   ⊘ "${w.title}" — WITHHELD\n     ${w.reason}`);
+    console.log("\n3. What recall actually returns now — only memory that still checks out:");
     for (const t of result.recalled) console.log(`   ✓ ${t}`);
-    console.log(`\nTrust score: ${result.trust_score}/100`);
-    console.log("\nNext, in your own repo:");
-    console.log("  kage init --project .                         create repo memory");
-    console.log("  kage setup <agent> --project . --write        wire your agent (claude-code, codex, cursor, ...)");
-    console.log("  kage viewer --project .                       see the dashboard");
+    console.log("\n  Checks: write-time rejection ✓ · stale withholding ✓ · grounded recall ✓");
+
+    // The sandbox proves the mechanism; the runner's own repo makes it matter.
+    const here = process.cwd();
+    if (existsSync(join(here, ".git")) && !takeArg(args, "--project")) {
+      console.log("\nThat was a sandbox. This is YOUR repo — scanning (read-only, ~a minute)...\n");
+      try {
+        const report = truthReport(here);
+        console.log(`  ${report.headline}`);
+        for (const finding of report.findings.slice(0, 3)) {
+          console.log(`  • ${finding.title}`);
+        }
+        if (report.findings.length > 3) console.log(`  …and ${report.findings.length - 3} more.`);
+        console.log("\n  Full report:  npx -y @kage-core/kage-graph-mcp scan --project .");
+      } catch {
+        console.log("  (scan skipped — run it yourself: npx -y @kage-core/kage-graph-mcp scan --project .)");
+      }
+    } else {
+      console.log("\nNow point it at a real repo:");
+      console.log("  npx -y @kage-core/kage-graph-mcp scan --project .     the Truth Report — what your repo is hiding");
+    }
+    console.log("\nWire it in (one command, auto-detects your agents):");
+    console.log("  npx -y @kage-core/kage-graph-mcp install");
     return;
   }
 

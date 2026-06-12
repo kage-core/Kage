@@ -29,12 +29,12 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-12T16:06:02.676Z",
+    "last_verified_at": "2026-06-12T18:20:57.779Z",
     "path_fingerprints": [
       {
         "path": "docs/guide.html",
-        "sha256": "5e1d049494d31cd10b8891f62ed124484215d143567ee90da3d2dd73f6ce051f",
-        "size": 48354
+        "sha256": "df3459ad7290a2690426859fd648f15845dd90b94996bdadc4ef9a74bf25c8d1",
+        "size": 49319
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -70,13 +70,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 160,
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: docs/guide.html"
-    ],
-    "suggested_action": "update"
+    "reverified_at": "2026-06-12T18:20:57.779Z"
   },
   "created_at": "2026-06-12T16:06:02.676Z",
-  "updated_at": "2026-06-12T16:59:05.344Z",
+  "updated_at": "2026-06-12T18:20:57.779Z",
   "author_branch": "master"
 }

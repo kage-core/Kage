@@ -1,6 +1,18 @@
 # Changelog
 
-## Unreleased
+## v2.2.2 - the demo earns the click
+
+- **`kage demo` rebuilt as a live experiment.** The output now narrates what
+  actually happens (create files → capture → try a hallucinated citation →
+  REFUSED → delete a cited file → recall WITHHOLDS it), drops the confusing
+  standalone trust score, and — when run inside a git repo — ends by scanning
+  the runner's OWN repo with a Truth Report teaser. Next steps now point at
+  the one-command install.
+- **Fix: doc-lie false positives on `../` links.** The Truth Report resolved
+  doc path claims only against the repo root, so links relative to the doc's
+  own directory (e.g. `docs/X.md` citing `../benchmark/README.md`) were flagged
+  as lies. A path claim now counts as a lie only if it resolves neither
+  root-relative nor doc-relative. Found by the new demo on our own repo.
 
 - **`kage reverify --packet <id>` — re-verify instead of supersede-churn.**
   When code a memory cites changes but the memory's claim is still true,

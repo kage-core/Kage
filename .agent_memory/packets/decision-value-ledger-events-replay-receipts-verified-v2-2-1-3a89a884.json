@@ -28,12 +28,12 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-12T12:48:53.614Z",
+    "last_verified_at": "2026-06-12T18:21:26.940Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "abae50ee8a49b342f2cf6954044aed904d27421cd25db79ec0ab03d2575a6631",
-        "size": 783618
+        "sha256": "08c1fd1c976ab82373b82222ce0f53f95d07c1e12df75ea62475c0b7435628d3",
+        "size": 786487
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -68,13 +68,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 79,
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: mcp/kernel.ts"
-    ],
-    "suggested_action": "update"
+    "reverified_at": "2026-06-12T18:21:26.940Z"
   },
   "created_at": "2026-06-12T12:48:53.614Z",
-  "updated_at": "2026-06-12T16:18:13.274Z",
+  "updated_at": "2026-06-12T18:21:26.940Z",
   "author_branch": "master"
 }

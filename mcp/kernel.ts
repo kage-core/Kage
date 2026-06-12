@@ -11139,7 +11139,10 @@ export function truthReport(projectDir: string): TruthReport {
       // Path claims only count in prose; fenced content is sample output.
       for (const candidate of entry.fence === null ? truthDocPathCandidates(entry.text) : []) {
         const key = `path:${candidate}`;
-        if (seenLies.has(key) || existsSync(join(projectDir, candidate))) continue;
+        // A cited path is a lie only if it resolves nowhere: docs use both
+        // repo-root-relative paths and links relative to the doc's own dir.
+        const resolves = existsSync(join(projectDir, candidate)) || existsSync(join(projectDir, dirname(entry.doc), candidate));
+        if (seenLies.has(key) || resolves) continue;
         seenLies.add(key);
         docLieFindings.push({
           kind: "doc_lie",

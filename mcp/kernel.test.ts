@@ -5128,6 +5128,23 @@ test("sync setup is idempotent and re-runs update the remote URL", () => {
   });
 });
 
+test("doc-lie check resolves links relative to the doc's directory, not just repo root", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "docs"), { recursive: true });
+  mkdirSync(join(project, "guides"), { recursive: true });
+  writeFileSync(join(project, "guides", "real.md"), "# real\n", "utf8");
+  writeFileSync(join(project, "src.ts"), "export const x = 1;\n", "utf8");
+  writeFileSync(
+    join(project, "docs", "README.md"),
+    "See [the guide](../guides/real.md) for details.\nAlso see [missing](../guides/ghost.md) here.\n",
+    "utf8",
+  );
+  const report = truthReport(project);
+  const lies = report.findings.filter((f) => f.kind === "doc_lie").map((f) => f.title);
+  assert.equal(lies.some((t) => t.includes("ghost.md")), true, JSON.stringify(lies));
+  assert.equal(lies.some((t) => t.includes("real.md")), false, JSON.stringify(lies));
+});
+
 test("reverify refreshes grounding in place and clears stale flags", () => {
   const project = tempProject();
   writeFileSync(join(project, "lib.ts"), "export const v = 1;\n", "utf8");
