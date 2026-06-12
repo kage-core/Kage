@@ -1,0 +1,192 @@
+{
+  "schema_version": 2,
+  "id": "repo:agent-a9571b4b7b8fb514a:workflow:change-memory-gap-auto-capture-continuity",
+  "title": "Change memory: gap/auto-capture-continuity",
+  "summary": "Repo-local context for 11 changed repo paths on gap/auto-capture-continuity.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/reference-claude-mem-implementation-teardown-zero-verification-confirmed-5-mechanics-worth-f7674b1c.json\n- .agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-88de2220.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n- .agent_memory/packets/workflow-change-memory-release-v2-0-1-d6e19752.json\n- .agent_memory/packets/workflow-stale-catch-feature-landed-via-pr-64-kernel-test-ts-seam-carries-both-v2-test-su-9ad40729.json\n- CHANGELOG.md\n- mcp/cli.ts\n- mcp/kernel.test.ts\n- mcp/kernel.ts\n- plugin/hooks/session-start.sh\n- plugin/hooks/stop.sh\n\nDiff summary:\n```text\n...ation-confirmed-5-mechanics-worth-f7674b1c.json |   9 +-\n .../workflow-change-memory-master-23634276.json    |   3 +-\n ...flow-change-memory-release-v2-0-1-d6e19752.json |   4 +-\n ...t-ts-seam-carries-both-v2-test-su-9ad40729.json |   4 +-\n CHANGELOG.md                                       |  15 ++\n mcp/cli.ts                                         |  29 ++-\n mcp/kernel.test.ts                                 | 120 +++++++++++++\n mcp/kernel.ts                                      | 197 ++++++++++++++++++++-\n plugin/hooks/session-start.sh                      |  10 ++\n plugin/hooks/stop.sh                               |  14 ++\n 10 files changed, 384 insertions(+), 21 deletions(-)\n.agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-88de2220.json | untracked\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "type": "workflow",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.62,
+  "tags": [
+    "change-memory",
+    "diff-proposal",
+    "repo-local",
+    "branch:gap-auto-capture-continuity"
+  ],
+  "paths": [
+    ".agent_memory/packets/reference-claude-mem-implementation-teardown-zero-verification-confirmed-5-mechanics-worth-f7674b1c.json",
+    ".agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-88de2220.json",
+    ".agent_memory/packets/workflow-change-memory-master-23634276.json",
+    ".agent_memory/packets/workflow-change-memory-release-v2-0-1-d6e19752.json",
+    ".agent_memory/packets/workflow-stale-catch-feature-landed-via-pr-64-kernel-test-ts-seam-carries-both-v2-test-su-9ad40729.json",
+    "CHANGELOG.md",
+    "mcp/cli.ts",
+    "mcp/kernel.test.ts",
+    "mcp/kernel.ts",
+    "plugin/hooks/session-start.sh",
+    "plugin/hooks/stop.sh"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "git_diff",
+      "branch": "gap/auto-capture-continuity",
+      "head": "a19697c3b474c9fc9fd080f7008512b26ecaf09d",
+      "merge_base": "a19697c3b474c9fc9fd080f7008512b26ecaf09d",
+      "changed_files": [
+        ".agent_memory/packets/reference-claude-mem-implementation-teardown-zero-verification-confirmed-5-mechanics-worth-f7674b1c.json",
+        ".agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-88de2220.json",
+        ".agent_memory/packets/workflow-change-memory-master-23634276.json",
+        ".agent_memory/packets/workflow-change-memory-release-v2-0-1-d6e19752.json",
+        ".agent_memory/packets/workflow-stale-catch-feature-landed-via-pr-64-kernel-test-ts-seam-carries-both-v2-test-su-9ad40729.json",
+        "CHANGELOG.md",
+        "mcp/cli.ts",
+        "mcp/kernel.test.ts",
+        "mcp/kernel.ts",
+        "plugin/hooks/session-start.sh",
+        "plugin/hooks/stop.sh"
+      ],
+      "summary_path": "/Users/kushaljain/code/Kage/.claude/worktrees/agent-a9571b4b7b8fb514a/.agent_memory/review/branch-summary-gap-auto-capture-continuity.json"
+    }
+  ],
+  "context": {
+    "fact": "Current branch gap/auto-capture-continuity changes 11 repo paths.",
+    "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
+    "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
+    "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
+    "verification": "Generated from git diff and refreshed by kage pr summarize or kage propose --from-diff.",
+    "risk_if_forgotten": "Future agents may repeat orientation work, miss branch-specific assumptions, or ignore files touched by this change.",
+    "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
+  },
+  "freshness": {
+    "last_verified_at": "2026-06-12T06:06:29.440Z",
+    "ttl_days": 180,
+    "path_fingerprints": [
+      {
+        "path": "CHANGELOG.md",
+        "sha256": "602461759adcf5a249106393e18aa89467c7dadc2033bfedf24fc4f9c7a83246",
+        "size": 22377
+      },
+      {
+        "path": "mcp/cli.ts",
+        "sha256": "353fba70962c448f903cd9a36d0642e14873faf641e4547d44c12e3e6e2397bc",
+        "size": 94616
+      },
+      {
+        "path": "mcp/kernel.test.ts",
+        "sha256": "e5715ab13a6e467edda697e84c63f6df66a9b6c74b2d854c451cf76f2eabd01b",
+        "size": 197162
+      },
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "1141e2889c74d29bccbf09fba7e32f4e17d2b73b33fd558c77e958ffeaea8363",
+        "size": 701748
+      },
+      {
+        "path": "plugin/hooks/session-start.sh",
+        "sha256": "c56aef5f98ae30cb2b3fb6601695b7a9255d60aeb9fa7b58290242c2796a6c5b",
+        "size": 1919
+      },
+      {
+        "path": "plugin/hooks/stop.sh",
+        "sha256": "7c4b7870bb49dd1b66eb6a8c90a6fdeda4729ebfb384912da8cc5a4ab2e22a84",
+        "size": 2105
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "git_diff"
+  },
+  "edges": [
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/reference-claude-mem-implementation-teardown-zero-verification-confirmed-5-mechanics-worth-f7674b1c.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-88de2220.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/workflow-change-memory-master-23634276.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/workflow-change-memory-release-v2-0-1-d6e19752.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/workflow-stale-catch-feature-landed-via-pr-64-kernel-test-ts-seam-carries-both-v2-test-su-9ad40729.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:CHANGELOG.md",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:mcp/cli.ts",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:mcp/kernel.test.ts",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:mcp/kernel.ts",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:plugin/hooks/session-start.sh",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:plugin/hooks/stop.sh",
+      "evidence": "git_diff"
+    }
+  ],
+  "quality": {
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "stale_reasons": [],
+    "estimated_tokens_saved": 538,
+    "admission": {
+      "admit": true,
+      "class": "candidate",
+      "score": 70,
+      "reasons": [
+        "durable memory type",
+        "has provenance",
+        "repo scoped or path grounded",
+        "has durable trigger, rationale, issue context, or explanation",
+        "substantive enough to reuse"
+      ],
+      "risks": []
+    },
+    "candidate_kind": "change_memory",
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true
+  },
+  "created_at": "2026-06-12T06:06:29.440Z",
+  "updated_at": "2026-06-12T06:06:29.440Z"
+}
