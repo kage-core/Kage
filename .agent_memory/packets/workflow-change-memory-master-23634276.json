@@ -3,7 +3,7 @@
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
   "summary": "Repo-local context for 2 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/bug_fix-end-to-end-command-audit-2-2-7-only-real-bug-was-kage-risk-listing-non-source-fi-969abaea.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n...ly-real-bug-was-kage-risk-listing-non-source-fi-969abaea.json | 9 +++++++--\n .../packets/workflow-change-memory-master-23634276.json          | 3 +--\n 2 files changed, 8 insertions(+), 4 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/bug_fix-end-to-end-command-audit-2-2-7-only-real-bug-was-kage-risk-listing-non-source-fi-969abaea.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n...only-real-bug-was-kage-risk-listing-non-source-fi-969abaea.json | 7 ++++---\n .agent_memory/packets/workflow-change-memory-master-23634276.json  | 3 +--\n 2 files changed, 5 insertions(+), 5 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -25,8 +25,8 @@
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "5e750f0bd72b8dbe94a8a598c514d29d3df44b8f",
-      "merge_base": "5e750f0bd72b8dbe94a8a598c514d29d3df44b8f",
+      "head": "7e41aeadfe50397f912ff7cb4a955d85a065e20f",
+      "merge_base": "7e41aeadfe50397f912ff7cb4a955d85a065e20f",
       "changed_files": [
         ".agent_memory/packets/bug_fix-end-to-end-command-audit-2-2-7-only-real-bug-was-kage-risk-listing-non-source-fi-969abaea.json",
         ".agent_memory/packets/workflow-change-memory-master-23634276.json"
@@ -44,7 +44,7 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-13T09:08:04.809Z",
+    "last_verified_at": "2026-06-13T09:13:17.952Z",
     "ttl_days": 180,
     "path_fingerprints": [],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -75,7 +75,7 @@
     "risks": [],
     "duplicate_candidates": [],
     "stale_reasons": [],
-    "estimated_tokens_saved": 283,
+    "estimated_tokens_saved": 284,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -93,6 +93,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-06-13T09:08:04.809Z",
-  "updated_at": "2026-06-13T09:08:04.809Z"
+  "created_at": "2026-06-13T09:13:17.952Z",
+  "updated_at": "2026-06-13T09:13:17.952Z"
 }
