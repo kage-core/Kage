@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
-  "summary": "Repo-local context for 5 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/issue_context-task-notification-task-id-a28796694fe6b88d6-task-id-tool-use-id-toolu-011bm1xtsw-e93eeb83.json\n- .agent_memory/packets/reference-first-stranger-engagement-on-launch-content-dev-to-commenter-mehmet-can-farsak-b-1c7442e7.json\n- .agent_memory/packets/runbook-runbook-interrupted-false-isimage-false-nooutputexpected-false-stderr-stdout-kag-99ad0294.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n- .agent_memory/packets/workflow-workflow-file-content-refused-hallucinated-citations-never-enter-storage-n2-with-62f28227.json\n\nDiff summary:\n```text\n...96694fe6b88d6-task-id-tool-use-id-toolu-011bm1xtsw-e93eeb83.json | 3 +--\n ...aunch-content-dev-to-commenter-mehmet-can-farsak-b-1c7442e7.json | 3 +--\n ...age-false-nooutputexpected-false-stderr-stdout-kag-99ad0294.json | 3 +--\n .agent_memory/packets/workflow-change-memory-master-23634276.json   | 3 +--\n ...hallucinated-citations-never-enter-storage-n2-with-62f28227.json | 6 ++++--\n 5 files changed, 8 insertions(+), 10 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "summary": "Repo-local context for 2 changed repo paths on master.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n- .agent_memory/packets/workflow-workflow-file-content-refused-hallucinated-citations-never-enter-storage-n2-with-62f28227.json\n\nDiff summary:\n```text\n.agent_memory/packets/workflow-change-memory-master-23634276.json  | 3 +--\n ...allucinated-citations-never-enter-storage-n2-with-62f28227.json | 7 ++++---\n 2 files changed, 5 insertions(+), 5 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -17,9 +17,6 @@
     "branch:master"
   ],
   "paths": [
-    ".agent_memory/packets/issue_context-task-notification-task-id-a28796694fe6b88d6-task-id-tool-use-id-toolu-011bm1xtsw-e93eeb83.json",
-    ".agent_memory/packets/reference-first-stranger-engagement-on-launch-content-dev-to-commenter-mehmet-can-farsak-b-1c7442e7.json",
-    ".agent_memory/packets/runbook-runbook-interrupted-false-isimage-false-nooutputexpected-false-stderr-stdout-kag-99ad0294.json",
     ".agent_memory/packets/workflow-change-memory-master-23634276.json",
     ".agent_memory/packets/workflow-workflow-file-content-refused-hallucinated-citations-never-enter-storage-n2-with-62f28227.json"
   ],
@@ -28,12 +25,9 @@
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "6830c7cc3f17f4bf70f68d0cff0a8a5b7b287436",
-      "merge_base": "6830c7cc3f17f4bf70f68d0cff0a8a5b7b287436",
+      "head": "9543742313b53cab0ac3a6ab2af26c461821ed91",
+      "merge_base": "9543742313b53cab0ac3a6ab2af26c461821ed91",
       "changed_files": [
-        ".agent_memory/packets/issue_context-task-notification-task-id-a28796694fe6b88d6-task-id-tool-use-id-toolu-011bm1xtsw-e93eeb83.json",
-        ".agent_memory/packets/reference-first-stranger-engagement-on-launch-content-dev-to-commenter-mehmet-can-farsak-b-1c7442e7.json",
-        ".agent_memory/packets/runbook-runbook-interrupted-false-isimage-false-nooutputexpected-false-stderr-stdout-kag-99ad0294.json",
         ".agent_memory/packets/workflow-change-memory-master-23634276.json",
         ".agent_memory/packets/workflow-workflow-file-content-refused-hallucinated-citations-never-enter-storage-n2-with-62f28227.json"
       ],
@@ -41,7 +35,7 @@
     }
   ],
   "context": {
-    "fact": "Current branch master changes 5 repo paths.",
+    "fact": "Current branch master changes 2 repo paths.",
     "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
     "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
     "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
@@ -50,28 +44,13 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-13T05:02:29.018Z",
+    "last_verified_at": "2026-06-13T05:11:39.104Z",
     "ttl_days": 180,
     "path_fingerprints": [],
     "path_fingerprint_policy": "source_hash_staleness",
     "verification": "git_diff"
   },
   "edges": [
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/issue_context-task-notification-task-id-a28796694fe6b88d6-task-id-tool-use-id-toolu-011bm1xtsw-e93eeb83.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/reference-first-stranger-engagement-on-launch-content-dev-to-commenter-mehmet-can-farsak-b-1c7442e7.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/runbook-runbook-interrupted-false-isimage-false-nooutputexpected-false-stderr-stdout-kag-99ad0294.json",
-      "evidence": "git_diff"
-    },
     {
       "relation": "changes_path",
       "to": "path:.agent_memory/packets/workflow-change-memory-master-23634276.json",
@@ -96,7 +75,7 @@
     "risks": [],
     "duplicate_candidates": [],
     "stale_reasons": [],
-    "estimated_tokens_saved": 440,
+    "estimated_tokens_saved": 284,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -114,6 +93,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-06-13T05:02:29.018Z",
-  "updated_at": "2026-06-13T05:02:29.018Z"
+  "created_at": "2026-06-13T05:11:39.104Z",
+  "updated_at": "2026-06-13T05:11:39.104Z"
 }
