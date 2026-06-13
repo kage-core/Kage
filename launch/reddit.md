@@ -24,7 +24,9 @@ Try the read-only scan on your repo (~1 min, finds knowledge voids and doc claim
 
     npx -y kage-graph-mcp scan --project .
 
-Repo: https://github.com/kage-core/Kage · Want a live 30-min run on your repo instead? https://kage-core.com/demo.html
+I'm onboarding the first teams this week and running it live on your repo — 30 minutes, your code, the scan + a stale-catch on a real diff. **Grab a slot here: https://kage-core.com/demo.html**
+
+Repo (GPL-3.0): https://github.com/kage-core/Kage
 
 How are you handling stale memory today? That's the part I want to compare notes on.
 
@@ -48,7 +50,9 @@ Check what it sees in your repo first (read-only, ~1 min):
 
     npx -y kage-graph-mcp scan --project .
 
-Repo: https://github.com/kage-core/Kage · Live 30-min run on your repo: https://kage-core.com/demo.html
+I'm onboarding the first teams this week. Want it set up and demoed live on your repo? **Book a 30-min slot: https://kage-core.com/demo.html**
+
+Repo (GPL-3.0): https://github.com/kage-core/Kage
 
 Where would this break for you? Monorepos and worktrees especially.
 
