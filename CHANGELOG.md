@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.2.6 - Truth Report duplicate detector, de-noised
+
+- **Fix: duplicate-cluster false positives.** The detector flagged every
+  class's `__init__`/`__repr__` and convention-named closures (decorator,
+  wrapper) as "duplicate implementations." Now: methods are excluded (same-name
+  methods across classes are normal polymorphism), dunders and idiomatic
+  closure names are denied, and a matching signature is required — not just a
+  shared name. On Flask this dropped 11 clusters to 1 true positive
+  (`_make_timedelta`, genuinely defined twice).
+- **Dropped the unfounded "likely AI-era" tag.** A recent commit date doesn't
+  prove AI authorship; findings now read "[recently changed]".
+
 ## v2.2.5 - honest empty reports
 
 - **Scan's empty report stops flattering small repos.** A repo with under 30

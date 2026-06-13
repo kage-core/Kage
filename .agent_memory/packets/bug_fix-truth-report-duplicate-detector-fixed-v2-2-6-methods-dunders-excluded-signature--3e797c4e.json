@@ -1,0 +1,70 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:bug_fix:truth-report-duplicate-detector-fixed-v2-2-6-methods-dunders-excluded-signature-",
+  "title": "Truth Report duplicate detector fixed (v2.2.6): methods/dunders excluded, signature required",
+  "summary": "Fixed in 2.2.6: duplicate cluster detector restricted to top level function/class methods excluded — same name methods across classes are polymorphism , dunders + idiomatic closure names decorator/wrapper/inner/callback",
+  "body": "Fixed in 2.2.6: duplicate-cluster detector restricted to top-level function/class (methods excluded — same-name methods across classes are polymorphism), dunders + idiomatic closure names (decorator/wrapper/inner/callback) denylisted via TRUTH_DUPLICATE_NAME_DENYLIST, signatureMatch now REQUIRED. 'likely AI-era' tag removed -> '[recently changed]'. Verified on Flask: 11 clusters -> 1 true positive (_make_timedelta in app.py + sansio/app.py). Found via famous-repo content generation.",
+  "type": "bug_fix",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "truth-report"
+  ],
+  "paths": [
+    "mcp/kernel.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-13T07:16:35.460Z"
+    }
+  ],
+  "context": {
+    "fact": "Fixed in 2.2.6: duplicate-cluster detector restricted to top-level function/class (methods excluded — same-name methods across classes are polymorphism), dunders + idiomatic closure names (decorator/wrapper/inner/callback) denylisted via TRUTH_DUPLICATE_NAME_DENYLIST, signatureMatch now REQUIRED. 'likely AI-era' tag removed -> '[recently changed]'. Verified on Flask: 11 clusters -> 1 true positive (_make_timedelta in app.py + sansio/app.py). Found via famous-repo content generation."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-13T07:16:35.460Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "21280b2275bff39890cf143e74e62b2b233512d6d49c74d5ade25c2302a83701",
+        "size": 788257
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "discovery_tokens": 8000,
+    "discovery_tokens_estimated": true,
+    "score": 96,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "stale_reasons": [],
+    "estimated_tokens_saved": 122
+  },
+  "created_at": "2026-06-13T07:16:35.460Z",
+  "updated_at": "2026-06-13T07:16:35.460Z",
+  "author_branch": "master"
+}
