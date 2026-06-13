@@ -1,0 +1,73 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:v2-3-0-closed-the-trust-axis-vs-the-73-system-comparison-1781342332834",
+  "title": "v2.3.0 closed the trust axis vs the 73-system comparison",
+  "summary": "Shipped to top carsteneu/ai memory comparison. WIN 1 contradiction detectContradictions/kage conflicts/ strict contradictions : contradiction ⚠️→✅, conflict ❌→✅. WIN 2 docs search buildDocsIndex/searchDocs/kage docs sear",
+  "body": "Shipped to top carsteneu/ai-memory-comparison. WIN-1 contradiction (detectContradictions/kage conflicts/--strict-contradictions): contradiction ⚠️→✅, conflict ❌→✅. WIN-2 docs search (buildDocsIndex/searchDocs/kage docs-search/recall --docs): docsSearch 1/73→✅. WIN-3 +3 platforms (openclaw/copilot/hermes). WIN-4 kageLayers: layeredMemory ❌→✅. ~38→~45 features, #2 behind YesMem(52), most complete Knowledge Lifecycle column. Skipped on purpose: proxy/sandboxed/scheduled exec, emotional, external LLM providers (offline by design). 258 tests.",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "comparison"
+  ],
+  "paths": [
+    "mcp/kernel.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-13T09:18:52.834Z"
+    }
+  ],
+  "context": {
+    "fact": "Shipped to top carsteneu/ai-memory-comparison. WIN-1 contradiction (detectContradictions/kage conflicts/--strict-contradictions): contradiction ⚠️→✅, conflict ❌→✅. WIN-2 docs search (buildDocsIndex/searchDocs/kage docs-search/recall --docs): docsSearch 1/73→✅. WIN-3 +3 platforms (openclaw/copilot/hermes). WIN-4 kageLayers: layeredMemory ❌→✅. ~38→~45 features, #2 behind YesMem(52), most complete Knowledge Lifecycle column. Skipped on purpose: proxy/sandboxed/scheduled exec, emotional, external LLM providers (offline by design). 258 tests."
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-13T09:18:52.834Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "c1d09bfb9686c0149ae0901b28e7369ea2b338bf344928cc7a07c2e8b9d2a24c",
+        "size": 812422
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "discovery_tokens": 4000,
+    "discovery_tokens_estimated": true,
+    "score": 96,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "stale_reasons": [],
+    "estimated_tokens_saved": 136,
+    "contradicts": [
+      "repo:https-github-com-kage-core-kage:decision:audit-trust-scoring-must-not-let-dense-graph-edges-mask-missing-context-17780111"
+    ]
+  },
+  "created_at": "2026-06-13T09:18:52.834Z",
+  "updated_at": "2026-06-13T09:18:52.834Z",
+  "author_branch": "master"
+}

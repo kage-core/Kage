@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.3.0 - the trust axis, completed
+
+- **Memory-vs-memory contradiction detection.** A new packet that contradicts
+  an approved one about the same file is surfaced at write time (`kage
+  conflicts`, `kage_conflicts`, `--strict-contradictions`). Conservative,
+  cue-based, no LLM — the third verification guard alongside write-time
+  citation rejection and recall-time stale withholding.
+- **Docs search.** `kage docs-search` / `kage recall --docs` / `kage_docs_search`
+  index the repo's own committed docs (README, docs/**, *.md) for
+  heading-anchored retrieval.
+- **Three more agent platforms:** OpenClaw, Copilot, Hermes (`kage setup`).
+- **`kage layers`.** Surfaces Kage's hierarchical memory: L0 raw observations,
+  L1 reviewed packets, L2 synthesis (repo maps, change summaries).
+
 ## Unreleased
 
 - **Memory-vs-memory contradiction detection.** Kage already validates citations
