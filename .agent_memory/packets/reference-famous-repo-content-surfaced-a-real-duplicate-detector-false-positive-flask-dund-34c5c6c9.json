@@ -63,11 +63,12 @@
     "estimated_tokens_saved": 204,
     "stale": true,
     "stale_reasons": [
+      "packet status is deprecated",
       "linked path changed since memory was verified: launch/article-flask-scan.md"
     ],
-    "suggested_action": "update"
+    "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-13T06:29:11.577Z",
-  "updated_at": "2026-06-13T07:17:03.978Z",
+  "updated_at": "2026-06-13T08:12:07.618Z",
   "author_branch": "master"
 }

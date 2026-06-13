@@ -8,7 +8,7 @@
   "scope": "repo",
   "visibility": "team",
   "sensitivity": "internal",
-  "status": "approved",
+  "status": "deprecated",
   "confidence": 0.7,
   "tags": [
     "session-learning",
@@ -61,9 +61,14 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 122
+    "estimated_tokens_saved": 122,
+    "stale": true,
+    "stale_reasons": [
+      "linked path changed since memory was verified: mcp/kernel.ts"
+    ],
+    "suggested_action": "update"
   },
   "created_at": "2026-06-13T07:16:35.460Z",
-  "updated_at": "2026-06-13T07:16:57.680Z",
+  "updated_at": "2026-06-13T08:12:14.019Z",
   "author_branch": "master"
 }
