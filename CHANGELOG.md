@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- **Docs search index.** Kage now builds a searchable index over the repo's
+  OWN committed documentation (README, `docs/**`, `*.md`, and common doc
+  directories — including any framework/API docs checked into the repo). Each
+  doc is split into heading-anchored chunks and written to
+  `.agent_memory/indexes/docs-index.json`, kept current through `kage index`
+  and `kage refresh`. Recall can now answer from docs, not just learned memory
+  packets and code. This indexes only files on disk in the project — never the
+  internet.
+  - `kage docs-search "<query>" --project <dir> [--limit <n>] [--json]` prints
+    ranked doc hits with `doc:line` and the heading path.
+  - `kage recall --docs` appends a "Docs" section (≤3 hits) to recall output.
+  - New MCP tool `kage_docs_search`; `kage_recall` gains a `docs` flag.
+
 ## v2.2.7 - end-to-end audit fix
 
 - **Fix: `kage risk` listed non-source files.** When inferring targets from the
