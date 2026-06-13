@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.2.7 - end-to-end audit fix
+
+- **Fix: `kage risk` listed non-source files.** When inferring targets from the
+  working tree, risk now keeps only files the code graph knows about — memory
+  packets, dotfiles, and docs no longer show up as "risks". Explicit
+  `--targets` are always honored. Found by a full command-surface audit on a
+  real Express clone.
+
 ## v2.2.6 - Truth Report duplicate detector, de-noised
 
 - **Fix: duplicate-cluster false positives.** The detector flagged every
