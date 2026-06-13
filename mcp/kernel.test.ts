@@ -48,6 +48,7 @@ import {
   runDemo,
   initProject,
   indexProject,
+  kageLayers,
   installAgentPolicy,
   kageCleanupCandidates,
   kageCapabilityAudit,
@@ -5146,6 +5147,30 @@ test("risk inferred from working tree excludes non-source files (memory packets,
   assert.equal(keys.includes("src/a.ts"), true, JSON.stringify(keys));
   assert.equal(keys.some((k) => k.endsWith(".gitattributes")), false, JSON.stringify(keys));
   assert.equal(keys.some((k) => k.includes(".agent_memory")), false, JSON.stringify(keys));
+});
+
+test("setup supports openclaw, copilot, and hermes platforms", () => {
+  for (const agent of ["openclaw", "copilot", "hermes"] as const) {
+    assert.equal(SETUP_AGENTS.includes(agent), true, agent);
+    const result = setupAgent(agent, tempProject(), { write: false });
+    assert.equal(result.agent, agent);
+    assert.ok(result.config && result.config.includes("kage"), `${agent} emits an MCP config`);
+  }
+});
+
+test("kageLayers buckets memory into L0 observations, L1 reviewed, L2 synthesis", () => {
+  const project = tempProject();
+  writeFileSync(join(project, "a.ts"), "export const a = 1;\n", "utf8");
+  initProject(project, { policy: false });
+  learn({ projectDir: project, learning: "a.ts holds the constant.", paths: ["a.ts"], type: "reference" });
+  // add a repo_map packet so L2 synthesis has something to bucket
+  learn({ projectDir: project, learning: "Repo overview: a small TS lib.", type: "repo_map" });
+  const report = kageLayers(project);
+  const byLayer = Object.fromEntries(report.layers.map((l) => [l.layer, l]));
+  assert.equal(byLayer.L0.label, "Raw observations");
+  assert.equal(byLayer.L1.label, "Reviewed memory");
+  assert.equal(byLayer.L1.count >= 1, true, "reviewed packet counted in L1");
+  assert.equal(byLayer.L2.count >= 1, true, "repo_map packet bucketed into L2 synthesis: " + JSON.stringify(report.layers));
 });
 
 test("duplicate detector ignores dunders and same-name methods across classes", () => {

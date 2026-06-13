@@ -56,6 +56,7 @@ import {
   kageMemoryLineage,
   kageMemoryReconciliation,
   kageMemoryTimeline,
+  kageLayers,
   kageMetrics,
   kageModuleHealth,
   kageProjectProfile,
@@ -182,6 +183,7 @@ Usage:
   kage slots set --project <dir> --label <label> --content <text> [--description <text>] [--paths a,b] [--tags a,b] [--size-limit <n>] [--unpinned] [--json]
   kage slots delete --project <dir> --label <label> [--json]
   kage handoff --project <dir> [--json]
+  kage layers --project <dir> [--json]
   kage lifecycle --project <dir> [--json]
   kage reverify --project <dir> --packet <id> [--json]
   kage reconcile --project <dir> [--session <id>] [--json]
@@ -1420,6 +1422,18 @@ async function main(): Promise<void> {
     console.log("\nRecent:");
     for (const event of result.events.slice(0, 15)) {
       console.log(`- ${event.at.slice(0, 16).replace("T", " ")}  ${event.kind.padEnd(9)} ${event.title}`);
+    }
+    return;
+  }
+
+  if (command === "layers" || command === "memory-layers") {
+    const result = kageLayers(projectArg(args));
+    if (args.includes("--json")) { console.log(JSON.stringify(result, null, 2)); return; }
+    console.log("Kage memory layers");
+    for (const layer of result.layers) {
+      console.log(`  ${layer.layer} ${layer.label} (${layer.count})`);
+      console.log(`     ${layer.description}`);
+      for (const ex of layer.examples) console.log(`     · ${ex}`);
     }
     return;
   }

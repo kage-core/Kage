@@ -469,6 +469,9 @@ export const SETUP_AGENTS = [
   "kilo-code",
   "claude-desktop",
   "aider",
+  "openclaw",
+  "copilot",
+  "hermes",
   "generic-mcp",
 ] as const;
 
@@ -16288,6 +16291,9 @@ exit 0
     "roo-code": join(home, ".roo", "mcp_settings.json"),
     "kilo-code": join(home, ".kilo", "mcp_settings.json"),
     "claude-desktop": join(home, ".config", "claude", "claude_desktop_config.json"),
+    openclaw: join(home, ".openclaw", "mcp.json"),
+    copilot: join(home, ".config", "github-copilot", "mcp.json"),
+    hermes: join(home, ".hermes", "mcp.json"),
     "generic-mcp": "",
   };
   setSnippet(paths[agent] || null, universal, [`Merge this MCP stdio config into ${agent}'s MCP settings.`, "Restart the agent after updating config."]);
@@ -19836,4 +19842,41 @@ export function syncPersonal(): SyncResult {
   }
   result.ok = true;
   return result;
+}
+
+
+export interface MemoryLayersReport {
+  project_dir: string;
+  layers: Array<{ layer: string; label: string; description: string; count: number; examples: string[] }>;
+}
+
+// Kage's memory is hierarchical by construction:
+//   L0 raw       — session observations captured by hooks (unreviewed signal)
+//   L1 reviewed  — verified memory packets (the trusted store)
+//   L2 synthesis — generated overviews: repo maps, project profile, branch/change summaries
+// This surfaces that existing structure rather than inventing a field.
+export function kageLayers(projectDir: string): MemoryLayersReport {
+  const L2_TYPES = new Set(["repo_map"]);
+  const isSynthesis = (p: MemoryPacket): boolean => {
+    const q = (p.quality ?? {}) as Record<string, unknown>;
+    return L2_TYPES.has(p.type) || q.candidate_kind === "change_memory";
+  };
+  const entries = existsSync(packetsDir(projectDir)) ? loadPacketEntriesFromDir(packetsDir(projectDir)) : [];
+  const l2 = entries.filter((e) => isSynthesis(e.packet));
+  const l1 = entries.filter((e) => !isSynthesis(e.packet));
+  let observationCount = 0;
+  const obsDir = observationsDir(projectDir);
+  if (existsSync(obsDir)) {
+    try {
+      observationCount = readdirSync(obsDir).filter((f) => f.endsWith(".jsonl") || f.endsWith(".json")).length;
+    } catch { observationCount = 0; }
+  }
+  return {
+    project_dir: projectDir,
+    layers: [
+      { layer: "L0", label: "Raw observations", description: "Session signal captured by hooks; unreviewed, feeds auto-distill.", count: observationCount, examples: [] },
+      { layer: "L1", label: "Reviewed memory", description: "Verified packets — cited, fingerprinted, the trusted recall store.", count: l1.length, examples: l1.slice(0, 3).map((e) => e.packet.title) },
+      { layer: "L2", label: "Synthesis", description: "Generated overviews: repo maps and branch/change summaries.", count: l2.length, examples: l2.slice(0, 3).map((e) => e.packet.title) },
+    ],
+  };
 }
