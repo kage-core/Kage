@@ -100,6 +100,7 @@ import {
   staleCatch,
   formatStaleCatch,
   supersedeMemory,
+  kageConflicts,
   syncPersonal,
   syncSetup,
   syncStatus,
@@ -110,6 +111,7 @@ import {
   verifyAgentActivation,
   writeCodeIndex,
   type CaptureInput,
+  type ContradictionFinding,
   type MemoryType,
   type ObservationEvent,
   type SetupAgent,
@@ -184,6 +186,7 @@ Usage:
   kage timeline --project <dir> [--days <n>] [--json]
   kage lineage --project <dir> [--json]
   kage supersede --project <dir> --packet <old-id> --replacement <new-id> [--reason <text>] [--json]
+  kage conflicts --project <dir> [--json]
   kage contributors --project <dir> [--json]
   kage profile --project <dir> [--json]
   kage xray --project <dir> [--json]
@@ -276,6 +279,15 @@ function projectArg(args: string[]): string {
 function numberArg(args: string[], name: string, fallback: number): number {
   const value = takeArg(args, name);
   return value ? Number(value) : fallback;
+}
+
+function printContradictionWarning(contradictions: ContradictionFinding[] | undefined): void {
+  if (!contradictions?.length) return;
+  console.log(`\n⚠ This contradicts ${contradictions.length} existing memor${contradictions.length === 1 ? "y" : "ies"}:`);
+  for (const item of contradictions) {
+    console.log(`  - ${item.packet_id} (${item.title}): ${item.reason}`);
+  }
+  console.log("  Resolve with kage supersede --packet <old> --replacement <new>, or keep both intentionally.");
 }
 
 function firstPositional(args: string[]): string | undefined {
@@ -1637,6 +1649,28 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "conflicts") {
+    const result = kageConflicts(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    if (!result.count) {
+      console.log("Memory conflicts: none — no contradicting packet pairs found.");
+      return;
+    }
+    console.log(`Memory conflicts: ${result.count} contradicting packet pair${result.count === 1 ? "" : "s"}`);
+    for (const pair of result.pairs) {
+      console.log(`\n  ⚠ ${pair.a.title}  <-->  ${pair.b.title}`);
+      console.log(`    ${pair.a.id}`);
+      console.log(`    ${pair.b.id}`);
+      console.log(`    shared paths: ${pair.shared_paths.join(", ")}`);
+      console.log(`    ${pair.reason}`);
+    }
+    console.log("\nResolve each with: kage supersede --packet <old> --replacement <new>");
+    return;
+  }
+
   if (command === "module-health") {
     const result = kageModuleHealth(projectArg(args));
     if (args.includes("--json")) {
@@ -1940,6 +1974,7 @@ async function main(): Promise<void> {
       graphNodes: listArg(takeArg(args, "--graph-nodes")),
       allowMissingPaths: args.includes("--allow-missing-paths"),
       strictCitations: true,
+      strictContradictions: args.includes("--strict-contradictions"),
       discoveryTokens: args.includes("--discovery-tokens") ? numberArg(args, "--discovery-tokens", 0) : undefined,
     });
     if (!result.ok) {
@@ -1947,6 +1982,7 @@ async function main(): Promise<void> {
       process.exit(2);
     }
     console.log(`Captured ${personal ? "personal" : "session"} learning: ${result.path}`);
+    printContradictionWarning(result.contradictions);
     if (result.warnings?.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
     console.log(personal
       ? "Personal memory is recalled with lower trust and never enters repo review flows. Sync it across machines with `kage sync`."
@@ -2183,6 +2219,7 @@ async function main(): Promise<void> {
       graphNodes: listArg(takeArg(args, "--graph-nodes")),
       allowMissingPaths: args.includes("--allow-missing-paths"),
       strictCitations: true,
+      strictContradictions: args.includes("--strict-contradictions"),
     };
     const result = capture(input);
     if (!result.ok) {
@@ -2190,6 +2227,7 @@ async function main(): Promise<void> {
       process.exit(2);
     }
     console.log(`Captured repo-local packet: ${result.path}`);
+    printContradictionWarning(result.contradictions);
     if (result.warnings?.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}`);
     console.log("Repo-local memory is written immediately. Promotion to org/global still requires explicit review.");
     return;

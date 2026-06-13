@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+- **Memory-vs-memory contradiction detection.** Kage already validates citations
+  at write and withholds stale memory at recall; this adds a third guard. When a
+  new packet is captured that contradicts an existing approved one — same cited
+  path, same subject, opposing claim ("use X" vs "do not use X", "is idempotent"
+  vs "is not idempotent") — Kage surfaces it instead of silently storing two
+  conflicting facts. The detector (`detectContradictions`) is conservative
+  (favors precision): it requires a shared cited path, high title/summary
+  similarity (reusing the duplicate-detection jaccard scorer), and an opposing
+  polarity signal from a small negation/replacement cue set. Mere duplicates
+  (same claim, same polarity) are not flagged — that stays compact's job.
+  - `kage capture` / `kage learn` run detection and, by default, still write the
+    packet but flag it `quality.contradicts: [ids]` and print
+    "⚠ This contradicts N existing memories …". Pass `--strict-contradictions`
+    to refuse the write and exit 2 instead.
+  - New `kage conflicts --project <dir> [--json]` lists all contradicting packet
+    pairs in the repo, receipt-style.
+  - New `kage_conflicts` MCP tool returns the same report.
+  - `kage pr check` surfaces unresolved contradictions as a warning (not a hard
+    fail); recall notes a served packet as "⚠ Contested" when it carries
+    `quality.contradicts`.
+  - `kage supersede` clears the contradiction flag from the involved packets (and
+    any other packet that listed them), so resolving a conflict removes it.
+
 ## v2.2.7 - end-to-end audit fix
 
 - **Fix: `kage risk` listed non-source files.** When inferring targets from the

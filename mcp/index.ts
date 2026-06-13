@@ -66,6 +66,7 @@ import {
   recordFeedback,
   verifyCitations,
   compactProject,
+  kageConflicts,
   refreshProject,
   registryRecommendations,
   setupAgent,
@@ -751,6 +752,18 @@ export function listTools() {
           reason: { type: "string" },
         },
         required: ["project_dir", "packet_id", "replacement_packet_id"],
+      },
+    },
+    {
+      name: "kage_conflicts",
+      description:
+        "List repo-local memory packet pairs that contradict each other (same cited path, same subject, opposing claim). Resolve each with kage_supersede, or keep both intentionally.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
       },
     },
     {
@@ -1458,6 +1471,13 @@ export async function callTool(name: string, args: Record<string, unknown> | und
       String(args?.replacement_packet_id ?? ""),
       typeof args?.reason === "string" ? args.reason : "",
     );
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_conflicts") {
+    const result = kageConflicts(String(args?.project_dir ?? ""));
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };
