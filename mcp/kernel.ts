@@ -8432,6 +8432,239 @@ function hydrateKnowledgeGraphArtifact(projectDir: string, artifact: KnowledgeGr
   };
 }
 
+// --- Docs search index ---------------------------------------------------
+// Searchable index over the REPO's OWN committed documentation (project README,
+// docs/**, *.md, and common doc dirs — plus any framework/API docs that are
+// checked into this repo). It indexes nothing from the internet; only files
+// that exist on disk in this project. Recall can therefore answer from docs,
+// not just learned memory packets and code.
+
+const DOCS_INDEX_SCHEMA_VERSION = 1;
+// Heading-anchored chunks are capped so a single long section can't dominate the
+// BM25 length normalization or bloat the artifact.
+const DOCS_CHUNK_MAX_CHARS = 1600;
+// Directory names that commonly hold prose documentation, beyond the root README
+// and a top-level docs/ dir. These are matched as path segments.
+const DOCS_DIR_NAMES = new Set(["docs", "doc", "documentation", "guides", "guide", "wiki", "manual", "handbook"]);
+const DOCS_EXTENSIONS = new Set([".md", ".mdx", ".markdown", ".rst", ".txt"]);
+
+export interface DocsChunk {
+  doc_path: string;
+  heading: string;
+  anchor: string;
+  text: string;
+  line: number;
+}
+
+export interface DocsIndexArtifact {
+  schema_version: number;
+  generated_at: string;
+  // Honesty marker baked into the artifact: this index covers committed repo
+  // docs only, never external/internet content.
+  source: "repo-docs";
+  doc_count: number;
+  chunk_count: number;
+  chunks: DocsChunk[];
+}
+
+export interface DocsSearchHit {
+  doc_path: string;
+  heading: string;
+  line: number;
+  snippet: string;
+  score: number;
+}
+
+function isDocFile(relativePath: string): boolean {
+  if (shouldSkipCodePath(relativePath)) return false;
+  if (isNoisePath(relativePath)) return false;
+  const segments = relativePath.split("/");
+  const name = segments[segments.length - 1];
+  if (!DOCS_EXTENSIONS.has(extensionOf(name))) return false;
+  // A markdown/rst/txt file qualifies if it is the root README, sits under a
+  // recognised doc directory, or is any committed *.md anywhere in the tree.
+  if (/^readme\b/i.test(name)) return true;
+  if (segments.slice(0, -1).some((part) => DOCS_DIR_NAMES.has(part.toLowerCase()))) return true;
+  const extension = extensionOf(name);
+  return extension === ".md" || extension === ".mdx" || extension === ".markdown";
+}
+
+function discoverDocFiles(projectDir: string): string[] {
+  const all = walkFiles(projectDir, (absolute) => {
+    const relativePath = relative(projectDir, absolute).replace(/\\/g, "/");
+    return isDocFile(relativePath);
+  });
+  return all.map((absolute) => relative(projectDir, absolute).replace(/\\/g, "/")).sort();
+}
+
+function headingAnchor(heading: string): string {
+  return heading
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
+}
+
+// Split a doc into heading-anchored chunks. Each chunk carries the heading path
+// (e.g. "Setup > Install") plus the body beneath it, capped at DOCS_CHUNK_MAX_CHARS.
+function chunkDoc(docPath: string, text: string): DocsChunk[] {
+  const lines = text.split(/\r?\n/);
+  const chunks: DocsChunk[] = [];
+  const headingStack: Array<{ level: number; title: string }> = [];
+  let bodyLines: string[] = [];
+  let chunkStartLine = 1;
+  let inFence = false;
+
+  const headingPath = (): string => headingStack.map((entry) => entry.title).join(" > ");
+
+  const flush = (startLine: number): void => {
+    const body = bodyLines.join("\n").trim();
+    bodyLines = [];
+    if (!body) return;
+    const heading = headingPath() || basename(docPath);
+    for (let offset = 0; offset < body.length; offset += DOCS_CHUNK_MAX_CHARS) {
+      const slice = body.slice(offset, offset + DOCS_CHUNK_MAX_CHARS);
+      chunks.push({
+        doc_path: docPath,
+        heading,
+        anchor: headingAnchor(headingStack[headingStack.length - 1]?.title ?? heading),
+        text: slice,
+        line: startLine,
+      });
+    }
+  };
+
+  lines.forEach((line, index) => {
+    const fenceMatch = line.match(/^\s*(?:```|~~~)/);
+    if (fenceMatch) inFence = !inFence;
+    const headingMatch = inFence ? null : line.match(/^(#{1,6})\s+(.+?)\s*#*\s*$/);
+    if (headingMatch) {
+      flush(chunkStartLine);
+      const level = headingMatch[1].length;
+      const title = headingMatch[2].trim();
+      while (headingStack.length && headingStack[headingStack.length - 1].level >= level) headingStack.pop();
+      headingStack.push({ level, title });
+      chunkStartLine = index + 1;
+      return;
+    }
+    bodyLines.push(line);
+  });
+  flush(chunkStartLine);
+  return chunks;
+}
+
+export function buildDocsIndex(projectDir: string): DocsIndexArtifact {
+  const docFiles = discoverDocFiles(projectDir);
+  const chunks: DocsChunk[] = [];
+  for (const docPath of docFiles) {
+    const text = safeReadText(join(projectDir, docPath));
+    if (!text) continue;
+    chunks.push(...chunkDoc(docPath, text));
+  }
+  const artifact: DocsIndexArtifact = {
+    schema_version: DOCS_INDEX_SCHEMA_VERSION,
+    generated_at: nowIso(),
+    source: "repo-docs",
+    doc_count: docFiles.length,
+    chunk_count: chunks.length,
+    chunks,
+  };
+  writeJson(join(indexesDir(projectDir), "docs-index.json"), artifact);
+  return artifact;
+}
+
+function readDocsIndex(projectDir: string): DocsIndexArtifact | null {
+  const path = join(indexesDir(projectDir), "docs-index.json");
+  if (!existsSync(path)) return null;
+  try {
+    const artifact = readJson<DocsIndexArtifact>(path);
+    if (!Array.isArray(artifact?.chunks)) return null;
+    return artifact;
+  } catch {
+    return null;
+  }
+}
+
+// BM25 over doc chunks, reusing the same lexical scorer (tokenize + stemming +
+// IDF) as packet recall. Heading text is weighted above body, mirroring how the
+// packet scorer weights titles.
+function scoreDocsBm25(queryTerms: string[], chunks: DocsChunk[]): Map<number, number> {
+  const terms = expandQueryTerms(queryTerms);
+  const result = new Map<number, number>();
+  if (!terms.length || !chunks.length) return result;
+  const HEADING_WEIGHT = 3;
+  const documents = chunks.map((chunk) => {
+    const termFrequency = new Map<string, number>();
+    let length = 0;
+    const add = (textValue: string, weight: number): void => {
+      for (const token of tokenize(textValue)) {
+        termFrequency.set(token, (termFrequency.get(token) ?? 0) + weight);
+        length += weight;
+      }
+    };
+    add(chunk.heading, HEADING_WEIGHT);
+    add(chunk.text, 1);
+    return { termFrequency, length: Math.max(1, length) };
+  });
+  const averageLength = documents.reduce((sum, document) => sum + document.length, 0) / documents.length || 1;
+  const documentFrequency = new Map<string, number>();
+  for (const term of terms) {
+    documentFrequency.set(term, documents.filter((document) => document.termFrequency.has(term)).length);
+  }
+  documents.forEach((document, index) => {
+    let score = 0;
+    for (const term of terms) {
+      const termFrequency = document.termFrequency.get(term) ?? 0;
+      if (termFrequency <= 0) continue;
+      const df = documentFrequency.get(term) ?? 0;
+      const idf = Math.log(1 + (documents.length - df + 0.5) / (df + 0.5));
+      const denominator = termFrequency + BM25_K1 * (1 - BM25_B + BM25_B * (document.length / averageLength));
+      score += idf * ((termFrequency * (BM25_K1 + 1)) / denominator);
+    }
+    if (score > 0) result.set(index, Number(score.toFixed(2)));
+  });
+  return result;
+}
+
+function docsSnippet(text: string): string {
+  const collapsed = text.replace(/\s+/g, " ").trim();
+  return collapsed.length > 200 ? `${collapsed.slice(0, 197)}...` : collapsed;
+}
+
+export function searchDocs(projectDir: string, query: string, limit = 5): DocsSearchHit[] {
+  // Use the persisted index when present; rebuild on the fly otherwise so the
+  // search works even before the first refresh.
+  const artifact = readDocsIndex(projectDir) ?? buildDocsIndex(projectDir);
+  const chunks = artifact.chunks;
+  const scores = scoreDocsBm25(tokenize(query), chunks);
+  return [...scores.entries()]
+    .sort((a, b) => b[1] - a[1] || chunks[a[0]].doc_path.localeCompare(chunks[b[0]].doc_path) || chunks[a[0]].line - chunks[b[0]].line)
+    .slice(0, Math.max(0, limit))
+    .map(([index, score]) => {
+      const chunk = chunks[index];
+      return {
+        doc_path: chunk.doc_path,
+        heading: chunk.heading,
+        line: chunk.line,
+        snippet: docsSnippet(chunk.text),
+        score,
+      };
+    });
+}
+
+// Renders a "Docs" section appended to recall output. Honest framing: these are
+// the repo's own committed docs, not the internet.
+export function docsRecallSection(projectDir: string, query: string, limit = 3): string | null {
+  const hits = searchDocs(projectDir, query, limit);
+  if (!hits.length) return null;
+  const lines = ["Docs (from this repo's own committed documentation):"];
+  for (const hit of hits) {
+    lines.push(`- ${hit.doc_path}:${hit.line} — ${hit.heading}`);
+    lines.push(`  ${hit.snippet}`);
+  }
+  return lines.join("\n");
+}
+
 function buildPacketIndexes(projectDir: string): string[] {
   ensureMemoryDirs(projectDir);
   const packets = loadPacketsFromDir(packetsDir(projectDir)).sort((a, b) => a.id.localeCompare(b.id));
@@ -8478,6 +8711,10 @@ function buildPacketIndexes(projectDir: string): string[] {
   writeJson(written[2], byTag);
   writeJson(written[3], byType);
   written.push(writeSparseVectorIndex(projectDir, packets));
+  // Docs search index over the repo's own committed documentation. Built here so
+  // it stays current through both indexProject and refreshProject.
+  buildDocsIndex(projectDir);
+  written.push(join(indexesDir(projectDir), "docs-index.json"));
   return written;
 }
 
@@ -8578,6 +8815,7 @@ function currentOrBuildGraphs(projectDir: string): BuiltIndexes {
         join(indexesDir(projectDir), "by-tag.json"),
         join(indexesDir(projectDir), "by-type.json"),
         join(indexesDir(projectDir), "vector-local.json"),
+        join(indexesDir(projectDir), "docs-index.json"),
         join(indexesDir(projectDir), "structural.json"),
         join(indexesDir(projectDir), "graph.json"),
         join(indexesDir(projectDir), "code-graph.json"),

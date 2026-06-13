@@ -63,6 +63,8 @@ import {
   queryGraph,
   recall,
   recallWithEmbeddings,
+  searchDocs,
+  docsRecallSection,
   recordFeedback,
   verifyCitations,
   compactProject,
@@ -277,6 +279,7 @@ export function listTools() {
           limit: { type: "number" },
           explain: { type: "boolean" },
           embeddings: { type: "boolean" },
+          docs: { type: "boolean", description: "If true, append a Docs section (<=3 hits) drawn from this repo's own committed documentation." },
           json: { type: "boolean" },
           max_context_tokens: { type: "number" },
           structural_hops: { type: "number", description: "If >0, append a bounded N-hop code-graph blast radius seeded from the recalled memory's files." },
@@ -505,6 +508,20 @@ export function listTools() {
           project_dir: { type: "string" },
         },
         required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_docs_search",
+      description:
+        "Search this repo's OWN committed documentation (README, docs/**, *.md, common doc dirs — including any framework/API docs checked into the repo). BM25 over heading-anchored chunks from .agent_memory/indexes/docs-index.json. Returns ranked doc hits with doc_path, heading, line, and snippet. This indexes only files on disk in the project, never the internet.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: { type: "string" },
+          project_dir: { type: "string" },
+          limit: { type: "number" },
+        },
+        required: ["query", "project_dir"],
       },
     },
     {
@@ -1261,8 +1278,19 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     const result = args?.embeddings
       ? await recallWithEmbeddings(String(args?.project_dir ?? ""), String(args?.query ?? ""), Number(args?.limit ?? 5), Boolean(args?.explain))
       : recall(String(args?.project_dir ?? ""), String(args?.query ?? ""), Number(args?.limit ?? 5), Boolean(args?.explain), { maxContextTokens, structuralHops });
+    if (args?.docs) {
+      const docsSection = docsRecallSection(String(args?.project_dir ?? ""), String(args?.query ?? ""), 3);
+      if (docsSection) result.context_block = `${result.context_block}\n\n${docsSection}`;
+    }
     return {
       content: [{ type: "text", text: args?.json || args?.explain ? JSON.stringify(result, null, 2) : result.context_block }],
+    };
+  }
+
+  if (name === "kage_docs_search") {
+    const hits = searchDocs(String(args?.project_dir ?? ""), String(args?.query ?? ""), Number(args?.limit ?? 5));
+    return {
+      content: [{ type: "text", text: JSON.stringify({ query: String(args?.query ?? ""), source: "repo-docs", hits }, null, 2) }],
     };
   }
 

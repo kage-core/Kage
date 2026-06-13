@@ -82,6 +82,8 @@ import {
   queryGraph,
   recall,
   recallWithEmbeddings,
+  searchDocs,
+  docsRecallSection,
   recordFeedback,
   reverifyMemory,
   remediationFor,
@@ -218,7 +220,8 @@ Usage:
   kage graph "<query>" --project <dir> [--json]
   kage graph-registry --project <dir> [--json]
   kage embeddings build --project <dir> [--model Xenova/all-MiniLM-L6-v2] [--json]
-  kage recall "<query>" --project <dir> [--json] [--explain] [--embeddings] [--max-context-tokens <n>] [--structural-hops <n>]
+  kage recall "<query>" --project <dir> [--json] [--explain] [--embeddings] [--docs] [--max-context-tokens <n>] [--structural-hops <n>]
+  kage docs-search "<query>" --project <dir> [--limit <n>] [--json]   search this repo's own committed docs (README, docs/**, *.md)
   kage file-context --project <dir> --path <file> [--json]
   kage observe --project <dir> --event <json>
   kage sessions --project <dir> [--json]
@@ -2062,6 +2065,10 @@ async function main(): Promise<void> {
     const result = args.includes("--embeddings")
       ? await recallWithEmbeddings(projectArg(args), query, 5, args.includes("--explain"))
       : recall(projectArg(args), query, 5, args.includes("--explain"), { maxContextTokens, structuralHops });
+    if (args.includes("--docs")) {
+      const docsSection = docsRecallSection(projectArg(args), query, 3);
+      if (docsSection) result.context_block = `${result.context_block}\n\n${docsSection}`;
+    }
     if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
     else {
       console.log(result.context_block);
@@ -2089,6 +2096,27 @@ async function main(): Promise<void> {
     console.log(`Provider: ${result.provider}`);
     console.log(`Model: ${result.model}`);
     console.log(`Packets: ${result.packet_count}`);
+    return;
+  }
+
+  if (command === "docs-search") {
+    const query = firstPositional(args);
+    if (!query) usage();
+    const limit = numberArg(args, "--limit", 5);
+    const hits = searchDocs(projectArg(args), query, limit);
+    if (args.includes("--json")) {
+      console.log(JSON.stringify({ query, source: "repo-docs", hits }, null, 2));
+      return;
+    }
+    if (!hits.length) {
+      console.log("No matching docs found in this repo's own committed documentation.");
+      return;
+    }
+    console.log(`Docs search (this repo's own committed documentation) — "${query}":`);
+    for (const hit of hits) {
+      console.log(`\n${hit.doc_path}:${hit.line}  [${hit.score}]  ${hit.heading}`);
+      console.log(`  ${hit.snippet}`);
+    }
     return;
   }
 
