@@ -4154,7 +4154,7 @@ test("truth report flags duplicates, ghost exports, and doc lies in a synthetic 
   assert.ok(duplicate);
   assert.equal(duplicate.evidence.some((line) => line.includes("src/auth/token.ts:1")), true);
   assert.equal(duplicate.evidence.some((line) => line.includes("src/billing/token.ts:1")), true);
-  assert.match(duplicate.title, /recent, likely AI-era/);
+  assert.match(duplicate.title, /recently changed/);
 
   assert.equal(report.totals.ghost_exports >= 1, true);
   const ghost = report.findings.find((finding) => finding.kind === "ghost_export" && finding.title.includes("orphanHelper"));
@@ -5126,6 +5126,22 @@ test("sync setup is idempotent and re-runs update the remote URL", () => {
     assert.equal(status.behind, 0);
     assert.equal(status.dirty, false);
   });
+});
+
+test("duplicate detector ignores dunders and same-name methods across classes", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "a"), { recursive: true });
+  mkdirSync(join(project, "b"), { recursive: true });
+  // Two unrelated classes each with __init__ and a to_dict method: normal OOP,
+  // NOT duplicates. Plus one genuinely duplicated top-level function.
+  writeFileSync(join(project, "a", "one.ts"), "export class One { constructor() {} toDict() { return {}; } }\nexport function realDup(x: number): number { return x + 1; }\n", "utf8");
+  writeFileSync(join(project, "b", "two.ts"), "export class Two { constructor() {} toDict() { return {}; } }\nexport function realDup(x: number): number { return x + 1; }\n", "utf8");
+  const report = truthReport(project);
+  const dups = report.findings.filter((f) => f.kind === "duplicate_cluster").map((f) => f.title);
+  assert.equal(dups.some((d) => /toDict/i.test(d)), false, JSON.stringify(dups));
+  assert.equal(dups.some((d) => /constructor|__init__/i.test(d)), false, JSON.stringify(dups));
+  assert.equal(dups.some((d) => /realDup/i.test(d)), true, JSON.stringify(dups));
+  assert.equal(report.findings.some((f) => /likely AI-era/i.test(f.title)), false);
 });
 
 test("scan tolerates permission-locked directories instead of crashing", () => {

@@ -10887,6 +10887,13 @@ const TRUTH_COMMON_SYMBOL_NAMES = new Set([
   "format", "process", "next", "send", "write", "read", "config", "helper", "util",
 ]);
 
+// Convention-named local closures that collide across unrelated code by idiom,
+// not duplication. Kept separate from common-names so the intent is clear.
+const TRUTH_DUPLICATE_NAME_DENYLIST = new Set([
+  "decorator", "wrapper", "inner", "callback", "wrapped", "fn", "cb", "noop",
+  "predicate", "comparator", "getter", "setter", "factory", "visit",
+]);
+
 function truthExcludedPath(path: string): boolean {
   return /(^|\/)(tests?|__tests__|specs?|examples?|fixtures?|benchmarks?|mocks?|__mocks__|vendor|node_modules|dist|build)\//i.test(path)
     || /\.(test|spec)\.[^.]+$/i.test(path)
@@ -10972,7 +10979,13 @@ export function truthReport(projectDir: string): TruthReport {
   // 1a. Duplicate implementations: same-name symbols spread across directories.
   const symbolsByName = new Map<string, CodeSymbolNode[]>();
   for (const symbol of graph.symbols) {
-    if (!["function", "class", "method"].includes(symbol.kind)) continue;
+    // Methods are excluded: same-named methods on different classes (__init__,
+    // to_dict, validate, ...) are normal polymorphism, not duplication. Only
+    // top-level functions and classes can be genuine parallel implementations.
+    if (!["function", "class"].includes(symbol.kind)) continue;
+    // Dunders and convention-named local closures (decorator/wrapper/inner/...)
+    // collide by language idiom across unrelated code; never real duplicates.
+    if (/^__.*__$/.test(symbol.name) || TRUTH_DUPLICATE_NAME_DENYLIST.has(symbol.name.toLowerCase())) continue;
     if (symbol.name.length < 4 || TRUTH_COMMON_SYMBOL_NAMES.has(symbol.name.toLowerCase())) continue;
     if (truthExcludedPath(symbol.path) || fileByPath.get(symbol.path)?.kind !== "source") continue;
     const list = symbolsByName.get(symbol.name.toLowerCase()) ?? [];
@@ -10990,14 +11003,15 @@ export function truthReport(projectDir: string): TruthReport {
       signatureCounts.set(normalized, (signatureCounts.get(normalized) ?? 0) + 1);
     }
     const signatureMatch = [...signatureCounts.values()].some((count) => count >= 2);
+    // A same-name-only collision across dirs is weak signal and the source of
+    // most false positives. Require a matching signature to report it at all.
+    if (!signatureMatch) continue;
     const newestEpoch = Math.max(0, ...members.map((member) => fileNewestEpoch.get(member.path) ?? 0));
     const recent = hasGit && newestEpoch > aiEraCutoff;
     duplicateFindings.push({
       kind: "duplicate_cluster",
-      title: `${members[0].name} — ${paths.size} implementations across ${dirs.size} directories${recent ? " [recent, likely AI-era]" : ""}`,
-      detail: signatureMatch
-        ? "Same name AND near-identical signature: almost certainly parallel implementations of the same idea."
-        : "Same name in unrelated directories: agents and humans may be solving the same problem twice.",
+      title: `${members[0].name} — ${paths.size} implementations across ${dirs.size} directories${recent ? " [recently changed]" : ""}`,
+      detail: "Same name and near-identical signature in unrelated directories — likely parallel implementations of the same idea, worth a look.",
       evidence: members.slice(0, 5).map((member) => `${member.path}:${member.line}  ${member.kind} ${member.signature.slice(0, 80)}`),
       surprise: Math.min(100, 45 + paths.size * 8 + (signatureMatch ? 15 : 0) + (recent ? 20 : 0)),
     });

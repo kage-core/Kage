@@ -29,10 +29,12 @@ Four more files in Flask scored the same way — `cli.py` (66 commits, 128 depen
 
 How it's computed, so you can trust it: churn is commit count touching the file from `git log`; centrality is in/out edges in a code graph built from the AST; "zero memory" means no memory packet and no doc reference points at it. Every number traces to git or the parser — nothing is generated or guessed.
 
+One more it caught that's genuinely real: `_make_timedelta` is defined identically in both `src/flask/app.py` and `src/flask/sansio/app.py` — same signature, same body, two files. A leftover from the sansio refactor that split Flask's core. Harmless, but the kind of thing that quietly drifts when one copy gets fixed and the other doesn't.
+
 You can run the exact same thing on your repo (read-only, ~1 minute, nothing written to disk):
 
     npx -y kage-graph-mcp scan --project .
 
-It also flags duplicate implementations, exported-but-never-called code, and doc claims that don't match the code — I'm leaving those out here because on a stdlib-heavy Python project they need a careful eye (a `__repr__` in two classes isn't a "duplicate"), and I'd rather show you the finding I'd stake my name on.
+It also flags exported-but-never-called code and doc claims that don't match the code. (An aside on honesty: an earlier version of the duplicate check over-fired on Python dunder methods — every class has an `__init__` — so I tightened it to top-level functions with matching signatures before writing this. Running it on Flask is how I found that; dogfooding on real repos is the only QA that counts.)
 
 If you run it on something well-known and it surfaces something genuinely surprising, I'd love to see it.
