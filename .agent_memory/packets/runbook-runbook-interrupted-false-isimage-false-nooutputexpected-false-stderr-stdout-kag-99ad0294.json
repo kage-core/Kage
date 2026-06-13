@@ -762,7 +762,6 @@
       "not grounded to paths"
     ],
     "duplicate_candidates": [],
-    "stale_reasons": [],
     "estimated_tokens_saved": 489,
     "distillation": "automatic_observation_candidate",
     "admission": {
@@ -780,6 +779,6 @@
     "suggested_review_action": "keep"
   },
   "created_at": "2026-06-13T04:54:09.048Z",
-  "updated_at": "2026-06-13T04:54:09.048Z",
+  "updated_at": "2026-06-13T05:02:23.375Z",
   "author_branch": "master"
 }

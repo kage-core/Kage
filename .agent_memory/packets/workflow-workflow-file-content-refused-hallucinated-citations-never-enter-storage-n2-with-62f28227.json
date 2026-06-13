@@ -8,7 +8,7 @@
   "scope": "repo",
   "visibility": "team",
   "sensitivity": "internal",
-  "status": "approved",
+  "status": "deprecated",
   "confidence": 0.7,
   "tags": [
     "observed-session",
@@ -786,9 +786,11 @@
       ],
       "risks": []
     },
-    "suggested_review_action": "mark_stale"
+    "suggested_review_action": "mark_stale",
+    "stale": true,
+    "suggested_action": "update"
   },
   "created_at": "2026-06-13T04:54:09.146Z",
-  "updated_at": "2026-06-13T04:54:09.146Z",
+  "updated_at": "2026-06-13T05:02:29.467Z",
   "author_branch": "master"
 }
