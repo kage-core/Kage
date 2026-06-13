@@ -95,6 +95,10 @@ import {
   queryGraph,
   recall,
   recallWithEmbeddings,
+  buildDocsIndex,
+  searchDocs,
+  docsRecallSection,
+  indexesDir,
   recordValueEvent,
   learnPersonal,
   personalConflictsDir,
@@ -5349,4 +5353,95 @@ test("sync conflicts resolve newest-updated_at-wins and preserve the loser under
     assert.equal(winner.title, "newer version");
     assert.equal(readdirSync(personalConflictsDir()).length, 1);
   });
+});
+
+test("buildDocsIndex finds README + docs/** and writes a heading-anchored artifact", () => {
+  const project = tempProject();
+  writeFileSync(
+    join(project, "README.md"),
+    "# My Project\n\nIntro line.\n\n## Installation\n\nRun npm install to set up the deps.\n",
+    "utf8"
+  );
+  mkdirSync(join(project, "docs"), { recursive: true });
+  writeFileSync(
+    join(project, "docs", "guide.md"),
+    "# Guide\n\n## Deployment\n\nDeploy with the rocket pipeline to production.\n",
+    "utf8"
+  );
+
+  const artifact = buildDocsIndex(project);
+  assert.equal(artifact.source, "repo-docs");
+  assert.equal(artifact.doc_count, 2);
+  assert.ok(artifact.chunk_count >= 3);
+  assert.ok(existsSync(join(indexesDir(project), "docs-index.json")));
+  const installChunk = artifact.chunks.find((chunk) => chunk.heading.includes("Installation"));
+  assert.ok(installChunk, "expected an Installation chunk");
+  assert.equal(installChunk!.doc_path, "README.md");
+  assert.ok(installChunk!.text.includes("npm install"));
+});
+
+test("searchDocs returns the right heading-anchored chunk", () => {
+  const project = tempProject();
+  writeFileSync(join(project, "README.md"), "# Project\n\n## Installation\n\nRun npm install for dependencies.\n", "utf8");
+  mkdirSync(join(project, "docs"), { recursive: true });
+  writeFileSync(join(project, "docs", "guide.md"), "# Guide\n\n## Deployment\n\nDeploy with the rocket pipeline to production.\n", "utf8");
+  buildDocsIndex(project);
+
+  const hits = searchDocs(project, "deployment rocket pipeline", 5);
+  assert.ok(hits.length >= 1);
+  assert.equal(hits[0].doc_path, "docs/guide.md");
+  assert.ok(hits[0].heading.includes("Deployment"));
+  assert.ok(hits[0].snippet.includes("rocket pipeline"));
+  assert.ok(hits[0].line >= 1);
+});
+
+test("buildDocsIndex ignores node_modules and other vendored dirs", () => {
+  const project = tempProject();
+  writeFileSync(join(project, "README.md"), "# Real\n\nReal repo docs.\n", "utf8");
+  mkdirSync(join(project, "node_modules", "pkg"), { recursive: true });
+  writeFileSync(join(project, "node_modules", "pkg", "README.md"), "# Vendored\n\nshouldnotappear vendored content.\n", "utf8");
+
+  const artifact = buildDocsIndex(project);
+  assert.equal(artifact.chunks.some((chunk) => chunk.doc_path.includes("node_modules")), false);
+  assert.equal(searchDocs(project, "shouldnotappear", 5).length, 0);
+});
+
+test("buildDocsIndex and searchDocs are empty when there are no docs", () => {
+  const project = tempProject();
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "nodocs" }), "utf8");
+  writeFileSync(join(project, "src.ts"), "export const x = 1;\n", "utf8");
+
+  const artifact = buildDocsIndex(project);
+  assert.equal(artifact.doc_count, 0);
+  assert.equal(artifact.chunk_count, 0);
+  assert.equal(searchDocs(project, "anything", 5).length, 0);
+  assert.equal(docsRecallSection(project, "anything", 3), null);
+});
+
+test("recall --docs appends a Docs section from the repo's own docs", () => {
+  const project = tempProject();
+  writeFileSync(
+    join(project, "README.md"),
+    "# App\n\n## Configuration\n\nSet the WEBHOOK_SECRET env var before booting the server.\n",
+    "utf8"
+  );
+  indexProject(project);
+
+  const base = recall(project, "webhook secret configuration", 5);
+  const section = docsRecallSection(project, "webhook secret configuration", 3);
+  assert.ok(section, "expected a docs section");
+  assert.ok(section!.startsWith("Docs (from this repo's own committed documentation):"));
+  assert.ok(section!.includes("README.md:"));
+  assert.ok(section!.includes("WEBHOOK_SECRET"));
+
+  const combined = `${base.context_block}\n\n${section}`;
+  assert.ok(combined.includes("Docs (from this repo's own committed documentation):"));
+});
+
+test("indexProject builds the docs-index artifact so it stays current", () => {
+  const project = tempProject();
+  writeFileSync(join(project, "README.md"), "# Indexed\n\n## Topic\n\nIndexed via the standard index pipeline.\n", "utf8");
+  const result = indexProject(project);
+  assert.ok(existsSync(join(indexesDir(project), "docs-index.json")));
+  assert.ok(result.indexes.some((path) => path.endsWith("docs-index.json")));
 });
