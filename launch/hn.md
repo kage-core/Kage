@@ -57,3 +57,20 @@ If anyone wants to see it on their own repo before installing anything, I'm doin
 Or fully self-serve:
 
   npx -y kage-graph-mcp scan --project .
+
+
+---
+
+## If the post gets [flagged] (happened 6/13, account kage18 karma 1)
+
+New-account Show HN gets auto-flagged. ONLY legitimate fix:
+
+1. Email hn@ycombinator.com from your HN account email. Polite, short: it's a
+   genuine OSS project, no upsell in body, ask for a second look / un-flag.
+   dang re-ups legit founder posts regularly.
+2. Do NOT repost — HN treats reposts of flagged items as abuse.
+3. NEVER vote-manipulate or use alt accounts (instant ban; also against our
+   rules).
+
+Prevention: build karma first. Comment genuinely on other HN threads for a
+week+ before the next Show HN, so the account has history.
