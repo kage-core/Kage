@@ -317,6 +317,12 @@ export interface CaptureInput {
   /** Write the packet to the pending inbox (status "pending") instead of approved memory. */
   pendingReview?: boolean;
   /**
+   * Refuse the write (exit 2 at the CLI) when the candidate contradicts an
+   * existing approved packet, instead of writing it flagged. Default: write
+   * anyway, flagged with quality.contradicts and surfaced in the result.
+   */
+  strictContradictions?: boolean;
+  /**
    * Approximate token cost of producing this knowledge (exploration + reasoning).
    * When omitted, a conservative per-type default is stored and marked estimated.
    */
@@ -329,6 +335,12 @@ export interface CaptureResult {
   path?: string;
   errors: string[];
   warnings?: string[];
+  /**
+   * Existing approved packets this capture contradicts. Present (non-empty) when
+   * memory-vs-memory contradiction detection fired. With strictContradictions
+   * the write is refused; otherwise the packet is written flagged.
+   */
+  contradictions?: ContradictionFinding[];
 }
 
 export interface LearnInput {
@@ -347,6 +359,8 @@ export interface LearnInput {
   graphNodes?: string[];
   /** Write the packet to the pending inbox (status "pending") instead of approved memory. */
   pendingReview?: boolean;
+  /** Refuse the write when it contradicts an existing approved packet. */
+  strictContradictions?: boolean;
   /**
    * Approximate token cost of producing this knowledge (exploration + reasoning).
    * When omitted, a conservative per-type default is stored and marked estimated.
@@ -3462,6 +3476,234 @@ function duplicateCandidatesWithContext(packet: MemoryPacket, context: MemoryQua
       score: Number(entry.score.toFixed(2)),
       status: entry.packet.status,
     }));
+}
+
+// ── Memory-vs-memory contradiction detection ──────────────────────────────
+// Kage is "verified memory": citations are validated at write and stale memory
+// is withheld at recall. This catches a third failure mode — a NEW packet that
+// directly contradicts an EXISTING approved one (e.g. "use X" vs "do not use X",
+// "is idempotent" vs "is not idempotent"). It is intentionally CONSERVATIVE
+// (favor precision): two packets are flagged only when they (a) share a cited
+// path, (b) are highly similar in subject (title/summary), and (c) carry an
+// OPPOSING polarity signal. Mere duplicates (same claim, same polarity) are NOT
+// contradictions — that is compact/duplicate-cluster's job, not this one.
+
+export interface ContradictionFinding {
+  packet_id: string;
+  title: string;
+  shared_paths: string[];
+  reason: string;
+}
+
+export interface DetectContradictionsOptions {
+  /** Min subject (title+summary) similarity to consider two packets the same subject. */
+  subjectThreshold?: number;
+  /** Restrict the existing packet pool (defaults to approved packets on disk). */
+  existing?: MemoryPacket[];
+}
+
+// Negation cues: a body that flips a claim. "do not use", "is not", "never",
+// "should not", "no longer", "stop using", "avoid", "instead of".
+const CONTRADICTION_NEGATION_CUES = [
+  "do not",
+  "don't",
+  "does not",
+  "doesn't",
+  "is not",
+  "isn't",
+  "are not",
+  "aren't",
+  "was not",
+  "should not",
+  "shouldn't",
+  "must not",
+  "cannot",
+  "can't",
+  "never",
+  "no longer",
+  "not idempotent",
+  "not safe",
+  "not thread-safe",
+  "not supported",
+  "not required",
+  "not needed",
+  "stop using",
+  "avoid",
+  "deprecated",
+  "removed",
+  "disable",
+  "disabled",
+] as const;
+
+// Replacement cues: a body that points the claim at a different answer.
+// "use Y instead", "replaced by", "switched to", "now use", "migrate to".
+const CONTRADICTION_REPLACEMENT_CUES = [
+  "instead",
+  "instead of",
+  "replaced by",
+  "replaced with",
+  "replace with",
+  "switched to",
+  "switch to",
+  "migrated to",
+  "migrate to",
+  "now use",
+  "now uses",
+  "moved to",
+  "superseded by",
+  "in favor of",
+  "rather than",
+] as const;
+
+function normalizedClaimText(packet: Pick<MemoryPacket, "title" | "summary" | "body">): string {
+  return `${packet.title}\n${packet.summary}\n${packet.body}`.toLowerCase();
+}
+
+function negationCueCount(text: string): number {
+  let count = 0;
+  for (const cue of CONTRADICTION_NEGATION_CUES) if (text.includes(cue)) count += 1;
+  return count;
+}
+
+function replacementCueCount(text: string): number {
+  let count = 0;
+  for (const cue of CONTRADICTION_REPLACEMENT_CUES) if (text.includes(cue)) count += 1;
+  return count;
+}
+
+// The subject is the shared vocabulary that BOTH packets are talking about. We
+// require the two packets to agree on a subject (token overlap in title+summary)
+// but DISAGREE on polarity around it.
+function sharedSubjectTokens(a: MemoryPacket, b: MemoryPacket): Set<string> {
+  const aSubject = tokenSet(`${a.title}\n${a.summary}`);
+  const bSubject = tokenSet(`${b.title}\n${b.summary}`);
+  const shared = new Set<string>();
+  for (const token of aSubject) if (bSubject.has(token)) shared.add(token);
+  return shared;
+}
+
+// Opposing-polarity signal between two same-subject bodies. Conservative: a
+// contradiction needs one side to assert a claim and the other to negate or
+// replace it — NOT both sides carrying identical framing (that's a duplicate).
+function opposingPolarity(aText: string, bText: string): string | null {
+  const aNeg = negationCueCount(aText);
+  const bNeg = negationCueCount(bText);
+  const aRepl = replacementCueCount(aText);
+  const bRepl = replacementCueCount(bText);
+
+  // (1) Negation asymmetry: one side negates the claim, the other does not.
+  // Two equally-hedged notes (both negate, or neither negates) are not flagged.
+  if (aNeg === 0 && bNeg >= 1) return "one memory negates a claim the other asserts";
+  if (bNeg === 0 && aNeg >= 1) return "one memory negates a claim the other asserts";
+
+  // (2) Replacement asymmetry: one side says "use Y instead", the other still
+  // asserts the original (no replacement framing). Same-subject + redirect.
+  if (aRepl === 0 && bRepl >= 1) return "one memory replaces the approach the other still recommends";
+  if (bRepl === 0 && aRepl >= 1) return "one memory replaces the approach the other still recommends";
+
+  return null;
+}
+
+// Detect existing approved packets that contradict `candidate`. Pure: takes the
+// candidate and (optionally) the existing pool, performs no writes. Returns the
+// conflicting approved packets with the shared paths and a human reason.
+export function detectContradictions(
+  projectDir: string,
+  candidate: MemoryPacket,
+  opts: DetectContradictionsOptions = {}
+): ContradictionFinding[] {
+  const subjectThreshold = opts.subjectThreshold ?? 0.34;
+  const candidatePaths = new Set(
+    candidate.paths.filter((path) => meaningfulMemoryPath(path) && !shouldSkipRepoMemoryPath(path))
+  );
+  if (!candidatePaths.size) return [];
+
+  const existing = (opts.existing ?? loadApprovedPackets(projectDir)).filter(
+    (packet) => packet.id !== candidate.id && packet.status === "approved"
+  );
+  const candidateText = normalizedClaimText(candidate);
+  const candidateSubject = tokenSet(`${candidate.title}\n${candidate.summary}`);
+  const findings: ContradictionFinding[] = [];
+
+  for (const packet of existing) {
+    // (a) shared cited path — the structural anchor that makes a contradiction
+    //     about the SAME thing rather than two unrelated facts.
+    const sharedPaths = packet.paths.filter((path) => candidatePaths.has(path));
+    if (!sharedPaths.length) continue;
+
+    // (b) same subject — high title/summary similarity. Reuses the duplicate
+    //     similarity machinery (jaccard over token sets) so detection rides on
+    //     the same proven scorer rather than a new bespoke metric.
+    const subjectSimilarity = jaccard(candidateSubject, tokenSet(`${packet.title}\n${packet.summary}`));
+    const subjectOverlap = sharedSubjectTokens(candidate, packet).size;
+    if (subjectSimilarity < subjectThreshold && subjectOverlap < 2) continue;
+
+    // (c) opposing polarity — the claim itself is flipped/redirected.
+    const reason = opposingPolarity(candidateText, normalizedClaimText(packet));
+    if (!reason) continue;
+
+    findings.push({
+      packet_id: packet.id,
+      title: packet.title,
+      shared_paths: sharedPaths,
+      reason: `${reason} (shared path: ${sharedPaths.join(", ")})`,
+    });
+  }
+
+  return findings
+    .sort((a, b) => a.title.localeCompare(b.title))
+    .slice(0, 5);
+}
+
+export interface ConflictPair {
+  a: { id: string; title: string };
+  b: { id: string; title: string };
+  shared_paths: string[];
+  reason: string;
+}
+
+export interface ConflictsReport {
+  ok: boolean;
+  project_dir: string;
+  generated_at: string;
+  count: number;
+  pairs: ConflictPair[];
+}
+
+// Repo-wide pairwise contradiction scan across approved packets. Reuses
+// detectContradictions per packet against the already-loaded pool so the same
+// conservative heuristic governs both write-time surfacing and the audit view.
+export function kageConflicts(projectDir: string): ConflictsReport {
+  ensureMemoryDirs(projectDir);
+  const approved = loadApprovedPackets(projectDir);
+  const byId = new Map(approved.map((packet) => [packet.id, packet]));
+  const pairs: ConflictPair[] = [];
+  const seen = new Set<string>();
+  for (const packet of approved) {
+    const findings = detectContradictions(projectDir, packet, { existing: approved });
+    for (const finding of findings) {
+      const ordered = [packet.id, finding.packet_id].sort();
+      const key = ordered.join("\0");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const firstPacket = byId.get(ordered[0])!;
+      const secondPacket = byId.get(ordered[1])!;
+      pairs.push({
+        a: { id: firstPacket.id, title: firstPacket.title },
+        b: { id: secondPacket.id, title: secondPacket.title },
+        shared_paths: finding.shared_paths,
+        reason: finding.reason,
+      });
+    }
+  }
+  pairs.sort((x, y) => x.a.title.localeCompare(y.a.title) || x.b.title.localeCompare(y.b.title));
+  return {
+    ok: true,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    count: pairs.length,
+    pairs,
+  };
 }
 
 function packetFeedbackScore(packet: MemoryPacket): number {
@@ -9962,13 +10204,20 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
       ? [`## Structural Blast Radius (${structuralHops}-hop)`, ...blastRadius.map((path, index) => `${index + 1}. ${path}`), ""]
       : []),
     scored.length ? "## Relevant Memory" : "No relevant repo memory found.",
-    ...scored.flatMap((entry, index) => [
-      "",
-      `${index + 1}. [${entry.packet.type} | ${entry.packet.scope} | confidence ${entry.packet.confidence.toFixed(2)}] ${entry.packet.title}`,
-      `   Summary: ${entry.packet.summary}`,
-      `   Why matched: ${entry.why_matched.join(", ") || "text relevance"}`,
-      `   Source: ${sourceLabel(entry.packet)}`,
-    ]),
+    ...scored.flatMap((entry, index) => {
+      const contradicts = ((entry.packet.quality ?? {}) as Record<string, unknown>).contradicts;
+      const contested = Array.isArray(contradicts) && contradicts.length > 0;
+      return [
+        "",
+        `${index + 1}. [${entry.packet.type} | ${entry.packet.scope} | confidence ${entry.packet.confidence.toFixed(2)}] ${entry.packet.title}`,
+        `   Summary: ${entry.packet.summary}`,
+        `   Why matched: ${entry.why_matched.join(", ") || "text relevance"}`,
+        `   Source: ${sourceLabel(entry.packet)}`,
+        ...(contested
+          ? [`   ⚠ Contested: this memory contradicts ${contradicts.length} other packet(s) (${(contradicts as string[]).join(", ")}). Resolve with kage conflicts / kage supersede before relying on it.`]
+          : []),
+      ];
+    }),
     "",
     pendingScored.length ? "## Working Memory (Pending Review)" : "",
     ...pendingScored.flatMap((entry, index) => [
@@ -15348,6 +15597,7 @@ export function learn(input: LearnInput): LearnResult {
     strictCitations: input.strictCitations,
     graphNodes: input.graphNodes,
     pendingReview: input.pendingReview,
+    strictContradictions: input.strictContradictions,
     discoveryTokens: input.discoveryTokens,
   });
 }
@@ -15461,9 +15711,28 @@ export function capture(input: CaptureInput): CaptureResult {
 
   const validation = validatePacket(packet);
   if (!validation.ok) return { ok: false, errors: validation.errors, warnings };
+
+  // Memory-vs-memory contradiction detection: surface (and optionally refuse)
+  // a capture that directly opposes an existing approved packet on a shared
+  // path, instead of silently storing two conflicting facts.
+  const contradictions = detectContradictions(input.projectDir, packet);
+  if (contradictions.length && input.strictContradictions) {
+    return {
+      ok: false,
+      errors: [
+        `Contradiction blocked: this memory contradicts ${contradictions.length} existing approved ` +
+          `packet(s): ${contradictions.map((c) => `${c.packet_id} (${c.title})`).join("; ")}. ` +
+          `Resolve with kage supersede --packet <old> --replacement <new>, or drop --strict-contradictions to keep both.`,
+      ],
+      warnings,
+      contradictions,
+    };
+  }
+
   packet.quality = {
     ...packet.quality,
     ...evaluateMemoryQuality(input.projectDir, packet),
+    ...(contradictions.length ? { contradicts: contradictions.map((c) => c.packet_id) } : {}),
   };
   const path = writePacket(input.projectDir, packet, input.pendingReview ? "pending" : "packets");
   recordMemoryAudit(input.projectDir, "capture", [packet], {
@@ -15472,7 +15741,7 @@ export function capture(input: CaptureInput): CaptureResult {
     path: relative(input.projectDir, path),
     source_kind: packet.source_refs[0]?.kind ?? "explicit_capture",
   });
-  return { ok: true, packet, path, errors: [], warnings };
+  return { ok: true, packet, path, errors: [], warnings, ...(contradictions.length ? { contradictions } : {}) };
 }
 
 export function createPublicCandidate(projectDir: string, id: string): PublicCandidateResult {
@@ -17593,6 +17862,12 @@ export function prCheck(projectDir: string): PrCheckResult {
   if (reconciliation.unresolved_count > 0) {
     warnings.push(`${reconciliation.unresolved_count} memory reconciliation item(s) may need update after recent code changes (review on handoff; not blocking).`);
   }
+  // Surface unresolved memory-vs-memory contradictions (not a hard fail —
+  // resolving them is an agent/human decision via supersede or keep-both).
+  const conflicts = kageConflicts(projectDir);
+  if (conflicts.count > 0) {
+    warnings.push(`${conflicts.count} memory contradiction pair(s) unresolved — run kage conflicts, then kage supersede the wrong one (not blocking).`);
+  }
   if (!codeGraphCurrent || !memoryGraphCurrent) {
     errors.push("Generated graph artifacts are missing or not current for this working tree content.");
     requiredActions.push("Run kage refresh --project <dir> before merge.");
@@ -18791,8 +19066,30 @@ export function supersedeMemory(projectDir: string, oldPacketId: string, replace
   replacementPacket.updated_at = at;
   upsertPacketEdge(replacementPacket, "supersedes", oldPacket.id, trimmedReason, at);
 
+  // Superseding resolves any recorded contradiction involving the retired
+  // packet: drop the old id from every other packet's quality.contradicts, and
+  // clear the old packet's own contradicts list (it is no longer live memory).
+  const clearContradiction = (packet: MemoryPacket): boolean => {
+    const quality = (packet.quality ?? {}) as Record<string, unknown>;
+    const existing = Array.isArray(quality.contradicts) ? (quality.contradicts as string[]) : [];
+    if (!existing.length) return false;
+    const next = existing.filter((id) => id !== oldPacket.id && id !== replacementPacket.id);
+    if (next.length === existing.length) return false;
+    if (next.length) quality.contradicts = next;
+    else delete quality.contradicts;
+    packet.quality = quality;
+    packet.updated_at = at;
+    return true;
+  };
+  clearContradiction(oldPacket);
+  clearContradiction(replacementPacket);
+
   writeJson(oldEntry!.path, oldPacket);
   writeJson(replacementEntry!.path, replacementPacket);
+  for (const entry of entries) {
+    if (entry.packet.id === oldPacket.id || entry.packet.id === replacementPacket.id) continue;
+    if (clearContradiction(entry.packet)) writeJson(entry.path, entry.packet);
+  }
   recordMemoryAudit(projectDir, "supersede", [oldPacket, replacementPacket], {
     old_packet_id: oldPacket.id,
     replacement_packet_id: replacementPacket.id,

@@ -40,6 +40,8 @@ import {
   graphMermaid,
   gcProject,
   compactProject,
+  detectContradictions,
+  kageConflicts,
   verifyCitations,
   benchmarkTrust,
   kageSuppressedMemory,
@@ -5353,6 +5355,152 @@ test("sync conflicts resolve newest-updated_at-wins and preserve the loser under
     assert.equal(winner.title, "newer version");
     assert.equal(readdirSync(personalConflictsDir()).length, 1);
   });
+});
+
+// ── Memory-vs-memory contradiction detection ──────────────────────────────
+
+function captureWithSource(project: string, opts: { title: string; body: string; path: string; summary?: string }) {
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, opts.path), "export const x = 1;\n", "utf8");
+  const result = capture({
+    projectDir: project,
+    title: opts.title,
+    summary: opts.summary,
+    body: opts.body,
+    type: "convention",
+    paths: [opts.path],
+  });
+  assert.equal(result.ok, true, result.errors.join("; "));
+  return result;
+}
+
+test("contradiction detection flags two packets with opposing claims on the same path", () => {
+  const project = tempProject();
+  captureWithSource(project, {
+    title: "Use the retry wrapper for webhook calls",
+    summary: "Always use the retry wrapper when calling the webhook endpoint.",
+    body: "Always use the retry wrapper for webhook calls — it handles transient failures.",
+    path: "src/webhook.ts",
+  });
+  const second = captureWithSource(project, {
+    title: "Use the retry wrapper for webhook calls",
+    summary: "Do not use the retry wrapper when calling the webhook endpoint.",
+    body: "Do not use the retry wrapper for webhook calls — it double-fires events. It is not safe.",
+    path: "src/webhook.ts",
+  });
+  assert.ok(second.contradictions && second.contradictions.length >= 1, "second capture should detect a contradiction");
+  assert.equal(second.contradictions![0].shared_paths.includes("src/webhook.ts"), true);
+  // The packet is still written (not blocked) but flagged.
+  assert.ok(Array.isArray((second.packet!.quality as Record<string, unknown>).contradicts));
+  assert.equal(((second.packet!.quality as Record<string, unknown>).contradicts as string[]).length >= 1, true);
+});
+
+test("contradiction detection does NOT flag compatible same-path packets (no false positive)", () => {
+  const project = tempProject();
+  captureWithSource(project, {
+    title: "Webhook handler validates the signature header",
+    summary: "The webhook handler validates the incoming signature header.",
+    body: "The webhook handler validates the incoming signature header before processing.",
+    path: "src/webhook.ts",
+  });
+  const second = captureWithSource(project, {
+    title: "Webhook handler logs the request id",
+    summary: "The webhook handler logs the request id for tracing.",
+    body: "The webhook handler logs the request id for tracing on every call.",
+    path: "src/webhook.ts",
+  });
+  assert.ok(!second.contradictions || second.contradictions.length === 0, "compatible facts must not be contradictions");
+  assert.equal((second.packet!.quality as Record<string, unknown>).contradicts, undefined);
+});
+
+test("contradiction detection does NOT flag a duplicate (same claim, same polarity)", () => {
+  const project = tempProject();
+  captureWithSource(project, {
+    title: "Use the retry wrapper for webhook calls",
+    summary: "Always use the retry wrapper when calling the webhook endpoint.",
+    body: "Always use the retry wrapper for webhook calls — it handles transient failures.",
+    path: "src/webhook.ts",
+  });
+  const dup = captureWithSource(project, {
+    title: "Use the retry wrapper for webhook calls",
+    summary: "Always use the retry wrapper when calling the webhook endpoint.",
+    body: "Always use the retry wrapper for webhook calls — it handles transient failures gracefully.",
+    path: "src/webhook.ts",
+  });
+  assert.ok(!dup.contradictions || dup.contradictions.length === 0, "a duplicate is not a contradiction");
+});
+
+test("strict-contradictions refuses the write and surfaces the conflict", () => {
+  const project = tempProject();
+  captureWithSource(project, {
+    title: "Use the retry wrapper for webhook calls",
+    summary: "Always use the retry wrapper when calling the webhook endpoint.",
+    body: "Always use the retry wrapper for webhook calls — it handles transient failures.",
+    path: "src/webhook.ts",
+  });
+  mkdirSync(join(project, "src"), { recursive: true });
+  const refused = capture({
+    projectDir: project,
+    title: "Use the retry wrapper for webhook calls",
+    summary: "Do not use the retry wrapper when calling the webhook endpoint.",
+    body: "Do not use the retry wrapper for webhook calls — it is not safe. Avoid it.",
+    type: "convention",
+    paths: ["src/webhook.ts"],
+    strictContradictions: true,
+  });
+  assert.equal(refused.ok, false);
+  assert.ok(refused.contradictions && refused.contradictions.length >= 1);
+  assert.match(refused.errors.join(" "), /Contradiction blocked/);
+  // Only the first approved packet exists; the refused one was never written.
+  assert.equal(loadApprovedPackets(project).length, 1);
+});
+
+test("kage conflicts lists the contradicting pair and supersede clears it", () => {
+  const project = tempProject();
+  const first = captureWithSource(project, {
+    title: "Use the retry wrapper for webhook calls",
+    summary: "Always use the retry wrapper when calling the webhook endpoint.",
+    body: "Always use the retry wrapper for webhook calls — it handles transient failures.",
+    path: "src/webhook.ts",
+  });
+  const second = captureWithSource(project, {
+    title: "Use the retry wrapper for webhook calls",
+    summary: "Do not use the retry wrapper when calling the webhook endpoint.",
+    body: "Do not use the retry wrapper for webhook calls — it is not safe. Avoid it.",
+    path: "src/webhook.ts",
+  });
+
+  const conflicts = kageConflicts(project);
+  assert.equal(conflicts.count, 1);
+  const ids = [conflicts.pairs[0].a.id, conflicts.pairs[0].b.id].sort();
+  assert.deepEqual(ids, [first.packet!.id, second.packet!.id].sort());
+  assert.equal(conflicts.pairs[0].shared_paths.includes("src/webhook.ts"), true);
+
+  // Resolving via supersede removes the contradiction and clears the flag.
+  const superseded = supersedeMemory(project, first.packet!.id, second.packet!.id, "newer guidance wins");
+  assert.equal(superseded.ok, true);
+  assert.equal(kageConflicts(project).count, 0);
+  const refreshed = loadApprovedPackets(project).find((p) => p.id === second.packet!.id)!;
+  assert.equal((refreshed.quality as Record<string, unknown>).contradicts, undefined);
+});
+
+test("detectContradictions requires a shared cited path", () => {
+  const project = tempProject();
+  captureWithSource(project, {
+    title: "Use the retry wrapper for webhook calls",
+    summary: "Always use the retry wrapper when calling the webhook endpoint.",
+    body: "Always use the retry wrapper for webhook calls.",
+    path: "src/webhook.ts",
+  });
+  // Opposing claim but on a DIFFERENT path — not the same subject anchor.
+  const other = captureWithSource(project, {
+    title: "Use the retry wrapper for webhook calls",
+    summary: "Do not use the retry wrapper when calling the webhook endpoint.",
+    body: "Do not use the retry wrapper for webhook calls. It is not safe.",
+    path: "src/other.ts",
+  });
+  assert.ok(!other.contradictions || other.contradictions.length === 0, "different paths share no anchor");
+  assert.equal(detectContradictions(project, other.packet!).length, 0);
 });
 
 test("buildDocsIndex finds README + docs/** and writes a heading-anchored artifact", () => {
