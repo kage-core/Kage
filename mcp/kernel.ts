@@ -10418,9 +10418,15 @@ export function kageRisk(projectDir: string, targets: string[] = [], changedFile
   const graph = readCurrentCodeGraph(projectDir) ?? buildCodeGraph(projectDir);
   const graphPaths = new Set(graph.files.map((file) => file.path));
   const dependents = codeDependents(graph);
-  const resolvedTargets = unique((targets.length ? targets : changedFiles.length ? changedFiles : gitChangedFiles(projectDir))
+  const explicitTargets = targets.length > 0;
+  const resolvedTargets = unique((explicitTargets ? targets : changedFiles.length ? changedFiles : gitChangedFiles(projectDir))
     .map((path) => gitPathToProjectRelative(projectDir, path) ?? path)
-    .filter((path) => path && !isNoisePath(path)));
+    .filter((path) => path && !isNoisePath(path))
+    // Risk is a CODE assessment. When inferring targets from the working tree,
+    // keep only files the code graph actually knows about — memory packets,
+    // dotfiles, and docs have no dependents/hotspot signal and are pure noise
+    // here. Explicitly-named targets are always honored.
+    .filter((path) => explicitTargets || graphPaths.has(path)));
   const warnings: string[] = [];
   if (!gitHead(projectDir)) warnings.push("Git history is unavailable, so churn, ownership, and co-change signals may be empty.");
   if (!resolvedTargets.length) warnings.push("No targets supplied and no changed files detected.");
@@ -11622,9 +11628,15 @@ export function renderClaudeMemAuditReceipt(report: ClaudeMemAuditReport): strin
 export function kageReviewerSuggestions(projectDir: string, targets: string[] = [], changedFiles: string[] = []): KageReviewerSuggestionsReport {
   const graph = readCurrentCodeGraph(projectDir) ?? buildCodeGraph(projectDir);
   const graphPaths = new Set(graph.files.map((file) => file.path));
-  const resolvedTargets = unique((targets.length ? targets : changedFiles.length ? changedFiles : gitChangedFiles(projectDir))
+  const explicitTargets = targets.length > 0;
+  const resolvedTargets = unique((explicitTargets ? targets : changedFiles.length ? changedFiles : gitChangedFiles(projectDir))
     .map((path) => gitPathToProjectRelative(projectDir, path) ?? path)
-    .filter((path) => path && !isNoisePath(path)));
+    .filter((path) => path && !isNoisePath(path))
+    // Risk is a CODE assessment. When inferring targets from the working tree,
+    // keep only files the code graph actually knows about — memory packets,
+    // dotfiles, and docs have no dependents/hotspot signal and are pure noise
+    // here. Explicitly-named targets are always honored.
+    .filter((path) => explicitTargets || graphPaths.has(path)));
   const warnings: string[] = [];
   if (!gitHead(projectDir)) warnings.push("Git history is unavailable, so reviewer suggestions cannot be computed.");
   if (!resolvedTargets.length) warnings.push("No targets supplied and no changed files detected.");

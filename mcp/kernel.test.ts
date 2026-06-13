@@ -5128,6 +5128,20 @@ test("sync setup is idempotent and re-runs update the remote URL", () => {
   });
 });
 
+test("risk inferred from working tree excludes non-source files (memory packets, dotfiles)", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "a.ts"), "export const a = 1;\n", "utf8");
+  initProject(project, { policy: false });
+  indexProject(project);
+  writeFileSync(join(project, "src", "a.ts"), "export const a = 2;\n", "utf8");
+  const report = kageRisk(project, [], ["src/a.ts", ".gitattributes", ".agent_memory/packets/x.json"]);
+  const keys = Object.keys(report.targets);
+  assert.equal(keys.includes("src/a.ts"), true, JSON.stringify(keys));
+  assert.equal(keys.some((k) => k.endsWith(".gitattributes")), false, JSON.stringify(keys));
+  assert.equal(keys.some((k) => k.includes(".agent_memory")), false, JSON.stringify(keys));
+});
+
 test("duplicate detector ignores dunders and same-name methods across classes", () => {
   const project = tempProject();
   mkdirSync(join(project, "a"), { recursive: true });
