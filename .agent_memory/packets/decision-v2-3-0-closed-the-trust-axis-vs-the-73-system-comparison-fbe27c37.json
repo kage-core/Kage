@@ -65,9 +65,14 @@
     "contradicts": [
       "repo:https-github-com-kage-core-kage:decision:audit-trust-scoring-must-not-let-dense-graph-edges-mask-missing-context-17780111"
     ],
-    "reverified_at": "2026-06-14T16:43:11.670Z"
+    "reverified_at": "2026-06-14T16:43:11.670Z",
+    "stale": true,
+    "stale_reasons": [
+      "linked path changed since memory was verified: mcp/kernel.ts"
+    ],
+    "suggested_action": "update"
   },
   "created_at": "2026-06-13T09:18:52.834Z",
-  "updated_at": "2026-06-14T16:43:11.670Z",
+  "updated_at": "2026-06-14T19:49:25.437Z",
   "author_branch": "master"
 }

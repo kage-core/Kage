@@ -154,7 +154,7 @@
     "duplicate_candidates": [],
     "stale_reasons": [
       "packet status is deprecated",
-      "linked path changed since memory was verified: CHANGELOG.md, mcp/cli.ts, mcp/index.ts, mcp/kernel.test.ts"
+      "linked path changed since memory was verified: mcp/cli.ts, mcp/index.ts, mcp/kernel.test.ts, mcp/kernel.ts"
     ],
     "estimated_tokens_saved": 381,
     "admission": {
@@ -177,5 +177,5 @@
     "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-12T07:39:57.819Z",
-  "updated_at": "2026-06-12T11:19:11.907Z"
+  "updated_at": "2026-06-14T19:49:25.442Z"
 }
