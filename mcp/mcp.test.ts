@@ -27,6 +27,7 @@ test("MCP default tool surface is the agent-facing core only", () => {
   assert.deepEqual(core, [
     "kage_context", "kage_feedback", "kage_learn", "kage_pr_check",
     "kage_refresh", "kage_skills", "kage_supersede",
+    "kage_risk", "kage_decisions", "kage_dependency_path", "kage_docs_search",
   ].sort());
   // None of the operator/diagnostic tools leak into the default agent surface.
   assert.equal(core.includes("kage_metrics"), false);
@@ -42,8 +43,9 @@ test("MCP full mode exposes the complete repo-local memory tool registry", () =>
   assert.equal(names.includes("kage_recall"), true);
   assert.equal(names.includes("kage_graph"), true);
   assert.equal(names.includes("kage_graph_registry"), true);
-  assert.equal(names.includes("kage_code_graph"), true);
   assert.equal(names.includes("kage_risk"), true);
+  // kage_code_graph was deleted (agents grep; kage_context covers caller queries).
+  assert.equal(names.includes("kage_code_graph"), false);
   assert.equal(names.includes("kage_dependency_path"), true);
   assert.equal(names.includes("kage_cleanup_candidates"), true);
   assert.equal(names.includes("kage_reviewers"), true);
@@ -351,20 +353,6 @@ test("MCP kage_graph_registry writes a signed artifact manifest", async () => {
   assert.equal(body.manifest.payload.sources.packets.some((packet: { title: string; content_sha256: string }) => packet.title === "Decision: createApp owns app setup" && packet.content_sha256.length === 64), true);
 });
 
-test("MCP kage_code_graph returns source-derived code facts", async () => {
-  const project = tempProject();
-  mkdirSync(join(project, "src"), { recursive: true });
-  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "node --test" } }), "utf8");
-  writeFileSync(join(project, "src", "server.js"), "export function createApp() { if (req.method === 'GET' && url.pathname === '/tasks') return {}; }\n", "utf8");
-  const result = await callTool("kage_code_graph", {
-    project_dir: project,
-    query: "createApp tasks",
-  });
-  const text = textContent(result);
-  assert.match(text, /Kage Code Graph Context/);
-  assert.match(text, /createApp|\/tasks/);
-});
-
 test("MCP kage_dependency_path returns graph path JSON", async () => {
   const project = tempProject();
   mkdirSync(join(project, "src"), { recursive: true });
@@ -611,8 +599,8 @@ test("MCP kage_workspace and kage_workspace_recall fan out across local repos", 
     type: "decision",
     paths: ["package.json"],
   });
-  await callTool("kage_code_graph", { project_dir: api });
-  await callTool("kage_code_graph", { project_dir: web });
+  await callTool("kage_refresh", { project_dir: api });
+  await callTool("kage_refresh", { project_dir: web });
 
   const workspaceResult = await callTool("kage_workspace", { project_dir: workspace });
   const workspaceBody = JSON.parse(textContent(workspaceResult));

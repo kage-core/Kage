@@ -16,7 +16,6 @@ import {
   capture,
   catalogDomainNodeCount,
   buildBranchOverlay,
-  buildCodeGraph,
   buildStructuralIndex,
   createReviewArtifact,
   deleteContextSlot,
@@ -59,7 +58,6 @@ import {
   formatStaleCatch,
   proposeFromDiff,
   qualityReport,
-  queryCodeGraph,
   queryGraph,
   recall,
   recallWithEmbeddings,
@@ -211,6 +209,13 @@ export const CORE_TOOLS = new Set([
   "kage_pr_check",
   "kage_refresh",
   "kage_skills",
+  // Promoted after the agent-trajectory eval showed a real agent reaches for
+  // these on natural tasks (risk before a change, listing decisions, tracing a
+  // dependency path, searching the repo's own docs).
+  "kage_risk",
+  "kage_decisions",
+  "kage_dependency_path",
+  "kage_docs_search",
 ]);
 
 export function listTools() {
@@ -221,7 +226,7 @@ export function listTools() {
       // separate deferred schemas. Cuts session start from 4 schema loads to 1.
       name: "kage_context",
       description:
-        "Primary kage entry point. Validates memory health, recalls relevant packets, and queries both the code graph and knowledge graph — all in one call. Call this at the start of every task instead of calling kage_validate, kage_recall, kage_code_graph, and kage_graph separately.",
+        "Primary kage entry point. Validates memory health, recalls relevant packets, and queries both the code graph and knowledge graph — all in one call. Call this at the start of every task; it answers caller/usage questions from the code graph too, so you rarely need a separate graph tool.",
       inputSchema: {
         type: "object",
         properties: {
@@ -326,21 +331,6 @@ export function listTools() {
         properties: {
           project_dir: { type: "string" },
           full: { type: "boolean", description: "Force a full code graph rebuild instead of reusing unchanged graph artifacts." },
-        },
-        required: ["project_dir"],
-      },
-    },
-    {
-      name: "kage_code_graph",
-      description:
-        "Query the source-derived codebase graph: files, symbols, imports, calls, routes, tests, package scripts. This is generated from code, not learned memory.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          project_dir: { type: "string" },
-          query: { type: "string" },
-          limit: { type: "number" },
-          json: { type: "boolean" },
         },
         required: ["project_dir"],
       },
@@ -1338,21 +1328,6 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       isError: !result.ok,
-    };
-  }
-
-  if (name === "kage_code_graph") {
-    const projectDir = String(args?.project_dir ?? "");
-    const query = typeof args?.query === "string" ? args.query : "";
-    if (query) {
-      const result = queryCodeGraph(projectDir, query, Number(args?.limit ?? 10));
-      return {
-        content: [{ type: "text", text: args?.json ? JSON.stringify(result, null, 2) : result.context_block }],
-      };
-    }
-    const result = buildCodeGraph(projectDir);
-    return {
-      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };
   }
 

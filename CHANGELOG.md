@@ -16,6 +16,13 @@
 
 ## Unreleased
 
+- **Core surface refined by eval evidence (now 11 agent tools).** The
+  agent-trajectory eval showed a real agent naturally reaches for `kage_risk`,
+  `kage_decisions`, `kage_dependency_path`, and `kage_docs_search` on ordinary
+  tasks, so they joined the always-loaded core. `kage_code_graph` was **deleted**:
+  asked "who calls X," the agent greps and never touches it, and `kage_context`
+  already answers caller/dependency queries. Capability unchanged; the dead tool
+  is gone (full registry 67 → 66).
 - **All-tools coverage test.** `mcp/tool-coverage.test.ts` seeds a fixture and
   invokes every registered MCP tool through the real `callTool` path, asserting
   each is wired and returns content (network-CDN tools are asserted-registered,

@@ -256,24 +256,10 @@ export const SCENARIOS = [
   // naming it. Aspirational: many will route to kage_context instead (which
   // bundles recall + code graph + knowledge graph), which is the empirical signal
   // that the specialized tool is redundant for agents — feeding the delete list.
-  {
-    // FINDING (recorded 2026-06-14): the agent answers "who calls X" with grep,
-    // never reaching for kage_code_graph — empirical evidence the tool is redundant
-    // for agents and a delete/demote candidate. Kept aspirational to track if that changes.
-    aspirational: true,
-    fullTools: true,
-    id: "code-graph-who-calls",
-    expectedTool: "kage_code_graph",
-    description: "A caller-lookup question that the code graph answers.",
-    task: "Which functions in this repo call core()? List every caller.",
-    expect: { must: ["used_kage", "used_expected_tool"], mustNot: [] },
-    setup(fixture) {
-      seedRepo(fixture, {
-        "src/core.js": "export function core() { return 1; }\n",
-        "src/app.js": "import { core } from './core.js';\nexport function app() { return core() + 1; }\nexport function boot() { return core(); }\n",
-      });
-    },
-  },
+  // NOTE: a "who calls X" scenario lived here and showed the agent answering with
+  // grep, never reaching for kage_code_graph. That tool was deleted on 2026-06-15
+  // on that evidence (kage_context covers caller queries), so the scenario went with
+  // it. See CHANGELOG.
   {
     fullTools: true,
     id: "risk-blast-radius",
