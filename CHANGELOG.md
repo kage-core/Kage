@@ -16,6 +16,12 @@
 
 ## Unreleased
 
+- **Lifecycle trajectory + Markov-chain tests.** `mcp/trajectory.test.ts` walks
+  a packet through its full state machine (pending → approved → soft-stale ⇄
+  fresh → hard-stale → deprecated, plus superseded and skills) entirely through
+  the public API, asserting every transition and the safety invariants after each
+  hop (withheld memory is never recalled or turned into a skill). Black-box
+  regression coverage for the whole flow.
 - **`kage skills` — git-native team skills.** Codifies durable, verified
   procedures (runbooks and workflows) into `.claude/skills/<name>/SKILL.md`
   files agents auto-load. Only grounded, non-stale, non-payload packets become
