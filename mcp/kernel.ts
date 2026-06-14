@@ -3799,6 +3799,16 @@ function packetStoredPathFingerprints(packet: MemoryPacket): MemoryPathFingerpri
   });
 }
 
+// Append-only "ledger" docs (CHANGELOG, HISTORY) churn on nearly every commit.
+// Their content hash changes constantly without invalidating a memory's claim, so
+// they are excluded from content-change (soft-stale) detection — you can still
+// cite one, but appending an entry must not mark the memory stale. Deletion still
+// counts as staleness; this only suppresses the noisy "linked path changed" reason.
+const APPEND_ONLY_LEDGER_RE = /(^|\/)(change[-_ ]?log|history)(\.[a-z0-9]+)?$/i;
+function isAppendOnlyLedgerPath(path: string): boolean {
+  return APPEND_ONLY_LEDGER_RE.test(normalizeRelPath(path));
+}
+
 function staleMemoryReasons(projectDir: string, packet: MemoryPacket, fingerprintCache?: Map<string, MemoryPathFingerprint | null>): string[] {
   const reasons: string[] = [];
   const quality = (packet.quality ?? {}) as Record<string, unknown>;
@@ -3830,6 +3840,7 @@ function staleMemoryReasons(projectDir: string, packet: MemoryPacket, fingerprin
     const storedFingerprints = packetStoredPathFingerprints(packet);
     const changedPaths = storedFingerprints
       .filter((fingerprint) => !isGroundingIgnored(projectDir, fingerprint.path))
+      .filter((fingerprint) => !isAppendOnlyLedgerPath(fingerprint.path))
       .filter((fingerprint) => existsSync(join(projectDir, fingerprint.path)))
       .filter((fingerprint) => {
         const current = memoryPathFingerprint(projectDir, fingerprint.path, fingerprintCache);

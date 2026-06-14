@@ -3819,6 +3819,25 @@ test("strict capture rejects all-missing citations, honors escape hatch, and sta
   assert.equal(permissive.ok, true);
 });
 
+test("appending to a CHANGELOG does not mark a citing memory stale", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  writeFileSync(join(project, "CHANGELOG.md"), "# Changelog\n\n## v1\n- initial\n", "utf8");
+  writeFileSync(join(project, "src.js"), "export const x = 1;\n", "utf8");
+  capture({ projectDir: project, title: "Release process is documented in the changelog", body: "The release history and version notes live in CHANGELOG.md; consult it before cutting a release.", type: "reference", paths: ["CHANGELOG.md"] });
+  capture({ projectDir: project, title: "x constant lives in src.js", body: "The x constant is defined in src.js and is depended on by callers.", type: "reference", paths: ["src.js"] });
+
+  // Append to the changelog and change the normal source file.
+  writeFileSync(join(project, "CHANGELOG.md"), "# Changelog\n\n## v2\n- new entry\n\n## v1\n- initial\n", "utf8");
+  writeFileSync(join(project, "src.js"), "export const x = 2;\n", "utf8");
+
+  const report = verifyCitations(project);
+  const changelogPacket = report.packets.find((p) => p.title.includes("changelog"));
+  const sourcePacket = report.packets.find((p) => p.title.includes("x constant"));
+  assert.equal(changelogPacket?.stale, false, "appending to CHANGELOG must not mark the memory stale");
+  assert.equal(sourcePacket?.stale, true, "a real source content change is still soft-stale (control)");
+});
+
 test("verifyCitations flags deleted citations and reports grounding", () => {
   const project = tempProject();
   mkdirSync(join(project, "src"), { recursive: true });
