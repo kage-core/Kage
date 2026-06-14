@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
@@ -612,13 +612,25 @@ async function main(): Promise<void> {
         else console.log(`  Agents      ${w.agent} ✗ ${w.error ?? "print-only; run kage setup " + w.agent + " --project . --write"}`);
       }
     }
-    console.log("\nNext:");
-    console.log("  restart your agent — memory now recalls automatically at session start");
-    console.log("  kage scan --project .      60-second Truth Report on this repo");
-    console.log("  kage viewer --project .    local dashboard (gains, packets, graph)");
-    console.log("\nVersion control: commit .agent_memory/packets/, ignore .agent_memory/indexes/ and reports/.");
-    console.log("Enable the packet merge driver once per clone:");
-    console.log(`  ${PACKET_MERGE_DRIVER_CONFIG}`);
+    // Do the version-control housekeeping instead of telling the user to. Both are
+    // idempotent and safe to skip if this isn't a git repo.
+    let vcDone = false;
+    try {
+      const gitignorePath = join(project, ".gitignore");
+      const want = [".agent_memory/indexes/", ".agent_memory/reports/"];
+      const current = existsSync(gitignorePath) ? readFileSync(gitignorePath, "utf8") : "";
+      const missing = want.filter((line) => !current.split("\n").some((l) => l.trim() === line));
+      if (missing.length) {
+        const prefix = current && !current.endsWith("\n") ? "\n" : "";
+        writeFileSync(gitignorePath, `${current}${prefix}${current ? "" : "# Kage: regenerated, not committed\n"}${missing.join("\n")}\n`, "utf8");
+      }
+      execFileSync("git", ["-C", project, "config", "merge.kage-packet.driver", "npx -y @kage-core/kage-graph-mcp merge-packet %A %O %B"], { stdio: "ignore" });
+      vcDone = true;
+    } catch { /* not a git repo or no git — fall back to a hint */ }
+    console.log(`  Git         ${vcDone ? ".gitignore + packet merge driver configured" : "skipped (not a git repo)"}`);
+    console.log("\nNext:  restart your agent — Kage then recalls automatically every session.");
+    console.log("       kage scan      a 60-second Truth Report on this repo");
+    if (!vcDone) console.log(`\nWhen this becomes a git repo, run once: ${PACKET_MERGE_DRIVER_CONFIG}`);
     if (!init.validation.ok) process.exit(2);
     return;
   }

@@ -194,6 +194,11 @@
               <span id="install-cmd">npx -y @kage-core/kage-graph-mcp install</span>
               <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('install-cmd').textContent).then(()=>{this.textContent='copied';setTimeout(()=>this.textContent='copy',1200)})">copy</button>
             </div>
+            <p style="margin:14px 0 6px;color:var(--muted);font:400 14px/1.5 var(--sans)">One command sets up everything, then restart your agent. <strong style="color:var(--ink)">Or just tell your agent:</strong></p>
+            <div class="cmd">
+              <span id="agent-prompt">Set up Kage in this repo (https://github.com/kage-core/Kage): run npx -y @kage-core/kage-graph-mcp install, then tell me to restart you.</span>
+              <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('agent-prompt').textContent).then(()=>{this.textContent='copied';setTimeout(()=>this.textContent='copy',1200)})">copy</button>
+            </div>
             <div class="actions">
               <a class="button primary" href="#access">Get early access</a>
               <a class="button" href="guide.html#quickstart">Read the docs</a>

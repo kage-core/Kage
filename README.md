@@ -175,45 +175,40 @@ the longer you use it. Kage is the one that ages well.
 
 ## Quick start
 
-Requires Node.js 18+. One command from inside your repo:
+**One command, inside your repo:**
 
 ```bash
 npx -y @kage-core/kage-graph-mcp install
 ```
 
-This creates `.agent_memory/`, builds the code graph, auto-detects your agents
-(Claude Code, Codex, Cursor, Windsurf, Gemini CLI, OpenCode, Goose, Aider) and
-wires them. Or install globally and wire agents one at a time:
+Then **restart your agent.** That's the whole setup. The one command creates
+`.agent_memory/`, builds the code graph, writes the `AGENTS.md` / `CLAUDE.md`
+policy that tells agents to use Kage, auto-detects and wires your agents (Claude
+Code, Codex, Cursor, Windsurf, Gemini CLI, OpenCode, Goose, Aider), and sets up
+`.gitignore` + the packet merge driver. Requires Node.js 18+. No account, no API key.
+
+**Or just ask your agent to set it up.** Paste this into Claude Code, Cursor, or
+any coding agent:
+
+> Set up Kage — verified memory for coding agents, https://github.com/kage-core/Kage —
+> in this repo: run `npx -y @kage-core/kage-graph-mcp install`, then tell me to restart you.
+
+<details><summary>Other ways (plugin · per-agent · memory-only)</summary>
 
 ```bash
-npm install -g @kage-core/kage-graph-mcp
-cd your-repo
-kage install                   # or: kage init --project . for memory only
-```
-
-Connect an agent manually instead (one command writes the MCP + hooks config):
-
-```bash
-kage setup claude-code --project . --write     # Claude Code
-kage setup codex       --project . --write     # Codex
-kage setup cursor      --project . --write     # Cursor
-kage setup windsurf    --project . --write     # Windsurf
-# also: gemini-cli, cline, goose, roo-code, kilo-code, opencode, aider,
-#       claude-desktop, generic-mcp — see: kage setup list
-```
-
-Claude Code / Codex users can install the plugin instead:
-
-```bash
+# Claude Code / Codex plugin
 /plugin marketplace add kage-core/Kage      # then: /plugin install kage@kage
-codex plugin marketplace add kage-core/Kage # then: codex plugin add kage@kage
-```
 
-Restart the agent once, then confirm the harness is live:
+# wire a single agent (run `kage setup list` for all supported)
+kage setup claude-code --project . --write
 
-```bash
+# memory store only, no agent wiring
+kage init --project .
+
+# confirm the harness is live
 kage setup verify-agent --agent claude-code --project .
 ```
+</details>
 
 From there it's ambient: the agent recalls grounded memory at task start
 (`kage_context`), captures durable learnings as it works (`kage_learn`), and
@@ -230,9 +225,10 @@ git-tracked and diffable.
 (re-verify grounding as code changes) **→ update / supersede / retire**.
 
 A packet goes stale when a cited file is missing or changed since verification,
-its TTL (365 days) lapsed, or it was reported/deprecated. Soft-stale (linked
-code changed) is flagged for review; hard-stale (evidence gone) is withheld
-from recall. `kage compact` prunes dead citations and surfaces duplicates;
+its TTL (365 days) lapsed, or it was reported/deprecated. Stale memory — whether
+the cited code was deleted **or changed** — is withheld from recall and listed as
+"withheld, reverify" so the agent never acts on it. `kage reverify` restores a
+packet whose claim still holds; `kage compact` prunes dead citations and surfaces duplicates;
 `kage supersede` records lineage when one memory replaces another.
 
 ## Daily commands

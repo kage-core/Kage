@@ -196,13 +196,14 @@
 
         <section id="quickstart">
           <h2>Quickstart</h2>
-          <p>Requires Node.js 18 or newer. The package installs two binaries: <code>kage</code> and <code>kage-graph-mcp</code>.</p>
-          <pre># one command from inside your repo — init + index + auto-wires detected agents
-npx -y @kage-core/kage-graph-mcp install
-# restart the agent once
-kage setup verify-agent --agent claude-code --project .
-kage recall "how do I run tests" --project .</pre>
-          <p>Prefer explicit steps? <code>npm install -g @kage-core/kage-graph-mcp</code>, then <code>kage init --project .</code> and <code>kage setup &lt;agent&gt; --project . --write</code> per agent below.</p>
+          <p>Requires Node.js 18 or newer. No account, no API key.</p>
+          <pre># one command, inside your repo — then restart your agent
+npx -y @kage-core/kage-graph-mcp install</pre>
+          <p>That sets up everything: memory store, code graph, the <code>AGENTS.md</code>/<code>CLAUDE.md</code> policy, your detected agents, and <code>.gitignore</code> + the packet merge driver. Restart the agent once and memory recalls automatically.</p>
+          <p><strong>Or just ask your agent to do it</strong> — paste this into Claude Code, Cursor, or any coding agent:</p>
+          <pre>Set up Kage (verified memory for coding agents, https://github.com/kage-core/Kage)
+in this repo: run npx -y @kage-core/kage-graph-mcp install, then tell me to restart you.</pre>
+          <p>Prefer explicit steps? <code>kage init --project .</code> for the memory store only, then <code>kage setup &lt;agent&gt; --project . --write</code> per agent below.</p>
           <div class="callout">
             <strong>Repo-local by default.</strong>
             <p>Kage doesn't need a hosted database or API key. Memory packets live in <code>.agent_memory/</code> next to your code as plain JSON.</p>

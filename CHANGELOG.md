@@ -16,6 +16,13 @@
 
 ## Unreleased
 
+- **One-command setup, nothing left to do by hand.** `kage install` now also
+  writes the `AGENTS.md`/`CLAUDE.md` policy unconditionally (so teammates who
+  clone are covered even before wiring their own agent), and configures
+  `.gitignore` + the packet merge driver itself — no more manual `git config`
+  line. Site and README lead with the single command + restart, with everything
+  else collapsed, and add an "or just ask your agent to set it up" path: paste a
+  one-line prompt and the coding agent installs Kage itself.
 - **Strict recall: content-changed memory is now withheld, not just flagged.**
   Previously a memory whose cited file's content changed was served with a "may be
   stale" flag; now it is excluded from recall (and from skills and the suppressed
