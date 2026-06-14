@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
-  "summary": "Repo-local context for 9 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/bug_fix-ci-kage-pr-check-blocks-only-on-hard-stale-memory-verified-v2-2-1-d7174a44.json\n- .agent_memory/packets/code_explanation-stale-catch-change-time-invalidation-heartbeat-verified-v2-2-1-96a70269.json\n- .agent_memory/packets/decision-graph-nodes-at-capture-opt-in-recall-token-budget-verified-v2-2-1-6c65628a.json\n- .agent_memory/packets/decision-recall-withholds-hard-stale-only-content-changed-memory-is-served-flagged-do-not-1ab855a4.json\n- .agent_memory/packets/decision-v2-2-x-closed-the-claude-mem-parity-gap-feature-map-and-what-remains-c225e114.json\n- .agent_memory/packets/decision-v2-3-0-closed-the-trust-axis-vs-the-73-system-comparison-fbe27c37.json\n- .agent_memory/packets/decision-value-ledger-events-replay-receipts-verified-v2-2-1-3a89a884.json\n- .agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-verified-v2-2-1-096d7fe4.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n...locks-only-on-hard-stale-memory-verified-v2-2-1-d7174a44.json | 9 +++++++--\n ...nge-time-invalidation-heartbeat-verified-v2-2-1-96a70269.json | 9 +++++++--\n ...ture-opt-in-recall-token-budget-verified-v2-2-1-6c65628a.json | 9 +++++++--\n ...content-changed-memory-is-served-flagged-do-not-1ab855a4.json | 9 +++++++--\n ...ude-mem-parity-gap-feature-map-and-what-remains-c225e114.json | 9 +++++++--\n ...osed-the-trust-axis-vs-the-73-system-comparison-fbe27c37.json | 9 +++++++--\n ...e-ledger-events-replay-receipts-verified-v2-2-1-3a89a884.json | 9 +++++++--\n ...back-and-kage-resume-continuity-verified-v2-2-1-096d7fe4.json | 9 +++++++--\n .../packets/workflow-change-memory-master-23634276.json          | 3 +--\n 9 files changed, 57 insertions(+), 18 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "summary": "Repo-local context for 4 changed repo paths on master.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/gotcha-claude-code-plugin-schema-no-displayname-hooks-commands-ship-via-plugin-dir-d1a36c11.json\n- .agent_memory/packets/runbook-doc-truth-audit-method-re-verified-after-dark-first-site-flip-80785bd7.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n- .agent_memory/packets/workflow-change-memory-release-v2-0-1-d6e19752.json\n\nDiff summary:\n```text\n...-displayname-hooks-commands-ship-via-plugin-dir-d1a36c11.json | 9 +++++++--\n ...t-method-re-verified-after-dark-first-site-flip-80785bd7.json | 9 +++++++--\n .../packets/workflow-change-memory-master-23634276.json          | 3 +--\n .../packets/workflow-change-memory-release-v2-0-1-d6e19752.json  | 4 ++--\n 4 files changed, 17 insertions(+), 8 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -17,39 +17,29 @@
     "branch:master"
   ],
   "paths": [
-    ".agent_memory/packets/bug_fix-ci-kage-pr-check-blocks-only-on-hard-stale-memory-verified-v2-2-1-d7174a44.json",
-    ".agent_memory/packets/code_explanation-stale-catch-change-time-invalidation-heartbeat-verified-v2-2-1-96a70269.json",
-    ".agent_memory/packets/decision-graph-nodes-at-capture-opt-in-recall-token-budget-verified-v2-2-1-6c65628a.json",
-    ".agent_memory/packets/decision-recall-withholds-hard-stale-only-content-changed-memory-is-served-flagged-do-not-1ab855a4.json",
-    ".agent_memory/packets/decision-v2-2-x-closed-the-claude-mem-parity-gap-feature-map-and-what-remains-c225e114.json",
-    ".agent_memory/packets/decision-v2-3-0-closed-the-trust-axis-vs-the-73-system-comparison-fbe27c37.json",
-    ".agent_memory/packets/decision-value-ledger-events-replay-receipts-verified-v2-2-1-3a89a884.json",
-    ".agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-verified-v2-2-1-096d7fe4.json",
-    ".agent_memory/packets/workflow-change-memory-master-23634276.json"
+    ".agent_memory/packets/gotcha-claude-code-plugin-schema-no-displayname-hooks-commands-ship-via-plugin-dir-d1a36c11.json",
+    ".agent_memory/packets/runbook-doc-truth-audit-method-re-verified-after-dark-first-site-flip-80785bd7.json",
+    ".agent_memory/packets/workflow-change-memory-master-23634276.json",
+    ".agent_memory/packets/workflow-change-memory-release-v2-0-1-d6e19752.json"
   ],
   "stack": [],
   "source_refs": [
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "21d330ffb138c10f88435dae86bd62f32f0d5520",
-      "merge_base": "21d330ffb138c10f88435dae86bd62f32f0d5520",
+      "head": "68b67896fb8dc7e6568389161b2bf33331d1816a",
+      "merge_base": "68b67896fb8dc7e6568389161b2bf33331d1816a",
       "changed_files": [
-        ".agent_memory/packets/bug_fix-ci-kage-pr-check-blocks-only-on-hard-stale-memory-verified-v2-2-1-d7174a44.json",
-        ".agent_memory/packets/code_explanation-stale-catch-change-time-invalidation-heartbeat-verified-v2-2-1-96a70269.json",
-        ".agent_memory/packets/decision-graph-nodes-at-capture-opt-in-recall-token-budget-verified-v2-2-1-6c65628a.json",
-        ".agent_memory/packets/decision-recall-withholds-hard-stale-only-content-changed-memory-is-served-flagged-do-not-1ab855a4.json",
-        ".agent_memory/packets/decision-v2-2-x-closed-the-claude-mem-parity-gap-feature-map-and-what-remains-c225e114.json",
-        ".agent_memory/packets/decision-v2-3-0-closed-the-trust-axis-vs-the-73-system-comparison-fbe27c37.json",
-        ".agent_memory/packets/decision-value-ledger-events-replay-receipts-verified-v2-2-1-3a89a884.json",
-        ".agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-verified-v2-2-1-096d7fe4.json",
-        ".agent_memory/packets/workflow-change-memory-master-23634276.json"
+        ".agent_memory/packets/gotcha-claude-code-plugin-schema-no-displayname-hooks-commands-ship-via-plugin-dir-d1a36c11.json",
+        ".agent_memory/packets/runbook-doc-truth-audit-method-re-verified-after-dark-first-site-flip-80785bd7.json",
+        ".agent_memory/packets/workflow-change-memory-master-23634276.json",
+        ".agent_memory/packets/workflow-change-memory-release-v2-0-1-d6e19752.json"
       ],
       "summary_path": ".agent_memory/review/branch-summary-master.json"
     }
   ],
   "context": {
-    "fact": "Current branch master changes 9 repo paths.",
+    "fact": "Current branch master changes 4 repo paths.",
     "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
     "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
     "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
@@ -58,7 +48,7 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-14T15:20:38.968Z",
+    "last_verified_at": "2026-06-14T11:53:51.041Z",
     "ttl_days": 180,
     "path_fingerprints": [],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -67,47 +57,22 @@
   "edges": [
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-ci-kage-pr-check-blocks-only-on-hard-stale-memory-verified-v2-2-1-d7174a44.json",
+      "to": "path:.agent_memory/packets/gotcha-claude-code-plugin-schema-no-displayname-hooks-commands-ship-via-plugin-dir-d1a36c11.json",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/code_explanation-stale-catch-change-time-invalidation-heartbeat-verified-v2-2-1-96a70269.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-graph-nodes-at-capture-opt-in-recall-token-budget-verified-v2-2-1-6c65628a.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-recall-withholds-hard-stale-only-content-changed-memory-is-served-flagged-do-not-1ab855a4.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-v2-2-x-closed-the-claude-mem-parity-gap-feature-map-and-what-remains-c225e114.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-v2-3-0-closed-the-trust-axis-vs-the-73-system-comparison-fbe27c37.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-value-ledger-events-replay-receipts-verified-v2-2-1-3a89a884.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-verified-v2-2-1-096d7fe4.json",
+      "to": "path:.agent_memory/packets/runbook-doc-truth-audit-method-re-verified-after-dark-first-site-flip-80785bd7.json",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
       "to": "path:.agent_memory/packets/workflow-change-memory-master-23634276.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/workflow-change-memory-release-v2-0-1-d6e19752.json",
       "evidence": "git_diff"
     }
   ],
@@ -123,8 +88,7 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "stale_reasons": [],
-    "estimated_tokens_saved": 618,
+    "estimated_tokens_saved": 367,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -142,6 +106,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-06-14T15:20:38.968Z",
-  "updated_at": "2026-06-14T15:20:38.968Z"
+  "created_at": "2026-06-14T11:53:51.041Z",
+  "updated_at": "2026-06-14T15:20:50.795Z"
 }
