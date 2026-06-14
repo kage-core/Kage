@@ -1,0 +1,95 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:recall-withholds-content-changed-memory-too-task-39-shipped-1781467800252",
+  "title": "Recall withholds content-changed memory too (task #39 shipped)",
+  "summary": "Strict recall shipped. recallStaleReason mcp/kernel.ts = recallHardStaleReason PLUS the content drift soft reason \"linked path changed since memory was verified\" . It gates recall recallWithVectorScores filter , the supp",
+  "body": "Strict recall shipped. recallStaleReason (mcp/kernel.ts) = recallHardStaleReason PLUS the content-drift soft reason (\"linked path changed since memory was verified\"). It gates recall (recallWithVectorScores filter), the suppressed report (kageSuppressedMemory), skills (generateSkills), and personal recall (personalRecallEntries). So memory whose cited file CONTENT changed is now WITHHELD from recall, not just flagged — same as deleted/TTL/reported-stale. NOT applied to compactProject (a content-changed packet needs reverify, not auto-deprecation) or the stale-report builder. Partial-missing citations stay served-but-flagged; only content drift is suppressed. The recall context_block renders a \"## Withheld (stale — not served)\" section listing each withheld packet + reason + `kage reverify --packet <id>`, so withholding is visible not silent. Result: the Memory Correctness Under Change benchmark (benchmarks/staleness-kage.mjs) went ~50% -> 0% stale-served. MARKETING: the strong claim \"memory whose code changed is not served to the agent\" is now TRUE for deleted AND content-changed citations; reverify restores it. Supersedes the earlier packet that said content-changed was served-flagged and #39 was pending.\nVerified by: npm test 340 pass + replay 11/11; staleness benchmark 0% stale-served (was 50%)",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "recall",
+    "staleness",
+    "trust",
+    "task-39",
+    "honesty"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "benchmarks/staleness-kage.mjs",
+    "mcp/trajectory.test.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-14T20:10:00.252Z"
+    }
+  ],
+  "context": {
+    "fact": "Strict recall shipped. recallStaleReason (mcp/kernel.ts) = recallHardStaleReason PLUS the content-drift soft reason (\"linked path changed since memory was verified\"). It gates recall (recallWithVectorScores filter), the suppressed report (kageSuppressedMemory), skills (generateSkills), and personal recall (personalRecallEntries). So memory whose cited file CONTENT changed is now WITHHELD from recall, not just flagged — same as deleted/TTL/reported-stale. NOT applied to compactProject (a content-changed packet needs reverify, not auto-deprecation) or the stale-report builder. Partial-missing citations stay served-but-flagged; only content drift is suppressed. The recall context_block renders a \"## Withheld (stale — not served)\" section listing each withheld packet + reason + `kage reverify --packet <id>`, so withholding is visible not silent. Result: the Memory Correctness Under Change benchmark (benchmarks/staleness-kage.mjs) went ~50% -> 0% stale-served. MARKETING: the strong claim \"memory whose code changed is not served to the agent\" is now TRUE for deleted AND content-changed citations; reverify restores it. Supersedes the earlier packet that said content-changed was served-flagged and #39 was pending.\nVerified by: npm test 340 pass + replay 11/11; staleness benchmark 0% stale-served (was 50%)",
+    "verification": "npm test 340 pass + replay 11/11; staleness benchmark 0% stale-served (was 50%)"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-14T20:10:00.252Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "5e445f9aeb2fc97e8d7f6d4ab36ff5b14c861232f788d8745658c613a255671c",
+        "size": 821149
+      },
+      {
+        "path": "benchmarks/staleness-kage.mjs",
+        "sha256": "a283dabe3c46caead471a8710dc10f68a30ca7e98a02ccae40da3c4af0b00b09",
+        "size": 4508
+      },
+      {
+        "path": "mcp/trajectory.test.ts",
+        "sha256": "991be7aa8959e57376ae66aa2927431da917882263c45f6d52a0d021040f8553",
+        "size": 11774
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [
+    {
+      "relation": "supersedes",
+      "to": "repo:https-github-com-kage-core-kage:decision:recall-withholds-hard-stale-only-content-changed-memory-is-served-flagged-do-not",
+      "evidence": "Task #39 shipped: content-changed memory is now withheld at recall, not served-flagged. The old packet's claim is no longer true.",
+      "created_at": "2026-06-14T20:10:45.211Z"
+    }
+  ],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "discovery_tokens": 4000,
+    "discovery_tokens_estimated": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "stale_reasons": [],
+    "estimated_tokens_saved": 330
+  },
+  "created_at": "2026-06-14T20:10:00.252Z",
+  "updated_at": "2026-06-14T20:10:45.211Z",
+  "author_branch": "master"
+}

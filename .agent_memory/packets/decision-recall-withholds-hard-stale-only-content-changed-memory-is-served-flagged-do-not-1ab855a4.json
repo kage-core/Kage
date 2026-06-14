@@ -8,7 +8,7 @@
   "scope": "repo",
   "visibility": "team",
   "sensitivity": "internal",
-  "status": "deprecated",
+  "status": "superseded",
   "confidence": 0.7,
   "tags": [
     "session-learning",
@@ -55,9 +55,19 @@
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
-    "verification": "repo_local_agent_capture"
+    "verification": "repo_local_agent_capture",
+    "superseded_at": "2026-06-14T20:10:45.211Z",
+    "superseded_by": "repo:https-github-com-kage-core-kage:decision:recall-withholds-content-changed-memory-too-task-39-shipped-1781467800252",
+    "superseded_reason": "Task #39 shipped: content-changed memory is now withheld at recall, not served-flagged. The old packet's claim is no longer true."
   },
-  "edges": [],
+  "edges": [
+    {
+      "relation": "superseded_by",
+      "to": "repo:https-github-com-kage-core-kage:decision:recall-withholds-content-changed-memory-too-task-39-shipped-1781467800252",
+      "evidence": "Task #39 shipped: content-changed memory is now withheld at recall, not served-flagged. The old packet's claim is no longer true.",
+      "created_at": "2026-06-14T20:10:45.211Z"
+    }
+  ],
   "quality": {
     "reviewer": "repo-local-agent",
     "votes_up": 0,
@@ -85,9 +95,11 @@
       "packet status is deprecated",
       "linked path changed since memory was verified: mcp/kernel.ts"
     ],
-    "suggested_action": "mark_stale"
+    "suggested_action": "mark_stale",
+    "superseded_by": "repo:https-github-com-kage-core-kage:decision:recall-withholds-content-changed-memory-too-task-39-shipped-1781467800252",
+    "superseded_reason": "Task #39 shipped: content-changed memory is now withheld at recall, not served-flagged. The old packet's claim is no longer true."
   },
   "created_at": "2026-06-14T09:54:37.423Z",
-  "updated_at": "2026-06-14T16:41:42.604Z",
+  "updated_at": "2026-06-14T20:10:45.211Z",
   "author_branch": "master"
 }
