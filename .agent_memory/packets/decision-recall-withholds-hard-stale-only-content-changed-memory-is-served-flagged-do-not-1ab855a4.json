@@ -93,13 +93,13 @@
     "stale": true,
     "stale_reasons": [
       "packet status is superseded",
-      "linked path changed since memory was verified: mcp/kernel.ts"
+      "linked path changed since memory was verified: mcp/kernel.ts, docs/index.html"
     ],
     "suggested_action": "mark_stale",
     "superseded_by": "repo:https-github-com-kage-core-kage:decision:recall-withholds-content-changed-memory-too-task-39-shipped-1781467800252",
     "superseded_reason": "Task #39 shipped: content-changed memory is now withheld at recall, not served-flagged. The old packet's claim is no longer true."
   },
   "created_at": "2026-06-14T09:54:37.423Z",
-  "updated_at": "2026-06-14T21:23:59.248Z",
+  "updated_at": "2026-06-14T21:32:21.905Z",
   "author_branch": "master"
 }
