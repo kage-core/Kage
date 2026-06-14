@@ -69,6 +69,7 @@ import {
   verifyCitations,
   compactProject,
   kageConflicts,
+  generateSkills,
   refreshProject,
   registryRecommendations,
   setupAgent,
@@ -779,6 +780,20 @@ export function listTools() {
         type: "object",
         properties: {
           project_dir: { type: "string" },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_skills",
+      description:
+        "Codify durable, verified repo memory (runbooks, workflows, actionable decisions) into git-native SKILL.md files under .claude/skills/ that every teammate's agent auto-loads. Only grounded, non-stale packets become skills. Pass dry_run to preview without writing. dir overrides the output directory.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string" },
+          dry_run: { type: "boolean" },
+          dir: { type: "string" },
         },
         required: ["project_dir"],
       },
@@ -1506,6 +1521,16 @@ export async function callTool(name: string, args: Record<string, unknown> | und
 
   if (name === "kage_conflicts") {
     const result = kageConflicts(String(args?.project_dir ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_skills") {
+    const result = generateSkills(String(args?.project_dir ?? ""), {
+      dryRun: args?.dry_run === true,
+      dir: typeof args?.dir === "string" ? args.dir : undefined,
+    });
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };

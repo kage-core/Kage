@@ -87,6 +87,7 @@ import {
   docsRecallSection,
   recordFeedback,
   reverifyMemory,
+  generateSkills,
   remediationFor,
   repairProject,
   gcProject,
@@ -191,6 +192,7 @@ Usage:
   kage lineage --project <dir> [--json]
   kage supersede --project <dir> --packet <old-id> --replacement <new-id> [--reason <text>] [--json]
   kage conflicts --project <dir> [--json]
+  kage skills --project <dir> [--dir <path>] [--dry-run] [--json]
   kage contributors --project <dir> [--json]
   kage profile --project <dir> [--json]
   kage xray --project <dir> [--json]
@@ -1469,6 +1471,31 @@ async function main(): Promise<void> {
       if (result.missing_paths.length) console.log(`  dropped missing path(s): ${result.missing_paths.join(", ")}`);
     } else {
       console.log(`Reverify failed: ${result.errors.join("; ")}`);
+    }
+    if (!result.ok) process.exit(2);
+    return;
+  }
+
+  if (command === "skills" || command === "skills-build") {
+    const result = generateSkills(projectArg(args), {
+      dryRun: args.includes("--dry-run"),
+      dir: takeArg(args, "--dir"),
+    });
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      const verb = result.dry_run ? "Would generate" : "Generated";
+      console.log(`Kage skills: ${verb} ${result.generated.length} skill file(s) in ${result.dir}/ from verified memory`);
+      for (const skill of result.generated) console.log(`  ${result.dry_run ? "·" : "✓"} ${skill.path}  (${skill.type})`);
+      if (result.skipped.length) console.log(`  skipped ${result.skipped.length} packet(s) not skill-worthy or not grounded`);
+      if (result.errors.length) console.log(`  errors: ${result.errors.join("; ")}`);
+      if (!result.dry_run && result.generated.length) {
+        if (result.git_ignored) {
+          console.log(`\n⚠ ${result.dir}/ is git-ignored, so these skills won't reach your team. Un-ignore it (or run with --dir <tracked-path>) and commit them.`);
+        } else {
+          console.log(`\nThese are plain files in ${result.dir}/ — commit them so every teammate's agent loads the same skills.`);
+        }
+      }
     }
     if (!result.ok) process.exit(2);
     return;

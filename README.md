@@ -123,6 +123,16 @@ hallucination rejection, stale exclusion, and live grounding — 100/100.
 (Want to watch the reject/withhold loop run live in a sandbox first?
 `npx -y @kage-core/kage-graph-mcp demo`.)
 
+### Turn memory into team skills
+
+`kage skills` codifies your durable, verified procedures (runbooks and
+workflows) into `.claude/skills/<name>/SKILL.md` files your agents auto-load.
+Only grounded, non-stale packets become skills, so a skill never teaches code
+that was deleted out from under it. They are plain files: commit them and every
+teammate's agent loads the same skills. No cloud, no account, no separate "team
+brain" service to log into — the same git remote that carries your code carries
+the skills, reviewed in the same PR.
+
 ## The numbers
 
 - **18% faster than grep at equal correctness** on real code-navigation tasks
@@ -156,6 +166,7 @@ so what the team shares stays grounded as the code moves.
 | Memory reviewed in git, same PR as the code (plain files, no DB) | ✓ | SQLite + cloud | hosted API |
 | Savings receipts (tokens + $ per recall, value ledger) | ✓ per-packet | token index | — |
 | Cross-machine sync | ✓ your own git remote | their cloud | their cloud |
+| Codify memory into team `SKILL.md` files agents auto-load | ✓ git-native (`kage skills`) | — | — |
 | Truth Report on any repo, zero setup | ✓ | — | — |
 | Account / API key required | none | cloud optional | yes |
 

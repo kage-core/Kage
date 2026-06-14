@@ -15,6 +15,7 @@ import {
   buildCodeGraph,
   buildIndexes,
   approvePending,
+  generateSkills,
   AUTO_DISTILL_SIGNAL_THRESHOLD,
   observationSignalScore,
   createDenseEmbeddingProvider,
@@ -340,6 +341,74 @@ test("recall reuses current graph artifacts without rewriting them", () => {
   assert.equal(result.results[0]?.packet.title, "Run tests");
   assert.equal(JSON.parse(readFileSync(codeGraphPath, "utf8")).generated_at, "sentinel-code");
   assert.equal(JSON.parse(readFileSync(memoryGraphPath, "utf8")).generated_at, "sentinel-memory");
+});
+
+test("generateSkills writes SKILL.md only for grounded, skill-worthy procedures", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ scripts: { test: "node --test" } }), "utf8");
+
+  // A real procedure (runbook) with a substantive body -> becomes a skill.
+  capture({
+    projectDir: project,
+    title: "Run the test suite",
+    body: "Run the full test suite from the repo root with npm test. The script builds TypeScript first and then runs node --test over the compiled output, so it verifies both compilation and behavior before every release.",
+    type: "runbook",
+    paths: ["package.json"],
+  });
+  // Rationale-only decision -> wrong type, not a skill.
+  capture({
+    projectDir: project,
+    title: "We chose GPL-3.0",
+    body: "The project is licensed GPL-3.0 for future releases.",
+    type: "decision",
+    paths: ["package.json"],
+  });
+  // Leaked hook payload masquerading as a runbook -> never a skill.
+  capture({
+    projectDir: project,
+    title: "Runbook: {\"interrupted\": false, \"isImage\": false}",
+    body: "{\"interrupted\": false, \"isImage\": false, \"noOutputExpected\": false, \"tool-use-id\": \"toolu_x\"}",
+    type: "runbook",
+    paths: ["package.json"],
+  });
+
+  const dry = generateSkills(project, { dryRun: true });
+  const titles = dry.generated.map((s) => s.title);
+  assert.ok(titles.includes("Run the test suite"), "real runbook should generate a skill");
+  assert.ok(!titles.includes("We chose GPL-3.0"), "rationale-only decision is not a skill");
+  assert.ok(!titles.some((t) => t.includes("interrupted")), "leaked payload is never a skill");
+  assert.equal(dry.dry_run, true);
+  assert.equal(existsSync(join(project, ".claude", "skills")), false, "dry run writes nothing");
+
+  const written = generateSkills(project);
+  const skill = written.generated.find((s) => s.title === "Run the test suite");
+  assert.ok(skill, "skill recorded in result");
+  const skillFile = join(project, skill!.path);
+  assert.ok(existsSync(skillFile), "SKILL.md written to disk");
+  const content = readFileSync(skillFile, "utf8");
+  assert.match(content, /^---\nname: /, "has skill frontmatter");
+  assert.match(content, /description: /, "has a description");
+  assert.match(content, /npm test/, "carries the procedure body");
+});
+
+test("generateSkills withholds a procedure whose cited files were all deleted", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  writeFileSync(join(project, "deploy.sh"), "#!/bin/sh\necho deploy\n", "utf8");
+  capture({
+    projectDir: project,
+    title: "How to deploy the service",
+    body: "Run ./deploy.sh from the repo root to ship a release. It tags the build and pushes to the registry after the smoke test passes.",
+    type: "runbook",
+    paths: ["deploy.sh"],
+  });
+  assert.ok(generateSkills(project, { dryRun: true }).generated.some((s) => s.title === "How to deploy the service"));
+
+  unlinkSync(join(project, "deploy.sh"));
+  const after = generateSkills(project, { dryRun: true });
+  assert.ok(!after.generated.some((s) => s.title === "How to deploy the service"), "hard-stale procedure is withheld");
+  assert.ok(after.skipped.some((s) => s.title === "How to deploy the service" && /not grounded/.test(s.reason)));
 });
 
 test("recall uses BM25 lexical ranking for repeated body evidence", () => {

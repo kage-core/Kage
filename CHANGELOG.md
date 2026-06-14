@@ -16,6 +16,12 @@
 
 ## Unreleased
 
+- **`kage skills` — git-native team skills.** Codifies durable, verified
+  procedures (runbooks and workflows) into `.claude/skills/<name>/SKILL.md`
+  files agents auto-load. Only grounded, non-stale, non-payload packets become
+  skills, so a skill never teaches deleted code. Plain files committed with the
+  repo and reviewed in the same PR — the git-native answer to cloud "team brain"
+  tools, with no account or hosted store. Also `kage_skills` (MCP) and `--dry-run`.
 - **Memory-vs-memory contradiction detection.** Kage already validates citations
   at write and withholds stale memory at recall; this adds a third guard. When a
   new packet is captured that contradicts an existing approved one — same cited
