@@ -57,7 +57,7 @@ for (const scenario of scenarios) {
     const mcpConfig = join(fixture, "kage.mcp.json");
     writeFileSync(
       mcpConfig,
-      JSON.stringify({ mcpServers: { kage: { type: "stdio", command: "node", args: [join(repoRoot, "mcp", "dist", "index.js")] } } }),
+      JSON.stringify({ mcpServers: { kage: { type: "stdio", command: "node", args: [join(repoRoot, "mcp", "dist", "index.js")], alwaysLoad: true } } }),
       "utf8"
     );
 

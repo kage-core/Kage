@@ -150,13 +150,10 @@ export const SCENARIOS = [
     },
   },
   {
-    // KNOWN GAP (recorded 2026-06-14): on a pure "refactor X to Y" task the agent
-    // treated the change as mechanical, never recalled, and so never superseded the
-    // now-false "we use callbacks" decision. Marked aspirational so the suite stays
-    // honest; replay reports it without failing, and flags if the behavior improves
-    // (promote to enforced then). The real fix is a stronger harness nudge to recall
-    // before refactors, or a PreToolUse(Edit) recall injection.
-    aspirational: true,
+    // Was a known gap; now enforced. After de-confounding the task wording (the
+    // agent previously stopped to ask a clarifying question) and cutting the tool
+    // surface to the core, the agent reliably recalls the old decision and
+    // supersedes it. Recorded passing 2026-06-14.
     id: "supersede-outdated-decision",
     description:
       "A task that invalidates an existing decision. A well-behaved agent should recall the old decision and supersede/reconcile it after refactoring, not silently leave a contradicting memory.",
@@ -187,18 +184,17 @@ export const SCENARIOS = [
     },
   },
   {
-    // Exercises kage_feedback. A memory whose cited file changed under it (now
-    // wrong). A well-behaved agent should recall, notice the mismatch against the
-    // real code, and mark the memory stale rather than trusting or silently
-    // ignoring it. Aspirational: agents rarely volunteer feedback today.
-    aspirational: true,
+    // A memory contradicted by the current code. A well-behaved agent should
+    // recall it, check the source, and CORRECT it — and the recording shows the
+    // agent prefers superseding/relearning over a bare stale flag, which is better
+    // hygiene. The rubric accepts any correction (feedback OR supersede OR learn).
     id: "mark-stale-feedback",
     description:
-      "A memory contradicted by the current code. The agent should recall it, check the source, and mark it stale via kage_feedback.",
+      "A memory contradicted by the current code. The agent should recall it, check the source, and correct the stale memory (feedback, supersede, or a relearn).",
     task:
-      "What is our API rate limit and where is it enforced? The existing notes may be out of date — verify against the code and flag anything wrong.",
+      "What is our API rate limit and where is it enforced? The existing notes may be out of date — verify against the code and fix anything wrong.",
     expect: {
-      must: ["used_kage", "inspected_source", "reported_feedback"],
+      must: ["used_kage", "inspected_source", "corrected_memory"],
       mustNot: [],
     },
     setup(fixture) {

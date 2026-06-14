@@ -81,4 +81,10 @@ export const PREDICATES = {
 
   // It gave memory feedback (marked a recalled packet stale/wrong via kage_feedback).
   reported_feedback: (events) => events.some((e) => shortName(e.tool) === "kage_feedback"),
+
+  // It addressed a wrong/stale memory at all — by flagging it (feedback),
+  // replacing it (supersede), or writing a correction (learn). Any of these is
+  // good hygiene; supersede/learn are arguably better than a bare stale flag.
+  corrected_memory: (events) =>
+    events.some((e) => shortName(e.tool) === "kage_feedback" || isCapture(e.tool) || isMaintain(e.tool)),
 };

@@ -1,49 +1,96 @@
 {
   "scenario": "supersede-outdated-decision",
-  "recorded_at": "2026-06-14T16:42:11.210Z",
+  "recorded_at": "2026-06-14T17:33:09.417Z",
   "driver": "claude -p (stream-json)",
-  "task": "Refactor src/db.js to use async/await instead of the callback style it uses now.",
+  "task": "Convert getUser() in src/db.js to async/await. It is fine to drop the callback signature entirely; just make the change.",
   "events": [
     {
       "seq": 0,
       "tool": "ToolSearch",
       "input": {
-        "query": "select:mcp__kage__kage_context",
-        "max_results": 1
+        "query": "select:mcp__kage__kage_context,mcp__kage__kage_learn,mcp__kage__kage_supersede",
+        "max_results": 5
       }
     },
     {
       "seq": 1,
       "tool": "Read",
       "input": {
-        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-PfRgnZ/src/db.js"
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-iLIey4/src/db.js"
       }
     },
     {
       "seq": 2,
-      "tool": "AskUserQuestion",
+      "tool": "mcp__kage__kage_context",
       "input": {
-        "questions": [
-          {
-            "question": "The recorded decision says the callback style is load-bearing because the legacy query driver has no promise interface. How should I proceed?",
-            "header": "Decision status",
-            "multiSelect": false,
-            "options": [
-              {
-                "label": "Decision is outdated — refactor",
-                "description": "The driver now supports promises (or you've decided to wrap it). I'll refactor src/db.js to async/await and supersede the old Kage decision so future agents don't get conflicting guidance."
-              },
-              {
-                "label": "Decision still holds — don't refactor",
-                "description": "Leave src/db.js on callbacks. I'll skip the change."
-              },
-              {
-                "label": "Refactor with a promisify shim",
-                "description": "Keep using the callback-based driver under the hood but wrap query() so getUser can be async/await. I won't supersede the decision — I'll narrow it to 'the driver call is still callback-based.'"
-              }
-            ]
-          }
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-iLIey4",
+        "query": "convert getUser in src/db.js to async/await",
+        "targets": [
+          "src/db.js"
         ]
+      }
+    },
+    {
+      "seq": 3,
+      "tool": "Write",
+      "input": {
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-iLIey4/src/db.js",
+        "content": "export async function getUser(id) {\n  const rows = await query('SELECT * FROM users WHERE id = ?', [id]);\n  return rows[0];\n}\n"
+      }
+    },
+    {
+      "seq": 4,
+      "tool": "mcp__kage__kage_learn",
+      "input": {
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-iLIey4",
+        "title": "Decision: db layer uses async/await",
+        "learning": "src/db.js uses async/await and returns promises rather than Node-style err, result callbacks. getUser(id) was migrated from callback to async on 2026-06-14 at the user's explicit direction; new db functions should follow the async/await convention.",
+        "type": "decision",
+        "paths": [
+          "src/db.js"
+        ],
+        "evidence": "getUser in src/db.js was converted to `export async function getUser(id)` returning `rows[0]` via `await query(...)`; the legacy callback signature was dropped at the user's request.",
+        "tags": [
+          "db",
+          "async",
+          "convention"
+        ]
+      }
+    },
+    {
+      "seq": 5,
+      "tool": "Bash",
+      "input": {
+        "command": "ls /private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-iLIey4/.agent_memory/packets/",
+        "description": "List memory packets"
+      }
+    },
+    {
+      "seq": 6,
+      "tool": "mcp__kage__kage_supersede",
+      "input": {
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-iLIey4",
+        "packet_id": "decision-decision-db-layer-uses-node-style-callbacks-970f08b4",
+        "replacement_packet_id": "decision-decision-db-layer-uses-async-await-55408cda",
+        "reason": "User explicitly directed dropping the callback signature in getUser and converting src/db.js to async/await on 2026-06-14, overriding the prior callback convention."
+      }
+    },
+    {
+      "seq": 7,
+      "tool": "Bash",
+      "input": {
+        "command": "grep -h '\"id\"' /private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-iLIey4/.agent_memory/packets/decision-*.json",
+        "description": "Find packet IDs"
+      }
+    },
+    {
+      "seq": 8,
+      "tool": "mcp__kage__kage_supersede",
+      "input": {
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-iLIey4",
+        "packet_id": "repo:kage-eval-supersede-outdated-decision-iliey4:decision:decision-db-layer-uses-node-style-callbacks-1781458326383",
+        "replacement_packet_id": "repo:kage-eval-supersede-outdated-decision-iliey4:decision:decision-db-layer-uses-async-await-1781458355256",
+        "reason": "User explicitly directed dropping the callback signature in getUser and converting src/db.js to async/await on 2026-06-14, overriding the prior callback convention."
       }
     }
   ]
