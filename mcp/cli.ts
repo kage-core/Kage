@@ -577,6 +577,11 @@ async function main(): Promise<void> {
     const detected = requested ?? probes.filter((p) => p.paths.some((path) => existsSync(path))).map((p) => p.agent);
 
     const init = initProject(project, { policy: false });
+    // Always write the repo policy (AGENTS.md + CLAUDE.md) — it is what instructs
+    // agents to use Kage and it travels with the repo, so teammates who clone are
+    // covered even before they wire their own agent. Decoupled from agent detection:
+    // a machine where no agent is auto-detected must still commit the policy.
+    const policy = installAgentPolicy(project);
     const wired: Array<{ agent: SetupAgent; ok: boolean; config_path?: string; error?: string }> = [];
     if (!skipAgents) {
       for (const agent of detected) {
@@ -596,6 +601,7 @@ async function main(): Promise<void> {
     console.log(`Kage installed in ${init.index.projectDir}\n`);
     console.log("  Memory      .agent_memory/ created — packets are plain files, reviewable in git");
     console.log(`  Indexes     ${init.index.indexes.length} built (code graph, recall, structure)`);
+    console.log(`  Policy      AGENTS.md + CLAUDE.md ${policy.created ? "written" : policy.updated ? "updated" : "current"} — commit these so every teammate's agent uses Kage`);
     if (skipAgents) {
       console.log("  Agents      skipped (--no-agents)");
     } else if (!wired.length) {
