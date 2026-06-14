@@ -92,7 +92,7 @@
     "estimated_tokens_saved": 319,
     "stale": true,
     "stale_reasons": [
-      "packet status is deprecated",
+      "packet status is superseded",
       "linked path changed since memory was verified: mcp/kernel.ts"
     ],
     "suggested_action": "mark_stale",
@@ -100,6 +100,6 @@
     "superseded_reason": "Task #39 shipped: content-changed memory is now withheld at recall, not served-flagged. The old packet's claim is no longer true."
   },
   "created_at": "2026-06-14T09:54:37.423Z",
-  "updated_at": "2026-06-14T20:10:45.211Z",
+  "updated_at": "2026-06-14T21:23:59.248Z",
   "author_branch": "master"
 }
