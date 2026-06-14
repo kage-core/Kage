@@ -1,6 +1,6 @@
 {
   "name": "kage",
   "version": "2.0.1",
-  "description": "Verified memory for coding agents. Recall grounded repo knowledge before acting, capture durable learnings, and never act on stale or hallucinated memory — every packet is checked against your code.",
+  "description": "A framework for collaborative agent memory. Recall git-native, team-shared repo knowledge before acting, capture durable learnings as reviewable files in your repo, and get warned when your diff invalidates a memory. Every packet is checked against your code; deleted and stale citations are caught.",
   "mcpServers": "./.mcp.json"
 }

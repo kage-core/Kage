@@ -1,7 +1,7 @@
 {
   "name": "@kage-core/kage-graph-mcp",
   "version": "2.3.0",
-  "description": "Local-first repo memory, code graph, and recall MCP server for coding agents",
+  "description": "A framework for collaborative agent memory: git-native memory your team's coding agents read and write together, checked against your code.",
   "main": "dist/index.js",
   "files": [
     "dist/**/*.js",
