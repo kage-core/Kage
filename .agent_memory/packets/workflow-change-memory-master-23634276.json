@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
-  "summary": "Repo-local context for 1 changed repo path on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/decision-recall-withholds-hard-stale-only-content-changed-memory-is-served-flagged-do-not-1ab855a4.json\n\nDiff summary:\n```text\n...y-content-changed-memory-is-served-flagged-do-not-1ab855a4.json | 7 ++++---\n 1 file changed, 4 insertions(+), 3 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "summary": "Repo-local context for 5 changed repo paths on master.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/decision-recall-withholds-hard-stale-only-content-changed-memory-is-served-flagged-do-not-1ab855a4.json\n- evals/agent-trajectory/recordings/answer-from-memory.json\n- evals/agent-trajectory/recordings/reconcile-after-change.json\n- evals/agent-trajectory/rubric.mjs\n- evals/agent-trajectory/scenarios.mjs\n\nDiff summary:\n```text\n...d-memory-is-served-flagged-do-not-1ab855a4.json |   7 +-\n evals/agent-trajectory/rubric.mjs                  |  18 +++-\n evals/agent-trajectory/scenarios.mjs               | 114 +++++++++++++++++++++\n 3 files changed, 135 insertions(+), 4 deletions(-)\nevals/agent-trajectory/recordings/answer-from-memory.json | untracked\nevals/agent-trajectory/recordings/reconcile-after-change.json | untracked\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -17,7 +17,11 @@
     "branch:master"
   ],
   "paths": [
-    ".agent_memory/packets/decision-recall-withholds-hard-stale-only-content-changed-memory-is-served-flagged-do-not-1ab855a4.json"
+    ".agent_memory/packets/decision-recall-withholds-hard-stale-only-content-changed-memory-is-served-flagged-do-not-1ab855a4.json",
+    "evals/agent-trajectory/recordings/answer-from-memory.json",
+    "evals/agent-trajectory/recordings/reconcile-after-change.json",
+    "evals/agent-trajectory/rubric.mjs",
+    "evals/agent-trajectory/scenarios.mjs"
   ],
   "stack": [],
   "source_refs": [
@@ -27,13 +31,17 @@
       "head": "e7fe250ca4703aaee51e6cf781f80e0319ec04a1",
       "merge_base": "e7fe250ca4703aaee51e6cf781f80e0319ec04a1",
       "changed_files": [
-        ".agent_memory/packets/decision-recall-withholds-hard-stale-only-content-changed-memory-is-served-flagged-do-not-1ab855a4.json"
+        ".agent_memory/packets/decision-recall-withholds-hard-stale-only-content-changed-memory-is-served-flagged-do-not-1ab855a4.json",
+        "evals/agent-trajectory/recordings/answer-from-memory.json",
+        "evals/agent-trajectory/recordings/reconcile-after-change.json",
+        "evals/agent-trajectory/rubric.mjs",
+        "evals/agent-trajectory/scenarios.mjs"
       ],
-      "summary_path": ".agent_memory/review/branch-summary-master.json"
+      "summary_path": "/Users/kushaljain/code/Kage/.agent_memory/review/branch-summary-master.json"
     }
   ],
   "context": {
-    "fact": "Current branch master changes 1 repo path.",
+    "fact": "Current branch master changes 5 repo paths.",
     "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
     "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
     "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
@@ -42,9 +50,30 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-14T16:31:32.242Z",
+    "last_verified_at": "2026-06-14T16:41:43.787Z",
     "ttl_days": 180,
-    "path_fingerprints": [],
+    "path_fingerprints": [
+      {
+        "path": "evals/agent-trajectory/recordings/answer-from-memory.json",
+        "sha256": "d4da302d93948711a3b07f8b49f5ad9432e60e42bc60ffde0d10f81f68c24dfa",
+        "size": 891
+      },
+      {
+        "path": "evals/agent-trajectory/recordings/reconcile-after-change.json",
+        "sha256": "7f6d801347ef19fea6bd4e29577d74c40f301b83d275e4197ea2b8a3db4c86f8",
+        "size": 4085
+      },
+      {
+        "path": "evals/agent-trajectory/rubric.mjs",
+        "sha256": "3956612a3f6cacd9ec0ee50244c4595481ca84bfcafe13779378110f30b4fec0",
+        "size": 3708
+      },
+      {
+        "path": "evals/agent-trajectory/scenarios.mjs",
+        "sha256": "d6ac53a68ad327d08f3cf0a6fcd35a27017ece3959b5e80ff412ef66e894e89a",
+        "size": 8800
+      }
+    ],
     "path_fingerprint_policy": "source_hash_staleness",
     "verification": "git_diff"
   },
@@ -52,6 +81,26 @@
     {
       "relation": "changes_path",
       "to": "path:.agent_memory/packets/decision-recall-withholds-hard-stale-only-content-changed-memory-is-served-flagged-do-not-1ab855a4.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:evals/agent-trajectory/recordings/answer-from-memory.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:evals/agent-trajectory/recordings/reconcile-after-change.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:evals/agent-trajectory/rubric.mjs",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:evals/agent-trajectory/scenarios.mjs",
       "evidence": "git_diff"
     }
   ],
@@ -68,7 +117,7 @@
     "risks": [],
     "duplicate_candidates": [],
     "stale_reasons": [],
-    "estimated_tokens_saved": 248,
+    "estimated_tokens_saved": 365,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -86,6 +135,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-06-14T16:31:32.242Z",
-  "updated_at": "2026-06-14T16:31:32.242Z"
+  "created_at": "2026-06-14T16:41:43.787Z",
+  "updated_at": "2026-06-14T16:41:43.787Z"
 }
