@@ -198,8 +198,23 @@ const KAGE_WORKFLOW_TEXT =
   "5) Before finishing a branch, call kage_pr_summarize then kage_pr_check. " +
   "Recall receipts show estimated tokens saved versus rediscovery; report memory quality with kage_feedback (helpful/wrong/stale).";
 
+// Agent-facing core: the verbs an agent actually uses in the loop (recall,
+// capture, stay-honest, refresh, codify). Everything else is operator/diagnostic
+// and must not bloat the model's default tool list — it stays reachable in full
+// mode (KAGE_TOOLS=full) or via the CLI. Keeping the default small enough that
+// the client always-loads it removes the per-call ToolSearch round-trip.
+export const CORE_TOOLS = new Set([
+  "kage_context",
+  "kage_learn",
+  "kage_supersede",
+  "kage_feedback",
+  "kage_pr_check",
+  "kage_refresh",
+  "kage_skills",
+]);
+
 export function listTools() {
-  return [
+  const all = [
     {
       // Combined entry-point tool: validate + recall + code_graph + graph in one call.
       // Agents should load this schema first (one ToolSearch) instead of loading four
@@ -1111,6 +1126,8 @@ export function listTools() {
       },
     },
   ];
+  if (process.env.KAGE_TOOLS === "full" || process.env.KAGE_ALL_TOOLS === "1") return all;
+  return all.filter((tool) => CORE_TOOLS.has(tool.name));
 }
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({

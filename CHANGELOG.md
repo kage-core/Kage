@@ -16,6 +16,14 @@
 
 ## Unreleased
 
+- **Smaller default agent tool surface (67 → 7).** The MCP server now exposes
+  only the agent-facing core by default — `kage_context`, `kage_learn`,
+  `kage_supersede`, `kage_feedback`, `kage_pr_check`, `kage_refresh`,
+  `kage_skills` — the verbs an agent actually uses in the loop. Operator and
+  diagnostic tools stay reachable via the CLI or `KAGE_TOOLS=full`. A small
+  enough default means the client always-loads it, removing the per-call
+  ToolSearch round-trip the agent-trajectory recordings exposed. No capability
+  removed; nothing deleted.
 - **Lifecycle trajectory + Markov-chain tests.** `mcp/trajectory.test.ts` walks
   a packet through its full state machine (pending → approved → soft-stale ⇄
   fresh → hard-stale → deprecated, plus superseded and skills) entirely through

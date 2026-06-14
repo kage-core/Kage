@@ -78,4 +78,7 @@ export const PREDICATES = {
 
   // It actually looked at the real source (didn't act blind on memory alone).
   inspected_source: (events) => events.some((e) => INSPECT_TOOLS.has(e.tool)),
+
+  // It gave memory feedback (marked a recalled packet stale/wrong via kage_feedback).
+  reported_feedback: (events) => events.some((e) => shortName(e.tool) === "kage_feedback"),
 };

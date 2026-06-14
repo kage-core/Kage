@@ -22,8 +22,22 @@ function textContent(result: Awaited<ReturnType<typeof callTool>>): string {
   return String(first.text);
 }
 
-test("MCP lists repo-local memory tools", () => {
+test("MCP default tool surface is the agent-facing core only", () => {
+  const core = listTools().map((tool) => tool.name).sort();
+  assert.deepEqual(core, [
+    "kage_context", "kage_feedback", "kage_learn", "kage_pr_check",
+    "kage_refresh", "kage_skills", "kage_supersede",
+  ].sort());
+  // None of the operator/diagnostic tools leak into the default agent surface.
+  assert.equal(core.includes("kage_metrics"), false);
+  assert.equal(core.includes("kage_xray"), false);
+});
+
+test("MCP full mode exposes the complete repo-local memory tool registry", () => {
+  const prev = process.env.KAGE_TOOLS;
+  process.env.KAGE_TOOLS = "full";
   const names = listTools().map((tool) => tool.name);
+  process.env.KAGE_TOOLS = prev;
   assert.equal(names.includes("kage_context"), true);
   assert.equal(names.includes("kage_recall"), true);
   assert.equal(names.includes("kage_graph"), true);
@@ -85,7 +99,10 @@ test("MCP lists repo-local memory tools", () => {
 });
 
 test("kage_workflow teaches the loop in its description and returns the same text", async () => {
+  const prevWf = process.env.KAGE_TOOLS;
+  process.env.KAGE_TOOLS = "full";
   const tool = listTools().find((item) => item.name === "kage_workflow");
+  process.env.KAGE_TOOLS = prevWf;
   assert.ok(tool);
   assert.equal(tool.description.trim().split(/\s+/).length <= 150, true);
   for (const step of ["kage_context", "kage_learn", "kage_refresh", "kage_pr_check", "<private>", "receipts"]) {

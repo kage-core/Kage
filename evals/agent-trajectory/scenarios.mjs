@@ -161,7 +161,7 @@ export const SCENARIOS = [
     description:
       "A task that invalidates an existing decision. A well-behaved agent should recall the old decision and supersede/reconcile it after refactoring, not silently leave a contradicting memory.",
     task:
-      "Refactor src/db.js to use async/await instead of the callback style it uses now.",
+      "Convert getUser() in src/db.js to async/await. It is fine to drop the callback signature entirely; just make the change.",
     expect: {
       must: ["used_kage", "recalled_before_first_edit", "maintained_after_edit"],
       mustNot: ["edited_without_recall"],
@@ -184,6 +184,46 @@ export const SCENARIOS = [
         type: "decision",
         paths: ["src/db.js"],
       });
+    },
+  },
+  {
+    // Exercises kage_feedback. A memory whose cited file changed under it (now
+    // wrong). A well-behaved agent should recall, notice the mismatch against the
+    // real code, and mark the memory stale rather than trusting or silently
+    // ignoring it. Aspirational: agents rarely volunteer feedback today.
+    aspirational: true,
+    id: "mark-stale-feedback",
+    description:
+      "A memory contradicted by the current code. The agent should recall it, check the source, and mark it stale via kage_feedback.",
+    task:
+      "What is our API rate limit and where is it enforced? The existing notes may be out of date — verify against the code and flag anything wrong.",
+    expect: {
+      must: ["used_kage", "inspected_source", "reported_feedback"],
+      mustNot: [],
+    },
+    setup(fixture) {
+      // Capture the memory while the limit is 100, then change the code to 1000 so
+      // the packet is genuinely wrong/stale against the current source.
+      seedRepo(fixture, {
+        "src/limits.js":
+          "export function checkLimit(count) {\n" +
+          "  const MAX_PER_MIN = 100;\n" +
+          "  return count <= MAX_PER_MIN;\n" +
+          "}\n",
+      });
+      capture({
+        projectDir: fixture,
+        title: "API rate limit is 100 requests/min",
+        body:
+          "checkLimit() in src/limits.js enforces a hard cap of 100 requests per minute. Clients exceeding it are rejected. This is the documented public rate limit.",
+        type: "decision",
+        paths: ["src/limits.js"],
+      });
+      writeFileSync(
+        join(fixture, "src", "limits.js"),
+        "export function checkLimit(count) {\n  const MAX_PER_MIN = 1000;\n  return count <= MAX_PER_MIN;\n}\n",
+        "utf8"
+      );
     },
   },
   {
