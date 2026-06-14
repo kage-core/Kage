@@ -165,17 +165,25 @@ pre code {
 
 .nav-cta:hover { color: var(--paper); background: var(--green-strong); }
 
-.star-link {
+/* GitHub nav button: octocat + label + live star count (agent-memory.dev style). */
+.gh-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 11px;
+  gap: 8px;
+  padding: 7px 14px;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
-  color: #e3b341;
-  font: 600 13px/1 var(--sans);
+  background: var(--paper);
+  color: var(--ink);
+  font: 700 12.5px/1 var(--sans);
+  letter-spacing: 0.02em;
+  transition: border-color 0.15s ease;
 }
-.star-link:hover { color: #e3b341; border-color: #e3b341; background: color-mix(in srgb, #e3b341 12%, transparent); }
+.gh-btn:hover { color: var(--ink); border-color: var(--faint); }
+.gh-btn svg { display: block; }
+.gh-btn .gh-sep { width: 1px; height: 14px; background: var(--line-strong); }
+.gh-btn .gh-star { color: #e3b341; }
+.gh-btn #gh-stars { color: var(--ink); font-variant-numeric: tabular-nums; }
 
 /* Wrap */
 .wrap {
@@ -506,7 +514,9 @@ p { color: var(--muted); font: 400 15px/1.65 var(--sans); }
 /* Mobile */
 @media (max-width: 820px) {
   .stat-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .nav-links { display: none; }
+  /* Keep the GitHub button reachable on mobile; hide only the text links. */
+  .nav-links a:not(.gh-btn) { display: none; }
+  .nav-links { gap: 10px; }
   .cards, .cards-2 { grid-template-columns: 1fr; }
   .footer-inner { display: grid; }
   .pflow { flex-direction: column; }
