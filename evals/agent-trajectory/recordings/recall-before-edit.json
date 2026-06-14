@@ -1,6 +1,6 @@
 {
   "scenario": "recall-before-edit",
-  "recorded_at": "2026-06-14T17:38:21.395Z",
+  "recorded_at": "2026-06-14T17:57:15.766Z",
   "driver": "claude -p (stream-json)",
   "task": "Add input validation to the login() function in src/auth.js so it rejects an empty username with a clear error.",
   "events": [
@@ -8,8 +8,8 @@
       "seq": 0,
       "tool": "mcp__kage__kage_context",
       "input": {
-        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-pGNOTK",
-        "query": "Add input validation to login() function in src/auth.js to reject empty username",
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-AkqQIB",
+        "query": "add input validation to login() in src/auth.js to reject empty username",
         "targets": [
           "src/auth.js"
         ]
@@ -19,7 +19,7 @@
       "seq": 1,
       "tool": "Read",
       "input": {
-        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-pGNOTK/src/auth.js"
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-AkqQIB/src/auth.js"
       }
     },
     {
@@ -27,18 +27,18 @@
       "tool": "Edit",
       "input": {
         "replace_all": false,
-        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-pGNOTK/src/auth.js",
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-AkqQIB/src/auth.js",
         "old_string": "export function login(username, password, db) {\n  const key = normalizeUsername(username);\n  return db.check(key, password);\n}",
-        "new_string": "export function login(username, password, db) {\n  const key = normalizeUsername(username);\n  if (key === \"\") {\n    throw new Error(\"username must not be empty\");\n  }\n  return db.check(key, password);\n}"
+        "new_string": "export function login(username, password, db) {\n  const key = normalizeUsername(username);\n  if (!key) throw new Error(\"username is required\");\n  return db.check(key, password);\n}"
       }
     },
     {
       "seq": 3,
       "tool": "mcp__kage__kage_learn",
       "input": {
-        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-pGNOTK",
-        "title": "Auth convention: normalize username, then reject empty",
-        "learning": "login in src/auth.js normalizes the username via normalizeUsername (trim + lowercase) and then rejects an empty normalized key by throwing Error(\"username must not be empty\") before any db.check call. Normalization still happens first so mixed-case emails resolve correctly, and whitespace-only inputs are caught by the post-normalization emptiness check rather than passed through to credential lookup.",
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-AkqQIB",
+        "learning": "login() in src/auth.js validates that the normalized username is non-empty and throws Error(\"username is required\") before calling db.check. The check runs after normalizeUsername so whitespace-only inputs (e.g. \"   \") are also rejected. This is additive to the existing normalize-before-lookup convention, not a replacement.",
+        "title": "login rejects empty username after normalization",
         "type": "decision",
         "paths": [
           "src/auth.js"
@@ -46,37 +46,36 @@
         "tags": [
           "auth",
           "validation",
-          "convention"
+          "login"
         ],
-        "evidence": "src/auth.js:3-9 — login normalizes then throws on empty key before db.check",
-        "verified_by": "read src/auth.js after edit"
+        "evidence": "src/auth.js:5 - `if (!key) throw new Error(\"username is required\");` placed immediately after `const key = normalizeUsername(username);`"
       }
     },
     {
       "seq": 4,
       "tool": "mcp__kage__kage_supersede",
       "input": {
-        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-pGNOTK",
-        "packet_id": "repo:kage-eval-recall-before-edit-pgnotk:decision:auth-convention-usernames-must-be-normalized-before-lookup-1781458636491",
-        "replacement_packet_id": "repo:kage-eval-recall-before-edit-pgnotk:decision:auth-convention-normalize-username-then-reject-empty-f8aa8ac5",
-        "reason": "login now also rejects empty normalized usernames; new packet captures both the normalization rule and the post-normalization emptiness check."
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-AkqQIB",
+        "packet_id": "repo:kage-eval-recall-before-edit-akqqib:decision:auth-convention-usernames-must-be-normalized-before-lookup-1781459763580",
+        "replacement_packet_id": "repo:kage-eval-recall-before-edit-akqqib:decision:login-rejects-empty-username-after-normalization-39348f88",
+        "reason": "login() in src/auth.js now both normalizes the username and rejects empty values; the replacement packet captures the fuller behavior (normalize-then-validate) so the original normalize-only claim is subsumed."
       }
     },
     {
       "seq": 5,
       "tool": "Read",
       "input": {
-        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-pGNOTK/.agent_memory/packets/decision-auth-convention-normalize-username-then-reject-empty-f8aa8ac5.json"
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-AkqQIB/.agent_memory/packets/decision-login-rejects-empty-username-after-normalization-39348f88.json"
       }
     },
     {
       "seq": 6,
       "tool": "mcp__kage__kage_supersede",
       "input": {
-        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-pGNOTK",
-        "packet_id": "repo:kage-eval-recall-before-edit-pgnotk:decision:auth-convention-usernames-must-be-normalized-before-lookup-1781458636491",
-        "replacement_packet_id": "repo:kage-eval-recall-before-edit-pgnotk:decision:auth-convention-normalize-username-then-reject-empty-1781458672690",
-        "reason": "login now also rejects empty normalized usernames; new packet captures both the normalization rule and the post-normalization emptiness check."
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-AkqQIB",
+        "packet_id": "repo:kage-eval-recall-before-edit-akqqib:decision:auth-convention-usernames-must-be-normalized-before-lookup-1781459763580",
+        "replacement_packet_id": "repo:kage-eval-recall-before-edit-akqqib:decision:login-rejects-empty-username-after-normalization-1781459801221",
+        "reason": "login() in src/auth.js now both normalizes the username and rejects empty values; the replacement packet captures the fuller behavior (normalize-then-validate) so the original normalize-only claim is subsumed."
       }
     }
   ]

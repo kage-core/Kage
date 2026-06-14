@@ -135,16 +135,16 @@ export const SCENARIOS = [
       seedRepo(fixture, {
         "src/config.js":
           "export const config = {\n" +
-          "  // 30s default chosen to match the upstream gateway's hard cutoff.\n" +
+          "  // default request timeout in milliseconds\n" +
           "  requestTimeoutMs: 30000,\n" +
           "};\n",
       });
       capture({
         projectDir: fixture,
-        title: "Request timeout is 30s to match the upstream gateway cutoff",
+        title: "Request timeout default lives in config.requestTimeoutMs",
         body:
-          "config.requestTimeoutMs in src/config.js is 30000 deliberately: the upstream gateway hard-cuts requests at 30s, so a higher client timeout just wastes connections waiting on responses that were already killed. Revisit only if the gateway cutoff changes.",
-        type: "decision",
+          "The default request timeout is config.requestTimeoutMs in src/config.js, currently 30000 ms. Several integration tests assert this exact value, so any change to it also needs those test expectations updated to match.",
+        type: "reference",
         paths: ["src/config.js"],
       });
     },

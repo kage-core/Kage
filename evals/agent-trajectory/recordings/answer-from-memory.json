@@ -1,30 +1,22 @@
 {
   "scenario": "answer-from-memory",
-  "recorded_at": "2026-06-14T16:39:28.317Z",
+  "recorded_at": "2026-06-14T17:58:15.783Z",
   "driver": "claude -p (stream-json)",
   "task": "How does session expiry work in this service? Summarize the rule a contributor needs to know. Do not change any code.",
   "events": [
     {
       "seq": 0,
-      "tool": "ToolSearch",
+      "tool": "mcp__kage__kage_context",
       "input": {
-        "query": "select:mcp__kage__kage_context",
-        "max_results": 1
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-answer-from-memory-OJPXlc",
+        "query": "session expiry rule"
       }
     },
     {
       "seq": 1,
-      "tool": "mcp__kage__kage_context",
-      "input": {
-        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-answer-from-memory-GNdx4B",
-        "query": "session expiry rules"
-      }
-    },
-    {
-      "seq": 2,
       "tool": "Read",
       "input": {
-        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-answer-from-memory-GNdx4B/src/session.js"
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-answer-from-memory-OJPXlc/src/session.js"
       }
     }
   ]

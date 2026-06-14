@@ -16,6 +16,11 @@
 
 ## Unreleased
 
+- **All-tools coverage test.** `mcp/tool-coverage.test.ts` seeds a fixture and
+  invokes every registered MCP tool through the real `callTool` path, asserting
+  each is wired and returns content (network-CDN tools are asserted-registered,
+  not called offline). Catches orphaned/broken handlers across the whole 67-tool
+  surface, not just the agent-facing core.
 - **Smaller default agent tool surface (67 → 7).** The MCP server now exposes
   only the agent-facing core by default — `kage_context`, `kage_learn`,
   `kage_supersede`, `kage_feedback`, `kage_pr_check`, `kage_refresh`,

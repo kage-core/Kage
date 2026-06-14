@@ -1,41 +1,41 @@
 {
   "scenario": "reconcile-after-change",
-  "recorded_at": "2026-06-14T16:41:38.267Z",
+  "recorded_at": "2026-06-14T18:06:12.176Z",
   "driver": "claude -p (stream-json)",
   "task": "Change the default request timeout in src/config.js from 30 seconds to 60 seconds.",
   "events": [
     {
       "seq": 0,
-      "tool": "Bash",
-      "input": {
-        "command": "ls /private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-Yrkq81/",
-        "description": "List project root"
-      }
-    },
-    {
-      "seq": 1,
-      "tool": "ToolSearch",
-      "input": {
-        "query": "select:mcp__kage__kage_context,mcp__kage__kage_learn,mcp__kage__kage_memory_reconcile",
-        "max_results": 3
-      }
-    },
-    {
-      "seq": 2,
       "tool": "mcp__kage__kage_context",
       "input": {
-        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-Yrkq81",
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-uALelH",
         "query": "change default request timeout in src/config.js from 30 to 60 seconds",
-        "changed_files": [
+        "targets": [
           "src/config.js"
         ]
       }
     },
     {
-      "seq": 3,
+      "seq": 1,
       "tool": "Read",
       "input": {
-        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-Yrkq81/src/config.js"
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-uALelH/src/config.js"
+      }
+    },
+    {
+      "seq": 2,
+      "tool": "Bash",
+      "input": {
+        "command": "grep -rn \"30000\\|requestTimeoutMs\" --include=\"*.js\" --include=\"*.ts\" --include=\"*.json\" .",
+        "description": "Search for 30000 and requestTimeoutMs references"
+      }
+    },
+    {
+      "seq": 3,
+      "tool": "Bash",
+      "input": {
+        "command": "ls -la && find . -path ./node_modules -prune -o -path ./.git -prune -o -type f -print | head -50",
+        "description": "List repo layout"
       }
     },
     {
@@ -43,60 +43,66 @@
       "tool": "Edit",
       "input": {
         "replace_all": false,
-        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-Yrkq81/src/config.js",
-        "old_string": "export const config = {\n  // 30s default chosen to match the upstream gateway's hard cutoff.\n  requestTimeoutMs: 30000,\n};",
-        "new_string": "export const config = {\n  requestTimeoutMs: 60000,\n};"
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-uALelH/src/config.js",
+        "old_string": "  requestTimeoutMs: 30000,",
+        "new_string": "  requestTimeoutMs: 60000,"
       }
     },
     {
       "seq": 5,
-      "tool": "mcp__kage__kage_memory_reconcile",
+      "tool": "mcp__kage__kage_feedback",
       "input": {
-        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-Yrkq81"
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-uALelH",
+        "packet_id": "reference-request-timeout-default-lives-in-config-requesttimeoutms-f305e1f9",
+        "kind": "stale"
       }
     },
     {
       "seq": 6,
-      "tool": "ToolSearch",
+      "tool": "Read",
       "input": {
-        "query": "select:mcp__kage__kage_supersede",
-        "max_results": 1
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-uALelH/.agent_memory/packets/reference-request-timeout-default-lives-in-config-requesttimeoutms-f305e1f9.json"
       }
     },
     {
       "seq": 7,
       "tool": "mcp__kage__kage_learn",
       "input": {
-        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-Yrkq81",
-        "title": "Request timeout raised to 60s",
-        "type": "decision",
-        "learning": "config.requestTimeoutMs in src/config.js is 60000. Raised from the previous 30s default per user request on 2026-06-14. Note: the prior 30s value was deliberately matched to an upstream gateway hard cutoff at 30s; if that cutoff still holds, the extra 30s of client wait will hang on connections the gateway has already killed. Re-verify the upstream gateway timeout before relying on this larger window.",
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-uALelH",
+        "type": "reference",
+        "title": "Request timeout default lives in config.requestTimeoutMs",
+        "learning": "The default request timeout is config.requestTimeoutMs in src/config.js, currently 60000 ms (raised from 30000 ms on 2026-06-14). No integration tests exist in the repo as of 2026-06-14, so changing this value does not require updating test expectations — the earlier claim about test assertions was unverified.",
         "paths": [
           "src/config.js"
         ],
-        "evidence": "src/config.js now sets requestTimeoutMs: 60000 (changed from 30000 in this session).",
-        "tags": [
-          "timeout",
-          "config",
-          "http"
-        ]
+        "evidence": "src/config.js:3 holds requestTimeoutMs: 60000; repo contains only CLAUDE.md, src/config.js, and .agent_memory — no test files.",
+        "verified_by": "Read of src/config.js and full repo file listing on 2026-06-14"
       }
     },
     {
       "seq": 8,
-      "tool": "Read",
+      "tool": "Bash",
       "input": {
-        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-Yrkq81/.agent_memory/packets/decision-request-timeout-raised-to-60s-cf3a9e67.json"
+        "command": "ls /private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-uALelH/.agent_memory/packets/",
+        "description": "List packets to find new packet id"
       }
     },
     {
       "seq": 9,
+      "tool": "Read",
+      "input": {
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-uALelH/.agent_memory/packets/reference-request-timeout-default-lives-in-config-requesttimeoutms-4e64d63e.json",
+        "limit": 5
+      }
+    },
+    {
+      "seq": 10,
       "tool": "mcp__kage__kage_supersede",
       "input": {
-        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-Yrkq81",
-        "packet_id": "repo:kage-eval-reconcile-after-change-yrkq81:decision:request-timeout-is-30s-to-match-the-upstream-gateway-cutoff-1781455168444",
-        "replacement_packet_id": "repo:kage-eval-reconcile-after-change-yrkq81:decision:request-timeout-raised-to-60s-1781455243317",
-        "reason": "Per user request on 2026-06-14, requestTimeoutMs in src/config.js was raised from 30000 to 60000. The prior decision pinning it to 30s (gateway cutoff) no longer reflects the code."
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-uALelH",
+        "packet_id": "repo:kage-eval-reconcile-after-change-ualelh:reference:request-timeout-default-lives-in-config-requesttimeoutms-1781460300011",
+        "replacement_packet_id": "repo:kage-eval-reconcile-after-change-ualelh:reference:request-timeout-default-lives-in-config-requesttimeoutms-1781460347219",
+        "reason": "Value updated from 30000 to 60000 ms on 2026-06-14; prior claim about integration tests asserting the value was unverified — repo contains no test files."
       }
     }
   ]

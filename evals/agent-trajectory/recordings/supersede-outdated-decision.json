@@ -1,55 +1,47 @@
 {
   "scenario": "supersede-outdated-decision",
-  "recorded_at": "2026-06-14T17:33:09.417Z",
+  "recorded_at": "2026-06-14T17:59:37.921Z",
   "driver": "claude -p (stream-json)",
   "task": "Convert getUser() in src/db.js to async/await. It is fine to drop the callback signature entirely; just make the change.",
   "events": [
     {
       "seq": 0,
-      "tool": "ToolSearch",
+      "tool": "mcp__kage__kage_context",
       "input": {
-        "query": "select:mcp__kage__kage_context,mcp__kage__kage_learn,mcp__kage__kage_supersede",
-        "max_results": 5
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-rumf20",
+        "query": "Convert getUser() in src/db.js to async/await",
+        "changed_files": [
+          "src/db.js"
+        ]
       }
     },
     {
       "seq": 1,
       "tool": "Read",
       "input": {
-        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-iLIey4/src/db.js"
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-rumf20/src/db.js"
       }
     },
     {
       "seq": 2,
-      "tool": "mcp__kage__kage_context",
+      "tool": "Write",
       "input": {
-        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-iLIey4",
-        "query": "convert getUser in src/db.js to async/await",
-        "targets": [
-          "src/db.js"
-        ]
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-rumf20/src/db.js",
+        "content": "export async function getUser(id) {\n  const rows = await new Promise((resolve, reject) => {\n    query('SELECT * FROM users WHERE id = ?', [id], (err, rows) => {\n      if (err) return reject(err);\n      resolve(rows);\n    });\n  });\n  return rows[0];\n}\n"
       }
     },
     {
       "seq": 3,
-      "tool": "Write",
-      "input": {
-        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-iLIey4/src/db.js",
-        "content": "export async function getUser(id) {\n  const rows = await query('SELECT * FROM users WHERE id = ?', [id]);\n  return rows[0];\n}\n"
-      }
-    },
-    {
-      "seq": 4,
       "tool": "mcp__kage__kage_learn",
       "input": {
-        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-iLIey4",
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-rumf20",
+        "learning": "Decision: db layer uses async/await (promisify callback driver). src/db.js now exposes async functions; the underlying `query` driver still uses Node-style callbacks, so wrap it in a Promise inside each function. New db functions should be async and return values (or throw), not take callbacks.",
         "title": "Decision: db layer uses async/await",
-        "learning": "src/db.js uses async/await and returns promises rather than Node-style err, result callbacks. getUser(id) was migrated from callback to async on 2026-06-14 at the user's explicit direction; new db functions should follow the async/await convention.",
         "type": "decision",
         "paths": [
           "src/db.js"
         ],
-        "evidence": "getUser in src/db.js was converted to `export async function getUser(id)` returning `rows[0]` via `await query(...)`; the legacy callback signature was dropped at the user's request.",
+        "evidence": "getUser in src/db.js converted from callback to async/await on 2026-06-14; pattern wraps the legacy callback `query` in a Promise.",
         "tags": [
           "db",
           "async",
@@ -58,39 +50,45 @@
       }
     },
     {
+      "seq": 4,
+      "tool": "Bash",
+      "input": {
+        "command": "ls /private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-rumf20/.agent_memory/packets/",
+        "description": "List existing memory packets"
+      }
+    },
+    {
       "seq": 5,
       "tool": "Bash",
       "input": {
-        "command": "ls /private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-iLIey4/.agent_memory/packets/",
-        "description": "List memory packets"
+        "command": "grep -o '\"id\":\"[^\"]*\"' /private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-rumf20/.agent_memory/packets/decision-decision-db-layer-uses-node-style-callbacks-05e61be4.json /private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-rumf20/.agent_memory/packets/decision-decision-db-layer-uses-async-await-f12ee8ec.json | head -20",
+        "description": "Extract packet ids from both decision files"
       }
     },
     {
       "seq": 6,
-      "tool": "mcp__kage__kage_supersede",
+      "tool": "Read",
       "input": {
-        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-iLIey4",
-        "packet_id": "decision-decision-db-layer-uses-node-style-callbacks-970f08b4",
-        "replacement_packet_id": "decision-decision-db-layer-uses-async-await-55408cda",
-        "reason": "User explicitly directed dropping the callback signature in getUser and converting src/db.js to async/await on 2026-06-14, overriding the prior callback convention."
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-rumf20/.agent_memory/packets/decision-decision-db-layer-uses-node-style-callbacks-05e61be4.json",
+        "limit": 20
       }
     },
     {
       "seq": 7,
-      "tool": "Bash",
+      "tool": "Read",
       "input": {
-        "command": "grep -h '\"id\"' /private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-iLIey4/.agent_memory/packets/decision-*.json",
-        "description": "Find packet IDs"
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-rumf20/.agent_memory/packets/decision-decision-db-layer-uses-async-await-f12ee8ec.json",
+        "limit": 20
       }
     },
     {
       "seq": 8,
       "tool": "mcp__kage__kage_supersede",
       "input": {
-        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-iLIey4",
-        "packet_id": "repo:kage-eval-supersede-outdated-decision-iliey4:decision:decision-db-layer-uses-node-style-callbacks-1781458326383",
-        "replacement_packet_id": "repo:kage-eval-supersede-outdated-decision-iliey4:decision:decision-db-layer-uses-async-await-1781458355256",
-        "reason": "User explicitly directed dropping the callback signature in getUser and converting src/db.js to async/await on 2026-06-14, overriding the prior callback convention."
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-rumf20",
+        "packet_id": "repo:kage-eval-supersede-outdated-decision-rumf20:decision:decision-db-layer-uses-node-style-callbacks-1781459913998",
+        "replacement_packet_id": "repo:kage-eval-supersede-outdated-decision-rumf20:decision:decision-db-layer-uses-async-await-1781459945031",
+        "reason": "User explicitly converted getUser in src/db.js to async/await on 2026-06-14, dropping the callback signature. The callback-convention decision no longer reflects the codebase."
       }
     }
   ]

@@ -1,46 +1,31 @@
 {
   "scenario": "onboard-scan",
-  "recorded_at": "2026-06-14T16:42:53.887Z",
+  "recorded_at": "2026-06-14T18:01:05.110Z",
   "driver": "claude -p (stream-json)",
   "task": "I'm new to this repo. Before I touch anything, what conventions or risky areas should I know about?",
   "events": [
     {
       "seq": 0,
-      "tool": "ToolSearch",
+      "tool": "mcp__kage__kage_context",
       "input": {
-        "query": "select:mcp__kage__kage_context",
-        "max_results": 1
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-onboard-scan-NJWQIg",
+        "query": "repo conventions, risky areas, onboarding for new contributors",
+        "limit": 8
       }
     },
     {
       "seq": 1,
-      "tool": "mcp__kage__kage_context",
+      "tool": "Bash",
       "input": {
-        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-onboard-scan-U2jP82",
-        "query": "repo conventions, risky areas, gotchas for new contributors"
+        "command": "ls /private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-onboard-scan-NJWQIg/src/ 2>/dev/null",
+        "description": "List src directory"
       }
     },
     {
       "seq": 2,
-      "tool": "Bash",
-      "input": {
-        "command": "ls -la && echo \"---\" && git log --oneline -20",
-        "description": "List repo contents and recent commits"
-      }
-    },
-    {
-      "seq": 3,
-      "tool": "Bash",
-      "input": {
-        "command": "ls -la src/ .agent_memory/ && echo \"---\" && cat .gitattributes kage.mcp.json",
-        "description": "Inspect src, agent memory, and config files"
-      }
-    },
-    {
-      "seq": 4,
       "tool": "Read",
       "input": {
-        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-onboard-scan-U2jP82/src/payments.js"
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-onboard-scan-NJWQIg/src/payments.js"
       }
     }
   ]

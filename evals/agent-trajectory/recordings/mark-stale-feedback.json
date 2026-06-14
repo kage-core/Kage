@@ -1,45 +1,45 @@
 {
   "scenario": "mark-stale-feedback",
-  "recorded_at": "2026-06-14T17:33:53.186Z",
+  "recorded_at": "2026-06-14T18:00:31.788Z",
   "driver": "claude -p (stream-json)",
-  "task": "What is our API rate limit and where is it enforced? The existing notes may be out of date — verify against the code and flag anything wrong.",
+  "task": "What is our API rate limit and where is it enforced? The existing notes may be out of date — verify against the code and fix anything wrong.",
   "events": [
     {
       "seq": 0,
-      "tool": "ToolSearch",
-      "input": {
-        "query": "select:mcp__kage__kage_context,mcp__kage__kage_learn,mcp__kage__kage_supersede",
-        "max_results": 5
-      }
-    },
-    {
-      "seq": 1,
       "tool": "mcp__kage__kage_context",
       "input": {
-        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-mark-stale-feedback-tO923Y",
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-mark-stale-feedback-7yD997",
         "query": "API rate limit enforcement"
       }
     },
     {
-      "seq": 2,
+      "seq": 1,
       "tool": "Read",
       "input": {
-        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-mark-stale-feedback-tO923Y/src/limits.js"
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-mark-stale-feedback-7yD997/src/limits.js"
+      }
+    },
+    {
+      "seq": 2,
+      "tool": "Bash",
+      "input": {
+        "command": "git log --oneline -5 -- src/limits.js && echo \"---DIFF---\" && git diff src/limits.js",
+        "description": "Show file history and uncommitted diff"
       }
     },
     {
       "seq": 3,
       "tool": "mcp__kage__kage_learn",
       "input": {
-        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-mark-stale-feedback-tO923Y",
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-mark-stale-feedback-7yD997",
+        "learning": "API rate limit is 1000 requests/min, enforced by checkLimit in src/limits.js via the MAX_PER_MIN constant. Raised from the previous 100/min cap.",
         "title": "API rate limit is 1000 requests/min",
-        "learning": "API rate limit is 1000 requests/min, enforced by checkLimit in src/limits.js via the MAX_PER_MIN constant. checkLimit(count) returns true when count <= 1000, false otherwise.",
         "type": "decision",
         "paths": [
           "src/limits.js"
         ],
-        "evidence": "src/limits.js:2 defines `const MAX_PER_MIN = 1000;` inside checkLimit. Verified by direct file read on 2026-06-14.",
-        "verified_by": "Read of src/limits.js on 2026-06-14",
+        "evidence": "src/limits.js:2 sets const MAX_PER_MIN = 1000; checkLimit returns count <= MAX_PER_MIN.",
+        "verified_by": "Read src/limits.js and git diff against committed fixture (was 100, now 1000).",
         "tags": [
           "rate-limit",
           "api",
@@ -51,18 +51,18 @@
       "seq": 4,
       "tool": "Bash",
       "input": {
-        "command": "cat /private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-mark-stale-feedback-tO923Y/.agent_memory/packets/decision-api-rate-limit-is-1000-requests-min-a77754ab.json | python3 -c \"import json,sys; d=json.load(sys.stdin); print(d.get('id') or d.get('packet_id'))\"",
-        "description": "Get packet id of new memory"
+        "command": "cat /private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-mark-stale-feedback-7yD997/.agent_memory/packets/decision-api-rate-limit-is-1000-requests-min-a9ac55cc.json | head -30",
+        "description": "Read new packet to get its id"
       }
     },
     {
       "seq": 5,
       "tool": "mcp__kage__kage_supersede",
       "input": {
-        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-mark-stale-feedback-tO923Y",
-        "packet_id": "repo:kage-eval-mark-stale-feedback-to923y:decision:api-rate-limit-is-100-requests-min-1781458389536",
-        "replacement_packet_id": "repo:kage-eval-mark-stale-feedback-to923y:decision:api-rate-limit-is-1000-requests-min-1781458411989",
-        "reason": "Stale: prior memory claimed 100 req/min, but src/limits.js:2 currently defines MAX_PER_MIN = 1000. Verified by direct file read on 2026-06-14."
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-mark-stale-feedback-7yD997",
+        "packet_id": "repo:kage-eval-mark-stale-feedback-7yd997:decision:api-rate-limit-is-100-requests-min-1781459978024",
+        "replacement_packet_id": "repo:kage-eval-mark-stale-feedback-7yd997:decision:api-rate-limit-is-1000-requests-min-1781460005102",
+        "reason": "Rate limit raised from 100 to 1000 requests/min in src/limits.js; old packet claimed 100/min and is no longer correct."
       }
     }
   ]

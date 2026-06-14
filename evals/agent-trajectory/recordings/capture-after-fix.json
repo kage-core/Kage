@@ -1,81 +1,66 @@
 {
   "scenario": "capture-after-fix",
-  "recorded_at": "2026-06-14T16:30:01.922Z",
+  "recorded_at": "2026-06-14T17:57:55.792Z",
   "driver": "claude -p (stream-json)",
   "task": "There is a bug in src/utils.js: parseDate() returns NaN for valid ISO date strings like '2026-06-14'. Find the cause and fix it.",
   "events": [
     {
       "seq": 0,
-      "tool": "Read",
-      "input": {
-        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-capture-after-fix-1UriHp/src/utils.js"
-      }
-    },
-    {
-      "seq": 1,
-      "tool": "ToolSearch",
-      "input": {
-        "query": "select:mcp__kage__kage_context,mcp__kage__kage_learn",
-        "max_results": 2
-      }
-    },
-    {
-      "seq": 2,
       "tool": "mcp__kage__kage_context",
       "input": {
-        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-capture-after-fix-1UriHp",
-        "query": "parseDate ISO date string NaN bug in src/utils.js",
-        "changed_files": [
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-capture-after-fix-Cl40uY",
+        "query": "parseDate returns NaN for ISO date strings in src/utils.js",
+        "targets": [
           "src/utils.js"
         ]
       }
     },
     {
-      "seq": 3,
+      "seq": 1,
+      "tool": "Read",
+      "input": {
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-capture-after-fix-Cl40uY/src/utils.js"
+      }
+    },
+    {
+      "seq": 2,
       "tool": "Edit",
       "input": {
         "replace_all": false,
-        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-capture-after-fix-1UriHp/src/utils.js",
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-capture-after-fix-Cl40uY/src/utils.js",
         "old_string": "export function parseDate(s) {\n  // Bug: splits on '/' but ISO dates use '-', so Number(parts) is NaN.\n  const parts = String(s).split('/');\n  return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime();\n}",
         "new_string": "export function parseDate(s) {\n  const parts = String(s).split('-');\n  return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime();\n}"
+      }
+    },
+    {
+      "seq": 3,
+      "tool": "Bash",
+      "input": {
+        "command": "node -e \"import('./src/utils.js').then(m => { const t = m.parseDate('2026-06-14'); console.log('result:', t, 'isNaN:', isNaN(t), 'date:', new Date(t).toISOString()); })\"",
+        "description": "Verify parseDate fix with ISO date string"
       }
     },
     {
       "seq": 4,
       "tool": "mcp__kage__kage_learn",
       "input": {
-        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-capture-after-fix-1UriHp",
-        "learning": "parseDate() in src/utils.js parses ISO date strings (YYYY-MM-DD) by splitting on '-'. A prior version split on '/', which caused Number(parts[i]) to return NaN for ISO inputs like '2026-06-14'. Fix: use String(s).split('-') and pass year/month-1/day to the Date constructor.",
-        "title": "parseDate must split ISO date strings on '-' not '/'",
-        "type": "bugfix",
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-capture-after-fix-Cl40uY",
+        "learning": "parseDate() in src/utils.js parses ISO-8601 date strings (YYYY-MM-DD) by splitting on '-'. It does not accept slash-delimited formats like 'YYYY/MM/DD' — callers must pre-normalize. The function returns a local-time epoch ms via the Date(y, m-1, d) constructor, so results are timezone-dependent.",
+        "title": "parseDate expects ISO YYYY-MM-DD, splits on '-'",
+        "type": "convention",
         "paths": [
           "src/utils.js"
         ],
-        "tags": [
-          "date-parsing",
-          "iso-8601",
+        "stack": [
           "javascript"
-        ],
-        "evidence": "src/utils.js:1-4 now splits on '-' so parseDate('2026-06-14') returns a valid timestamp instead of NaN."
-      }
-    },
-    {
-      "seq": 5,
-      "tool": "mcp__kage__kage_learn",
-      "input": {
-        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-capture-after-fix-1UriHp",
-        "learning": "parseDate() in src/utils.js parses ISO date strings (YYYY-MM-DD) by splitting on '-'. A prior version split on '/', which caused Number(parts[i]) to return NaN for ISO inputs like '2026-06-14'. Fix: use String(s).split('-') and pass year/month-1/day to the Date constructor.",
-        "title": "parseDate must split ISO date strings on '-' not '/'",
-        "type": "bug_fix",
-        "paths": [
-          "src/utils.js"
         ],
         "tags": [
           "date-parsing",
-          "iso-8601",
-          "javascript"
+          "utils",
+          "iso-8601"
         ],
-        "evidence": "src/utils.js:1-4 now splits on '-' so parseDate('2026-06-14') returns a valid timestamp instead of NaN."
+        "evidence": "Fixed bug where parseDate split on '/' returning NaN for '2026-06-14'. Verified: parseDate('2026-06-14') now returns 1781375400000.",
+        "verified_by": "node -e \\\"import('./src/utils.js').then(m => console.log(m.parseDate('2026-06-14')))\\\""
       }
     }
   ]
