@@ -1,0 +1,74 @@
+{
+  "scenario": "risk-blast-radius",
+  "recorded_at": "2026-06-14T18:14:01.032Z",
+  "driver": "claude -p (stream-json)",
+  "task": "I'm about to change src/core.js. What depends on it and how risky is the change?",
+  "events": [
+    {
+      "seq": 0,
+      "tool": "ToolSearch",
+      "input": {
+        "query": "select:mcp__kage__kage_context,mcp__kage__kage_risk,mcp__kage__kage_code_graph,mcp__kage__kage_dependency_path",
+        "max_results": 5
+      }
+    },
+    {
+      "seq": 1,
+      "tool": "Bash",
+      "input": {
+        "command": "ls /private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-risk-blast-radius-pSkmva/",
+        "description": "List repo contents"
+      }
+    },
+    {
+      "seq": 2,
+      "tool": "mcp__kage__kage_context",
+      "input": {
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-risk-blast-radius-pSkmva",
+        "query": "changing src/core.js — what depends on it and how risky is the change",
+        "targets": [
+          "src/core.js"
+        ]
+      }
+    },
+    {
+      "seq": 3,
+      "tool": "Bash",
+      "input": {
+        "command": "ls /private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-risk-blast-radius-pSkmva/src/",
+        "description": "List src directory"
+      }
+    },
+    {
+      "seq": 4,
+      "tool": "mcp__kage__kage_risk",
+      "input": {
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-risk-blast-radius-pSkmva",
+        "targets": [
+          "src/core.js"
+        ]
+      }
+    },
+    {
+      "seq": 5,
+      "tool": "Read",
+      "input": {
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-risk-blast-radius-pSkmva/src/core.js"
+      }
+    },
+    {
+      "seq": 6,
+      "tool": "Read",
+      "input": {
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-risk-blast-radius-pSkmva/src/app.js"
+      }
+    },
+    {
+      "seq": 7,
+      "tool": "Read",
+      "input": {
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-risk-blast-radius-pSkmva/src/cli.js"
+      }
+    }
+  ]
+}

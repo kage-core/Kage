@@ -55,11 +55,13 @@ for (const scenario of scenarios) {
   try {
     scenario.setup(fixture);
     const mcpConfig = join(fixture, "kage.mcp.json");
-    writeFileSync(
-      mcpConfig,
-      JSON.stringify({ mcpServers: { kage: { type: "stdio", command: "node", args: [join(repoRoot, "mcp", "dist", "index.js")], alwaysLoad: true } } }),
-      "utf8"
-    );
+    // Core scenarios run the default 7-tool surface (always-loaded). Scenarios that
+    // probe the broader tools run in full mode so those tools are even available;
+    // 67 tools are deferred (not always-loaded) — the agent must discover them.
+    const kageServer = scenario.fullTools
+      ? { type: "stdio", command: "node", args: [join(repoRoot, "mcp", "dist", "index.js")], env: { KAGE_TOOLS: "full" } }
+      : { type: "stdio", command: "node", args: [join(repoRoot, "mcp", "dist", "index.js")], alwaysLoad: true };
+    writeFileSync(mcpConfig, JSON.stringify({ mcpServers: { kage: kageServer } }), "utf8");
 
     console.log(`\n▶ recording "${scenario.id}" — ${fixture}`);
     const res = spawnSync(

@@ -82,6 +82,13 @@ export const PREDICATES = {
   // It gave memory feedback (marked a recalled packet stale/wrong via kage_feedback).
   reported_feedback: (events) => events.some((e) => shortName(e.tool) === "kage_feedback"),
 
+  // It reached for the specific tool the scenario expects (scenario.expectedTool,
+  // a short name like "kage_risk"). Used by the broader-surface scenarios that
+  // probe whether an agent naturally chooses a given diagnostic/graph tool.
+  used_expected_tool: (events, scenario) =>
+    Boolean(scenario && scenario.expectedTool) &&
+    events.some((e) => shortName(e.tool) === scenario.expectedTool),
+
   // It addressed a wrong/stale memory at all — by flagging it (feedback),
   // replacing it (supersede), or writing a correction (learn). Any of these is
   // good hygiene; supersede/learn are arguably better than a bare stale flag.

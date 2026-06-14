@@ -1,0 +1,24 @@
+{
+  "scenario": "code-graph-who-calls",
+  "recorded_at": "2026-06-14T18:13:24.136Z",
+  "driver": "claude -p (stream-json)",
+  "task": "Which functions in this repo call core()? List every caller.",
+  "events": [
+    {
+      "seq": 0,
+      "tool": "Bash",
+      "input": {
+        "command": "ls -la",
+        "description": "List repo contents"
+      }
+    },
+    {
+      "seq": 1,
+      "tool": "Bash",
+      "input": {
+        "command": "find src -type f | head -50 && echo \"---\" && grep -rn \"core(\" src/",
+        "description": "List src files and find core() calls"
+      }
+    }
+  ]
+}

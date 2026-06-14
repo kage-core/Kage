@@ -1,0 +1,23 @@
+{
+  "scenario": "list-decisions",
+  "recorded_at": "2026-06-14T18:14:18.090Z",
+  "driver": "claude -p (stream-json)",
+  "task": "What past design decisions have been recorded for this codebase? Summarize them.",
+  "events": [
+    {
+      "seq": 0,
+      "tool": "ToolSearch",
+      "input": {
+        "query": "select:mcp__kage__kage_decisions",
+        "max_results": 1
+      }
+    },
+    {
+      "seq": 1,
+      "tool": "mcp__kage__kage_decisions",
+      "input": {
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-list-decisions-J7orQt"
+      }
+    }
+  ]
+}

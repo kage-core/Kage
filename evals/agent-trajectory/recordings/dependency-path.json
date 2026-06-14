@@ -1,0 +1,25 @@
+{
+  "scenario": "dependency-path",
+  "recorded_at": "2026-06-14T18:14:35.966Z",
+  "driver": "claude -p (stream-json)",
+  "task": "Is there a dependency path from src/app.js to src/core.js? Show how they connect.",
+  "events": [
+    {
+      "seq": 0,
+      "tool": "ToolSearch",
+      "input": {
+        "query": "select:mcp__kage__kage_dependency_path,mcp__kage__kage_context",
+        "max_results": 2
+      }
+    },
+    {
+      "seq": 1,
+      "tool": "mcp__kage__kage_dependency_path",
+      "input": {
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-dependency-path-QBZLrl",
+        "from": "src/app.js",
+        "to": "src/core.js"
+      }
+    }
+  ]
+}

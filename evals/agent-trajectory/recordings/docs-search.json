@@ -1,0 +1,39 @@
+{
+  "scenario": "docs-search",
+  "recorded_at": "2026-06-14T18:15:02.913Z",
+  "driver": "claude -p (stream-json)",
+  "task": "What do the project docs say about configuration? Quote the relevant guidance.",
+  "events": [
+    {
+      "seq": 0,
+      "tool": "ToolSearch",
+      "input": {
+        "query": "select:mcp__kage__kage_context,mcp__kage__kage_docs_search",
+        "max_results": 2
+      }
+    },
+    {
+      "seq": 1,
+      "tool": "mcp__kage__kage_context",
+      "input": {
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-docs-search-6U1L9j",
+        "query": "configuration guidance project docs"
+      }
+    },
+    {
+      "seq": 2,
+      "tool": "mcp__kage__kage_docs_search",
+      "input": {
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-docs-search-6U1L9j",
+        "query": "configuration"
+      }
+    },
+    {
+      "seq": 3,
+      "tool": "Read",
+      "input": {
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-docs-search-6U1L9j/docs/configuration.md"
+      }
+    }
+  ]
+}

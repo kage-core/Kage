@@ -250,4 +250,84 @@ export const SCENARIOS = [
       });
     },
   },
+
+  // ── Broader-surface probes (full mode) ────────────────────────────────────
+  // Each gives a natural task that *should* pull a specialized tool, without ever
+  // naming it. Aspirational: many will route to kage_context instead (which
+  // bundles recall + code graph + knowledge graph), which is the empirical signal
+  // that the specialized tool is redundant for agents — feeding the delete list.
+  {
+    // FINDING (recorded 2026-06-14): the agent answers "who calls X" with grep,
+    // never reaching for kage_code_graph — empirical evidence the tool is redundant
+    // for agents and a delete/demote candidate. Kept aspirational to track if that changes.
+    aspirational: true,
+    fullTools: true,
+    id: "code-graph-who-calls",
+    expectedTool: "kage_code_graph",
+    description: "A caller-lookup question that the code graph answers.",
+    task: "Which functions in this repo call core()? List every caller.",
+    expect: { must: ["used_kage", "used_expected_tool"], mustNot: [] },
+    setup(fixture) {
+      seedRepo(fixture, {
+        "src/core.js": "export function core() { return 1; }\n",
+        "src/app.js": "import { core } from './core.js';\nexport function app() { return core() + 1; }\nexport function boot() { return core(); }\n",
+      });
+    },
+  },
+  {
+    fullTools: true,
+    id: "risk-blast-radius",
+    expectedTool: "kage_risk",
+    description: "A blast-radius question before a change.",
+    task: "I'm about to change src/core.js. What depends on it and how risky is the change?",
+    expect: { must: ["used_kage", "used_expected_tool"], mustNot: [] },
+    setup(fixture) {
+      seedRepo(fixture, {
+        "src/core.js": "export function core() { return 1; }\n",
+        "src/app.js": "import { core } from './core.js';\nexport function app() { return core() + 1; }\n",
+        "src/cli.js": "import { core } from './core.js';\nexport function run() { return core(); }\n",
+      });
+    },
+  },
+  {
+    fullTools: true,
+    id: "list-decisions",
+    expectedTool: "kage_decisions",
+    description: "A request to enumerate recorded design decisions.",
+    task: "What past design decisions have been recorded for this codebase? Summarize them.",
+    expect: { must: ["used_kage", "used_expected_tool"], mustNot: [] },
+    setup(fixture) {
+      seedRepo(fixture, { "src/store.js": "export const store = new Map();\n" });
+      capture({ projectDir: fixture, title: "Decision: store is in-memory only", body: "src/store.js uses an in-memory Map by design; persistence is intentionally out of scope for this service.", type: "decision", paths: ["src/store.js"] });
+      capture({ projectDir: fixture, title: "Decision: no external cache layer", body: "We deliberately avoid Redis or any external cache in this service to keep deployment single-process.", type: "decision", paths: ["src/store.js"] });
+    },
+  },
+  {
+    fullTools: true,
+    id: "dependency-path",
+    expectedTool: "kage_dependency_path",
+    description: "A reachability question between two modules.",
+    task: "Is there a dependency path from src/app.js to src/core.js? Show how they connect.",
+    expect: { must: ["used_kage", "used_expected_tool"], mustNot: [] },
+    setup(fixture) {
+      seedRepo(fixture, {
+        "src/core.js": "export function core() { return 1; }\n",
+        "src/app.js": "import { core } from './core.js';\nexport function app() { return core(); }\n",
+      });
+    },
+  },
+  {
+    fullTools: true,
+    id: "docs-search",
+    expectedTool: "kage_docs_search",
+    description: "A question answerable from the repo's own docs.",
+    task: "What do the project docs say about configuration? Quote the relevant guidance.",
+    expect: { must: ["used_kage", "used_expected_tool"], mustNot: [] },
+    setup(fixture) {
+      seedRepo(fixture, {
+        "src/config.js": "export const config = { port: 8080 };\n",
+        "docs/configuration.md": "# Configuration\n\nThe server port is set via config.port in src/config.js. The default is 8080. Override it with the PORT environment variable in production.\n",
+      });
+    },
+  },
 ];
