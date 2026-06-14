@@ -2,13 +2,14 @@
 
 # Kage
 
-### Verified repo knowledge for coding agents
+### A framework for collaborative agent memory
 
-Every claim is cited against your current code — and you see exactly what it
-saves you. Kage rejects memory that cites files that don't exist, withholds
-memory whose evidence was deleted, and warns you the moment your changes
-invalidate what your team knows. Plain files in your repo, reviewed in the
-same PR as the code. No API key, no database, no daemon.
+Open, git-native memory your team's coding agents read and write together.
+Every lesson an agent learns becomes a plain file in your repo: versioned in
+git, reviewed in the same PR as the code, shared across the whole team. Kage
+checks each memory against the code it cites, so deleted and stale knowledge
+gets caught instead of misleading the next agent. No API key, no database, no
+daemon.
 
 <p>
   <a href="https://kage-core.com/">Website</a>
@@ -139,16 +140,18 @@ Methodology, commands, and caveats: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 
 ## Why Kage, when memory tools already exist
 
-Capture-everything memory ([claude-mem](https://github.com/thedotmack/claude-mem),
-mem0, Zep) solves *remembering*. Kage solves *trusting what's remembered*:
-every memory is checked against the code it cites — when it's written, when
-it's recalled, and when your diff changes the code underneath it.
+Most memory tools ([claude-mem](https://github.com/thedotmack/claude-mem),
+mem0, Zep) keep memory *per-machine or in a cloud you don't own*, so it never
+becomes your team's. Kage keeps it as plain files in your repo: it travels with
+the code, gets reviewed in the same PR, and every teammate's agent reads the
+same memory. On top of that, each memory is checked against the code it cites,
+so what the team shares stays grounded as the code moves.
 
 | | Kage | claude-mem | mem0 / Zep |
 |---|---|---|---|
 | Automatic capture + session-start recall | ✓ | ✓ | via SDK |
 | Hallucinated citations **rejected at write time** | ✓ | — | — |
-| Stale memory **withheld at recall** (evidence changed/deleted) | ✓ | — | — |
+| Stale memory **withheld at recall** (cited files deleted, TTL expired, reported stale) | ✓ | — | — |
 | **Diff-time stale-catch** — your change invalidates a memory, you're warned before the PR | ✓ | — | — |
 | Memory reviewed in git, same PR as the code (plain files, no DB) | ✓ | SQLite + cloud | hosted API |
 | Savings receipts (tokens + $ per recall, value ledger) | ✓ per-packet | token index | — |
