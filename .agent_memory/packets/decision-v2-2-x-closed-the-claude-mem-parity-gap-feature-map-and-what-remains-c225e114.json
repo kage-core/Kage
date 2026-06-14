@@ -68,9 +68,14 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 114,
-    "reverified_at": "2026-06-14T07:55:41.334Z"
+    "reverified_at": "2026-06-14T07:55:41.334Z",
+    "stale": true,
+    "stale_reasons": [
+      "linked path changed since memory was verified: CHANGELOG.md"
+    ],
+    "suggested_action": "update"
   },
   "created_at": "2026-06-12T12:48:52.965Z",
-  "updated_at": "2026-06-14T07:55:41.334Z",
+  "updated_at": "2026-06-14T15:20:35.063Z",
   "author_branch": "master"
 }
