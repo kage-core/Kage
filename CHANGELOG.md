@@ -20,10 +20,13 @@
   only the agent-facing core by default — `kage_context`, `kage_learn`,
   `kage_supersede`, `kage_feedback`, `kage_pr_check`, `kage_refresh`,
   `kage_skills` — the verbs an agent actually uses in the loop. Operator and
-  diagnostic tools stay reachable via the CLI or `KAGE_TOOLS=full`. A small
-  enough default means the client always-loads it, removing the per-call
-  ToolSearch round-trip the agent-trajectory recordings exposed. No capability
-  removed; nothing deleted.
+  diagnostic tools stay reachable via the CLI or `KAGE_TOOLS=full`. With the MCP
+  server set to `alwaysLoad` (as `kage setup` writes), a 7-tool core is cheap to
+  load upfront, so the agent sees the tools immediately and skips the per-call
+  ToolSearch round-trip the trajectory recordings exposed — verified: the
+  recall-before-edit recording went from a ToolSearch before every kage call to
+  zero, with `kage_context` as the agent's first action. No capability removed;
+  nothing deleted.
 - **Lifecycle trajectory + Markov-chain tests.** `mcp/trajectory.test.ts` walks
   a packet through its full state machine (pending → approved → soft-stale ⇄
   fresh → hard-stale → deprecated, plus superseded and skills) entirely through
