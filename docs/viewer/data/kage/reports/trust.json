@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-11T15:48:51.786Z",
+  "ok": true,
+  "trust_score": 100,
+  "gates": [
+    {
+      "name": "hallucinated_citation_rejection",
+      "target": 100,
+      "actual": 100,
+      "unit": "percent",
+      "pass": true
+    },
+    {
+      "name": "stale_memory_exclusion",
+      "target": 100,
+      "actual": 100,
+      "unit": "percent",
+      "pass": true
+    },
+    {
+      "name": "live_grounding_rate",
+      "target": 80,
+      "actual": 99,
+      "unit": "percent",
+      "pass": true
+    }
+  ],
+  "metrics": {
+    "hallucinated_citation_rejection_rate": 100,
+    "stale_memory_exclusion_rate": 100,
+    "live_grounding_rate": 99,
+    "wrong_advice_prevented_rate": 100
+  },
+  "detail": {
+    "hallucination": {
+      "attempted": 8,
+      "rejected": 8
+    },
+    "staleness": {
+      "recallable_before": 8,
+      "excluded_after": 8
+    },
+    "live_memory": {
+      "checked": 172,
+      "grounded": 171,
+      "stale": 1
+    }
+  }
+}

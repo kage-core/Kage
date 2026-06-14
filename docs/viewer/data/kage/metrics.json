@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "project_dir": "/Users/kushaljain/code/Kage",
+  "repo_key": "https-github-com-kage-core-kage",
+  "generated_at": "2026-06-11T15:48:23.124Z",
+  "code_graph": {
+    "files": 30,
+    "symbols": 1811,
+    "imports": 134,
+    "calls": 1199,
+    "routes": 30,
+    "tests": 200,
+    "packages_and_scripts": 0,
+    "languages": {
+      "javascript": 7,
+      "json": 2,
+      "markdown": 1,
+      "python": 6,
+      "typescript": 13,
+      "unknown": 1
+    },
+    "parsers": {
+      "metadata": 5,
+      "tree-sitter": 6,
+      "typescript-ast": 19
+    },
+    "source_symbols_by_parser": {
+      "tree-sitter": 37,
+      "typescript-ast": 1774
+    },
+    "indexer_coverage_percent": 100,
+    "index_status": "partial",
+    "indexable_files": 30,
+    "indexed_files": 30,
+    "deferred_files": 1,
+    "ignored_files": 71,
+    "cache_hits": 30,
+    "cache_misses": 0
+  },
+  "structural_index": {
+    "files": 30,
+    "symbols": 1811,
+    "edges": 1945,
+    "metadata_only_files": 1,
+    "ignored_files": 71,
+    "languages": {
+      "javascript": 7,
+      "json": 2,
+      "markdown": 1,
+      "python": 6,
+      "typescript": 13,
+      "unknown": 1
+    },
+    "worker_count": 1,
+    "cache_hits": 30,
+    "cache_misses": 0
+  },
+  "memory_graph": {
+    "approved_packets": 216,
+    "pending_packets": 0,
+    "episodes": 172,
+    "entities": 905,
+    "edges": 3175,
+    "evidence_backed_edges": 3175,
+    "evidence_coverage_percent": 100,
+    "average_quality_score": 99,
+    "duplicate_candidate_pairs": 0
+  },
+  "savings": {
+    "estimated_indexed_source_tokens": 308809,
+    "estimated_memory_tokens": 56179,
+    "estimated_recall_context_tokens": 1800,
+    "estimated_tokens_saved_per_recall": 307009
+  },
+  "memory_access": {
+    "tracked_packets": 20,
+    "total_uses": 39,
+    "uses_30d": 39,
+    "hot_packets": 5,
+    "cold_packets": 152,
+    "active_packets_without_access": 152,
+    "last_accessed_at": "2026-06-11T15:47:52.818Z"
+  },
+  "harness": {
+    "policy_installed": true,
+    "validation_ok": true,
+    "warnings": 0,
+    "errors": 0,
+    "readiness_score": 100
+  },
+  "pain": {
+    "setup_runbook_coverage_percent": 100,
+    "bug_fix_coverage_percent": 100,
+    "decision_coverage_percent": 100,
+    "code_flow_coverage_percent": 100,
+    "recall_hit_rate_percent": 100,
+    "estimated_rediscovery_avoided": 5,
+    "estimated_tokens_saved": 307009,
+    "time_to_first_use_seconds": 30
+  },
+  "quality": {
+    "totals": {
+      "approved": 172,
+      "pending": 0,
+      "high_signal": 171,
+      "needs_review": 0,
+      "duplicate": 0,
+      "stale": 1,
+      "too_generic": 0
+    },
+    "memory_type_coverage": {
+      "bug_fix": 24,
+      "code_explanation": 2,
+      "decision": 119,
+      "gotcha": 11,
+      "negative_result": 1,
+      "reference": 2,
+      "repo_map": 2,
+      "runbook": 6,
+      "workflow": 5
+    },
+    "useful_memory_ratio_percent": 99,
+    "duplicate_burden": 0,
+    "stale_wrong_feedback_rate_percent": 0,
+    "evidence_coverage_percent": 100,
+    "path_grounding_coverage_percent": 100,
+    "approved_to_pending_ratio": 172
+  }
+}

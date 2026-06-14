@@ -1,0 +1,555 @@
+{
+  "schema_version": 1,
+  "project_dir": "showcase",
+  "generated_at": "2026-06-14T17:30:00.000Z",
+  "showcase": true,
+  "window_days": 30,
+  "totals": {
+    "events": 336,
+    "recalls": 330,
+    "captures": 6,
+    "recalls_7d": 182
+  },
+  "daily": [
+    {
+      "day": "2026-06-01",
+      "recalls": 16
+    },
+    {
+      "day": "2026-06-02",
+      "recalls": 27
+    },
+    {
+      "day": "2026-06-03",
+      "recalls": 34
+    },
+    {
+      "day": "2026-06-04",
+      "recalls": 25
+    },
+    {
+      "day": "2026-06-05",
+      "recalls": 32
+    },
+    {
+      "day": "2026-06-06",
+      "recalls": 12
+    },
+    {
+      "day": "2026-06-07",
+      "recalls": 2
+    },
+    {
+      "day": "2026-06-08",
+      "recalls": 38
+    },
+    {
+      "day": "2026-06-09",
+      "recalls": 37
+    },
+    {
+      "day": "2026-06-10",
+      "recalls": 25
+    },
+    {
+      "day": "2026-06-11",
+      "recalls": 23
+    },
+    {
+      "day": "2026-06-12",
+      "recalls": 45
+    },
+    {
+      "day": "2026-06-13",
+      "recalls": 9
+    },
+    {
+      "day": "2026-06-14",
+      "recalls": 5
+    }
+  ],
+  "events": [
+    {
+      "at": "2026-06-14T20:34:54.801Z",
+      "kind": "recall",
+      "title": "Before You Edit risk page must explain why and what to do first",
+      "detail": "recalled · rank 3"
+    },
+    {
+      "at": "2026-06-14T16:17:03.783Z",
+      "kind": "recall",
+      "title": "Viewer dashboard shows setup hook readiness",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-14T16:03:53.501Z",
+      "kind": "recall",
+      "title": "Viewer cockpit surfaces repo intelligence reports",
+      "detail": "recalled · rank 3"
+    },
+    {
+      "at": "2026-06-14T10:43:38.518Z",
+      "kind": "recall",
+      "title": "Pinned context slots give Kage small always-on repo memory",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-14T10:25:31.297Z",
+      "kind": "recall",
+      "title": "Change memory: feat/tree-sitter-extraction",
+      "detail": "recalled · rank 1"
+    },
+    {
+      "at": "2026-06-13T22:36:57.962Z",
+      "kind": "recall",
+      "title": "CI: Kage PR Check must block only on hard-stale memory",
+      "detail": "recalled · rank 2"
+    },
+    {
+      "at": "2026-06-13T20:31:44.800Z",
+      "kind": "recall",
+      "title": "Decision intelligence is Kage why-memory coverage",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-13T20:03:33.138Z",
+      "kind": "recall",
+      "title": "README hero uses animated demo GIF",
+      "detail": "recalled · rank 2"
+    },
+    {
+      "at": "2026-06-13T19:31:29.209Z",
+      "kind": "recall",
+      "title": "Codex demo should show recall, code graph, and activation proof",
+      "detail": "recalled · rank 1"
+    },
+    {
+      "at": "2026-06-13T15:13:33.344Z",
+      "kind": "recall",
+      "title": "Project profile gives agents compact repo orientation",
+      "detail": "recalled · rank 2"
+    },
+    {
+      "at": "2026-06-13T12:29:33.994Z",
+      "kind": "recall",
+      "title": "Release 1.1.17 content-based graph freshness",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-13T11:30:00.000Z",
+      "kind": "capture",
+      "title": "Sub-agents spawned via Agent() tool don't receive SessionStart hooks",
+      "detail": "capture",
+      "actor": "agent"
+    },
+    {
+      "at": "2026-06-13T10:40:27.384Z",
+      "kind": "recall",
+      "title": "kage_context should surface target-aware repo intelligence",
+      "detail": "recalled · rank 2"
+    },
+    {
+      "at": "2026-06-13T10:36:27.634Z",
+      "kind": "recall",
+      "title": "MemoryArena context recall is a separate non-official benchmark harness",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-13T09:18:56.541Z",
+      "kind": "recall",
+      "title": "Release 1.1.4 ambient policy and Claude hooks",
+      "detail": "recalled · rank 2"
+    },
+    {
+      "at": "2026-06-12T22:43:47.174Z",
+      "kind": "recall",
+      "title": "Viewer cockpit surfaces repo intelligence reports",
+      "detail": "recalled · rank 1"
+    },
+    {
+      "at": "2026-06-12T22:32:51.738Z",
+      "kind": "recall",
+      "title": "GitHub Pages publishes the viewer shell",
+      "detail": "recalled · rank 1"
+    },
+    {
+      "at": "2026-06-12T22:23:39.225Z",
+      "kind": "recall",
+      "title": "Release 1.1.4 ambient policy and Claude hooks",
+      "detail": "recalled · rank 3"
+    },
+    {
+      "at": "2026-06-12T22:19:21.273Z",
+      "kind": "recall",
+      "title": "Recall explanations expose temporal and semantic contributions",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-12T22:15:21.464Z",
+      "kind": "recall",
+      "title": "Decision: Kage now has a coding-memory quality benchmark designed around interna",
+      "detail": "recalled · rank 3"
+    },
+    {
+      "at": "2026-06-12T21:55:52.479Z",
+      "kind": "recall",
+      "title": "GitHub Pages publishes the viewer shell",
+      "detail": "recalled · rank 1"
+    },
+    {
+      "at": "2026-06-12T21:14:04.099Z",
+      "kind": "recall",
+      "title": "Viewer pages should lead with action metrics",
+      "detail": "recalled · rank 1"
+    },
+    {
+      "at": "2026-06-12T20:58:50.763Z",
+      "kind": "recall",
+      "title": "Memory audit is first-class mutation governance",
+      "detail": "recalled · rank 2"
+    },
+    {
+      "at": "2026-06-12T20:10:15.919Z",
+      "kind": "recall",
+      "title": "Audit trust scoring must not let dense graph edges mask missing context",
+      "detail": "recalled · rank 2"
+    },
+    {
+      "at": "2026-06-12T19:56:33.607Z",
+      "kind": "recall",
+      "title": "README hero uses animated demo GIF",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-12T19:52:23.896Z",
+      "kind": "recall",
+      "title": "Python framework routes in code graph",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-12T19:51:34.989Z",
+      "kind": "recall",
+      "title": "Viewer bridges path-level memory to code files",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-12T19:08:20.587Z",
+      "kind": "recall",
+      "title": "Website revamp positions Kage as serious OSS CLI and MCP tool",
+      "detail": "recalled · rank 3"
+    },
+    {
+      "at": "2026-06-12T19:00:55.317Z",
+      "kind": "recall",
+      "title": "Memory access recommends review actions",
+      "detail": "recalled · rank 1"
+    },
+    {
+      "at": "2026-06-12T18:47:53.451Z",
+      "kind": "recall",
+      "title": "LongMemEval temporal retrieval uses question-date metadata",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-12T18:27:43.120Z",
+      "kind": "recall",
+      "title": "Viewer cockpit surfaces repo intelligence reports",
+      "detail": "recalled · rank 2"
+    },
+    {
+      "at": "2026-06-12T18:17:56.332Z",
+      "kind": "recall",
+      "title": "Viewer cockpit surfaces repo intelligence reports",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-12T16:54:59.123Z",
+      "kind": "recall",
+      "title": "Large repo benchmark exposed stale read and exact symbol ranking fixes",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-12T16:52:41.570Z",
+      "kind": "recall",
+      "title": "Module health stays local scorecard intelligence",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-12T16:38:05.115Z",
+      "kind": "recall",
+      "title": "Decision: repo-local Kage memory should be written directly as git-visible packets; human",
+      "detail": "recalled · rank 3"
+    },
+    {
+      "at": "2026-06-12T16:10:00.487Z",
+      "kind": "recall",
+      "title": "Viewer cockpit surfaces repo intelligence reports",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-12T16:06:39.889Z",
+      "kind": "recall",
+      "title": "Memory access recommends review actions",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-12T14:53:31.847Z",
+      "kind": "recall",
+      "title": "Reviewer suggestions stay local git intelligence",
+      "detail": "recalled · rank 3"
+    },
+    {
+      "at": "2026-06-12T14:24:29.309Z",
+      "kind": "recall",
+      "title": "Module health stays local scorecard intelligence",
+      "detail": "recalled · rank 2"
+    },
+    {
+      "at": "2026-06-12T13:56:13.952Z",
+      "kind": "recall",
+      "title": "Project profile gives agents compact repo orientation",
+      "detail": "recalled · rank 3"
+    },
+    {
+      "at": "2026-06-12T13:32:31.547Z",
+      "kind": "recall",
+      "title": "Viewer graph UX is task-first, not graph-engine-first",
+      "detail": "recalled · rank 2"
+    },
+    {
+      "at": "2026-06-12T13:01:35.578Z",
+      "kind": "recall",
+      "title": "Run Kage MCP tests",
+      "detail": "recalled · rank 2"
+    },
+    {
+      "at": "2026-06-12T12:28:21.736Z",
+      "kind": "recall",
+      "title": "Workspace contracts stay source-evidence based",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-12T12:10:27.928Z",
+      "kind": "recall",
+      "title": "Recall diversifies observed session sources",
+      "detail": "recalled · rank 3"
+    },
+    {
+      "at": "2026-06-12T12:02:02.289Z",
+      "kind": "recall",
+      "title": "Fix Kage PR Check CI max-turns failure",
+      "detail": "recalled · rank 3"
+    },
+    {
+      "at": "2026-06-12T11:53:50.070Z",
+      "kind": "recall",
+      "title": "Session capture report makes observation distillation visible",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-12T11:50:16.520Z",
+      "kind": "recall",
+      "title": "Release 1.1.16 retries npm registry verification",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-12T11:46:33.794Z",
+      "kind": "recall",
+      "title": "Stale-catch: change-time invalidation heartbeat (staleCatch, kage staleguard)",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-12T11:33:59.983Z",
+      "kind": "recall",
+      "title": "Repo git hook keeps Kage memory current after commits",
+      "detail": "recalled · rank 1"
+    },
+    {
+      "at": "2026-06-12T10:55:28.069Z",
+      "kind": "recall",
+      "title": "Release 1.1.14 BM25 and memory-code graph package",
+      "detail": "recalled · rank 1"
+    },
+    {
+      "at": "2026-06-12T10:51:43.177Z",
+      "kind": "recall",
+      "title": "Module health stays local scorecard intelligence",
+      "detail": "recalled · rank 2"
+    },
+    {
+      "at": "2026-06-12T10:15:02.908Z",
+      "kind": "recall",
+      "title": "Memory lifecycle is now a first-class report",
+      "detail": "recalled · rank 1"
+    },
+    {
+      "at": "2026-06-12T10:11:08.960Z",
+      "kind": "recall",
+      "title": "Change memory: master",
+      "detail": "recalled · rank 1"
+    },
+    {
+      "at": "2026-06-12T10:11:03.433Z",
+      "kind": "recall",
+      "title": "Viewer must separate inbox blockers from handoff review items",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-12T09:04:17.837Z",
+      "kind": "recall",
+      "title": "Launch website eye logo glows and blinks",
+      "detail": "recalled · rank 1"
+    },
+    {
+      "at": "2026-06-12T08:43:35.647Z",
+      "kind": "recall",
+      "title": "Viewer must not map file path aliases to arbitrary symbols",
+      "detail": "recalled · rank 1"
+    },
+    {
+      "at": "2026-06-12T08:36:45.901Z",
+      "kind": "recall",
+      "title": "Keep public repo free of generated launch artifacts",
+      "detail": "recalled · rank 2"
+    },
+    {
+      "at": "2026-06-12T08:35:41.469Z",
+      "kind": "recall",
+      "title": "Code index, inbox, and benchmark gates harden Kage handoff quality",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-12T08:35:00.959Z",
+      "kind": "recall",
+      "title": "Local viewer /viewer/ route must redirect to index with params",
+      "detail": "recalled · rank 1"
+    },
+    {
+      "at": "2026-06-12T08:16:24.864Z",
+      "kind": "recall",
+      "title": "PR check should ignore superseded stale packets",
+      "detail": "recalled · rank 2"
+    },
+    {
+      "at": "2026-06-12T03:30:00.000Z",
+      "kind": "capture",
+      "title": "Claude Code setup installs ambient capture hooks",
+      "detail": "capture",
+      "actor": "agent"
+    },
+    {
+      "at": "2026-06-11T22:51:37.218Z",
+      "kind": "recall",
+      "title": "Reference recall should stay text-led for external memory benchmarks",
+      "detail": "recalled · rank 2"
+    },
+    {
+      "at": "2026-06-11T22:12:51.821Z",
+      "kind": "recall",
+      "title": "Command-intent recall must prefer runbooks over release proof notes",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-11T22:08:22.962Z",
+      "kind": "recall",
+      "title": "Pinned context slots give Kage small always-on repo memory",
+      "detail": "recalled · rank 3"
+    },
+    {
+      "at": "2026-06-11T22:05:39.146Z",
+      "kind": "recall",
+      "title": "Release 1.1.7 launch readiness alignment",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-11T21:49:23.289Z",
+      "kind": "recall",
+      "title": "Viewer opens structural code graph mode by default",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-11T21:30:25.653Z",
+      "kind": "recall",
+      "title": "Viewer memory page keeps scrollable content bounded",
+      "detail": "recalled · rank 1"
+    },
+    {
+      "at": "2026-06-11T20:26:25.116Z",
+      "kind": "recall",
+      "title": "PR check should ignore superseded stale packets",
+      "detail": "recalled · rank 1"
+    },
+    {
+      "at": "2026-06-11T19:55:36.352Z",
+      "kind": "recall",
+      "title": "Launch website eye logo glows and blinks",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-11T19:43:02.971Z",
+      "kind": "recall",
+      "title": "Local viewer responses include browser security headers",
+      "detail": "recalled · rank 3"
+    },
+    {
+      "at": "2026-06-11T19:15:35.214Z",
+      "kind": "recall",
+      "title": "Viewer node inspector shows type-specific code details",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-11T15:32:32.828Z",
+      "kind": "recall",
+      "title": "Project profile gives agents compact repo orientation",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-11T15:26:35.651Z",
+      "kind": "recall",
+      "title": "Viewer graph UX is task-first, not graph-engine-first",
+      "detail": "recalled · rank 1"
+    },
+    {
+      "at": "2026-06-11T15:04:43.529Z",
+      "kind": "recall",
+      "title": "Code index prefers SCIP with LSP fallback",
+      "detail": "recalled · rank 3"
+    },
+    {
+      "at": "2026-06-11T14:28:04.527Z",
+      "kind": "recall",
+      "title": "Viewer dashboard shows setup hook readiness",
+      "detail": "recalled · rank 2"
+    },
+    {
+      "at": "2026-06-11T13:31:31.715Z",
+      "kind": "recall",
+      "title": "Session replay digest proves observed agent learning without raw transcripts",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-11T13:18:26.854Z",
+      "kind": "recall",
+      "title": "Release 1.1.5 same-task A/B benchmark",
+      "detail": "recalled · rank 2"
+    },
+    {
+      "at": "2026-06-11T12:44:50.158Z",
+      "kind": "recall",
+      "title": "Risk assessment stays memory-first",
+      "detail": "recalled · rank 4"
+    },
+    {
+      "at": "2026-06-11T11:29:37.150Z",
+      "kind": "recall",
+      "title": "Graph insights stay deterministic and memory-adjacent",
+      "detail": "recalled · rank 3"
+    },
+    {
+      "at": "2026-06-11T09:54:17.685Z",
+      "kind": "recall",
+      "title": "Hosted GitHub Pages viewer must be tracked",
+      "detail": "recalled · rank 4"
+    }
+  ]
+}
