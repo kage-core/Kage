@@ -1,0 +1,105 @@
+{
+  "scenario": "recall-before-edit",
+  "recorded_at": "2026-06-14T16:29:11.894Z",
+  "driver": "claude -p (stream-json)",
+  "task": "Add input validation to the login() function in src/auth.js so it rejects an empty username with a clear error.",
+  "events": [
+    {
+      "seq": 0,
+      "tool": "ToolSearch",
+      "input": {
+        "query": "select:mcp__kage__kage_context",
+        "max_results": 1
+      }
+    },
+    {
+      "seq": 1,
+      "tool": "Read",
+      "input": {
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-wwvKZM/src/auth.js"
+      }
+    },
+    {
+      "seq": 2,
+      "tool": "mcp__kage__kage_context",
+      "input": {
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-wwvKZM",
+        "query": "add input validation to login() to reject empty username",
+        "changed_files": [
+          "src/auth.js"
+        ],
+        "targets": [
+          "src/auth.js"
+        ]
+      }
+    },
+    {
+      "seq": 3,
+      "tool": "Edit",
+      "input": {
+        "replace_all": false,
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-wwvKZM/src/auth.js",
+        "old_string": "export function login(username, password, db) {\n  const key = normalizeUsername(username);\n  return db.check(key, password);\n}",
+        "new_string": "export function login(username, password, db) {\n  const key = normalizeUsername(username);\n  if (!key) throw new Error(\"username is required\");\n  return db.check(key, password);\n}"
+      }
+    },
+    {
+      "seq": 4,
+      "tool": "ToolSearch",
+      "input": {
+        "query": "select:mcp__kage__kage_learn",
+        "max_results": 1
+      }
+    },
+    {
+      "seq": 5,
+      "tool": "mcp__kage__kage_learn",
+      "input": {
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-wwvKZM",
+        "title": "login() rejects empty username after normalization",
+        "learning": "login in src/auth.js validates input by normalizing the username first (trim + lowercase via normalizeUsername), then throws Error(\"username is required\") if the resulting key is empty. Checking after normalization (not before) ensures whitespace-only and null/undefined inputs are also rejected, while preserving the existing normalize-first auth convention. The throw happens before db.check, so the DB is never queried for an empty key.</learning>\n<parameter name=\"type\">decision",
+        "paths": [
+          "src/auth.js"
+        ],
+        "tags": [
+          "auth",
+          "validation",
+          "login"
+        ],
+        "evidence": "src/auth.js:5 — `if (!key) throw new Error(\"username is required\");` placed between normalizeUsername and db.check."
+      }
+    },
+    {
+      "seq": 6,
+      "tool": "ToolSearch",
+      "input": {
+        "query": "select:mcp__kage__kage_supersede,mcp__kage__kage_memory_reconcile,mcp__kage__kage_validate",
+        "max_results": 3
+      }
+    },
+    {
+      "seq": 7,
+      "tool": "mcp__kage__kage_memory_reconcile",
+      "input": {
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-wwvKZM"
+      }
+    },
+    {
+      "seq": 8,
+      "tool": "Read",
+      "input": {
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-wwvKZM/.agent_memory/packets/bug_fix-login-rejects-empty-username-after-normalization-62a6aa82.json"
+      }
+    },
+    {
+      "seq": 9,
+      "tool": "mcp__kage__kage_supersede",
+      "input": {
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-recall-before-edit-wwvKZM",
+        "packet_id": "repo:kage-eval-recall-before-edit-wwvkzm:decision:auth-convention-usernames-must-be-normalized-before-lookup-1781454454623",
+        "replacement_packet_id": "repo:kage-eval-recall-before-edit-wwvkzm:bug_fix:login-rejects-empty-username-after-normalization-1781454504679",
+        "reason": "login() now both normalizes the username (original convention, preserved) and rejects empty/whitespace-only usernames after normalization. The replacement packet documents the combined behavior."
+      }
+    }
+  ]
+}
