@@ -165,6 +165,18 @@ pre code {
 
 .nav-cta:hover { color: var(--paper); background: var(--green-strong); }
 
+.star-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: #e3b341;
+  font: 600 13px/1 var(--sans);
+}
+.star-link:hover { color: #e3b341; border-color: #e3b341; background: color-mix(in srgb, #e3b341 12%, transparent); }
+
 /* Wrap */
 .wrap {
   width: min(1100px, calc(100% - 32px));
