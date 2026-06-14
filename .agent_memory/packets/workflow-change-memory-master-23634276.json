@@ -3,7 +3,7 @@
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
   "summary": "Repo-local context for 2 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/runbook-doc-truth-audit-method-re-verified-after-dark-first-site-flip-80785bd7.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n...t-method-re-verified-after-dark-first-site-flip-80785bd7.json | 9 +++++++--\n .../packets/workflow-change-memory-master-23634276.json          | 3 +--\n 2 files changed, 8 insertions(+), 4 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/runbook-doc-truth-audit-method-re-verified-after-dark-first-site-flip-80785bd7.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n...rified-after-dark-first-site-flip-80785bd7.json |  9 +++-\n .../workflow-change-memory-master-23634276.json    | 58 +++++++++++++++-------\n 2 files changed, 47 insertions(+), 20 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -31,7 +31,7 @@
         ".agent_memory/packets/runbook-doc-truth-audit-method-re-verified-after-dark-first-site-flip-80785bd7.json",
         ".agent_memory/packets/workflow-change-memory-master-23634276.json"
       ],
-      "summary_path": ".agent_memory/review/branch-summary-master.json"
+      "summary_path": "/Users/kushaljain/code/Kage/.agent_memory/review/branch-summary-master.json"
     }
   ],
   "context": {
@@ -44,7 +44,7 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-14T08:31:54.279Z",
+    "last_verified_at": "2026-06-14T08:32:23.460Z",
     "ttl_days": 180,
     "path_fingerprints": [],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -75,7 +75,7 @@
     "risks": [],
     "duplicate_candidates": [],
     "stale_reasons": [],
-    "estimated_tokens_saved": 279,
+    "estimated_tokens_saved": 276,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -93,6 +93,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-06-14T08:31:54.279Z",
-  "updated_at": "2026-06-14T08:31:54.279Z"
+  "created_at": "2026-06-14T08:32:23.460Z",
+  "updated_at": "2026-06-14T08:32:23.460Z"
 }
