@@ -3900,6 +3900,22 @@ function recallHardStaleReason(projectDir: string, packet: MemoryPacket, cache?:
   return null;
 }
 
+// Strict recall gate: hard-stale (recallHardStaleReason) PLUS soft-stale — a cited
+// file whose content changed under the memory, or partially-deleted citations.
+// Used to keep content-changed memory out of recall, skills, and the suppressed
+// report, so the agent never acts on a claim the code has moved past. NOT used by
+// compaction: a merely-changed packet needs reverify, not auto-deprecation.
+function recallStaleReason(projectDir: string, packet: MemoryPacket, cache?: Map<string, MemoryPathFingerprint | null>): string | null {
+  const hard = recallHardStaleReason(projectDir, packet, cache);
+  if (hard) return hard;
+  // Strict recall (task #39): also withhold memory whose cited file CONTENT changed
+  // (the fingerprint moved under it). Partial-missing citations stay served-but-
+  // flagged — only the content-drift case is suppressed here.
+  const changed = staleMemoryReasons(projectDir, packet, cache)
+    .find((reason) => reason.startsWith("linked path changed since memory was verified"));
+  return changed ?? null;
+}
+
 function changedPathsFromStaleReasons(reasons: string[]): string[] {
   return unique(reasons.flatMap((reason) => {
     const match = reason.match(/^linked path changed since memory was verified: (.+)$/);
@@ -9165,7 +9181,7 @@ export function kageSuppressedMemory(projectDir: string): SuppressedMemoryReport
   const cache = new Map<string, MemoryPathFingerprint | null>();
   const items = loadApprovedPackets(projectDir)
     .map((packet) => {
-      const reason = recallHardStaleReason(projectDir, packet, cache);
+      const reason = recallStaleReason(projectDir, packet, cache);
       return reason ? { id: packet.id, title: packet.title, type: packet.type, reason, paths: packet.paths } : null;
     })
     .filter((entry): entry is SuppressedMemoryReport["items"][number] => entry !== null);
@@ -10121,7 +10137,7 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
   const approvedPackets = includeStale
     ? allApprovedPackets
     : allApprovedPackets.filter((packet) => {
-        const reason = recallHardStaleReason(projectDir, packet, staleFingerprintCache);
+        const reason = recallStaleReason(projectDir, packet, staleFingerprintCache);
         if (reason) {
           suppressed.push({ id: packet.id, title: packet.title, reason });
           return false;
@@ -10245,7 +10261,12 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
     graphContext.edges.length ? "## Related Graph Facts" : "",
     ...graphContext.edges.slice(0, 5).map((edge, index) => `${index + 1}. ${edge.fact} (evidence: ${edge.evidence.join(", ")})`),
     ...(suppressed.length
-      ? ["", `_${suppressed.length} stale memory packet(s) excluded from recall. Run kage verify for details._`]
+      ? [
+          "",
+          "## Withheld (stale — not served)",
+          `_${suppressed.length} memory packet(s) excluded from recall because the cited code moved under them. The claim may still hold — reverify to restore, or supersede if it changed. Do not act on these as-is._`,
+          ...suppressed.slice(0, 5).map((s) => `- ${s.title} — ${s.reason} (kage reverify --packet ${s.id})`),
+        ]
       : []),
     ...(personalEntries.length
       ? [
@@ -19099,7 +19120,7 @@ export function generateSkills(
       result.skipped.push({ title: packet.title, reason: "no actionable procedure (rationale-only)" });
       continue;
     }
-    const staleReason = recallHardStaleReason(projectDir, packet, cache);
+    const staleReason = recallStaleReason(projectDir, packet, cache);
     if (staleReason) {
       result.skipped.push({ title: packet.title, reason: `not grounded: ${staleReason}` });
       continue;
@@ -19607,7 +19628,7 @@ function personalRecallEntries(projectDir: string, terms: string[], limit = 3): 
   const packets = loadPersonalPackets();
   if (!packets.length) return [];
   const cache = new Map<string, MemoryPathFingerprint | null>();
-  const eligible = packets.filter((packet) => recallHardStaleReason(projectDir, packet, cache) === null);
+  const eligible = packets.filter((packet) => recallStaleReason(projectDir, packet, cache) === null);
   if (!eligible.length) return [];
   const scores = scorePacketsBm25(terms, eligible);
   return eligible

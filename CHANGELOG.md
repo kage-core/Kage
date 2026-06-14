@@ -16,6 +16,15 @@
 
 ## Unreleased
 
+- **Strict recall: content-changed memory is now withheld, not just flagged.**
+  Previously a memory whose cited file's content changed was served with a "may be
+  stale" flag; now it is excluded from recall (and from skills and the suppressed
+  report), exactly like deleted/expired/reported-stale memory. The recall context
+  block lists what was withheld and why, with the `kage reverify` command to
+  restore it — so it is visible, not silent. The "Memory Correctness Under Change"
+  benchmark goes from ~50% to **0% stale-served** (40 seeded, 26 mutated, only the
+  14 untouched served). Compaction still treats content-change as reverify-needed,
+  not auto-deprecation.
 - **Core surface refined by eval evidence (now 11 agent tools).** The
   agent-trajectory eval showed a real agent naturally reaches for `kage_risk`,
   `kage_decisions`, `kage_dependency_path`, and `kage_docs_search` on ordinary

@@ -8,7 +8,6 @@ import {
   capture,
   recall,
   verifyCitations,
-  kageSuppressedMemory,
   kageMemoryLifecycle,
   reverifyMemory,
   supersedeMemory,
@@ -94,7 +93,9 @@ function observe(project: string, id: string): State {
   const item = kageMemoryLifecycle(project).items.find((i) => i.packet_id === id);
   if (item) {
     if (item.status !== "approved") return item.status as State;
-    if (kageSuppressedMemory(project).items.some((s) => s.id === id)) return "hard_stale";
+    // verifyCitations is the source of truth for severity (hard vs soft). Both are
+    // now withheld from recall (task #39), so we classify by severity, not by
+    // presence in the suppressed report.
     const v = verifyCitations(project, { id }).packets[0];
     if (v?.stale_severity === "hard") return "hard_stale";
     if (v?.stale_severity === "soft") return "soft_stale";
@@ -122,7 +123,9 @@ function isSkill(project: string, id: string): boolean {
   return generateSkills(project, { dryRun: true }).generated.some((s) => s.packet_id === id);
 }
 
-const WITHHELD: State[] = ["pending", "hard_stale", "superseded", "deprecated"];
+// Strict recall (task #39): soft-stale (content-changed) memory is withheld from
+// recall and skills too, not just flagged — so it joins the never-served set.
+const WITHHELD: State[] = ["pending", "hard_stale", "soft_stale", "superseded", "deprecated"];
 
 function assertInvariants(project: string, ctx: Ctx): void {
   const state = observe(project, ctx.id);
@@ -147,10 +150,13 @@ test("trajectory: create -> recall -> content change -> reverify -> fresh", () =
 
   mutateFile(p, c.file);
   assert.equal(observe(p, c.id), "soft_stale");
+  // Task #39: content-changed memory is withheld from recall, not merely flagged.
+  assert.equal(served(p, c), false, "soft-stale memory must be withheld from recall");
 
   const rv = reverifyMemory(p, c.id);
   assert.equal(rv.ok, true);
   assert.equal(observe(p, c.id), "approved_fresh");
+  assert.equal(served(p, c), true, "reverify restores the memory to recall");
   assertInvariants(p, c);
 });
 

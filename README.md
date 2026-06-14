@@ -161,7 +161,7 @@ so what the team shares stays grounded as the code moves.
 |---|---|---|---|
 | Automatic capture + session-start recall | ✓ | ✓ | via SDK |
 | Hallucinated citations **rejected at write time** | ✓ | — | — |
-| Stale memory **withheld at recall** (cited files deleted, TTL expired, reported stale) | ✓ | — | — |
+| Stale memory **withheld at recall** (cited files deleted or changed, TTL expired, reported stale) | ✓ | — | — |
 | **Diff-time stale-catch** — your change invalidates a memory, you're warned before the PR | ✓ | — | — |
 | Memory reviewed in git, same PR as the code (plain files, no DB) | ✓ | SQLite + cloud | hosted API |
 | Savings receipts (tokens + $ per recall, value ledger) | ✓ per-packet | token index | — |
