@@ -11,7 +11,8 @@ function shortName(name) {
 
 const RECALL_TOOLS = new Set(["kage_context", "kage_recall", "kage_search", "kage_fetch", "kage_workspace_recall"]);
 const CAPTURE_TOOLS = new Set(["kage_learn", "kage_capture", "kage_distill", "kage_propose_from_diff"]);
-const MAINTAIN_TOOLS = new Set(["kage_refresh", "kage_pr_check", "kage_supersede", "kage_reverify", "kage_propose_from_diff"]);
+const MAINTAIN_TOOLS = new Set(["kage_refresh", "kage_pr_check", "kage_supersede", "kage_reverify", "kage_propose_from_diff", "kage_memory_reconcile"]);
+const INSPECT_TOOLS = new Set(["Read", "Grep", "Glob"]);
 const EDIT_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit", "create_file", "str_replace_editor"]);
 
 export function isKageTool(name) {
@@ -62,4 +63,19 @@ export const PREDICATES = {
     const recallBefore = events.slice(0, firstEdit).some((e) => isRecall(e.tool));
     return !recallBefore;
   },
+
+  // A read-only/question task: it consulted memory and answered without editing.
+  answered_without_editing: (events) =>
+    events.some((e) => isRecall(e.tool)) && !events.some((e) => isEdit(e.tool)),
+
+  // After changing code that memory points at, it ran a memory-maintenance step
+  // (reconcile / supersede / reverify / pr check) rather than leaving memory stale.
+  maintained_after_edit: (events) => {
+    const firstEdit = firstIndex(events, isEdit);
+    if (firstEdit === -1) return false;
+    return events.slice(firstEdit + 1).some((e) => isMaintain(e.tool));
+  },
+
+  // It actually looked at the real source (didn't act blind on memory alone).
+  inspected_source: (events) => events.some((e) => INSPECT_TOOLS.has(e.tool)),
 };

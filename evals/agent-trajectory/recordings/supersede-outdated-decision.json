@@ -1,0 +1,50 @@
+{
+  "scenario": "supersede-outdated-decision",
+  "recorded_at": "2026-06-14T16:42:11.210Z",
+  "driver": "claude -p (stream-json)",
+  "task": "Refactor src/db.js to use async/await instead of the callback style it uses now.",
+  "events": [
+    {
+      "seq": 0,
+      "tool": "ToolSearch",
+      "input": {
+        "query": "select:mcp__kage__kage_context",
+        "max_results": 1
+      }
+    },
+    {
+      "seq": 1,
+      "tool": "Read",
+      "input": {
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-supersede-outdated-decision-PfRgnZ/src/db.js"
+      }
+    },
+    {
+      "seq": 2,
+      "tool": "AskUserQuestion",
+      "input": {
+        "questions": [
+          {
+            "question": "The recorded decision says the callback style is load-bearing because the legacy query driver has no promise interface. How should I proceed?",
+            "header": "Decision status",
+            "multiSelect": false,
+            "options": [
+              {
+                "label": "Decision is outdated — refactor",
+                "description": "The driver now supports promises (or you've decided to wrap it). I'll refactor src/db.js to async/await and supersede the old Kage decision so future agents don't get conflicting guidance."
+              },
+              {
+                "label": "Decision still holds — don't refactor",
+                "description": "Leave src/db.js on callbacks. I'll skip the change."
+              },
+              {
+                "label": "Refactor with a promisify shim",
+                "description": "Keep using the callback-based driver under the hood but wrap query() so getUser can be async/await. I won't supersede the decision — I'll narrow it to 'the driver call is still callback-based.'"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

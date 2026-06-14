@@ -1,0 +1,103 @@
+{
+  "scenario": "reconcile-after-change",
+  "recorded_at": "2026-06-14T16:41:38.267Z",
+  "driver": "claude -p (stream-json)",
+  "task": "Change the default request timeout in src/config.js from 30 seconds to 60 seconds.",
+  "events": [
+    {
+      "seq": 0,
+      "tool": "Bash",
+      "input": {
+        "command": "ls /private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-Yrkq81/",
+        "description": "List project root"
+      }
+    },
+    {
+      "seq": 1,
+      "tool": "ToolSearch",
+      "input": {
+        "query": "select:mcp__kage__kage_context,mcp__kage__kage_learn,mcp__kage__kage_memory_reconcile",
+        "max_results": 3
+      }
+    },
+    {
+      "seq": 2,
+      "tool": "mcp__kage__kage_context",
+      "input": {
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-Yrkq81",
+        "query": "change default request timeout in src/config.js from 30 to 60 seconds",
+        "changed_files": [
+          "src/config.js"
+        ]
+      }
+    },
+    {
+      "seq": 3,
+      "tool": "Read",
+      "input": {
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-Yrkq81/src/config.js"
+      }
+    },
+    {
+      "seq": 4,
+      "tool": "Edit",
+      "input": {
+        "replace_all": false,
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-Yrkq81/src/config.js",
+        "old_string": "export const config = {\n  // 30s default chosen to match the upstream gateway's hard cutoff.\n  requestTimeoutMs: 30000,\n};",
+        "new_string": "export const config = {\n  requestTimeoutMs: 60000,\n};"
+      }
+    },
+    {
+      "seq": 5,
+      "tool": "mcp__kage__kage_memory_reconcile",
+      "input": {
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-Yrkq81"
+      }
+    },
+    {
+      "seq": 6,
+      "tool": "ToolSearch",
+      "input": {
+        "query": "select:mcp__kage__kage_supersede",
+        "max_results": 1
+      }
+    },
+    {
+      "seq": 7,
+      "tool": "mcp__kage__kage_learn",
+      "input": {
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-Yrkq81",
+        "title": "Request timeout raised to 60s",
+        "type": "decision",
+        "learning": "config.requestTimeoutMs in src/config.js is 60000. Raised from the previous 30s default per user request on 2026-06-14. Note: the prior 30s value was deliberately matched to an upstream gateway hard cutoff at 30s; if that cutoff still holds, the extra 30s of client wait will hang on connections the gateway has already killed. Re-verify the upstream gateway timeout before relying on this larger window.",
+        "paths": [
+          "src/config.js"
+        ],
+        "evidence": "src/config.js now sets requestTimeoutMs: 60000 (changed from 30000 in this session).",
+        "tags": [
+          "timeout",
+          "config",
+          "http"
+        ]
+      }
+    },
+    {
+      "seq": 8,
+      "tool": "Read",
+      "input": {
+        "file_path": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-Yrkq81/.agent_memory/packets/decision-request-timeout-raised-to-60s-cf3a9e67.json"
+      }
+    },
+    {
+      "seq": 9,
+      "tool": "mcp__kage__kage_supersede",
+      "input": {
+        "project_dir": "/private/var/folders/6r/ppx9bfd17jb9_6wb_401hg5c0000gn/T/kage-eval-reconcile-after-change-Yrkq81",
+        "packet_id": "repo:kage-eval-reconcile-after-change-yrkq81:decision:request-timeout-is-30s-to-match-the-upstream-gateway-cutoff-1781455168444",
+        "replacement_packet_id": "repo:kage-eval-reconcile-after-change-yrkq81:decision:request-timeout-raised-to-60s-1781455243317",
+        "reason": "Per user request on 2026-06-14, requestTimeoutMs in src/config.js was raised from 30000 to 60000. The prior decision pinning it to 30s (gateway cutoff) no longer reflects the code."
+      }
+    }
+  ]
+}

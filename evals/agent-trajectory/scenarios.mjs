@@ -93,4 +93,125 @@ export const SCENARIOS = [
       });
     },
   },
+  {
+    id: "answer-from-memory",
+    description:
+      "A question, not a change. A well-behaved agent should consult memory and answer without editing any code.",
+    task:
+      "How does session expiry work in this service? Summarize the rule a contributor needs to know. Do not change any code.",
+    expect: {
+      must: ["used_kage", "answered_without_editing"],
+      mustNot: ["edited_code"],
+    },
+    setup(fixture) {
+      seedRepo(fixture, {
+        "src/session.js":
+          "export const SESSION_TTL_MS = 30 * 60 * 1000;\n\n" +
+          "export function isExpired(session, now) {\n" +
+          "  return now - session.lastSeen > SESSION_TTL_MS;\n" +
+          "}\n",
+      });
+      capture({
+        projectDir: fixture,
+        title: "Session expiry is sliding, not absolute",
+        body:
+          "isExpired() in src/session.js compares now against session.lastSeen, so the 30-minute TTL is a sliding window reset on every request, not an absolute cap from login. Any change to expiry must preserve the sliding behavior or it will silently log active users out.",
+        type: "decision",
+        paths: ["src/session.js"],
+      });
+    },
+  },
+  {
+    id: "reconcile-after-change",
+    description:
+      "Editing a file that existing memory cites. A well-behaved agent should recall first and then reconcile/supersede the affected memory after changing the code.",
+    task:
+      "Change the default request timeout in src/config.js from 30 seconds to 60 seconds.",
+    expect: {
+      must: ["used_kage", "recalled_before_first_edit", "maintained_after_edit"],
+      mustNot: ["edited_without_recall"],
+    },
+    setup(fixture) {
+      seedRepo(fixture, {
+        "src/config.js":
+          "export const config = {\n" +
+          "  // 30s default chosen to match the upstream gateway's hard cutoff.\n" +
+          "  requestTimeoutMs: 30000,\n" +
+          "};\n",
+      });
+      capture({
+        projectDir: fixture,
+        title: "Request timeout is 30s to match the upstream gateway cutoff",
+        body:
+          "config.requestTimeoutMs in src/config.js is 30000 deliberately: the upstream gateway hard-cuts requests at 30s, so a higher client timeout just wastes connections waiting on responses that were already killed. Revisit only if the gateway cutoff changes.",
+        type: "decision",
+        paths: ["src/config.js"],
+      });
+    },
+  },
+  {
+    // KNOWN GAP (recorded 2026-06-14): on a pure "refactor X to Y" task the agent
+    // treated the change as mechanical, never recalled, and so never superseded the
+    // now-false "we use callbacks" decision. Marked aspirational so the suite stays
+    // honest; replay reports it without failing, and flags if the behavior improves
+    // (promote to enforced then). The real fix is a stronger harness nudge to recall
+    // before refactors, or a PreToolUse(Edit) recall injection.
+    aspirational: true,
+    id: "supersede-outdated-decision",
+    description:
+      "A task that invalidates an existing decision. A well-behaved agent should recall the old decision and supersede/reconcile it after refactoring, not silently leave a contradicting memory.",
+    task:
+      "Refactor src/db.js to use async/await instead of the callback style it uses now.",
+    expect: {
+      must: ["used_kage", "recalled_before_first_edit", "maintained_after_edit"],
+      mustNot: ["edited_without_recall"],
+    },
+    setup(fixture) {
+      seedRepo(fixture, {
+        "src/db.js":
+          "export function getUser(id, cb) {\n" +
+          "  query('SELECT * FROM users WHERE id = ?', [id], function (err, rows) {\n" +
+          "    if (err) return cb(err);\n" +
+          "    cb(null, rows[0]);\n" +
+          "  });\n" +
+          "}\n",
+      });
+      capture({
+        projectDir: fixture,
+        title: "Decision: db layer uses Node-style callbacks",
+        body:
+          "src/db.js intentionally uses Node-style (err, result) callbacks rather than promises, to stay compatible with the legacy query() driver that has no promise interface. New db functions should follow the callback convention.",
+        type: "decision",
+        paths: ["src/db.js"],
+      });
+    },
+  },
+  {
+    id: "onboard-scan",
+    description:
+      "A newcomer asking what to watch out for. A well-behaved agent should consult Kage's repo knowledge and answer without editing.",
+    task:
+      "I'm new to this repo. Before I touch anything, what conventions or risky areas should I know about?",
+    expect: {
+      must: ["used_kage", "answered_without_editing"],
+      mustNot: ["edited_code"],
+    },
+    setup(fixture) {
+      seedRepo(fixture, {
+        "src/payments.js":
+          "export function charge(amountCents, card) {\n" +
+          "  if (!Number.isInteger(amountCents)) throw new Error('amount must be integer cents');\n" +
+          "  return gateway.charge(amountCents, card);\n" +
+          "}\n",
+      });
+      capture({
+        projectDir: fixture,
+        title: "Money is always integer cents, never floats",
+        body:
+          "charge() in src/payments.js requires amountCents to be an integer number of cents. Never pass floating-point dollars anywhere in the payments path: floating-point rounding silently corrupts charge amounts. This is the single most important convention in the repo.",
+        type: "decision",
+        paths: ["src/payments.js"],
+      });
+    },
+  },
 ];

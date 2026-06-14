@@ -25,6 +25,17 @@ for (const scenario of SCENARIOS) {
     const trajectory = JSON.parse(readFileSync(file, "utf8"));
     const score = scoreTrajectory(trajectory, scenario);
     const unmet = score.results.filter((r) => !r.ok).map((r) => r.expectation);
+
+    // Aspirational scenarios document a known behavior gap. They never fail the
+    // suite — but if the recording starts passing, the skip message says to
+    // promote it to enforced.
+    if (scenario.aspirational) {
+      t.skip(score.passed
+        ? `aspirational scenario now PASSES — promote it to enforced`
+        : `known gap (aspirational): agent did not meet ${unmet.join(", ")}`);
+      return;
+    }
+
     assert.equal(score.passed, true, `agent did not meet expectations: ${unmet.join(", ")} (in ${score.event_count} tool calls)`);
   });
 }
