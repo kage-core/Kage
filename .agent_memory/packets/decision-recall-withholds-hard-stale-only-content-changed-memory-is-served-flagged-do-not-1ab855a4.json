@@ -1,0 +1,87 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:recall-withholds-hard-stale-only-content-changed-memory-is-served-flagged-do-not",
+  "title": "Recall withholds hard-stale only; content-changed memory is served flagged (do not claim \"wrong knowledge never reaches the agent\")",
+  "summary": "The recall path recallWithVectorScores in mcp/kernel.ts, ~line 10108, via recallHardStaleReason WITHHOLDS only hard stale memory: packets whose cited files are ALL deleted, past TTL, status deprecated/superseded, or huma",
+  "body": "The recall path (recallWithVectorScores in mcp/kernel.ts, ~line 10108, via recallHardStaleReason) WITHHOLDS only hard-stale memory: packets whose cited files are ALL deleted, past TTL, status deprecated/superseded, or human/agent reported-stale. Suppression is recorded (kageSuppressedMemory), not silent. Hallucinated citations are separately rejected at WRITE time so they are never stored. BUT a packet whose cited file still exists with CHANGED CONTENT (refactored / behavior changed) is NOT hard-stale: it is still served to the agent, only FLAGGED via staleMemoryReasons (\"linked path changed since memory was verified\"). This is the open task #39 (strict recall: withhold soft-stale too). The staleness benchmark (benchmarks/staleness-kage.mjs) measures Kage serving content-changed memory ~50% of the time. CONSEQUENCE FOR MARKETING: the claim \"your diff changes what it cites, wrong knowledge never reaches the agent\" is an OVERCLAIM and was removed from the site on 2026-06-14. Honest phrasing: \"deleted and stale citations get caught.\" Only restore the strong \"never reaches\" wording after task #39 ships (recall withholds content-changed memory, not just flags it).\nVerified by: Read recallWithVectorScores + recallHardStaleReason in mcp/kernel.ts on 2026-06-14",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "honesty",
+    "marketing-claims",
+    "recall",
+    "staleness",
+    "overclaim"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "benchmarks/staleness-kage.mjs",
+    "docs/index.html"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-14T09:54:37.423Z"
+    }
+  ],
+  "context": {
+    "fact": "The recall path (recallWithVectorScores in mcp/kernel.ts, ~line 10108, via recallHardStaleReason) WITHHOLDS only hard-stale memory: packets whose cited files are ALL deleted, past TTL, status deprecated/superseded, or human/agent reported-stale. Suppression is recorded (kageSuppressedMemory), not silent. Hallucinated citations are separately rejected at WRITE time so they are never stored. BUT a packet whose cited file still exists with CHANGED CONTENT (refactored / behavior changed) is NOT hard-stale: it is still served to the agent, only FLAGGED via staleMemoryReasons (\"linked path changed since memory was verified\"). This is the open task #39 (strict recall: withhold soft-stale too). The staleness benchmark (benchmarks/staleness-kage.mjs) measures Kage serving content-changed memory ~50% of the time. CONSEQUENCE FOR MARKETING: the claim \"your diff changes what it cites, wrong knowledge never reaches the agent\" is an OVERCLAIM and was removed from the site on 2026-06-14. Honest phrasing: \"deleted and stale citations get caught.\" Only restore the strong \"never reaches\" wording after task #39 ships (recall withholds content-changed memory, not just flags it).\nVerified by: Read recallWithVectorScores + recallHardStaleReason in mcp/kernel.ts on 2026-06-14",
+    "verification": "Read recallWithVectorScores + recallHardStaleReason in mcp/kernel.ts on 2026-06-14"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-14T09:54:37.423Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "c1d09bfb9686c0149ae0901b28e7369ea2b338bf344928cc7a07c2e8b9d2a24c",
+        "size": 812422
+      },
+      {
+        "path": "benchmarks/staleness-kage.mjs",
+        "sha256": "a283dabe3c46caead471a8710dc10f68a30ca7e98a02ccae40da3c4af0b00b09",
+        "size": 4508
+      },
+      {
+        "path": "docs/index.html",
+        "sha256": "91946a55e88624bcef60139bf2bf0e4fc33a6bba57791c5252d6d17b19db1870",
+        "size": 32887
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "discovery_tokens": 4000,
+    "discovery_tokens_estimated": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 319
+  },
+  "created_at": "2026-06-14T09:54:37.423Z",
+  "updated_at": "2026-06-14T09:54:48.165Z",
+  "author_branch": "master"
+}
