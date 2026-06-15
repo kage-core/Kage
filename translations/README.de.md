@@ -6,8 +6,6 @@
 
 ### Verlässliches Gedächtnis für Coding-Agenten
 
-<img src="../docs/kage-hero.svg" alt="Kage: verifiziertes Gedächtnis für Coding-Agenten, das Gelerntes abruft, Veraltetes zurückhält und Halluzinationen ablehnt" width="760">
-
 Dein Coding-Agent vergisst deine Codebasis in jeder Sitzung, also erklärst du sie immer
 wieder neu. **Kage** gibt ihm ein dauerhaftes Gedächtnis, das als einfache Textdateien in
 deinem Repository lebt, und gleicht jede Erinnerung mit deinem echten Code ab, damit der

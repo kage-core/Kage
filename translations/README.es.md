@@ -6,8 +6,6 @@
 
 ### Memoria para agentes de código en la que puedes confiar
 
-<img src="../docs/kage-hero.svg" alt="Kage: memoria verificada para agentes de código que recuerda lo aprendido, retiene lo obsoleto y rechaza alucinaciones" width="760">
-
 Tu agente de código olvida tu base de código en cada sesión, así que terminas
 explicándola una y otra vez. **Kage** le da memoria persistente que vive en tu
 repositorio como archivos de texto plano, y contrasta cada memoria con tu código real,
