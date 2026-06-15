@@ -4,17 +4,19 @@
 
 # Kage
 
-### Memoria para agentes de código en la que puedes confiar
+### Memoria de equipo para agentes de código que nunca se pierde
 
-<img src="../docs/kage-viewer.jpg" alt="El mapa memoria-código de kage viewer: packets de memoria enlazados a los archivos en los que se basan" width="760">
+<img src="../docs/kage-viewer.jpg" alt="kage viewer: las decisiones, runbooks y correcciones de errores capturadas del equipo, enlazadas al código del que tratan" width="760">
 
-<sub>El mapa memoria ↔ código en `kage viewer`: cada packet de memoria (morado) enlazado al archivo en el que se basa (azul).</sub>
+<sub>`kage viewer`: las decisiones, runbooks y correcciones de errores de tu equipo (morado), guardadas en el repo y enlazadas al código del que tratan (azul).</sub>
 
-Tu agente de código olvida tu base de código en cada sesión, así que terminas
-explicándola una y otra vez. **Kage** le da memoria persistente que vive en tu
-repositorio como archivos de texto plano, y contrasta cada memoria con tu código real,
-para que el agente nunca actúe sobre algo que ya no es cierto. Compartida con todo tu
-equipo a través de git. Sin cuenta, sin base de datos, sin clave de API.
+Las decisiones detrás de tu base de código, el runbook de un despliegue delicado, la causa
+raíz de un bug peliagudo: ese conocimiento vive en la cabeza de las personas y se pierde
+entre los mensajes del chat. **Kage** lo captura mientras tus agentes de código trabajan, lo
+guarda como archivos de texto plano en tu repositorio y lo comparte con todo tu equipo a
+través de git. La siguiente sesión, tuya o de un compañero, empieza ya sabiéndolo. Cada
+memoria también se contrasta con el código real, así que lo que se comparte sigue siendo
+cierto. Sin cuenta, sin base de datos, sin clave de API.
 
 ```bash
 npx -y @kage-core/kage-graph-mcp install
@@ -87,15 +89,18 @@ como pequeños **packets** JSON confirmados en tu repositorio bajo `.agent_memor
 siguiente sesión (tuya o de un compañero) empieza ya sabiéndolo, en vez de releer o volver
 a preguntar.
 
-Dos cosas la hacen distinta de otras herramientas de memoria:
+Tres cosas la hacen distinta de otras herramientas de memoria:
 
+- **Es colaborativa.** Lo que una persona (o su agente) descubre pasa a ser de todo el equipo.
+  La memoria se comparte a través de git, así que la siguiente sesión de un compañero empieza
+  con lo que acabas de aprender, no desde cero.
+- **Es nativa de git.** La memoria son archivos de texto plano en tu repositorio, revisados en
+  el mismo PR que el código, no encerrados en una sola máquina ni en la nube de un proveedor.
+  Tu conocimiento sigue siendo tuyo.
 - **Está verificada.** Cada memoria cita el código del que trata, y Kage contrasta esas citas
   con tus archivos reales: al escribir, al recordar y cuando un diff cambia el código. La
   memoria que ya no coincide con el código se retiene, para que el agente nunca actúe sobre
   una afirmación obsoleta.
-- **Es nativa de git.** La memoria son archivos de texto plano en tu repositorio, revisados en
-  el mismo PR que el código y compartidos con todo el equipo a través de git, no encerrados en
-  una sola máquina ni en la nube de un proveedor.
 
 ## Cómo funciona
 

@@ -4,17 +4,19 @@
 
 # Kage
 
-### Verlässliches Gedächtnis für Coding-Agenten
+### Team-Gedächtnis für Coding-Agenten, das nie verloren geht
 
-<img src="../docs/kage-viewer.jpg" alt="Die Gedächtnis-Code-Karte im kage viewer: Memory-Packets verbunden mit den Dateien, auf denen sie beruhen" width="760">
+<img src="../docs/kage-viewer.jpg" alt="kage viewer: die erfassten Entscheidungen, Runbooks und Bugfixes des Teams, verknüpft mit dem Code, um den es geht" width="760">
 
-<sub>Die Gedächtnis ↔ Code-Karte im `kage viewer`: jedes Memory-Packet (lila) ist mit der Datei verbunden, auf der es beruht (blau).</sub>
+<sub>`kage viewer`: die Entscheidungen, Runbooks und Bugfixes deines Teams (lila), im Repo gehalten und mit dem Code verknüpft, um den es geht (blau).</sub>
 
-Dein Coding-Agent vergisst deine Codebasis in jeder Sitzung, also erklärst du sie immer
-wieder neu. **Kage** gibt ihm ein dauerhaftes Gedächtnis, das als einfache Textdateien in
-deinem Repository lebt, und gleicht jede Erinnerung mit deinem echten Code ab, damit der
-Agent nie auf Basis von etwas handelt, das nicht mehr stimmt. Über git mit dem ganzen Team
-geteilt. Kein Konto, keine Datenbank, kein API-Schlüssel.
+Die Entscheidungen hinter deiner Codebasis, das Runbook für ein kniffliges Deployment, die
+Ursache eines fiesen Bugs: Dieses Wissen steckt in den Köpfen der Leute und rauscht im Chat
+vorbei, dann ist es weg. **Kage** erfasst es, während deine Coding-Agenten arbeiten, hält es
+als einfache Textdateien in deinem Repository und teilt es über git mit dem ganzen Team. Die
+nächste Sitzung, deine oder die einer Kollegin, startet bereits mit diesem Wissen. Jede
+Erinnerung wird zudem mit dem echten Code abgeglichen, sodass das Geteilte wahr bleibt. Kein
+Konto, keine Datenbank, kein API-Schlüssel.
 
 ```bash
 npx -y @kage-core/kage-graph-mcp install
@@ -87,15 +89,18 @@ JSON-**Packets**, die unter `.agent_memory/` im Repository eingecheckt werden. D
 (deine oder die eines Teammitglieds) startet bereits mit diesem Wissen, statt erneut zu lesen oder
 nachzufragen.
 
-Zwei Dinge unterscheiden es von anderen Gedächtnis-Tools:
+Drei Dinge unterscheiden es von anderen Gedächtnis-Tools:
 
+- **Es ist kollaborativ.** Was eine Person (oder ihr Agent) herausfindet, wird zum Wissen des
+  ganzen Teams. Das Gedächtnis wird über git geteilt, sodass die nächste Sitzung einer Kollegin
+  mit dem startet, was du gerade gelernt hast, nicht bei null.
+- **Es ist git-nativ.** Das Gedächtnis besteht aus einfachen Textdateien in deinem Repository, im
+  selben PR wie der Code geprüft, nicht eingesperrt in einer Maschine oder der Cloud eines
+  Anbieters. Dein Wissen bleibt deins.
 - **Es ist verifiziert.** Jede Erinnerung zitiert den Code, um den es geht, und Kage gleicht diese
   Zitate mit deinen echten Dateien ab: beim Schreiben, beim Abruf und wenn ein Diff den Code ändert.
   Erinnerungen, die nicht mehr zum Code passen, werden zurückgehalten, damit der Agent nie auf einer
   veralteten Aussage handelt.
-- **Es ist git-nativ.** Das Gedächtnis besteht aus einfachen Textdateien in deinem Repository, im
-  selben PR wie der Code geprüft und über git mit dem ganzen Team geteilt, nicht eingesperrt in einer
-  Maschine oder der Cloud eines Anbieters.
 
 ## Wie es funktioniert
 
