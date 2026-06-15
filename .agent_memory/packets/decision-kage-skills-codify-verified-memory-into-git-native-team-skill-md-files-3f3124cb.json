@@ -37,17 +37,17 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-15T08:30:49.362Z",
+    "last_verified_at": "2026-06-15T17:57:43.047Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "5e445f9aeb2fc97e8d7f6d4ab36ff5b14c861232f788d8745658c613a255671c",
-        "size": 821149
+        "sha256": "c339a8e8d13226640fb42515ee1c5693aaf0f97ca86a6ad6457adf31f3687713",
+        "size": 837545
       },
       {
         "path": "mcp/cli.ts",
-        "sha256": "ca6dcbcf445e2a287b8dccb0a46ac086f0fa6dddd0fd2dd039c0645638e5609a",
-        "size": 111711
+        "sha256": "ceb104554f417984e344c433199cb92934923ddb7a10d37d4611486a7afa0b2f",
+        "size": 112895
       },
       {
         "path": "mcp/index.ts",
@@ -56,8 +56,8 @@
       },
       {
         "path": "mcp/kernel.test.ts",
-        "sha256": "95d8719d2c790c249818373d6fc851fcf6f99cad0999ed45624d08af568afb4f",
-        "size": 277526
+        "sha256": "74c99a284576e6d797ff89fedd882d4f759b92edab19ecb938b7c55a8c1a4065",
+        "size": 287687
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -86,14 +86,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 376,
-    "reverified_at": "2026-06-15T08:30:49.362Z",
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: mcp/kernel.ts, mcp/cli.ts, mcp/kernel.test.ts"
-    ],
-    "suggested_action": "update"
+    "reverified_at": "2026-06-15T17:57:43.047Z"
   },
   "created_at": "2026-06-14T15:20:39.698Z",
-  "updated_at": "2026-06-15T11:51:52.757Z",
+  "updated_at": "2026-06-15T17:57:43.047Z",
   "author_branch": "master"
 }

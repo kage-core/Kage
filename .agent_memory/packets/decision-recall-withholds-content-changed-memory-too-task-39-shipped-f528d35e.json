@@ -36,12 +36,12 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-14T20:10:00.252Z",
+    "last_verified_at": "2026-06-15T17:57:43.211Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "5e445f9aeb2fc97e8d7f6d4ab36ff5b14c861232f788d8745658c613a255671c",
-        "size": 821149
+        "sha256": "c339a8e8d13226640fb42515ee1c5693aaf0f97ca86a6ad6457adf31f3687713",
+        "size": 837545
       },
       {
         "path": "benchmarks/staleness-kage.mjs",
@@ -87,13 +87,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 330,
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: mcp/kernel.ts"
-    ],
-    "suggested_action": "update"
+    "reverified_at": "2026-06-15T17:57:43.211Z"
   },
   "created_at": "2026-06-14T20:10:00.252Z",
-  "updated_at": "2026-06-15T08:43:57.533Z",
+  "updated_at": "2026-06-15T17:57:43.211Z",
   "author_branch": "master"
 }

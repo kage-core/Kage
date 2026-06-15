@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="468" viewBox="0 0 820 468" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+  <defs>
+    <style>
+      .bg { fill: #0d1117; }
+      .bar { fill: #161b22; }
+      .t { fill: #c9d1d9; font-size: 14px; }
+      .dim { fill: #6e7681; font-size: 14px; }
+      .g { fill: #41ff8f; font-size: 14px; }
+      .gb { fill: #41ff8f; font-size: 14px; font-weight: 700; }
+      .o { fill: #f0883e; font-size: 14px; font-weight: 700; }
+      .w { fill: #e6edf3; font-size: 14px; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="1" y="1" width="818" height="466" rx="12"/>
+  <rect class="bg" x="1" y="1" width="818" height="466" rx="12" fill="none" stroke="#30363d" stroke-width="1"/>
+  <rect class="bar" x="1" y="1" width="818" height="38" rx="12"/>
+  <rect class="bar" x="1" y="20" width="818" height="19"/>
+  <circle cx="24" cy="20" r="6" fill="#ff5f56"/>
+  <circle cx="44" cy="20" r="6" fill="#ffbd2e"/>
+  <circle cx="64" cy="20" r="6" fill="#27c93f"/>
+  <text x="410" y="25" text-anchor="middle" class="dim">kage — verified memory for coding agents</text>
+
+  <text x="24" y="74"  class="t"><tspan class="g">$</tspan> npx -y @kage-core/kage-graph-mcp scan</text>
+
+  <text x="24" y="106" class="w">Kage Truth Report <tspan class="dim">— your repo</tspan></text>
+  <text x="24" y="128" class="dim">Scanned 142 files, 3160 symbols, 1 doc file</text>
+
+  <text x="24" y="160" class="gb">7 knowledge voids<tspan class="dim">  ·  </tspan><tspan class="gb">5 untested hot paths</tspan><tspan class="dim">  ·  </tspan><tspan class="gb">3 complexity hotspots</tspan></text>
+
+  <text x="24" y="200" class="o">■ KNOWLEDGE VOID <tspan class="dim">— high churn, zero memory</tspan></text>
+  <text x="40" y="222" class="t">• lib/response.js<tspan class="dim">   churn 27 × 149 deps · 0 memory packets</tspan></text>
+
+  <text x="24" y="258" class="o">■ UNTESTED HOT PATH <tspan class="dim">— depended on, no test covers it</tspan></text>
+  <text x="40" y="280" class="t">• lib/application.js<tspan class="dim">   77 dependents · tests covering it: 0</tspan></text>
+
+  <text x="24" y="316" class="o">■ COMPLEXITY HOTSPOT <tspan class="dim">— big file, many dependents</tspan></text>
+  <text x="40" y="338" class="t">• lib/response.js<tspan class="dim">   1048 lines · 149 dependents</tspan></text>
+
+  <text x="24" y="378" class="dim">every finding cited to <tspan class="w">file:line</tspan> · zero setup · nothing generated</text>
+
+  <line x1="24" y1="404" x2="796" y2="404" stroke="#21262d" stroke-width="1"/>
+  <text x="24" y="432" class="g">→</text>
+  <text x="44" y="432" class="t">install it, then your agent <tspan class="w">captures</tspan> what it learns and <tspan class="w">recalls</tspan> it —</text>
+  <text x="44" y="452" class="dim">verified against this code, shared with your team through git.</text>
+</svg>

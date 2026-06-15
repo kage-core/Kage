@@ -4,258 +4,173 @@
 
 # Kage
 
-### कोडिंग एजेंट्स के लिए सत्यापित रिपॉज़िटरी ज्ञान
+### कोडिंग एजेंट्स के लिए भरोसेमंद मेमोरी
 
-हर दावा आपके मौजूदा कोड के हवाले से प्रमाणित होता है — और आप ठीक-ठीक देख सकते
-हैं कि यह आपका कितना बचाता है। Kage ऐसी मेमोरी को अस्वीकार करता है जो
-अस्तित्वहीन फ़ाइलों का हवाला देती है, जिसके प्रमाण मिटा दिए गए हों उसे रोक
-लेता है, और जिस क्षण आपके बदलाव टीम के ज्ञान को अमान्य करते हैं, आपको चेतावनी
-देता है। आपकी रिपॉज़िटरी में सादी फ़ाइलें, जिनकी समीक्षा कोड के साथ उसी PR में
-होती है। न API key, न डेटाबेस, न कोई डेमन।
+<img src="../docs/kage-hero.svg" alt="kage scan: Truth Report, हर निष्कर्ष file:line पर अंकित" width="760">
 
-<p>
-  <a href="https://kage-core.github.io/Kage/">वेबसाइट</a>
-  ·
-  <a href="https://kage-core.github.io/Kage/guide.html">दस्तावेज़</a>
-  ·
-  <a href="https://kage-core.github.io/Kage/viewer/">व्यूअर</a>
-  ·
-  <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a>
-</p>
-
-<p>
-  <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp"><img src="https://img.shields.io/npm/v/@kage-core/kage-graph-mcp?color=41ff8f&label=npm" alt="npm version"></a>
-  <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp"><img src="https://img.shields.io/npm/dm/@kage-core/kage-graph-mcp?color=41ff8f" alt="downloads"></a>
-  <img src="https://img.shields.io/npm/l/@kage-core/kage-graph-mcp?color=41ff8f" alt="license">
-  <img src="https://img.shields.io/badge/trust%20benchmark-100%2F100-41ff8f" alt="trust 100/100">
-</p>
-
-**इनके साथ काम करता है** Claude Code · Codex · Cursor · Windsurf · Gemini CLI · Cline ·
-Goose · Roo Code · Kilo Code · OpenCode · Aider · Claude Desktop · कोई भी MCP क्लाइंट
-
-</div>
-
----
-
-## देखिए आपकी रिपॉज़िटरी क्या छिपा रही है — 60 सेकंड, शून्य सेटअप
-
-```bash
-npx -y @kage-core/kage-graph-mcp scan --project .
-```
-
-**Truth Report** (सत्य रिपोर्ट) डुप्लिकेट इम्प्लीमेंटेशन, घोस्ट एक्सपोर्ट,
-बस-फ़ैक्टर-1 वाली संवेदनशील फ़ाइलें, ज्ञान-रिक्तियाँ और दस्तावेज़ों के झूठ
-खोज निकालती है। Express के ताज़ा क्लोन पर:
-
-```text
-Kage Truth Report — express
-Scanned 142 files, 3160 symbols, 1 doc file(s)
-
-■ KNOWLEDGE VOID — high churn, zero memory (7, showing top 4)
-  • lib/response.js — knowledge void
-    390 commits of accumulated decisions, 149 graph edge(s) depending on it —
-    and zero memory packets or doc mentions. Agents and new hires fly blind here.
-  • lib/application.js — 179 commits x 77 edges, memory packets citing it: 0
-  • lib/request.js     — 175 commits x 58 edges, memory packets citing it: 0
-  • lib/utils.js       — 107 commits x 35 edges, memory packets citing it: 0
-```
-
-हर निष्कर्ष *आपके अपने* कोड से `file:line` प्रमाण का हवाला देता है — कुछ भी
-जनरेट नहीं किया गया है।
-
-## 30 सेकंड का ट्रस्ट डेमो
-
-```bash
-npx -y @kage-core/kage-graph-mcp demo
-```
-
-```text
-1. Hallucinated citation — REJECTED on write:
-   ✗ "Use the helper in src/ghost.ts"
-     Citation validation failed: none of the referenced paths exist in this repo.
-
-2. Stale memory (cited file deleted) — WITHHELD from recall:
-   ⊘ Legacy retry helper is the fallback
-     all cited files deleted since capture: src/legacy-retry.ts
-
-3. Recall returns only grounded, current memory:
-   ✓ Payments must be idempotent
-   ✓ Auth uses jose, not jsonwebtoken
-```
-
-## रसीदें, अंदाज़े नहीं
-
-Kage हर रिपॉज़िटरी के लिए एक वैल्यू लेजर रखता है और दिखाता है कि मेमोरी हार्नेस
-ने वास्तव में क्या किया। `kage gains --project .`:
-
-```text
-This week Kage saved you ~564K tokens (~$8.46), blocked 0 stale memories,
-caught 0 stale at change-time, answered 2 recalls.
-```
-
-एजेंट हर रिकॉल के बाद वही रसीद आगे पहुँचाते हैं, और व्यूअर उसी लेजर से चलने
-वाले Gains टैब से शुरू होता है — हर संख्या किसी लॉग किए गए इवेंट तक खोजी जा
-सकती है।
-
-## विश्वास की कार्यप्रणाली
-
-गलत मेमोरी पर काम करने वाला एजेंट, बिना मेमोरी वाले एजेंट से भी बुरा है।
-Kage तीन बिंदुओं पर विश्वास लागू करता है:
-
-1. **लिखते समय अस्वीकार** — आपकी रिपॉज़िटरी में मौजूद न होने वाली फ़ाइलों का
-   हवाला देने वाली मेमोरी ठुकरा दी जाती है। हैलुसिनेटेड हवाले कभी स्टोरेज में
-   नहीं पहुँचते।
-2. **रिकॉल पर रोक** — हर रिकॉल हवाले में दी गई फ़ाइलों को दोबारा सत्यापित करता
-   है। यदि प्रमाण मिटा दिया गया हो, TTL समाप्त हो गई हो, या मेमोरी को बासी
-   (stale) रिपोर्ट किया गया हो, तो उसे दबा दिया जाता है (और व्यूअर में आपको
-   दिखाया जाता है — चुपचाप कभी नहीं हटाया जाता)।
-3. **बदलाव के समय stale-पकड़** — `kage pr check` (और pre-commit हुक के रूप में
-   `kage staleguard`) सबसे पहले यह बताता है कि आपके diff ने अभी क्या तोड़ा:
-
-   ```text
-   ⚠ Your changes invalidated 15 team memories:
-     • CI: Kage PR Check must block only on hard-stale memory — cites mcp/kernel.ts (file changed)
-     fix: kage learn (update) | kage supersede --packet <id>
-   ```
-
-और ऊपर से एक गोपनीयता गारंटी: कुछ भी `<private>…</private>` में लपेट दें और
-Kage उसे कभी स्टोर नहीं करेगा — कोई भी packet या ऑब्ज़र्वेशन डिस्क तक पहुँचने
-से पहले वह हिस्सा `[private]` से बदल दिया जाता है।
-
-सेशन लूप अपना ख़याल खुद रखता है: यदि एजेंट ने कुछ भी कैप्चर नहीं किया, तो सेशन
-की ऑब्ज़र्वेशन सेशन के अंत में **स्वतः लंबित ड्राफ़्ट में आसवित** हो जाती हैं
-(समीक्षा आप करते हैं, आँख मूँदकर भरोसा कभी नहीं); अगला सेशन एक **"पिछली
-बार…" डाइजेस्ट** (`kage resume`) से खुलता है; व्यूअर मेमोरी इवेंट्स को घटित
-होते ही **लाइव** स्ट्रीम करता है; और जब कुछ टूटता है, तो **`kage repair`** एक
-ही कमांड में बैकअप, मरम्मत और पुनर्निर्माण कर देता है।
-
-अपनी ही रिपॉज़िटरी पर साबित करें: `kage benchmark --trust --project .`
-हैलुसिनेशन अस्वीकृति, stale बहिष्करण और लाइव ग्राउंडिंग मापता है — 100/100।
-
-## आँकड़े
-
-- वास्तविक कोड-नेविगेशन कार्यों पर **समान शुद्धता के साथ grep से 18% तेज़**
-  (N=3 टास्क सूट, वही एजेंट, वही मॉडल;
-  `kage benchmark --project . --compare --task "<task>"` से दोहराएँ)।
-- import-सजग कॉल रिज़ॉल्यूशन के बाद **Express पर 524 घोस्ट कॉल एज → 0**:
-  कॉल किए गए फ़ंक्शन पहले लोकल स्कोप → imports → पैकेज से रिज़ॉल्व होते हैं,
-  उसके बाद ही केवल-नाम मिलान होता है, और बाहरी पैकेजों के import रिपॉज़िटरी
-  में कोई एज नहीं बनाते।
-- tree-sitter परत (शुद्ध WASM, शून्य नेटिव निर्भरता) के ज़रिए Python, Go,
-  Rust, Java और Ruby के लिए **वास्तविक AST निष्कर्षण** — Click पर 466 मेथड
-  सही वर्गीकृत हुए, जहाँ regex निष्कर्षण को 0 मिले थे।
-- **LongMemEval-S रिट्रीवल**: शून्य निर्भरताओं के साथ 96.17% R@5 / 98.72% R@10।
-
-कार्यप्रणाली, कमांड और सीमाएँ: [docs/BENCHMARKS.md](../docs/BENCHMARKS.md)।
-
-## जब मेमोरी टूल पहले से मौजूद हैं, तो Kage क्यों
-
-सब-कुछ-कैप्चर करने वाली मेमोरी ([claude-mem](https://github.com/thedotmack/claude-mem),
-mem0, Zep) *याद रखने* की समस्या हल करती है। Kage *याद रखे गए पर भरोसे* की
-समस्या हल करता है: हर मेमोरी उस कोड से जाँची जाती है जिसका वह हवाला देती है —
-लिखते समय, रिकॉल के समय, और जब आपका diff उसके नीचे का कोड बदलता है।
-
-| | Kage | claude-mem | mem0 / Zep |
-|---|---|---|---|
-| स्वचालित कैप्चर + सेशन शुरू होते ही रिकॉल | ✓ | ✓ | SDK के ज़रिए |
-| हैलुसिनेटेड हवाले **लिखते समय अस्वीकृत** | ✓ | — | — |
-| बासी मेमोरी **रिकॉल पर रोकी जाती है** (प्रमाण बदला/मिटा) | ✓ | — | — |
-| **diff-समय stale-पकड़** — आपका बदलाव किसी मेमोरी को अमान्य करे, तो PR से पहले चेतावनी | ✓ | — | — |
-| मेमोरी की समीक्षा git में, कोड के साथ उसी PR में (सादी फ़ाइलें, कोई DB नहीं) | ✓ | SQLite + क्लाउड | होस्टेड API |
-| बचत की रसीदें (प्रति रिकॉल टोकन + $, वैल्यू लेजर) | ✓ | टोकन इंडेक्स | — |
-| किसी भी रिपॉज़िटरी पर Truth Report, शून्य सेटअप | ✓ | — | — |
-| खाता / API key आवश्यक | नहीं | क्लाउड वैकल्पिक | हाँ |
-
-जो मेमोरी सिस्टम अपने ही दावों को कभी दोबारा सत्यापित नहीं करता, वह जितना
-ज़्यादा इस्तेमाल होता है उतना *कम* भरोसेमंद होता जाता है। Kage वह है जो समय
-के साथ निखरता है।
-
-## त्वरित शुरुआत
-
-Node.js 18+ चाहिए। अपनी रिपॉज़िटरी के अंदर से एक कमांड:
+आपका कोडिंग एजेंट हर सेशन में आपका कोडबेस भूल जाता है, इसलिए आपको उसे बार-बार समझाना पड़ता है।
+**Kage** उसे स्थायी मेमोरी देता है जो आपके रिपॉज़िटरी में सादे टेक्स्ट फ़ाइलों के रूप में रहती है,
+और हर मेमोरी को आपके असली कोड से जाँचता है, ताकि एजेंट कभी ऐसी बात पर काम न करे जो अब सच नहीं है।
+git के ज़रिए आपकी पूरी टीम के साथ साझा। कोई अकाउंट नहीं, कोई डेटाबेस नहीं, कोई API key नहीं।
 
 ```bash
 npx -y @kage-core/kage-graph-mcp install
 ```
 
-यह `.agent_memory/` बनाता है, कोड ग्राफ़ तैयार करता है, आपके एजेंट्स
-(Claude Code, Codex, Cursor, Windsurf, Gemini CLI, OpenCode, Goose, Aider) को
-स्वतः पहचानकर जोड़ देता है। या ग्लोबल इंस्टॉल करके एजेंट एक-एक करके जोड़ें:
+<p>
+  <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp"><img src="https://img.shields.io/npm/v/@kage-core/kage-graph-mcp?color=41ff8f&label=npm" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp"><img src="https://img.shields.io/npm/dm/@kage-core/kage-graph-mcp?color=41ff8f" alt="downloads"></a>
+  <img src="https://img.shields.io/npm/l/@kage-core/kage-graph-mcp?color=41ff8f" alt="license">
+  <img src="https://img.shields.io/badge/deps-0-41ff8f" alt="zero dependencies">
+  <img src="https://img.shields.io/badge/account-not%20required-41ff8f" alt="no account">
+</p>
+
+<p>
+  <a href="https://kage-core.com/">वेबसाइट</a> ·
+  <a href="https://kage-core.com/guide.html">दस्तावेज़</a> ·
+  <a href="https://kage-core.com/viewer/">लाइव व्यूअर</a> ·
+  <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a> ·
+  <a href="https://kage-core.com/demo.html"><b>डेमो बुक करें</b></a>
+</p>
+
+**इनके साथ काम करता है** Claude Code · Codex · Cursor · Windsurf · Gemini CLI · Cline · Goose ·
+Roo Code · Kilo Code · OpenCode · Aider · Claude Desktop · कोई भी MCP क्लाइंट
+
+</div>
+
+---
+
+## इंस्टॉल
+
+**अपने रिपॉज़िटरी में एक कमांड, फिर अपना एजेंट रीस्टार्ट करें।** बस इतना ही सेटअप है।
 
 ```bash
-npm install -g @kage-core/kage-graph-mcp
-cd your-repo
-kage install                   # or: kage init --project . for memory only
+npx -y @kage-core/kage-graph-mcp install
 ```
 
-या किसी एजेंट को मैन्युअल रूप से जोड़ें (एक कमांड MCP + hooks कॉन्फ़िग लिख
-देती है):
+यह `.agent_memory/` बनाता है, कोड ग्राफ़ तैयार करता है, एजेंट्स को Kage इस्तेमाल करने को कहने वाली
+`AGENTS.md` / `CLAUDE.md` पॉलिसी लिखता है, आपके एजेंट्स को अपने आप पहचानकर जोड़ता है, और
+`.gitignore` + packet मर्ज ड्राइवर कॉन्फ़िगर करता है। Node.js 18+ चाहिए। कोई अकाउंट नहीं, कोई API key नहीं।
+
+**या बस अपने एजेंट से ही सेटअप करवा लें।** इसे Claude Code, Cursor, या किसी भी कोडिंग एजेंट में पेस्ट करें:
+
+> इस रिपॉज़िटरी में Kage (कोडिंग एजेंट्स के लिए सत्यापित मेमोरी, https://github.com/kage-core/Kage)
+> सेटअप करो: `npx -y @kage-core/kage-graph-mcp install` चलाओ, फिर मुझे बताओ कि तुम्हें रीस्टार्ट करूँ।
+
+<details><summary>अन्य तरीके (प्लगइन · प्रति-एजेंट · सिर्फ़ मेमोरी)</summary>
 
 ```bash
-kage setup claude-code --project . --write     # Claude Code
-kage setup codex       --project . --write     # Codex
-kage setup cursor      --project . --write     # Cursor
-kage setup windsurf    --project . --write     # Windsurf
-# also: gemini-cli, cline, goose, roo-code, kilo-code, opencode, aider,
-#       claude-desktop, generic-mcp — see: kage setup list
-```
+# Claude Code / Codex प्लगइन
+/plugin marketplace add kage-core/Kage      # फिर: /plugin install kage@kage
 
-Claude Code / Codex उपयोगकर्ता इसके बजाय प्लगइन इंस्टॉल कर सकते हैं:
+# एक एजेंट जोड़ें (सभी समर्थित के लिए kage setup list चलाएँ)
+kage setup claude-code --project . --write
 
-```bash
-/plugin marketplace add kage-core/Kage      # then: /plugin install kage@kage
-codex plugin marketplace add kage-core/Kage # then: codex plugin add kage@kage
-```
+# सिर्फ़ मेमोरी स्टोर, एजेंट जोड़े बिना
+kage init --project .
 
-एजेंट को एक बार रीस्टार्ट करें, फिर पुष्टि करें कि हार्नेस सक्रिय है:
-
-```bash
+# पुष्टि करें कि harness चालू है
 kage setup verify-agent --agent claude-code --project .
 ```
+</details>
 
-यहाँ से सब कुछ सहज रूप से चलता है: एजेंट कार्य शुरू होते ही आधार-युक्त मेमोरी
-रिकॉल करता है (`kage_context`), काम करते-करते टिकाऊ सीखें कैप्चर करता है
-(`kage_learn`), और आप मेमोरी की समीक्षा कोड वाले उसी PR में करते हैं।
-`kage refresh` मर्ज के बाद फिर से ग्राउंड करता है; `kage viewer` लाभ, विश्वास
-और रोकी गई मेमोरी दिखाता है।
+## Kage क्या है
 
-## packet का जीवनचक्र
+Kage कोडिंग एजेंट्स के लिए एक मेमोरी लेयर है। जैसे-जैसे आपका एजेंट काम करता है, वह जो सीखता है
+(निर्णय, बग फ़िक्स, परंपराएँ, कोड आपस में कैसे जुड़ता है) उसे `.agent_memory/` के अंदर रिपॉज़िटरी के
+साथ कमिट होने वाले छोटे JSON **packet** के रूप में पकड़ लेता है। अगला सेशन (आपका या साथी का) उसे
+दोबारा पढ़े या पूछे बिना, पहले से जानते हुए शुरू होता है।
 
-हर सीख एक **packet** है: `.agent_memory/packets/` में समीक्षा-योग्य JSON,
-git-ट्रैक्ड और diff-योग्य।
+दो चीज़ें इसे दूसरे मेमोरी टूल्स से अलग करती हैं:
 
-**कैप्चर → हवाला-जाँच** (अस्तित्वहीन पाथ अस्वीकार) **→ ग्राउंडिंग**
-(हवाले वाली फ़ाइलों का फ़िंगरप्रिंट) **→ रिकॉल** (बासी मेमोरी बहिष्कृत)
-**→ रिफ़्रेश** (कोड बदलने पर ग्राउंडिंग का पुनर्सत्यापन)
-**→ अपडेट / प्रतिस्थापन / सेवानिवृत्ति**।
+- **यह सत्यापित है।** हर मेमोरी उस कोड का हवाला देती है जिसके बारे में वह है, और Kage उन हवालों को
+  आपकी असली फ़ाइलों से जाँचता है: लिखते समय, रिकॉल के समय, और जब कोई diff कोड बदलता है। जो मेमोरी अब
+  कोड से मेल नहीं खाती उसे रोक लिया जाता है, ताकि एजेंट कभी किसी पुराने दावे पर काम न करे।
+- **यह git-नेटिव है।** मेमोरी आपके रिपॉज़िटरी में सादे टेक्स्ट फ़ाइलें हैं, कोड के साथ उसी PR में
+  रिव्यू होती हैं और git के ज़रिए पूरी टीम के साथ साझा होती हैं, किसी एक मशीन या वेंडर के क्लाउड में
+  बंद नहीं।
 
-packet तब बासी होता है जब कोई हवाले वाली फ़ाइल गायब हो या सत्यापन के बाद बदल
-गई हो, उसकी TTL (365 दिन) समाप्त हो गई हो, या उसे रिपोर्ट/पदावनत किया गया हो।
-सॉफ़्ट-stale (जुड़ा कोड बदला) समीक्षा के लिए चिह्नित होता है; हार्ड-stale
-(प्रमाण गायब) रिकॉल से रोक दिया जाता है। `kage compact` मृत हवालों की छँटाई
-कर डुप्लिकेट सामने लाता है; `kage supersede` तब वंशावली दर्ज करता है जब एक
-मेमोरी दूसरी की जगह लेती है।
+## यह कैसे काम करता है
 
-## रोज़मर्रा की कमांड
+इंस्टॉल होने के बाद यह पृष्ठभूमि में चलता है, आपको कुछ भी हाथ से नहीं चलाना पड़ता:
+
+1. **काम से पहले रिकॉल।** किसी टास्क की शुरुआत में (और जिस पल एजेंट कोई फ़ाइल खोलता है), Kage उससे
+   जुड़ी सत्यापित मेमोरी सामने रखता है। पुरानी या हटाई गई मेमोरी छोड़ दी जाती है।
+2. **काम करते-करते कैप्चर।** टिकाऊ सीखें packet बन जाती हैं। ऐसी मेमोरी जो किसी न-मौजूद फ़ाइल का
+   हवाला देती है, वहीं अस्वीकार कर दी जाती है, इसलिए hallucination कभी स्टोरेज में नहीं घुसते।
+3. **कोड बदलने पर भी ईमानदार।** जब कोई diff उस कोड को बदलता है जिसका कोई मेमोरी हवाला देती है, तो वह
+   मेमोरी कमिट/PR के समय (`kage pr check`) चिह्नित होती है और तब तक रिकॉल से रोकी जाती है जब तक उसे
+   दोबारा सत्यापित या बदला न जाए, ताकि ज्ञान चुपचाप सड़े नहीं।
+
+इसे **लोकल डैशबोर्ड** (`kage viewer`) में देखें: packet, मेमोरी↔कोड ग्राफ़, ट्रस्ट गेट, और एजेंट के
+काम करते समय आने वाली लाइव घटनाएँ। `<private>…</private>` में लपेटी हुई कोई भी चीज़ कभी स्टोर नहीं होती।
+
+## Kage क्यों
+
+ज़्यादातर मेमोरी टूल्स ([claude-mem](https://github.com/thedotmack/claude-mem),
+[agentmemory](https://github.com/rohitg00/agentmemory), mem0, Zep) मेमोरी को एक मशीन पर या ऐसे क्लाउड
+में रखते हैं जो आपका नहीं है, और उसे कोड से दोबारा कभी नहीं जाँचते। Kage उसे आपके रिपॉज़िटरी में रखता
+और सत्यापित करता है, इसलिए वह आपकी टीम की बनी रहती है और कोड बदलने पर भी सच बनी रहती है।
+
+| | Kage | claude-mem | mem0 / Zep |
+|---|---|---|---|
+| स्वतः कैप्चर + सेशन शुरू में रिकॉल | ✓ | ✓ | SDK से |
+| Hallucinated हवाले **लिखते समय अस्वीकार** | ✓ | — | — |
+| पुरानी मेमोरी **रिकॉल पर रोकी** (हवाला दी फ़ाइलें हटीं/बदलीं, TTL, रिपोर्ट की गई) | ✓ | — | — |
+| **diff के समय पुरानापन पकड़**: आपका बदलाव किसी मेमोरी को तोड़े तो PR से पहले चेतावनी | ✓ | — | — |
+| मेमोरी git में रिव्यू, कोड के साथ उसी PR में (सादी फ़ाइलें, कोई DB नहीं) | ✓ | SQLite + क्लाउड | होस्टेड API |
+| मेमोरी को टीम `SKILL.md` फ़ाइलों में बदलें जिन्हें एजेंट स्वतः लोड करें | ✓ (`kage skills`) | — | — |
+| मशीनों के बीच सिंक | ✓ आपका अपना git रिमोट | उनका क्लाउड | उनका क्लाउड |
+| अकाउंट / API key ज़रूरी? | नहीं | क्लाउड वैकल्पिक | हाँ |
+
+## विशेषताएँ
+
+- **Truth Report।** `kage scan` किसी भी रिपॉज़िटरी को ~60 सेकंड में पढ़ता है और उसके सबसे जोखिम भरे
+  ज्ञान-अंतराल सामने लाता है: बिना दस्तावेज़ वाली हॉट फ़ाइलें, बिना टेस्ट वाले हॉट पाथ, जटिलता के
+  हॉटस्पॉट, बकाया कोड-कर्ज़, और bus-factor 1 फ़ाइलें; साथ ही (जहाँ मौजूद हों) दोहराई गई इम्प्लीमेंटेशन,
+  मृत एक्सपोर्ट और दस्तावेज़ के झूठ। हर निष्कर्ष `file:line` पर अंकित। कोई सेटअप नहीं, कुछ जनरेट नहीं
+  करता, कुछ भी इंस्टॉल करने से पहले चलता है।
+- **बचत की रसीदें।** `kage gains` हर रिपॉज़िटरी के लिए एक मूल्य-बही रखता है (टोकन + $ जो एजेंट को
+  दोबारा खर्च नहीं करने पड़े), हर आँकड़ा एक दर्ज घटना तक ट्रेस होता है; एजेंट हर रिकॉल के बाद उसे बताता है।
+- **टीम स्किल्स।** `kage skills` टिकाऊ, सत्यापित प्रक्रियाओं को `.claude/skills/<name>/SKILL.md`
+  फ़ाइलों में बदल देता है जिन्हें एजेंट स्वतः लोड करते हैं, कमिट और साझा, बिना क्लाउड।
+- **व्यक्तिगत मेमोरी और सिंक।** `kage learn --personal` मशीनों के बीच के नोट्स `~/.kage/memory` में
+  रखता है, जिन्हें स्पष्ट रूप से अलग, कम-भरोसे वाले सेक्शन के रूप में रिकॉल किया जाता है और आपके अपने
+  git रिमोट से सिंक किया जाता है।
+- **स्वयं-ठीक होने वाला सेशन लूप।** बिना कैप्चर हुए सेशन अपने आप distill होकर समीक्षा-योग्य ड्राफ़्ट
+  बनते हैं; `kage resume` हर सेशन को "पहले क्या हुआ…" सारांश से खोलता है; `kage repair` टूटे packet और
+  इंडेक्स एक कमांड में ठीक करता है।
+
+## बेंचमार्क
+
+- **बराबर सटीकता पर grep से 18% तेज़**, असली कोड-नेविगेशन टास्क पर (N=3 सूट, वही एजेंट/मॉडल;
+  `kage benchmark --project . --compare` से दोहराएँ)।
+- **LongMemEval-S रिट्रीवल:** 96.17% R@5 / 98.72% R@10, शून्य निर्भरता।
+- **बदलाव के तहत मेमोरी सटीकता:** 0% पुरानी परोसी गई (जिस मेमोरी का कोड हटा या बदला गया वह रोकी जाती
+  है), बनाम "सब कुछ कैप्चर" स्टोर के लिए 100%।
+- **ट्रस्ट बेंचमार्क:** 100/100, जिसमें hallucination अस्वीकार, पुरानापन बहिष्करण और लाइव ग्राउंडिंग
+  शामिल (`kage benchmark --trust --project .`)।
+
+पद्धति, कमांड और सीमाएँ: [docs/BENCHMARKS.md](../docs/BENCHMARKS.md)।
+
+## रोज़मर्रा के कमांड
 
 ```bash
-kage recall "how do I run tests" --project .
-kage code-graph "who calls createPacket" --project .   # definition + call sites
-kage verify --project .        # check citations against current code
-kage pr check --project .      # stale-catch + graph freshness gate
-kage gains --project .         # what Kage saved you
-kage viewer --project .        # local dashboard
+kage recall "टेस्ट कैसे चलाएँ" --project .
+kage verify --project .        # हवालों को मौजूदा कोड से जाँचें
+kage pr check --project .      # पुरानापन पकड़ + ग्राफ़ ताज़गी गेट
+kage gains --project .         # Kage ने आपको क्या बचाया
+kage viewer --project .        # लोकल डैशबोर्ड
 ```
 
-पूर्ण CLI और MCP संदर्भ: [दस्तावेज़](https://kage-core.github.io/Kage/guide.html)।
+पूरा CLI और MCP संदर्भ: [दस्तावेज़](https://kage-core.com/guide.html)।
 
 ## स्टोरेज
 
-सब कुछ `.agent_memory/` में रहता है: `packets/` टिकाऊ रिपॉज़िटरी मेमोरी है
-(git-ट्रैक्ड JSON); `graph/`, `code_graph/`, `structural/` और `indexes/`
-`kage refresh` से पुनर्निर्मित किए जा सकते हैं; `reports/` में वैल्यू लेजर और
-हेल्थ रिपोर्ट रहती हैं। कैप्चर लिखने से पहले सीक्रेट और निजी जानकारी (PII)
-स्कैन करता है।
+सब कुछ `.agent_memory/` में रहता है: `packets/` रिपॉज़िटरी के साथ कमिट होने वाली स्थायी मेमोरी है
+(git-ट्रैक किया JSON); `graph/`, `code_graph/`, `structural/` और `indexes/` को `kage refresh` से दोबारा
+बनाया जा सकता है; `reports/` मूल्य-बही और हेल्थ रिपोर्ट रखता है। कैप्चर से पहले secrets और PII स्कैन किए
+जाते हैं।
 
 ## विकास
 
@@ -268,5 +183,4 @@ npm run build
 
 ## लाइसेंस
 
-GPL-3.0-only। देखें [LICENSE](../LICENSE)। GPL पर जाने से पहले के रिलीज़ MIT
-के अंतर्गत थे।
+GPL-3.0-only। [LICENSE](../LICENSE) देखें। GPL में बदलने से पहले के रिलीज़ MIT थे।

@@ -4,259 +4,185 @@
 
 # Kage
 
-### Conocimiento verificado del repositorio para agentes de código
+### Memoria para agentes de código en la que puedes confiar
 
-Cada afirmación se cita contra tu código actual — y ves exactamente lo que te
-ahorra. Kage rechaza memoria que cita archivos inexistentes, retiene la memoria
-cuya evidencia fue eliminada y te avisa en el momento en que tus cambios
-invalidan lo que tu equipo sabe. Archivos planos en tu repositorio, revisados
-en el mismo PR que el código. Sin API key, sin base de datos, sin demonio.
+<img src="../docs/kage-hero.svg" alt="kage scan: el Informe de Verdad, citado a file:line" width="760">
 
-<p>
-  <a href="https://kage-core.github.io/Kage/">Sitio web</a>
-  ·
-  <a href="https://kage-core.github.io/Kage/guide.html">Documentación</a>
-  ·
-  <a href="https://kage-core.github.io/Kage/viewer/">Visor</a>
-  ·
-  <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a>
-</p>
-
-<p>
-  <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp"><img src="https://img.shields.io/npm/v/@kage-core/kage-graph-mcp?color=41ff8f&label=npm" alt="npm version"></a>
-  <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp"><img src="https://img.shields.io/npm/dm/@kage-core/kage-graph-mcp?color=41ff8f" alt="downloads"></a>
-  <img src="https://img.shields.io/npm/l/@kage-core/kage-graph-mcp?color=41ff8f" alt="license">
-  <img src="https://img.shields.io/badge/trust%20benchmark-100%2F100-41ff8f" alt="trust 100/100">
-</p>
-
-**Funciona con** Claude Code · Codex · Cursor · Windsurf · Gemini CLI · Cline ·
-Goose · Roo Code · Kilo Code · OpenCode · Aider · Claude Desktop · cualquier cliente MCP
-
-</div>
-
----
-
-## Descubre lo que tu repositorio esconde — 60 segundos, cero configuración
-
-```bash
-npx -y @kage-core/kage-graph-mcp scan --project .
-```
-
-El **Truth Report** (informe de la verdad) encuentra implementaciones
-duplicadas, exports fantasma, archivos calientes con bus factor 1, vacíos de
-conocimiento y mentiras en la documentación. En un clon recién hecho de Express:
-
-```text
-Kage Truth Report — express
-Scanned 142 files, 3160 symbols, 1 doc file(s)
-
-■ KNOWLEDGE VOID — high churn, zero memory (7, showing top 4)
-  • lib/response.js — knowledge void
-    390 commits of accumulated decisions, 149 graph edge(s) depending on it —
-    and zero memory packets or doc mentions. Agents and new hires fly blind here.
-  • lib/application.js — 179 commits x 77 edges, memory packets citing it: 0
-  • lib/request.js     — 175 commits x 58 edges, memory packets citing it: 0
-  • lib/utils.js       — 107 commits x 35 edges, memory packets citing it: 0
-```
-
-Cada hallazgo cita evidencia `file:line` de *tu* código — nada es generado.
-
-## La demo de confianza de 30 segundos
-
-```bash
-npx -y @kage-core/kage-graph-mcp demo
-```
-
-```text
-1. Hallucinated citation — REJECTED on write:
-   ✗ "Use the helper in src/ghost.ts"
-     Citation validation failed: none of the referenced paths exist in this repo.
-
-2. Stale memory (cited file deleted) — WITHHELD from recall:
-   ⊘ Legacy retry helper is the fallback
-     all cited files deleted since capture: src/legacy-retry.ts
-
-3. Recall returns only grounded, current memory:
-   ✓ Payments must be idempotent
-   ✓ Auth uses jose, not jsonwebtoken
-```
-
-## Recibos, no sensaciones
-
-Kage mantiene un libro de valor por repositorio y te muestra lo que el sistema
-de memoria realmente hizo. `kage gains --project .`:
-
-```text
-This week Kage saved you ~564K tokens (~$8.46), blocked 0 stale memories,
-caught 0 stale at change-time, answered 2 recalls.
-```
-
-Los agentes transmiten el mismo recibo tras cada recuperación, y el visor abre
-con una pestaña Gains alimentada por el mismo libro — cada número es trazable
-hasta un evento registrado.
-
-## Mecánica de confianza
-
-Un agente que actúa sobre memoria equivocada es peor que uno sin ninguna.
-Kage impone la confianza en tres puntos:
-
-1. **Rechazo al escribir** — una memoria que cita archivos que no existen en tu
-   repositorio es rechazada. Las citas alucinadas nunca entran al almacenamiento.
-2. **Retención al recuperar** — cada recuperación vuelve a verificar los
-   archivos citados. Si la evidencia fue eliminada, el TTL venció o la memoria
-   fue reportada como obsoleta, se suprime (y se te muestra en el visor, nunca
-   se descarta en silencio).
-3. **Detección de obsolescencia al cambiar** — `kage pr check` (y
-   `kage staleguard` como hook de pre-commit) abre con lo que tu diff acaba de
-   romper:
-
-   ```text
-   ⚠ Your changes invalidated 15 team memories:
-     • CI: Kage PR Check must block only on hard-stale memory — cites mcp/kernel.ts (file changed)
-     fix: kage learn (update) | kage supersede --packet <id>
-   ```
-
-Y encima, una garantía de privacidad: envuelve cualquier cosa en
-`<private>…</private>` y Kage nunca la almacenará — el fragmento se reemplaza
-por `[private]` antes de que cualquier packet u observación toque el disco.
-
-El ciclo de sesión se cuida solo: si el agente no capturó nada, las
-observaciones de la sesión se **destilan automáticamente en borradores
-pendientes** al terminar (revisados por ti, nunca confiados a ciegas); la
-siguiente sesión abre con un **resumen "anteriormente…"** (`kage resume`); el
-visor transmite los eventos de memoria **en vivo** a medida que ocurren; y
-cuando algo se rompe, **`kage repair`** respalda, repara y reconstruye en un
-solo comando.
-
-Compruébalo en tu propio repositorio: `kage benchmark --trust --project .`
-mide el rechazo de alucinaciones, la exclusión de memoria obsoleta y el
-anclaje en vivo — 100/100.
-
-## Los números
-
-- **18% más rápido que grep con igual exactitud** en tareas reales de
-  navegación de código (suite de N=3 tareas, mismo agente, mismo modelo;
-  reproducible con `kage benchmark --project . --compare --task "<task>"`).
-- **524 aristas de llamadas fantasma → 0** en Express tras la resolución de
-  llamadas consciente de imports: los destinos se resuelven por ámbito local →
-  imports → paquete antes de cualquier coincidencia solo por nombre, y los
-  imports de paquetes externos no producen aristas en el repositorio.
-- **Extracción AST real** para Python, Go, Rust, Java y Ruby mediante una capa
-  tree-sitter (WASM puro, cero dependencias nativas) — en Click, 466 métodos
-  clasificados correctamente donde la extracción por regex encontró 0.
-- **Recuperación LongMemEval-S**: 96.17% R@5 / 98.72% R@10 con cero
-  dependencias.
-
-Metodología, comandos y salvedades: [docs/BENCHMARKS.md](../docs/BENCHMARKS.md).
-
-## Por qué Kage, si ya existen herramientas de memoria
-
-La memoria de captura total ([claude-mem](https://github.com/thedotmack/claude-mem),
-mem0, Zep) resuelve el *recordar*. Kage resuelve el *confiar en lo recordado*:
-cada memoria se verifica contra el código que cita — al escribirse, al
-recuperarse y cuando tu diff cambia el código que tiene debajo.
-
-| | Kage | claude-mem | mem0 / Zep |
-|---|---|---|---|
-| Captura automática + recuperación al iniciar la sesión | ✓ | ✓ | vía SDK |
-| Citas alucinadas **rechazadas al escribir** | ✓ | — | — |
-| Memoria obsoleta **retenida al recuperar** (evidencia cambiada/eliminada) | ✓ | — | — |
-| **Detección de obsolescencia en el diff** — tu cambio invalida una memoria y se te avisa antes del PR | ✓ | — | — |
-| Memoria revisada en git, mismo PR que el código (archivos planos, sin BD) | ✓ | SQLite + nube | API alojada |
-| Recibos de ahorro (tokens + $ por recuperación, libro de valor) | ✓ | índice de tokens | — |
-| Truth Report en cualquier repositorio, cero configuración | ✓ | — | — |
-| Cuenta / API key requerida | ninguna | nube opcional | sí |
-
-Un sistema de memoria que nunca vuelve a verificar sus propias afirmaciones se
-vuelve *menos* confiable cuanto más lo usas. Kage es el que envejece bien.
-
-## Inicio rápido
-
-Requiere Node.js 18+. Un comando desde dentro de tu repositorio:
+Tu agente de código olvida tu base de código en cada sesión, así que terminas
+explicándola una y otra vez. **Kage** le da memoria persistente que vive en tu
+repositorio como archivos de texto plano, y contrasta cada memoria con tu código real,
+para que el agente nunca actúe sobre algo que ya no es cierto. Compartida con todo tu
+equipo a través de git. Sin cuenta, sin base de datos, sin clave de API.
 
 ```bash
 npx -y @kage-core/kage-graph-mcp install
 ```
 
-Esto crea `.agent_memory/`, construye el grafo de código, detecta tus agentes
-automáticamente (Claude Code, Codex, Cursor, Windsurf, Gemini CLI, OpenCode,
-Goose, Aider) y los conecta. O instala globalmente y conecta los agentes uno a
-uno:
+<p>
+  <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp"><img src="https://img.shields.io/npm/v/@kage-core/kage-graph-mcp?color=41ff8f&label=npm" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp"><img src="https://img.shields.io/npm/dm/@kage-core/kage-graph-mcp?color=41ff8f" alt="downloads"></a>
+  <img src="https://img.shields.io/npm/l/@kage-core/kage-graph-mcp?color=41ff8f" alt="license">
+  <img src="https://img.shields.io/badge/deps-0-41ff8f" alt="zero dependencies">
+  <img src="https://img.shields.io/badge/account-not%20required-41ff8f" alt="no account">
+</p>
+
+<p>
+  <a href="https://kage-core.com/">Sitio web</a> ·
+  <a href="https://kage-core.com/guide.html">Documentación</a> ·
+  <a href="https://kage-core.com/viewer/">Visor en vivo</a> ·
+  <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a> ·
+  <a href="https://kage-core.com/demo.html"><b>Solicitar demo</b></a>
+</p>
+
+**Compatible con** Claude Code · Codex · Cursor · Windsurf · Gemini CLI · Cline · Goose ·
+Roo Code · Kilo Code · OpenCode · Aider · Claude Desktop · cualquier cliente MCP
+
+</div>
+
+---
+
+## Instalación
+
+**Un comando, dentro de tu repositorio, y luego reinicia tu agente.** Esa es toda la configuración.
 
 ```bash
-npm install -g @kage-core/kage-graph-mcp
-cd your-repo
-kage install                   # or: kage init --project . for memory only
+npx -y @kage-core/kage-graph-mcp install
 ```
 
-O conecta un agente manualmente (un comando escribe la configuración de MCP +
-hooks):
+Crea `.agent_memory/`, construye el grafo de código, escribe la política
+`AGENTS.md` / `CLAUDE.md` que indica a los agentes que usen Kage, detecta y conecta tus
+agentes automáticamente, y configura `.gitignore` + el driver de fusión de packets.
+Requiere Node.js 18+. Sin cuenta, sin clave de API.
+
+**O simplemente pídele a tu agente que lo configure.** Pega esto en Claude Code, Cursor o
+cualquier agente de código:
+
+> Configura Kage (memoria verificada para agentes de código, https://github.com/kage-core/Kage)
+> en este repositorio: ejecuta `npx -y @kage-core/kage-graph-mcp install` y luego dime que te reinicie.
+
+<details><summary>Otras formas (plugin · por agente · solo memoria)</summary>
 
 ```bash
-kage setup claude-code --project . --write     # Claude Code
-kage setup codex       --project . --write     # Codex
-kage setup cursor      --project . --write     # Cursor
-kage setup windsurf    --project . --write     # Windsurf
-# also: gemini-cli, cline, goose, roo-code, kilo-code, opencode, aider,
-#       claude-desktop, generic-mcp — see: kage setup list
-```
+# Plugin de Claude Code / Codex
+/plugin marketplace add kage-core/Kage      # luego: /plugin install kage@kage
 
-Los usuarios de Claude Code / Codex pueden instalar el plugin en su lugar:
+# conectar un solo agente (ejecuta kage setup list para ver todos los compatibles)
+kage setup claude-code --project . --write
 
-```bash
-/plugin marketplace add kage-core/Kage      # then: /plugin install kage@kage
-codex plugin marketplace add kage-core/Kage # then: codex plugin add kage@kage
-```
+# solo el almacén de memoria, sin conectar agentes
+kage init --project .
 
-Reinicia el agente una vez y confirma que el sistema está activo:
-
-```bash
+# confirmar que el arnés está activo
 kage setup verify-agent --agent claude-code --project .
 ```
+</details>
 
-A partir de ahí todo es ambiental: el agente recupera memoria fundamentada al
-iniciar la tarea (`kage_context`), captura aprendizajes duraderos mientras
-trabaja (`kage_learn`) y tú revisas la memoria en el mismo PR que el código.
-`kage refresh` vuelve a anclar tras los merges; `kage viewer` muestra
-ganancias, confianza y qué se está reteniendo.
+## Qué es Kage
 
-## El ciclo de vida del packet
+Kage es una capa de memoria para agentes de código. Mientras tu agente trabaja, captura
+lo que aprende (decisiones, correcciones de errores, convenciones, cómo encaja el código)
+como pequeños **packets** JSON confirmados en tu repositorio bajo `.agent_memory/`. La
+siguiente sesión (tuya o de un compañero) empieza ya sabiéndolo, en vez de releer o volver
+a preguntar.
 
-Cada aprendizaje es un **packet**: JSON revisable en `.agent_memory/packets/`,
-rastreado por git y comparable con diff.
+Dos cosas la hacen distinta de otras herramientas de memoria:
 
-**captura → verificación de citas** (rechaza rutas inexistentes) **→ anclaje**
-(huella digital de los archivos citados) **→ recuperación** (memoria obsoleta
-excluida) **→ refresco** (re-verifica el anclaje cuando el código cambia)
-**→ actualizar / reemplazar / retirar**.
+- **Está verificada.** Cada memoria cita el código del que trata, y Kage contrasta esas citas
+  con tus archivos reales: al escribir, al recordar y cuando un diff cambia el código. La
+  memoria que ya no coincide con el código se retiene, para que el agente nunca actúe sobre
+  una afirmación obsoleta.
+- **Es nativa de git.** La memoria son archivos de texto plano en tu repositorio, revisados en
+  el mismo PR que el código y compartidos con todo el equipo a través de git, no encerrados en
+  una sola máquina ni en la nube de un proveedor.
 
-Un packet queda obsoleto cuando un archivo citado falta o cambió desde la
-verificación, su TTL (365 días) venció, o fue reportado/deprecado. La
-obsolescencia blanda (el código vinculado cambió) se marca para revisión; la
-dura (la evidencia desapareció) se retiene de la recuperación. `kage compact`
-poda citas muertas y revela duplicados; `kage supersede` registra el linaje
-cuando una memoria reemplaza a otra.
+## Cómo funciona
+
+Una vez instalada, es ambiental. No ejecutas nada a mano:
+
+1. **Recordar antes de actuar.** Al inicio de una tarea (y en el momento en que el agente abre
+   un archivo), Kage le presenta la memoria verificada relevante. La memoria obsoleta o
+   eliminada queda fuera.
+2. **Capturar mientras trabaja.** Los aprendizajes duraderos se vuelven packets. Una memoria que
+   cita un archivo que no existe se rechaza en el acto, así las alucinaciones nunca entran al
+   almacén.
+3. **Mantenerse honesta a medida que el código cambia.** Cuando un diff cambia código que una
+   memoria cita, esa memoria se marca en el momento del commit/PR (`kage pr check`) y se retiene
+   del recuerdo hasta reverificarla o reemplazarla, para que el conocimiento no se pudra en
+   silencio.
+
+Míralo en el **panel local** (`kage viewer`): packets, el grafo memoria↔código, las
+compuertas de confianza y los eventos en vivo a medida que el agente trabaja. Cualquier cosa
+envuelta en `<private>…</private>` nunca se almacena.
+
+## Por qué Kage
+
+La mayoría de las herramientas de memoria ([claude-mem](https://github.com/thedotmack/claude-mem),
+[agentmemory](https://github.com/rohitg00/agentmemory), mem0, Zep) guardan la memoria por máquina
+o en una nube que no es tuya, y nunca la contrastan con el código. Kage la mantiene en tu
+repositorio y la verifica, así sigue siendo de tu equipo y sigue siendo cierta a medida que el
+código cambia.
+
+| | Kage | claude-mem | mem0 / Zep |
+|---|---|---|---|
+| Captura automática + recuerdo al inicio de sesión | ✓ | ✓ | vía SDK |
+| Citas alucinadas **rechazadas al escribir** | ✓ | — | — |
+| Memoria obsoleta **retenida al recordar** (archivos citados borrados/cambiados, TTL, reportada) | ✓ | — | — |
+| **Detección de obsolescencia en el diff**: avisa antes del PR si tu cambio rompe una memoria | ✓ | — | — |
+| Memoria revisada en git, en el mismo PR que el código (archivos planos, sin BD) | ✓ | SQLite + nube | API alojada |
+| Codificar la memoria en archivos `SKILL.md` de equipo que los agentes autocargan | ✓ (`kage skills`) | — | — |
+| Sincronización entre máquinas | ✓ tu propio remoto de git | su nube | su nube |
+| ¿Requiere cuenta / clave de API? | ninguna | nube opcional | sí |
+
+## Funciones
+
+- **Informe de Verdad.** `kage scan` lee cualquier repositorio en ~60 s y revela sus vacíos de
+  conocimiento de mayor riesgo: archivos calientes sin documentar, rutas calientes sin pruebas,
+  puntos calientes de complejidad, deuda de código sin resolver y archivos con factor bus 1;
+  además de implementaciones duplicadas, exportaciones muertas y mentiras en la documentación
+  cuando existen. Cada hallazgo citado a `file:line`. Sin configuración, sin generar nada, se
+  ejecuta antes de instalar nada.
+- **Recibos de ahorro.** `kage gains` mantiene un libro de valor por repositorio (tokens + $ que
+  el agente no tuvo que volver a gastar), con cada número trazable a un evento registrado; el
+  agente lo comunica tras cada recuerdo.
+- **Skills de equipo.** `kage skills` convierte procedimientos duraderos y verificados en archivos
+  `.claude/skills/<name>/SKILL.md` que los agentes autocargan, confirmados y compartidos, sin nube.
+- **Memoria personal y sincronización.** `kage learn --personal` guarda notas entre máquinas en
+  `~/.kage/memory`, recordadas como una sección de menor confianza claramente separada y
+  sincronizadas por tu propio remoto de git.
+- **Bucle de sesión autorreparable.** Las sesiones no capturadas se destilan automáticamente en
+  borradores pendientes que revisas; `kage resume` abre cada sesión con un resumen «anteriormente…»;
+  `kage repair` arregla packets e índices rotos con un solo comando.
+
+## Benchmarks
+
+- **18% más rápido que grep con igual exactitud** en tareas reales de navegación de código (suite
+  N=3, mismo agente/modelo; reprodúcelo con `kage benchmark --project . --compare`).
+- **Recuperación LongMemEval-S:** 96.17% R@5 / 98.72% R@10, sin dependencias.
+- **Exactitud de memoria ante cambios:** 0% de obsoletas servidas (la memoria cuyo código fue
+  borrado o cambiado se retiene), frente al 100% de los almacenes que capturan todo.
+- **Benchmark de confianza:** 100/100, cubriendo rechazo de alucinaciones, exclusión de obsoletas
+  y anclaje en vivo (`kage benchmark --trust --project .`).
+
+Metodología, comandos y advertencias: [docs/BENCHMARKS.md](../docs/BENCHMARKS.md).
 
 ## Comandos diarios
 
 ```bash
-kage recall "how do I run tests" --project .
-kage code-graph "who calls createPacket" --project .   # definition + call sites
-kage verify --project .        # check citations against current code
-kage pr check --project .      # stale-catch + graph freshness gate
-kage gains --project .         # what Kage saved you
-kage viewer --project .        # local dashboard
+kage recall "cómo ejecuto las pruebas" --project .
+kage verify --project .        # contrasta las citas con el código actual
+kage pr check --project .      # detección de obsolescencia + compuerta de frescura del grafo
+kage gains --project .         # lo que Kage te ahorró
+kage viewer --project .        # panel local
 ```
 
-Referencia completa de CLI y MCP: [documentación](https://kage-core.github.io/Kage/guide.html).
+Referencia completa de CLI y MCP: [documentación](https://kage-core.com/guide.html).
 
 ## Almacenamiento
 
-Todo vive en `.agent_memory/`: `packets/` es la memoria duradera del
-repositorio (JSON rastreado por git); `graph/`, `code_graph/`, `structural/` e
-`indexes/` se pueden reconstruir con `kage refresh`; `reports/` guarda el libro
-de valor y los informes de salud. La captura escanea en busca de secretos y
-datos personales (PII) antes de escribir.
+Todo vive en `.agent_memory/`: `packets/` es la memoria persistente del repositorio (JSON
+versionado en git); `graph/`, `code_graph/`, `structural/` e `indexes/` se reconstruyen con
+`kage refresh`; `reports/` guarda el libro de valor y los informes de salud. La captura escanea
+secretos y PII antes de escribir.
 
 ## Desarrollo
 
@@ -269,5 +195,4 @@ npm run build
 
 ## Licencia
 
-GPL-3.0-only. Ver [LICENSE](../LICENSE). Las versiones anteriores al cambio a
-GPL fueron MIT.
+GPL-3.0-only. Ver [LICENSE](../LICENSE). Las versiones anteriores al cambio a GPL eran MIT.
