@@ -5610,6 +5610,28 @@ test("contradiction detection does NOT flag a duplicate (same claim, same polari
   assert.ok(!dup.contradictions || dup.contradictions.length === 0, "a duplicate is not a contradiction");
 });
 
+test("contradiction detection does NOT flag unrelated decisions sharing a path + a negation word (regression: false-positive storm)", () => {
+  // Two decisions about completely different things that happen to touch the same
+  // file. The first uses the word "removed" (a negation cue); the second doesn't.
+  // The old detector flagged this as a contradiction via the 2-generic-token
+  // subject bypass — the source of 786 phantom conflicts. It must not anymore.
+  const project = tempProject();
+  captureWithSource(project, {
+    title: "Agent MCP surface is eval-driven: core tools trimmed",
+    summary: "The exposed MCP tool list is decided by evals; rarely-used tools were removed.",
+    body: "We trimmed the MCP tool surface to the core set based on eval results; kage_code_graph was removed.",
+    path: "src/index.ts",
+  });
+  const second = captureWithSource(project, {
+    title: "Dashboard uses the handoff action as the top review signal",
+    summary: "The viewer dashboard highlights the handoff primary action for reviewers.",
+    body: "The dashboard surfaces the handoff action so reviewers see the most important review signal first.",
+    path: "src/index.ts",
+  });
+  assert.ok(!second.contradictions || second.contradictions.length === 0, "unrelated same-path decisions must not be contradictions");
+  assert.equal(detectContradictions(project, second.packet!).length, 0);
+});
+
 test("strict-contradictions refuses the write and surfaces the conflict", () => {
   const project = tempProject();
   captureWithSource(project, {

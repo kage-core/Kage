@@ -3574,15 +3574,29 @@ function replacementCueCount(text: string): number {
   return count;
 }
 
-// The subject is the shared vocabulary that BOTH packets are talking about. We
-// require the two packets to agree on a subject (token overlap in title+summary)
-// but DISAGREE on polarity around it.
-function sharedSubjectTokens(a: MemoryPacket, b: MemoryPacket): Set<string> {
-  const aSubject = tokenSet(`${a.title}\n${a.summary}`);
-  const bSubject = tokenSet(`${b.title}\n${b.summary}`);
-  const shared = new Set<string>();
-  for (const token of aSubject) if (bSubject.has(token)) shared.add(token);
-  return shared;
+// Tokens too generic to mean "these two packets are about the same subject".
+// In a memory repo about an agent-memory tool, words like "kage", "memory",
+// "agent", "code", "now", "use" appear in nearly every decision packet — so two
+// unrelated decisions that merely both touch mcp/index.ts would share several of
+// them and (under the old subjectOverlap<2 bypass) be flagged as contradictions.
+// The SUBJECT must be the DISTINCTIVE vocabulary, not the house style.
+const CONTRADICTION_GENERIC_SUBJECT = new Set([
+  ...STOPWORDS,
+  "use", "uses", "used", "using", "via", "per", "now", "new", "when", "then",
+  "this", "that", "these", "those", "not", "but", "also", "into", "from", "its",
+  "kage", "mcp", "memory", "memories", "agent", "agents", "packet", "packets",
+  "code", "graph", "repo", "repository", "file", "files", "path", "paths",
+  "recall", "capture", "captured", "decision", "decisions", "must", "should",
+  "report", "reports", "result", "results", "support", "supports", "supported",
+]);
+
+// Distinctive subject vocabulary of a packet: title+summary tokens with generic
+// / house-style words removed. Two packets share a subject only when their
+// DISTINCTIVE tokens overlap, not when they both say "kage memory decision".
+function distinctiveSubjectTokens(packet: Pick<MemoryPacket, "title" | "summary">): Set<string> {
+  return new Set(
+    [...tokenSet(`${packet.title}\n${packet.summary}`)].filter((token) => !CONTRADICTION_GENERIC_SUBJECT.has(token))
+  );
 }
 
 // Opposing-polarity signal between two same-subject bodies. Conservative: a
@@ -3615,7 +3629,10 @@ export function detectContradictions(
   candidate: MemoryPacket,
   opts: DetectContradictionsOptions = {}
 ): ContradictionFinding[] {
-  const subjectThreshold = opts.subjectThreshold ?? 0.34;
+  // Precision over recall: two packets sharing a path is NOT enough — they must
+  // be about the same distinctive subject. 0.5 (was 0.34) plus the generic-token
+  // filter is what collapses the false-positive storm (786 pairs -> ~real).
+  const subjectThreshold = opts.subjectThreshold ?? 0.5;
   const candidatePaths = new Set(
     candidate.paths.filter((path) => meaningfulMemoryPath(path) && !shouldSkipRepoMemoryPath(path))
   );
@@ -3625,7 +3642,7 @@ export function detectContradictions(
     (packet) => packet.id !== candidate.id && packet.status === "approved"
   );
   const candidateText = normalizedClaimText(candidate);
-  const candidateSubject = tokenSet(`${candidate.title}\n${candidate.summary}`);
+  const candidateSubject = distinctiveSubjectTokens(candidate);
   const findings: ContradictionFinding[] = [];
 
   for (const packet of existing) {
@@ -3634,12 +3651,15 @@ export function detectContradictions(
     const sharedPaths = packet.paths.filter((path) => candidatePaths.has(path));
     if (!sharedPaths.length) continue;
 
-    // (b) same subject — high title/summary similarity. Reuses the duplicate
-    //     similarity machinery (jaccard over token sets) so detection rides on
-    //     the same proven scorer rather than a new bespoke metric.
-    const subjectSimilarity = jaccard(candidateSubject, tokenSet(`${packet.title}\n${packet.summary}`));
-    const subjectOverlap = sharedSubjectTokens(candidate, packet).size;
-    if (subjectSimilarity < subjectThreshold && subjectOverlap < 2) continue;
+    // (b) same DISTINCTIVE subject. A genuine contradiction is the SAME claim
+    //     negated ("use X" vs "do not use X"), so the two packets must be near
+    //     paraphrases of each other's subject — measured over distinctive tokens
+    //     (jaccard). Two decisions that merely touch adjacent code in the same
+    //     file share a path and a few tokens but are NOT paraphrases, so they no
+    //     longer qualify. No token-count bypass: that was the false-positive door.
+    const packetSubject = distinctiveSubjectTokens(packet);
+    const subjectSimilarity = jaccard(candidateSubject, packetSubject);
+    if (subjectSimilarity < subjectThreshold) continue;
 
     // (c) opposing polarity — the claim itself is flipped/redirected.
     const reason = opposingPolarity(candidateText, normalizedClaimText(packet));

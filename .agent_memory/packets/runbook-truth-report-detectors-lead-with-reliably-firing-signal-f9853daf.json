@@ -69,15 +69,13 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 244,
-    "contradicts": [
-      "repo:https-github-com-kage-core-kage:decision:agent-setup-verification-checks-claude-ambient-hooks-1779059804974",
-      "repo:https-github-com-kage-core-kage:workflow:auto-distill-fallback-and-kage-resume-continuity-verified-v2-2-1-1781268529282",
-      "repo:https-github-com-kage-core-kage:bug_fix:ci-kage-pr-check-blocks-only-on-hard-stale-memory-verified-v2-2-1-1781268529908",
-      "repo:https-github-com-kage-core-kage:decision:code-index-prefers-scip-with-lsp-fallback-1778265510094",
-      "repo:https-github-com-kage-core-kage:decision:code-index-inbox-and-benchmark-gates-harden-kage-handoff-quality-1778012973215"
-    ]
+    "stale": true,
+    "stale_reasons": [
+      "linked path changed since memory was verified: mcp/kernel.ts"
+    ],
+    "suggested_action": "update"
   },
   "created_at": "2026-06-15T11:52:31.131Z",
-  "updated_at": "2026-06-15T11:53:34.181Z",
+  "updated_at": "2026-06-15T12:14:47.180Z",
   "author_branch": "master"
 }

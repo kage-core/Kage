@@ -62,9 +62,6 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 136,
-    "contradicts": [
-      "repo:https-github-com-kage-core-kage:decision:audit-trust-scoring-must-not-let-dense-graph-edges-mask-missing-context-17780111"
-    ],
     "reverified_at": "2026-06-15T08:30:49.513Z",
     "stale": true,
     "stale_reasons": [

@@ -16,6 +16,17 @@
 
 ## Unreleased
 
+- **Contradiction detector precision fix (786 phantom conflicts -> 0).** The
+  memory-vs-memory contradiction check was flagging any two packets that shared a
+  cited path and **two generic tokens** (the `subjectOverlap < 2` bypass), then
+  firing on the mere presence of a negation-ish word ("removed", "deprecated",
+  "never") in one body but not the other. On this repo that produced 786 false
+  "contradictions" between unrelated decisions that merely touched the same file.
+  Now the two packets must be near paraphrases of the same **distinctive** subject
+  (jaccard >= 0.5 over title/summary tokens with English + house-style words like
+  "kage"/"mcp"/"memory" removed); the token-count bypass is gone. Genuine
+  "use X" vs "do not use X" contradictions are still caught. Cleared the stale
+  `quality.contradicts` flags the old detector had stamped onto packets.
 - **`kage scan` actually finds things now.** The Truth Report's original five
   detectors (duplicates, ghost exports, bus-factor, knowledge void, doc lies)
   were tuned so strict that on most real repos only the tautological "knowledge
