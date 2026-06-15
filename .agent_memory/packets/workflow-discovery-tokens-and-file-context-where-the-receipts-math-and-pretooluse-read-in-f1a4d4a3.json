@@ -84,13 +84,13 @@
     "duplicate_candidates": [],
     "stale_reasons": [
       "packet status is deprecated",
-      "linked path changed since memory was verified: mcp/kernel.ts, mcp/cli.ts"
+      "linked path changed since memory was verified: mcp/kernel.ts, mcp/cli.ts, plugin/hooks/hooks.json"
     ],
     "estimated_tokens_saved": 276,
     "stale": true,
     "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-12T07:39:52.056Z",
-  "updated_at": "2026-06-12T11:19:11.912Z",
+  "updated_at": "2026-06-15T08:43:57.546Z",
   "author_branch": "adopt/receipts-and-read-context"
 }

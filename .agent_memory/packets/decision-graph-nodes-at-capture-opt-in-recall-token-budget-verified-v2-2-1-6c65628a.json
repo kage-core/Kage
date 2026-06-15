@@ -77,9 +77,14 @@
       }
     ],
     "estimated_tokens_saved": 74,
-    "reverified_at": "2026-06-15T08:30:49.211Z"
+    "reverified_at": "2026-06-15T08:30:49.211Z",
+    "stale": true,
+    "stale_reasons": [
+      "linked path changed since memory was verified: mcp/kernel.ts"
+    ],
+    "suggested_action": "update"
   },
   "created_at": "2026-06-12T12:48:51.115Z",
-  "updated_at": "2026-06-15T08:30:49.211Z",
+  "updated_at": "2026-06-15T08:43:57.529Z",
   "author_branch": "master"
 }
