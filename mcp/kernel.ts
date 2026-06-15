@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import type { Stats } from "node:fs";
 import { availableParallelism, homedir, tmpdir } from "node:os";
-import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, delimiter, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { Worker } from "node:worker_threads";
 import * as ts from "typescript";
 import { createPublicCandidateBundleManifest, createSignedManifest, generateOrgRegistryManifest } from "./registry/index.js";
@@ -59,10 +59,22 @@ export interface MemoryPacket {
   author_branch?: string | null;
 }
 
+// Per-symbol content fingerprint. Anchors a memory to the SPECIFIC symbols it is
+// about (resolved by name from the file's current symbols, not by line number, so
+// moving a symbol down does not trip it). When present, content-change staleness
+// is judged against these spans — an edit elsewhere in the same file no longer
+// invalidates a memory whose cited symbols are untouched.
+interface MemorySymbolFingerprint {
+  name: string;
+  kind: string;
+  sha256: string;
+}
+
 interface MemoryPathFingerprint {
   path: string;
   sha256: string;
   size: number;
+  symbols?: MemorySymbolFingerprint[];
 }
 
 export interface EngineeringMemoryContext {
@@ -3796,13 +3808,137 @@ function memoryPathFingerprint(projectDir: string, path: string, cache?: Map<str
   }
 }
 
-function memoryPathFingerprints(projectDir: string, paths: string[]): MemoryPathFingerprint[] {
+// Symbol-anchoring is only attempted where extractSymbols (the TS/JS parser) is
+// reliable. Other languages fall back to whole-file fingerprints — no granularity
+// benefit yet, but no regression either.
+const ANCHOR_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
+function pathSupportsSymbolAnchors(path: string): boolean {
+  return ANCHOR_EXTENSIONS.has(extname(path).toLowerCase());
+}
+
+// Whole identifiers mentioned in a packet's text — the names of the symbols the
+// memory is talking about. camelCase / snake_case kept intact (not sub-tokenized)
+// so "detectContradictions" matches the symbol, not "detect" + "contradictions".
+function identifierTokens(text: string): Set<string> {
+  const out = new Set<string>();
+  for (const match of text.matchAll(/[A-Za-z_$][A-Za-z0-9_$]*/g)) out.add(match[0].toLowerCase());
+  return out;
+}
+
+// current-file symbol span hashes, keyed by `${nameLower}\0${kind}` -> [sha256...].
+// Cached by mtime+size: extraction only runs when a file actually changed.
+const anchorSymbolCache = new Map<string, { mtimeMs: number; size: number; byKey: Map<string, string[]> }>();
+
+function symbolSpanHashesFromText(path: string, text: string): Map<string, string[]> {
+  const byKey = new Map<string, string[]>();
+  let symbols: CodeSymbolNode[];
+  try {
+    symbols = extractSymbols(path, text);
+  } catch {
+    return byKey;
+  }
+  const lines = text.split(/\r?\n/);
+  for (const symbol of symbols) {
+    if (symbol.name.length < 4) continue;
+    if (symbol.end_line == null || symbol.line < 1 || symbol.end_line < symbol.line) continue;
+    const span = lines.slice(symbol.line - 1, symbol.end_line).join("\n");
+    if (!span.trim()) continue;
+    const key = `${symbol.name.toLowerCase()}\0${symbol.kind}`;
+    const list = byKey.get(key) ?? [];
+    list.push(sha256Hex(Buffer.from(span, "utf8")));
+    byKey.set(key, list);
+  }
+  return byKey;
+}
+
+function fileSymbolSpanHashes(projectDir: string, path: string): Map<string, string[]> | null {
+  const normalized = path.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!pathSupportsSymbolAnchors(normalized)) return null;
+  const absolutePath = join(projectDir, normalized);
+  let stats: Stats;
+  try {
+    stats = statSync(absolutePath);
+    if (!stats.isFile()) return null;
+  } catch {
+    return null;
+  }
+  const cacheKey = `${projectDir}\0${normalized}`;
+  const warm = anchorSymbolCache.get(cacheKey);
+  if (warm && warm.mtimeMs === stats.mtimeMs && warm.size === stats.size) return warm.byKey;
+  let text: string;
+  try {
+    text = readFileSync(absolutePath, "utf8");
+  } catch {
+    return null;
+  }
+  const byKey = symbolSpanHashesFromText(normalized, text);
+  anchorSymbolCache.set(cacheKey, { mtimeMs: stats.mtimeMs, size: stats.size, byKey });
+  return byKey;
+}
+
+// Compute fingerprints for a packet's cited paths. When anchorText (the packet's
+// title+summary+body) is supplied, anchor each TS/JS file to the symbols the
+// memory actually names, so unrelated edits in the same file do not mark it stale.
+function memoryPathFingerprints(projectDir: string, paths: string[], anchorText?: string): MemoryPathFingerprint[] {
+  const idents = anchorText ? identifierTokens(anchorText) : null;
   const fingerprints: MemoryPathFingerprint[] = [];
   for (const path of unique(paths).filter(fingerprintableMemoryPath)) {
     const fingerprint = memoryPathFingerprint(projectDir, path);
-    if (fingerprint) fingerprints.push(fingerprint);
+    if (!fingerprint) continue;
+    if (idents && pathSupportsSymbolAnchors(path)) {
+      const byKey = fileSymbolSpanHashes(projectDir, path);
+      if (byKey) {
+        // extractSymbols recurses into bodies, so a generic local like `match` can
+        // appear many times. Only anchor names that resolve to EXACTLY ONE symbol
+        // span in the file — an unambiguous handle on the thing the memory means.
+        const spanCountByName = new Map<string, number>();
+        for (const [key, hashes] of byKey) {
+          const name = key.slice(0, key.indexOf("\0"));
+          spanCountByName.set(name, (spanCountByName.get(name) ?? 0) + hashes.length);
+        }
+        const symbols: MemorySymbolFingerprint[] = [];
+        for (const [key, hashes] of byKey) {
+          const [name, kind] = key.split("\0");
+          if (!idents.has(name) || spanCountByName.get(name) !== 1) continue;
+          symbols.push({ name, kind, sha256: hashes[0] });
+        }
+        if (symbols.length) {
+          fingerprints.push({ ...fingerprint, symbols: symbols.slice(0, 32) });
+          continue;
+        }
+      }
+    }
+    fingerprints.push(fingerprint);
   }
   return fingerprints;
+}
+
+// Has the content a memory depends on changed since capture? Whole-file identical
+// is always "no". When the file differs but the memory is anchored to specific
+// symbols, it is "changed" only if one of those symbols was edited or removed —
+// edits elsewhere in the same file do not invalidate it. Unanchored fingerprints
+// (non-TS files, prose memories) keep the whole-file policy.
+function fingerprintPathContentChanged(
+  projectDir: string,
+  stored: MemoryPathFingerprint,
+  cache?: Map<string, MemoryPathFingerprint | null>,
+): boolean {
+  const current = memoryPathFingerprint(projectDir, stored.path, cache);
+  if (current === null) return false; // missing path is handled by the dedicated check
+  if (current.sha256 === stored.sha256) return false; // whole file byte-identical
+  if (stored.symbols && stored.symbols.length) {
+    const byKey = fileSymbolSpanHashes(projectDir, stored.path);
+    if (byKey) {
+      for (const symbol of stored.symbols) {
+        const currentHashes = byKey.get(`${symbol.name.toLowerCase()}\0${symbol.kind}`);
+        if (!currentHashes || !currentHashes.length) return true; // anchored symbol gone
+        if (!currentHashes.includes(symbol.sha256)) return true; // anchored symbol edited
+      }
+      return false; // every anchored symbol is byte-identical; the rest of the file is irrelevant
+    }
+    // Parser unavailable for this file now — fall through to the whole-file signal.
+  }
+  return true;
 }
 
 function packetStoredPathFingerprints(packet: MemoryPacket): MemoryPathFingerprint[] {
@@ -3815,7 +3951,18 @@ function packetStoredPathFingerprints(packet: MemoryPacket): MemoryPathFingerpri
     const sha256 = typeof record.sha256 === "string" ? record.sha256 : "";
     const size = Number(record.size ?? 0);
     if (!path || !sha256 || !Number.isFinite(size) || !fingerprintableMemoryPath(path)) return [];
-    return [{ path, sha256, size }];
+    const symbols = Array.isArray(record.symbols)
+      ? record.symbols.flatMap((entry): MemorySymbolFingerprint[] => {
+        if (!entry || typeof entry !== "object") return [];
+        const sym = entry as Record<string, unknown>;
+        const name = typeof sym.name === "string" ? sym.name : "";
+        const kind = typeof sym.kind === "string" ? sym.kind : "";
+        const symSha = typeof sym.sha256 === "string" ? sym.sha256 : "";
+        if (!name || !symSha) return [];
+        return [{ name, kind, sha256: symSha }];
+      })
+      : undefined;
+    return [{ path, sha256, size, ...(symbols && symbols.length ? { symbols } : {}) }];
   });
 }
 
@@ -3862,10 +4009,7 @@ function staleMemoryReasons(projectDir: string, packet: MemoryPacket, fingerprin
       .filter((fingerprint) => !isGroundingIgnored(projectDir, fingerprint.path))
       .filter((fingerprint) => !isAppendOnlyLedgerPath(fingerprint.path))
       .filter((fingerprint) => existsSync(join(projectDir, fingerprint.path)))
-      .filter((fingerprint) => {
-        const current = memoryPathFingerprint(projectDir, fingerprint.path, fingerprintCache);
-        return current !== null && current.sha256 !== fingerprint.sha256;
-      })
+      .filter((fingerprint) => fingerprintPathContentChanged(projectDir, fingerprint, fingerprintCache))
       .map((fingerprint) => fingerprint.path);
     if (changedPaths.length) {
       reasons.push(`linked path changed since memory was verified: ${changedPaths.slice(0, 4).join(", ")}`);
@@ -9288,7 +9432,7 @@ export function compactProject(projectDir: string, options: { dryRun?: boolean }
           paths: keptPaths,
           freshness: {
             ...(packet.freshness ?? {}),
-            path_fingerprints: memoryPathFingerprints(projectDir, keptPaths),
+            path_fingerprints: memoryPathFingerprints(projectDir, keptPaths, `${packet.title}\n${packet.summary}\n${packet.body}`),
             last_verified_at: nowIso(),
           },
           updated_at: nowIso(),
@@ -15852,7 +15996,7 @@ export function capture(input: CaptureInput): CaptureResult {
     freshness: {
       ttl_days: 365,
       last_verified_at: createdAt,
-      path_fingerprints: memoryPathFingerprints(input.projectDir, groundedPaths),
+      path_fingerprints: memoryPathFingerprints(input.projectDir, groundedPaths, `${input.title}\n${input.summary ?? ""}\n${input.body}`),
       path_fingerprint_policy: "source_hash_staleness",
       verification: "repo_local_agent_capture",
     },
@@ -17976,7 +18120,9 @@ export function staleCatch(projectDir: string, changedFiles?: string[]): StaleCa
         const current = memoryPathFingerprint(projectDir, stored.path, fpCache);
         if (current === null) {
           invalidated.push({ packet_id: packet.id, packet_title: packet.title, cited_path: stored.path, reason: "cited file was deleted" });
-        } else if (current.sha256 !== stored.sha256) {
+        } else if (fingerprintPathContentChanged(projectDir, stored, fpCache)) {
+          // Anchored memories are only invalidated when the symbols they cite change,
+          // not when something unrelated in the same file moves.
           invalidated.push({ packet_id: packet.id, packet_title: packet.title, cited_path: stored.path, reason: "content changed since this memory was verified" });
         }
       }
@@ -19348,7 +19494,7 @@ export function reverifyMemory(projectDir: string, packetId: string): ReverifyMe
   const presentPaths = citedPaths.filter((path) => !result.missing_paths.includes(path));
   const now = nowIso();
   const freshness = { ...(packet.freshness ?? {}) } as Record<string, unknown>;
-  freshness.path_fingerprints = memoryPathFingerprints(projectDir, presentPaths);
+  freshness.path_fingerprints = memoryPathFingerprints(projectDir, presentPaths, `${packet.title}\n${packet.summary}\n${packet.body}`);
   freshness.last_verified_at = now;
   const { stale: _stale, stale_reasons: _staleReasons, suggested_action: _suggestedAction, ...nextQuality } = quality;
   writeJson(entry.path, {

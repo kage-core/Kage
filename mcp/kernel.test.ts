@@ -5554,6 +5554,107 @@ function captureWithSource(project: string, opts: { title: string; body: string;
   return result;
 }
 
+const TWO_FN_FILE = [
+  "export function alphaThing(x: number): number {",
+  "  return x + 1;",
+  "}",
+  "",
+  "export function betaThing(y: number): number {",
+  "  return y * 2;",
+  "}",
+  "",
+].join("\n");
+
+function writeAndCapture(project: string, fileBody: string, body: string) {
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "two.ts"), fileBody, "utf8");
+  const result = capture({
+    projectDir: project,
+    title: "alphaThing returns x plus one",
+    summary: "alphaThing adds one to its argument.",
+    body,
+    type: "convention",
+    paths: ["src/two.ts"],
+  });
+  assert.equal(result.ok, true, result.errors.join("; "));
+  return result;
+}
+
+test("symbol-anchored fingerprint: editing an unrelated symbol does not invalidate the memory", () => {
+  const project = tempProject();
+  const captured = writeAndCapture(project, TWO_FN_FILE, "alphaThing adds one to x. It is the canonical adder.");
+  const stored = (captured.packet!.freshness as Record<string, unknown>).path_fingerprints as Array<Record<string, unknown>>;
+  const fp = stored.find((f) => f.path === "src/two.ts")!;
+  assert.ok(Array.isArray(fp.symbols) && (fp.symbols as unknown[]).length >= 1, "memory should be anchored to the symbol it names");
+  assert.equal((fp.symbols as Array<Record<string, unknown>>).some((s) => s.name === "alphathing"), true);
+
+  // Edit only betaThing — alphaThing (the anchored symbol) is untouched.
+  const editedBeta = TWO_FN_FILE.replace("return y * 2;", "return y * 3; // unrelated change");
+  writeFileSync(join(project, "src", "two.ts"), editedBeta, "utf8");
+  const catchBeta = staleCatch(project, ["src/two.ts"]);
+  assert.equal(catchBeta.invalidated.length, 0, "unrelated symbol edit must not invalidate an anchored memory");
+
+  // Now edit alphaThing itself — the memory IS about it, so it must be flagged.
+  const editedAlpha = TWO_FN_FILE.replace("return x + 1;", "return x + 100;");
+  writeFileSync(join(project, "src", "two.ts"), editedAlpha, "utf8");
+  const catchAlpha = staleCatch(project, ["src/two.ts"]);
+  assert.equal(catchAlpha.invalidated.length, 1, "editing the anchored symbol must invalidate the memory");
+  assert.equal(catchAlpha.invalidated[0].cited_path, "src/two.ts");
+});
+
+test("symbol-anchored fingerprint: deleting the anchored symbol invalidates the memory", () => {
+  const project = tempProject();
+  writeAndCapture(project, TWO_FN_FILE, "alphaThing adds one to x.");
+  // Remove alphaThing entirely; betaThing remains so the file is not deleted.
+  const withoutAlpha = [
+    "export function betaThing(y: number): number {",
+    "  return y * 2;",
+    "}",
+    "",
+  ].join("\n");
+  writeFileSync(join(project, "src", "two.ts"), withoutAlpha, "utf8");
+  const result = staleCatch(project, ["src/two.ts"]);
+  assert.equal(result.invalidated.length, 1);
+  assert.match(result.invalidated[0].reason, /content changed/);
+});
+
+test("unanchored memory (names no symbol in the file) keeps whole-file staleness", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "two.ts"), TWO_FN_FILE, "utf8");
+  // Title, summary, and body name no symbol that exists in the file -> no anchors.
+  const captured = capture({
+    projectDir: project,
+    title: "Arithmetic helpers live in this module",
+    summary: "General note about where math utilities are kept.",
+    body: "This module is the place where the arithmetic helpers live.",
+    type: "convention",
+    paths: ["src/two.ts"],
+  });
+  assert.equal(captured.ok, true, captured.errors.join("; "));
+  const stored = (captured.packet!.freshness as Record<string, unknown>).path_fingerprints as Array<Record<string, unknown>>;
+  const fp = stored.find((f) => f.path === "src/two.ts")!;
+  assert.ok(!fp.symbols, "no symbol mentioned -> no anchors");
+  // Any edit (even to an unrelated symbol) invalidates an unanchored memory.
+  writeFileSync(join(project, "src", "two.ts"), TWO_FN_FILE.replace("return y * 2;", "return y * 4;"), "utf8");
+  const result = staleCatch(project, ["src/two.ts"]);
+  assert.equal(result.invalidated.length, 1, "unanchored memory falls back to whole-file change detection");
+});
+
+test("reverify re-anchors a legacy whole-file memory to its named symbols", () => {
+  const project = tempProject();
+  // Simulate a legacy packet: capture, then strip its symbol anchors to mimic
+  // a pre-feature fingerprint (whole-file only).
+  const captured = writeAndCapture(project, TWO_FN_FILE, "alphaThing adds one to x.");
+  const entry = loadApprovedPackets(project).find((p) => p.id === captured.packet!.id)!;
+  // reverify recomputes fingerprints with anchoring against the current file.
+  const rev = reverifyMemory(project, entry.id);
+  assert.equal(rev.ok, true, rev.errors.join("; "));
+  const reanchored = loadApprovedPackets(project).find((p) => p.id === entry.id)!;
+  const fp = ((reanchored.freshness as Record<string, unknown>).path_fingerprints as Array<Record<string, unknown>>).find((f) => f.path === "src/two.ts")!;
+  assert.ok(Array.isArray(fp.symbols) && (fp.symbols as unknown[]).length >= 1, "reverify should anchor to named symbols");
+});
+
 test("contradiction detection flags two packets with opposing claims on the same path", () => {
   const project = tempProject();
   captureWithSource(project, {

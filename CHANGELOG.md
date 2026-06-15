@@ -16,6 +16,19 @@
 
 ## Unreleased
 
+- **Symbol-anchored staleness — edits stop invalidating unrelated memory.**
+  Freshness fingerprints were whole-file SHA-256, so any edit to a large file
+  (e.g. the 19k-line `mcp/kernel.ts`) marked *every* memory citing it stale,
+  even memories about untouched parts. Fingerprints now also anchor to the
+  specific symbols a memory names: at capture (and reverify) each cited TS/JS
+  file records per-symbol content hashes for the symbols mentioned in the
+  memory's title/summary/body, resolved by name (not line number, so moving a
+  symbol does not trip it). Content-change staleness — in recall, `kage pr check`,
+  and the stale-catch invalidation list — now fires only when an anchored symbol
+  is edited or removed; an unrelated edit in the same file leaves the memory
+  fresh. Non-TS files and memories that name no symbol keep the whole-file policy.
+  Backward compatible: existing whole-file fingerprints behave as before until a
+  packet is next captured or reverified.
 - **Contradiction detector precision fix (786 phantom conflicts -> 0).** The
   memory-vs-memory contradiction check was flagging any two packets that shared a
   cited path and **two generic tokens** (the `subjectOverlap < 2` bypass), then
