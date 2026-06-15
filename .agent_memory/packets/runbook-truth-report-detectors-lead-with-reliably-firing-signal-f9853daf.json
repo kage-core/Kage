@@ -30,17 +30,81 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-15T11:52:31.131Z",
+    "last_verified_at": "2026-06-15T13:04:36.532Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "8f73a5d639044904624c55f8f6f97a68e5c917db9e0eb65d099713a5b47406f4",
-        "size": 829103
+        "sha256": "c339a8e8d13226640fb42515ee1c5693aaf0f97ca86a6ad6457adf31f3687713",
+        "size": 837545,
+        "symbols": [
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "clean",
+            "kind": "function",
+            "sha256": "17cd330796a719d520826491a73ab88f886668a6f03c7ab8c85530d9cb3a996d"
+          },
+          {
+            "name": "truthreport",
+            "kind": "function",
+            "sha256": "7bc85694125a3971d9f161c4c029d90e2a12ac26c337613912a41aa3b44cb27e"
+          },
+          {
+            "name": "centrality",
+            "kind": "constant",
+            "sha256": "23a606d61f709af4956f6f635ac6c16961eeca424364869f2a546d42f404d65a"
+          },
+          {
+            "name": "hastests",
+            "kind": "constant",
+            "sha256": "790b309e136806fad730cc01324f74925b7470bf6a9ecfb0df79f6fc7ddb0a23"
+          },
+          {
+            "name": "cited",
+            "kind": "constant",
+            "sha256": "7b4c95a8aed181f7a55a2c50e1825df87a03325cef56176f043f6b3bc8db9b19"
+          },
+          {
+            "name": "read",
+            "kind": "constant",
+            "sha256": "ffe49534fbcdb7c556f32fa5120c3dd4c00fce60f148c94f79d0d94d71145efd"
+          },
+          {
+            "name": "categories",
+            "kind": "constant",
+            "sha256": "e72c016fb290f97d7843e7e5887029979c49cbd26917cc73399ebb6e9bb45522"
+          },
+          {
+            "name": "central",
+            "kind": "constant",
+            "sha256": "cadb605ec607c15b376bd7ca7283743fcccb5f45190467501d6fc27be9363760"
+          },
+          {
+            "name": "factor",
+            "kind": "constant",
+            "sha256": "4d70a71607211690a74f758568762e13370e9e190b4286545d90442c4648d2f2"
+          },
+          {
+            "name": "fixed",
+            "kind": "constant",
+            "sha256": "24c94f8af8d6bb9909e676bab33f87fca9b068e7ebf547b89b1ded262de468e1"
+          }
+        ]
       },
       {
         "path": "mcp/cli.ts",
         "sha256": "ceb104554f417984e344c433199cb92934923ddb7a10d37d4611486a7afa0b2f",
-        "size": 112895
+        "size": 112895,
+        "symbols": [
+          {
+            "name": "report",
+            "kind": "constant",
+            "sha256": "8d05d375165d2273c6ec769d9538b412b0d08e00b21207889ab726b110c4ab04"
+          }
+        ]
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -69,13 +133,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 244,
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: mcp/kernel.ts"
-    ],
-    "suggested_action": "update"
+    "reverified_at": "2026-06-15T13:04:36.532Z"
   },
   "created_at": "2026-06-15T11:52:31.131Z",
-  "updated_at": "2026-06-15T12:14:47.180Z",
+  "updated_at": "2026-06-15T13:04:36.532Z",
   "author_branch": "master"
 }
