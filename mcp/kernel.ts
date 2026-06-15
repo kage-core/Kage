@@ -16028,6 +16028,8 @@ PAYLOAD="$(cat || true)"
 CWD="$(printf "%s" "$PAYLOAD" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('cwd',''))" 2>/dev/null || echo "")"
 
 [[ -d "$CWD/.agent_memory" ]] || exit 0
+# Resolve a repo-local install too, so hooks work without a global kage on PATH.
+export PATH="$CWD/node_modules/.bin:$PATH"
 command -v kage >/dev/null 2>&1 || exit 0
 
 if git -C "$CWD" status --porcelain -uall >/dev/null 2>&1 && [[ -n "$(git -C "$CWD" status --porcelain -uall)" ]]; then
@@ -16084,6 +16086,8 @@ print(d.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or "")
 ' 2>/dev/null || echo "")"
 
 [[ -d "$CWD/.agent_memory" ]] || exit 0
+# Resolve a repo-local install too, so hooks work without a global kage on PATH.
+export PATH="$CWD/node_modules/.bin:$PATH"
 command -v kage >/dev/null 2>&1 || exit 0
 
 EVENT="$(PAYLOAD="$PAYLOAD" python3 -c 'import json, os
@@ -16210,6 +16214,8 @@ print(d.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or "")
 ' 2>/dev/null || echo "")"
 
 [[ -d "$CWD/.agent_memory" ]] || exit 0
+# Resolve a repo-local install too, so hooks work without a global kage on PATH.
+export PATH="$CWD/node_modules/.bin:$PATH"
 command -v kage >/dev/null 2>&1 || exit 0
 
 FILE_PATH="$(PAYLOAD="$PAYLOAD" python3 -c 'import json, os

@@ -16,6 +16,8 @@ print(d.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or "")
 ' 2>/dev/null || echo "")"
 
 [[ -d "$CWD/.agent_memory" ]] || exit 0
+# Resolve a repo-local install too, so hooks work without a global kage on PATH.
+export PATH="$CWD/node_modules/.bin:$PATH"
 command -v kage >/dev/null 2>&1 || exit 0
 
 FILE_PATH="$(PAYLOAD="$PAYLOAD" python3 -c 'import json, os
