@@ -27,13 +27,7 @@ npx -y @kage-core/kage-graph-mcp install
   <img src="https://img.shields.io/badge/account-not%20required-41ff8f" alt="no account">
 </p>
 
-<p>
-  <img src="https://img.shields.io/badge/LongMemEval--S%20R@5-96%25-1f6feb" alt="retrieval R@5 96%">
-  <img src="https://img.shields.io/badge/stale%20served-0%25-1f6feb" alt="0% stale served">
-  <img src="https://img.shields.io/badge/vs%20grep-18%25%20faster-1f6feb" alt="18% faster than grep">
-  <img src="https://img.shields.io/badge/external%20DBs-0-1f6feb" alt="zero external databases">
-  <img src="https://img.shields.io/badge/tests-340%2B%20passing-1f6feb" alt="340+ tests passing">
-</p>
+<img src="docs/kage-stats.svg" alt="Kage in numbers: 96% R@5 recall, 0% stale served, 18% faster than grep, 0 dependencies, 340+ tests passing, 15 agents supported" width="820">
 
 <p>
   <a href="https://kage-core.com/">Website</a> ·

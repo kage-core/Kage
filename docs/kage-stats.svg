@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="190" viewBox="0 0 1240 190" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <rect x="0" y="0" width="1240" height="190" rx="16" fill="#0d1117"/>
+  <!-- card template: white rounded rect, big colored number, uppercase grey label -->
+  <!-- 6 cards: x = 24 + i*201, width 185 -->
+
+  <g>
+    <rect x="24" y="27" width="185" height="136" rx="12" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
+    <text x="116.5" y="100" text-anchor="middle" font-size="42" font-weight="700" fill="#1a7f37">96%</text>
+    <text x="116.5" y="132" text-anchor="middle" font-size="12.5" font-weight="600" letter-spacing="1.2" fill="#57606a">R@5 RECALL</text>
+  </g>
+
+  <g>
+    <rect x="225" y="27" width="185" height="136" rx="12" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
+    <text x="317.5" y="100" text-anchor="middle" font-size="42" font-weight="700" fill="#1a7f37">0%</text>
+    <text x="317.5" y="132" text-anchor="middle" font-size="12.5" font-weight="600" letter-spacing="1.2" fill="#57606a">STALE SERVED</text>
+  </g>
+
+  <g>
+    <rect x="426" y="27" width="185" height="136" rx="12" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
+    <text x="518.5" y="100" text-anchor="middle" font-size="42" font-weight="700" fill="#1a7f37">18%</text>
+    <text x="518.5" y="132" text-anchor="middle" font-size="12.5" font-weight="600" letter-spacing="1.2" fill="#57606a">FASTER vs GREP</text>
+  </g>
+
+  <g>
+    <rect x="627" y="27" width="185" height="136" rx="12" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
+    <text x="719.5" y="100" text-anchor="middle" font-size="42" font-weight="700" fill="#8250df">0</text>
+    <text x="719.5" y="132" text-anchor="middle" font-size="12.5" font-weight="600" letter-spacing="1.2" fill="#57606a">DEPENDENCIES</text>
+  </g>
+
+  <g>
+    <rect x="828" y="27" width="185" height="136" rx="12" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
+    <text x="920.5" y="100" text-anchor="middle" font-size="42" font-weight="700" fill="#0969da">340+</text>
+    <text x="920.5" y="132" text-anchor="middle" font-size="12.5" font-weight="600" letter-spacing="1.2" fill="#57606a">TESTS PASSING</text>
+  </g>
+
+  <g>
+    <rect x="1029" y="27" width="185" height="136" rx="12" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
+    <text x="1121.5" y="100" text-anchor="middle" font-size="42" font-weight="700" fill="#bc4c00">15</text>
+    <text x="1121.5" y="132" text-anchor="middle" font-size="12.5" font-weight="600" letter-spacing="1.2" fill="#57606a">AGENTS</text>
+  </g>
+</svg>
