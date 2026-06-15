@@ -93,13 +93,13 @@
     "stale": true,
     "stale_reasons": [
       "packet status is superseded",
-      "linked path changed since memory was verified: mcp/kernel.ts, mcp/cli.ts"
+      "linked path changed since memory was verified: mcp/kernel.ts, mcp/cli.ts, plugin/hooks/stop.sh"
     ],
     "suggested_action": "mark_stale",
     "superseded_by": "repo:https-github-com-kage-core-kage:workflow:auto-distill-fallback-and-kage-resume-continuity-v2-2-0-behavior-1781265030797",
     "superseded_reason": "Newer repo memory supersedes this packet."
   },
   "created_at": "2026-06-12T06:06:01.588Z",
-  "updated_at": "2026-06-12T11:54:26.181Z",
+  "updated_at": "2026-06-15T10:10:04.841Z",
   "author_branch": "gap/auto-capture-continuity"
 }
