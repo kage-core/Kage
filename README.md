@@ -2,16 +2,18 @@
 
 # Kage
 
-### Memory for coding agents you can trust
+### Team memory for coding agents that never gets lost
 
-<img src="docs/kage-viewer.jpg" alt="The kage viewer memory-to-code map: memory packets linked to the code files they are grounded in" width="760">
+<img src="docs/kage-viewer.jpg" alt="kage viewer: the team's captured decisions, runbooks, and bug fixes, linked to the code they are about" width="760">
 
-<sub>The memory ↔ code map in `kage viewer`: every memory packet (purple) linked to the file it is grounded in (blue).</sub>
+<sub>`kage viewer`: your team's decisions, runbooks, and bug fixes (purple), kept in the repo and linked to the code they are about (blue).</sub>
 
-Your coding agent forgets your codebase every session, so you keep re-explaining it.
-**Kage** gives it persistent memory that lives in your repo as plain files, and checks
-every memory against your actual code, so the agent never acts on something that is no
-longer true. Shared with your whole team through git. No account, no database, no API key.
+The decisions behind your codebase, the runbook for a tricky deploy, the root cause of a
+gnarly bug: this knowledge lives in people's heads and scrolls past in chat, then gets lost.
+**Kage** captures it as your coding agents work, keeps it as plain files in your repo, and
+shares it with your whole team through git. The next session, yours or a teammate's, starts
+already knowing it. Every memory is also checked against the actual code, so what gets shared
+stays true. No account, no database, no API key.
 
 ```bash
 npx -y @kage-core/kage-graph-mcp install
@@ -83,13 +85,16 @@ Kage is a memory layer for coding agents. As your agent works, it captures what 
 committed in your repo under `.agent_memory/`. The next session (yours or a teammate's)
 starts already knowing it, instead of re-reading or re-asking.
 
-Two things make it different from other memory tools:
+Three things make it different from other memory tools:
 
+- **It's collaborative.** The knowledge one person (or their agent) figures out becomes the
+  whole team's. Memory is shared through git, so a teammate's next session starts with what
+  you just learned, not a blank slate.
+- **It's git-native.** Memory is plain files in your repo, reviewed in the same PR as the
+  code, not locked in one machine or a vendor's cloud. Your knowledge stays yours.
 - **It's verified.** Every memory cites the code it's about, and Kage checks those citations
   against your actual files at write time, at recall time, and when a diff changes the code.
   Memory that no longer matches the code is withheld, so the agent never acts on a stale claim.
-- **It's git-native.** Memory is plain files in your repo, reviewed in the same PR as the code
-  and shared with the whole team through git, not locked in one machine or a vendor's cloud.
 
 ## How it works
 
