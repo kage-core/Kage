@@ -3,7 +3,7 @@
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
   "summary": "Repo-local context for 3 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/decision-recall-withholds-hard-stale-only-content-changed-memory-is-served-flagged-do-not-1ab855a4.json\n- .agent_memory/packets/runbook-doc-truth-audit-method-re-verified-after-dark-first-site-flip-80785bd7.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n...content-changed-memory-is-served-flagged-do-not-1ab855a4.json | 4 ++--\n ...t-method-re-verified-after-dark-first-site-flip-80785bd7.json | 9 +++++++--\n .../packets/workflow-change-memory-master-23634276.json          | 3 +--\n 3 files changed, 10 insertions(+), 6 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/gotcha-github-pages-custom-domain-needs-https-enforcement-87a83226.json\n- .agent_memory/packets/gotcha-github-pages-serves-docs-statically-markdown-renders-raw-73ff264a.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n...hub-pages-custom-domain-needs-https-enforcement-87a83226.json | 9 +++++++--\n ...ges-serves-docs-statically-markdown-renders-raw-73ff264a.json | 4 ++--\n .../packets/workflow-change-memory-master-23634276.json          | 3 +--\n 3 files changed, 10 insertions(+), 6 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -17,8 +17,8 @@
     "branch:master"
   ],
   "paths": [
-    ".agent_memory/packets/decision-recall-withholds-hard-stale-only-content-changed-memory-is-served-flagged-do-not-1ab855a4.json",
-    ".agent_memory/packets/runbook-doc-truth-audit-method-re-verified-after-dark-first-site-flip-80785bd7.json",
+    ".agent_memory/packets/gotcha-github-pages-custom-domain-needs-https-enforcement-87a83226.json",
+    ".agent_memory/packets/gotcha-github-pages-serves-docs-statically-markdown-renders-raw-73ff264a.json",
     ".agent_memory/packets/workflow-change-memory-master-23634276.json"
   ],
   "stack": [],
@@ -26,11 +26,11 @@
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "96b3baec99725a0fde8a3ee9a7378b2e6c440f92",
-      "merge_base": "96b3baec99725a0fde8a3ee9a7378b2e6c440f92",
+      "head": "e76602f8460e7ab901cf57b9b63860b2d9a495a3",
+      "merge_base": "e76602f8460e7ab901cf57b9b63860b2d9a495a3",
       "changed_files": [
-        ".agent_memory/packets/decision-recall-withholds-hard-stale-only-content-changed-memory-is-served-flagged-do-not-1ab855a4.json",
-        ".agent_memory/packets/runbook-doc-truth-audit-method-re-verified-after-dark-first-site-flip-80785bd7.json",
+        ".agent_memory/packets/gotcha-github-pages-custom-domain-needs-https-enforcement-87a83226.json",
+        ".agent_memory/packets/gotcha-github-pages-serves-docs-statically-markdown-renders-raw-73ff264a.json",
         ".agent_memory/packets/workflow-change-memory-master-23634276.json"
       ],
       "summary_path": ".agent_memory/review/branch-summary-master.json"
@@ -46,7 +46,7 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-14T21:32:28.160Z",
+    "last_verified_at": "2026-06-15T06:16:18.931Z",
     "ttl_days": 180,
     "path_fingerprints": [],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -55,12 +55,12 @@
   "edges": [
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-recall-withholds-hard-stale-only-content-changed-memory-is-served-flagged-do-not-1ab855a4.json",
+      "to": "path:.agent_memory/packets/gotcha-github-pages-custom-domain-needs-https-enforcement-87a83226.json",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/runbook-doc-truth-audit-method-re-verified-after-dark-first-site-flip-80785bd7.json",
+      "to": "path:.agent_memory/packets/gotcha-github-pages-serves-docs-statically-markdown-renders-raw-73ff264a.json",
       "evidence": "git_diff"
     },
     {
@@ -82,7 +82,7 @@
     "risks": [],
     "duplicate_candidates": [],
     "stale_reasons": [],
-    "estimated_tokens_saved": 330,
+    "estimated_tokens_saved": 320,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -100,6 +100,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-06-14T21:32:28.160Z",
-  "updated_at": "2026-06-14T21:32:28.160Z"
+  "created_at": "2026-06-15T06:16:18.931Z",
+  "updated_at": "2026-06-15T06:16:18.931Z"
 }

@@ -80,13 +80,13 @@
     "stale": true,
     "stale_reasons": [
       "packet status is superseded",
-      "linked path changed since memory was verified: docs/benchmarks.html"
+      "linked path changed since memory was verified: docs/benchmarks.html, .github/workflows/pages.yml"
     ],
     "suggested_action": "mark_stale",
     "superseded_by": "repo:https-github-com-kage-core-kage:gotcha:github-pages-serves-docs-statically-markdown-links-render-raw-still-true-1781265",
     "superseded_reason": "Newer repo memory supersedes this packet."
   },
   "created_at": "2026-06-05T11:54:06.532Z",
-  "updated_at": "2026-06-12T11:54:26.178Z",
+  "updated_at": "2026-06-15T06:16:12.388Z",
   "author_branch": "chore/dogfood"
 }
