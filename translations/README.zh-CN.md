@@ -6,7 +6,7 @@
 
 ### 值得信赖的编码代理记忆
 
-<img src="../docs/kage-hero.svg" alt="kage scan：Truth Report，每条结论都标注到 file:line" width="760">
+<img src="../docs/kage-hero.svg" alt="Kage：面向编码代理的可信记忆，召回所学、扣留失效、拒绝幻觉" width="760">
 
 你的编码代理每次会话都会忘记代码库，于是你不得不一遍遍重新解释。
 **Kage** 为它提供持久记忆，以纯文本文件的形式存放在你的仓库里，并把每一条记忆

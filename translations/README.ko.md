@@ -6,7 +6,7 @@
 
 ### 신뢰할 수 있는 코딩 에이전트 메모리
 
-<img src="../docs/kage-hero.svg" alt="kage scan: Truth Report, 모든 결과를 file:line으로 명시" width="760">
+<img src="../docs/kage-hero.svg" alt="Kage: 코딩 에이전트를 위한 검증된 메모리. 배운 것을 회상하고, 낡은 것을 보류하며, 환각을 거부" width="760">
 
 코딩 에이전트는 세션마다 코드베이스를 잊어버리기 때문에 당신은 계속해서 다시 설명하게
 됩니다. **Kage** 는 저장소 안에 일반 파일로 존재하는 영속 메모리를 제공하고, 모든 메모리를

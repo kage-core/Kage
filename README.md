@@ -4,7 +4,7 @@
 
 ### Memory for coding agents you can trust
 
-<img src="docs/kage-hero.svg" alt="kage scan: the Truth Report, cited to file:line" width="760">
+<img src="docs/kage-hero.svg" alt="Kage: verified memory for coding agents that recalls what you learned, withholds stale memory, and rejects hallucinations" width="760">
 
 Your coding agent forgets your codebase every session, so you keep re-explaining it.
 **Kage** gives it persistent memory that lives in your repo as plain files, and checks

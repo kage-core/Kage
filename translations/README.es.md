@@ -6,7 +6,7 @@
 
 ### Memoria para agentes de código en la que puedes confiar
 
-<img src="../docs/kage-hero.svg" alt="kage scan: el Informe de Verdad, citado a file:line" width="760">
+<img src="../docs/kage-hero.svg" alt="Kage: memoria verificada para agentes de código que recuerda lo aprendido, retiene lo obsoleto y rechaza alucinaciones" width="760">
 
 Tu agente de código olvida tu base de código en cada sesión, así que terminas
 explicándola una y otra vez. **Kage** le da memoria persistente que vive en tu
