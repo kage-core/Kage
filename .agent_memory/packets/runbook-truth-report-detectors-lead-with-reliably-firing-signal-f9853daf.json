@@ -68,7 +68,6 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "stale_reasons": [],
     "estimated_tokens_saved": 244,
     "contradicts": [
       "repo:https-github-com-kage-core-kage:decision:agent-setup-verification-checks-claude-ambient-hooks-1779059804974",
@@ -79,6 +78,6 @@
     ]
   },
   "created_at": "2026-06-15T11:52:31.131Z",
-  "updated_at": "2026-06-15T11:52:31.131Z",
+  "updated_at": "2026-06-15T11:53:34.181Z",
   "author_branch": "master"
 }
