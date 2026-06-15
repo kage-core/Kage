@@ -90,8 +90,29 @@
   });
 
   // ---- load ----
+  // Showcase mode: the bundled demo dataset (docs/viewer/data) carries showcase:true.
+  // Its timestamps are frozen, so we slide them forward to "now" on load — the daily
+  // chart and the feed stay current instead of aging into an empty 14-day window.
+  // Real daemon data has no showcase flag and is never touched.
+  function rebaseShowcase(activity, value) {
+    if (!activity || !activity.showcase) return;
+    var allAt = [];
+    (activity.events || []).forEach(function (e) { if (e.at) allAt.push(Date.parse(e.at)); });
+    if (value && value.events) value.events.forEach(function (e) { if (e.at) allAt.push(Date.parse(e.at)); });
+    var latest = allAt.length ? Math.max.apply(null, allAt) : 0;
+    if (!latest) return;
+    var delta = Date.now() - latest;
+    var dayDelta = Math.round(delta / 86400000);
+    function shift(e) { if (e && e.at) e.at = new Date(Date.parse(e.at) + delta).toISOString(); }
+    (activity.events || []).forEach(shift);
+    if (value && value.events) value.events.forEach(shift);
+    (activity.daily || []).forEach(function (d) {
+      if (d.day) d.day = new Date(Date.parse(d.day + "T00:00:00Z") + dayDelta * 86400000).toISOString().slice(0, 10);
+    });
+  }
+
   Promise.all([getJSON(paths.trust), getJSON(paths.suppressed), getJSON(paths.lifecycle), getJSON(paths.metrics), getJSON(paths.activity), getJSON(paths.value)])
-    .then(function (r) { render(r[0], r[1], r[2], r[3], r[4], r[5]); })
+    .then(function (r) { rebaseShowcase(r[4], r[5]); render(r[0], r[1], r[2], r[3], r[4], r[5]); })
     .catch(function () { render(null, null, null, null, null, null); });
 
   function render(trust, suppressed, lifecycle, metrics, activity, value) {

@@ -97,12 +97,17 @@ jobs:
           cp .agent_memory/structural/imports.json docs/viewer/data/kage/structural/imports.json
           cp .agent_memory/metrics.json docs/viewer/data/kage/metrics.json
           cp .agent_memory/inbox.json docs/viewer/data/kage/inbox.json
-          # Optional reports the hosted viewer fetches if present.
-          for report in risk contributors decisions module-health graph-insights workspace quality benchmark trust suppressed lifecycle activity value; do
+          # Optional reports the hosted viewer fetches if present. activity + value
+          # are deliberately EXCLUDED — this dogfood repo's recall traffic is
+          # automated self-traffic (hourly bots), so its raw activity/value would
+          # render as one giant bar and a misleading $ figure on the public page.
+          for report in risk contributors decisions module-health graph-insights workspace quality benchmark trust suppressed lifecycle; do
             if [ -f ".agent_memory/reports/${report}.json" ]; then
               cp ".agent_memory/reports/${report}.json" "docs/viewer/data/kage/reports/${report}.json"
             fi
           done
+      - name: Publish showcase activity + value (organic example, flagged showcase:true)
+        run: node scripts/gen-showcase-data.mjs
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs
