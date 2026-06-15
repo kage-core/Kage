@@ -16259,6 +16259,15 @@ fi
 
 exit 0
 `;
+    // PreToolUse(Edit/Write) — the enforcement counterpart to the Read hook. Before
+    // the agent MODIFIES a file, inject the verified memory about it (and surface what
+    // Kage is withholding as stale), so "recall before you edit" is not optional. CLI
+    // only (kage file-context), so it works even when the MCP server is not loaded.
+    const editContextHookScript = readContextHookScript
+      .replace("PreToolUse(Read) hook — injects verified file-linked memory right before the agent reads a file.", "PreToolUse(Edit/Write) hook — injects verified file-linked memory right before the agent edits a file, so recall precedes every change.")
+      .replace("Never blocks the Read.", "Never blocks the edit.")
+      .replace('STATE_DIR="/tmp/kage-read-context"', 'STATE_DIR="/tmp/kage-edit-context"')
+      .replace("never block the Read.", "never block the edit.");
     const settingsPath = join(home, ".claude", "settings.json");
     const hookEntry = {
       hooks: {
@@ -16268,6 +16277,9 @@ exit 0
           { matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 5 }] },
           // Verified memory at the moment of relevance: short timeout, never blocks the Read.
           { matcher: "Read", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/kage-read-context.sh", timeout: 6 }] },
+          // Enforcement: recall before an edit. Injects verified memory + withheld-stale
+          // for the file the agent is about to change. Never blocks the edit.
+          { matcher: "Edit|Write|MultiEdit", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/kage-edit-context.sh", timeout: 6 }] },
         ],
         PostToolUse: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 5 }] }],
         PostToolUseFailure: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 5 }] }],
@@ -16280,7 +16292,7 @@ exit 0
     setSnippet(path, JSON.stringify({ mcpServers: { kage: server } }, null, 2), [
       "Add the MCP server to ~/.claude.json, then restart Claude Code.",
       "alwaysLoad: true makes Kage tools immediately visible without requiring ToolSearch.",
-      `Also create ${hookDir}/session-start.sh, observe.sh, kage-read-context.sh, and stop.sh with the hook scripts and add SessionStart/UserPromptSubmit/PreToolUse/PostToolUse/PostToolUseFailure/PreCompact/Stop/SessionEnd hooks to ~/.claude/settings.json.`,
+      `Also create ${hookDir}/session-start.sh, observe.sh, kage-read-context.sh, kage-edit-context.sh, and stop.sh with the hook scripts and add SessionStart/UserPromptSubmit/PreToolUse/PostToolUse/PostToolUseFailure/PreCompact/Stop/SessionEnd hooks to ~/.claude/settings.json.`,
       "Run `kage init --project <repo>` inside each repo to install the ambient memory policy.",
     ], true);
     if (options.write) {
@@ -16290,6 +16302,7 @@ exit 0
       writeFileSync(join(hookDir, "session-start.sh"), hookScript, { mode: 0o755 });
       writeFileSync(join(hookDir, "observe.sh"), observeHookScript, { mode: 0o755 });
       writeFileSync(join(hookDir, "kage-read-context.sh"), readContextHookScript, { mode: 0o755 });
+      writeFileSync(join(hookDir, "kage-edit-context.sh"), editContextHookScript, { mode: 0o755 });
       writeFileSync(join(hookDir, "stop.sh"), stopHookScript, { mode: 0o755 });
       upsertJsonSettings(settingsPath, hookEntry);
       result.wrote = true;

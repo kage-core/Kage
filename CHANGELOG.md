@@ -16,6 +16,12 @@
 
 ## Unreleased
 
+- **Enforced recall-before-edit (PreToolUse Edit/Write/MultiEdit hook).** Before
+  an agent modifies a file, Kage now injects the verified memory about that file
+  (and what it's withholding as stale) — so recall precedes every change instead
+  of relying on the agent to remember. Like the Read hook, it's CLI-only
+  (`kage file-context`), so it works even when the MCP server isn't loaded.
+  Closes the seam where agents (this one included) skip recall under task pressure.
 - **One-command setup, nothing left to do by hand.** `kage install` now also
   writes the `AGENTS.md`/`CLAUDE.md` policy unconditionally (so teammates who
   clone are covered even before wiring their own agent), and configures

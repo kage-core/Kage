@@ -22,6 +22,16 @@
             "timeout": 6
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/kage-edit-context.sh\"",
+            "timeout": 6
+          }
+        ]
       }
     ],
     "Stop": [

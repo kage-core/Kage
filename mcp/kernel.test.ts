@@ -2172,9 +2172,17 @@ test("setup generates all-agent MCP configuration and writes Codex config idempo
   assert.match(readContextHook, /kage file-context --project "\$CWD" --path "\$FILE_PATH"/);
   assert.match(readContextHook, /hookSpecificOutput/);
   assert.match(readContextHook, /additionalContext/);
-  assert.equal(claudeSettings.hooks.PreToolUse.length, 2);
+  assert.equal(claudeSettings.hooks.PreToolUse.length, 3);
   assert.equal(claudeSettings.hooks.PreToolUse[1].matcher, "Read");
   assert.match(claudeSettings.hooks.PreToolUse[1].hooks[0].command, /kage-read-context\.sh/);
+  // Enforcement: recall before an edit. Dedicated script + an Edit|Write|MultiEdit matcher.
+  const editContextHookPath = join(home, ".claude", "kage", "hooks", "kage-edit-context.sh");
+  const editContextHook = readFileSync(editContextHookPath, "utf8");
+  execFileSync("bash", ["-n", editContextHookPath]);
+  assert.match(editContextHook, /kage file-context --project "\$CWD" --path "\$FILE_PATH"/);
+  assert.match(editContextHook, /tmp\/kage-edit-context/);
+  assert.equal(claudeSettings.hooks.PreToolUse[2].matcher, "Edit|Write|MultiEdit");
+  assert.match(claudeSettings.hooks.PreToolUse[2].hooks[0].command, /kage-edit-context\.sh/);
   // The vendored plugin copy stays in sync with the generated script's behavior.
   const pluginReadContext = readFileSync(join(__dirname, "..", "..", "plugin", "hooks", "kage-read-context.sh"), "utf8");
   assert.match(pluginReadContext, /kage file-context --project "\$CWD" --path "\$FILE_PATH"/);
