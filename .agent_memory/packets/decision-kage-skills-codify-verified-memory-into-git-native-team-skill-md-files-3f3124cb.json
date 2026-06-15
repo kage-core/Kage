@@ -37,27 +37,27 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-14T17:34:31.638Z",
+    "last_verified_at": "2026-06-15T08:30:49.362Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "b5895a7e7c2e79bf911695ab72bfa06d18e52c72a6657a40953ceaf061bea6d1",
-        "size": 819124
+        "sha256": "5e445f9aeb2fc97e8d7f6d4ab36ff5b14c861232f788d8745658c613a255671c",
+        "size": 821149
       },
       {
         "path": "mcp/cli.ts",
-        "sha256": "10063faf9f333d405c2fd089b6d27aa257e03ade8fa1993b9ec871adfaecd82d",
-        "size": 110239
+        "sha256": "ca6dcbcf445e2a287b8dccb0a46ac086f0fa6dddd0fd2dd039c0645638e5609a",
+        "size": 111711
       },
       {
         "path": "mcp/index.ts",
-        "sha256": "cca12310b70543cd69e4da440792b0db0296ff14e25e05d1af899901381dfd2f",
-        "size": 69728
+        "sha256": "4353a28c596b05203096d9ee8ef56604fb0fb019d67952e92bfb0a21eac000cf",
+        "size": 68945
       },
       {
         "path": "mcp/kernel.test.ts",
-        "sha256": "68abdec9ef869e895a1feb4123e8fde36179078e451ee31c9964450d5ce5156d",
-        "size": 276069
+        "sha256": "95d8719d2c790c249818373d6fc851fcf6f99cad0999ed45624d08af568afb4f",
+        "size": 277526
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -86,14 +86,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 376,
-    "reverified_at": "2026-06-14T17:34:31.638Z",
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: mcp/kernel.ts, mcp/cli.ts, mcp/index.ts, mcp/kernel.test.ts"
-    ],
-    "suggested_action": "update"
+    "reverified_at": "2026-06-15T08:30:49.362Z"
   },
   "created_at": "2026-06-14T15:20:39.698Z",
-  "updated_at": "2026-06-14T21:23:59.244Z",
+  "updated_at": "2026-06-15T08:30:49.362Z",
   "author_branch": "master"
 }
