@@ -270,7 +270,8 @@
         <div class="brand"><span class="mark">K</span> Kage</div>
         <div class="repocard"><span class="eyebrow">Repository</span><strong id="repo">loading…</strong></div>
         <nav class="nav" id="nav">
-          <button data-section="gains" aria-current="true"><span class="ic">⊕</span> Gains</button>
+          <button data-section="dashboard" aria-current="true"><span class="ic">⊞</span> Dashboard</button>
+          <button data-section="gains"><span class="ic">⊕</span> Gains</button>
           <button data-section="overview"><span class="ic">◎</span> Trust</button>
           <button data-section="graph"><span class="ic">⬡</span> Memory map</button>
           <button data-section="memory"><span class="ic">▤</span> Memory</button>
@@ -292,7 +293,15 @@
           <p id="subtitle">Tokens, dollars, and bad memories caught — receipts, not vibes.</p>
         </header>
         <div class="wrap">
-          <section class="section active" id="section-gains">
+          <section class="section active" id="section-dashboard">
+            <div class="tiles" id="dashTiles"></div>
+            <div class="ins-grid">
+              <div class="panel"><h2>Recent captures <span class="sub">— newest knowledge your agents saved</span></h2><div id="dashCaptures"></div></div>
+              <div class="panel"><h2>Memory by type</h2><div class="hbars" id="dashTypeBars"></div></div>
+            </div>
+          </section>
+
+          <section class="section" id="section-gains">
             <div class="receipt" id="gainsHero"></div>
             <div class="tiles" id="gainsTiles"></div>
             <div class="panel" id="livePanel" hidden><h2><span class="livedot" aria-hidden="true"></span>Live <span class="sub">— memories and value events as they happen</span></h2><div id="liveFeed"></div></div>

@@ -66,6 +66,7 @@
 
   // ---- nav ----
   var META = {
+    dashboard: ["kage://dashboard", "Dashboard", "Your team's captured knowledge — decisions, runbooks, and fixes — at a glance."],
     gains: ["kage://gains", "What Kage saved you", "Tokens, dollars, and bad memories caught — receipts, not vibes."],
     overview: ["kage://trust", "Memory trust", "Whether this repo's agent memory can be trusted — at a glance."],
     graph: ["kage://memory-map", "Memory ↔ code map", "Each packet anchored to the files it's grounded in. Hover a node to inspect."],
@@ -123,12 +124,13 @@
     renderGains(value);
     renderHero(trust);
     renderTiles(metrics, state.items);
+    renderDashboard(metrics, state.items, value);
     renderAttention(state.items, suppressed);
     renderChips(); renderList();
     renderInsights(metrics, state.items);
     renderActivity(activity);
     var start = (location.hash || "").replace("#", "");
-    show(META[start] ? start : "gains");
+    show(META[start] ? start : "dashboard");
   }
 
   // ---- gains (value ledger receipts) ----
@@ -341,6 +343,50 @@
   function counts(items) {
     var c = {}; items.forEach(function (i) { c[i.health] = (c[i.health] || 0) + 1; }); return c;
   }
+  // ---- dashboard (landing overview: what the team has captured, at a glance) ----
+  function renderDashboard(metrics, items, value) {
+    var cg = (metrics && metrics.code_graph) || {};
+    var c = counts(items);
+    var types = {}; items.forEach(function (i) { var t = i.type || "memory"; types[t] = (types[t] || 0) + 1; });
+    var ev = (value && value.events) || [];
+    var totals = (value && value.totals) || summarizeWindow(ev, 0);
+    var box = document.getElementById("dashTiles");
+    if (box) {
+      box.textContent = "";
+      [
+        { k: "Memory packets", v: fmt(items.length), s: (c.hot || 0) + " hot · " + (c.healthy || 0) + " healthy", cls: "memory" },
+        { k: "Decisions", v: fmt(types.decision || 0), s: "why the code is the way it is", cls: "code" },
+        { k: "Runbooks & fixes", v: fmt((types.runbook || 0) + (types.bug_fix || 0) + (types.workflow || 0)), s: "how to run it · how it broke", cls: "green" },
+        { k: "Recalls served", v: fmt(totals.recalls || 0), s: (totals.recalls ? "memory reused, not re-derived" : "recall to start the ledger"), cls: "green" },
+      ].forEach(function (d) { var t = el("div", "tile"); t.appendChild(el("div", "k", d.k)); t.appendChild(el("div", "v " + (d.cls || ""), d.v)); t.appendChild(el("div", "s", d.s)); box.appendChild(t); });
+    }
+    var cap = document.getElementById("dashCaptures");
+    if (cap) {
+      cap.textContent = "";
+      // Prefer human-readable captures: skip auto-distilled packets whose titles are
+      // raw ids / JSON fragments (start with a non-letter, or contain { } < >).
+      var clean = items.filter(function (i) { var t = (i.title || "").trim(); return /^[A-Za-z]/.test(t) && !/[{}<>]/.test(t); });
+      var pool = clean.length >= 5 ? clean : items;
+      var recent = pool.slice().sort(function (a, b) {
+        return (Date.parse(b.created_at || b.updated_at || 0) || 0) - (Date.parse(a.created_at || a.updated_at || 0) || 0);
+      }).slice(0, 7);
+      if (!recent.length) cap.appendChild(el("div", "empty", "No memory captured yet. As your agents work, decisions and fixes land here."));
+      else recent.forEach(function (i) { cap.appendChild(memoryRow(i)); });
+    }
+    var tb = document.getElementById("dashTypeBars");
+    if (tb) {
+      tb.textContent = "";
+      var arr = Object.keys(types).map(function (k) { return [k, types[k]]; }).sort(function (a, b) { return b[1] - a[1]; }).slice(0, 7);
+      var max = arr.length ? arr[0][1] : 1;
+      if (!arr.length) tb.appendChild(el("div", "empty", "No memory yet."));
+      arr.forEach(function (p) {
+        var row = el("div", "hbar"); row.appendChild(el("span", "n", p[0]));
+        var t = el("span", "t"), f = el("i"); t.appendChild(f); row.appendChild(t); row.appendChild(el("span", "c", String(p[1])));
+        tb.appendChild(row); setTimeout(function () { f.style.width = (p[1] / max * 100) + "%"; }, 80);
+      });
+    }
+  }
+
   function renderTiles(metrics, items) {
     var cg = (metrics && metrics.code_graph) || {};
     var act = (state.activity && state.activity.totals) || {};
