@@ -4,7 +4,7 @@
 
 ### Team memory for coding agents that never gets lost
 
-<img src="docs/kage-viewer.jpg" alt="kage viewer: the team's captured decisions, runbooks, and bug fixes, linked to the code they are about" width="760">
+<img src="docs/kage-viewer.gif" alt="kage viewer: the team's captured decisions, runbooks, and bug fixes, linked to the code they are about" width="760">
 
 <sub>`kage viewer`: your team's decisions, runbooks, and bug fixes (purple), kept in the repo and linked to the code they are about (blue).</sub>
 
