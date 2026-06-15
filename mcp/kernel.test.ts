@@ -4276,7 +4276,66 @@ test("truth report flags duplicates, ghost exports, and doc lies in a synthetic 
 
   assert.match(report.headline, /duplicate cluster/);
   assert.match(report.headline, /doc lie/);
-  assert.equal(report.findings.length <= 12, true);
+  assert.equal(report.findings.length <= 16, true);
+});
+
+test("truth report surfaces untested hot paths, complexity hotspots, and debt markers", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  mkdirSync(join(project, "test"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "detector-demo", scripts: { build: "tsc" } }), "utf8");
+
+  // A hub file six others import — central, churned, but no test touches it.
+  writeFileSync(
+    join(project, "src", "core.ts"),
+    "// TODO: revisit the retry policy here\n// FIXME: this swallows errors silently\nexport function coreThing(x: number): number {\n  return x + 1;\n}\n",
+    "utf8"
+  );
+  for (let i = 0; i < 6; i += 1) {
+    writeFileSync(
+      join(project, "src", `consumer${i}.ts`),
+      `import { coreThing } from "./core.js";\nexport const v${i} = coreThing(${i});\n`,
+      "utf8"
+    );
+  }
+  // A big file (>800 lines) — fires the complexity detector regardless of centrality.
+  const bigBody = Array.from({ length: 820 }, (_unused, i) => `export const big${i} = ${i};`).join("\n");
+  writeFileSync(join(project, "src", "huge.ts"), `${bigBody}\n`, "utf8");
+  // A test file that exercises a DIFFERENT file, so the repo has tests but core.ts stays uncovered.
+  writeFileSync(join(project, "src", "other.ts"), "export function other(): number {\n  return 0;\n}\n", "utf8");
+  writeFileSync(
+    join(project, "test", "other.test.ts"),
+    "import { other } from \"../src/other.js\";\nother();\n",
+    "utf8"
+  );
+  commitAll(project, "initial");
+  // Second commit so churn-gated detectors see commits >= 2 on core.ts.
+  writeFileSync(
+    join(project, "src", "core.ts"),
+    "// TODO: revisit the retry policy here\n// FIXME: this swallows errors silently\nexport function coreThing(x: number): number {\n  return x + 2;\n}\n",
+    "utf8"
+  );
+  commitAll(project, "tweak core");
+
+  const report = truthReport(project);
+
+  assert.equal(report.totals.untested_hot_paths >= 1, true);
+  const untested = report.findings.find((finding) => finding.kind === "untested_hot" && finding.title.includes("src/core.ts"));
+  assert.ok(untested);
+  assert.match(untested.detail, /no test imports or directly targets it/);
+
+  assert.equal(report.totals.complexity_hotspots >= 1, true);
+  assert.ok(report.findings.find((finding) => finding.kind === "complexity_hotspot" && finding.title.includes("src/huge.ts")));
+
+  assert.equal(report.totals.debt_markers >= 1, true);
+  const debt = report.findings.find((finding) => finding.kind === "debt_marker" && finding.title.includes("src/core.ts"));
+  assert.ok(debt);
+  assert.match(debt.title, /2 unresolved debt markers/);
+
+  // Headline leads with findings, never a wall of zeros.
+  assert.match(report.headline, /untested hot path|complexity hotspot|debt marker/);
+  assert.doesNotMatch(report.headline, /\b0 /);
 });
 
 test("truth report doc-lie scan skips paths quoted inside fenced code blocks", () => {

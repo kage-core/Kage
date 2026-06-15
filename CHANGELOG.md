@@ -16,6 +16,16 @@
 
 ## Unreleased
 
+- **`kage scan` actually finds things now.** The Truth Report's original five
+  detectors (duplicates, ghost exports, bus-factor, knowledge void, doc lies)
+  were tuned so strict that on most real repos only the tautological "knowledge
+  void" fired — the report read as "found nothing". Added three detectors that
+  reliably surface real, cited signal on any codebase: **untested hot paths**
+  (central, churned files no test imports or targets), **complexity hotspots**
+  (oversized files many things depend on), and **known debt** (TODO/FIXME/HACK/
+  deprecation markers concentrated in code). The headline now leads with what was
+  found; categories that come back clean are reported as reassurance ("Clean:
+  no duplicate implementations …") instead of a wall of leading zeros.
 - **Enforced recall-before-edit (PreToolUse Edit/Write/MultiEdit hook).** Before
   an agent modifies a file, Kage now injects the verified memory about that file
   (and what it's withholding as stale) — so recall precedes every change instead

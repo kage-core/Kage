@@ -1,0 +1,84 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:runbook:truth-report-detectors-lead-with-reliably-firing-signal-1781524351131",
+  "title": "Truth Report detectors: lead with reliably-firing signal",
+  "summary": "kage scan's original 5 detectors duplicate cluster, ghost export, bus factor, knowledge void, doc lie were tuned so strict that on most real repos only the tautological knowledge void fired, so the report read as 'found",
+  "body": "kage scan's original 5 detectors (duplicate_cluster, ghost_export, bus_factor, knowledge_void, doc_lie) were tuned so strict that on most real repos only the tautological knowledge_void fired, so the report read as 'found nothing'. Fix in truthReport() (mcp/kernel.ts): added three detectors that reliably fire on any codebase with real cited signal — untested_hot (central+churned source file no test imports or covers; needs hasTests, centrality>=5, commits>=2), complexity_hotspot (line_count>=400 with centrality>=3, or >=800 lines), and debt_marker (TODO/FIXME/HACK/XXX/@deprecated counted in top-400 files by centrality). Headline (mcp/kernel.ts) now lists only non-zero categories; CLI (mcp/cli.ts) reframes zero categories as a 'Clean:' reassurance line instead of leading zeros. Do NOT loosen the strict duplicate/ghost/doc-lie thresholds (they exist to avoid the false positives fixed in task #34).\nVerified by: scan run on express/got/chalk/lodash + 341 tests pass",
+  "type": "runbook",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "approved",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning"
+  ],
+  "paths": [
+    "mcp/kernel.ts",
+    "mcp/cli.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-15T11:52:31.131Z"
+    }
+  ],
+  "context": {
+    "fact": "kage scan's original 5 detectors (duplicate_cluster, ghost_export, bus_factor, knowledge_void, doc_lie) were tuned so strict that on most real repos only the tautological knowledge_void fired, so the report read as 'found nothing'. Fix in truthReport() (mcp/kernel.ts): added three detectors that reliably fire on any codebase with real cited signal — untested_hot (central+churned source file no test imports or covers; needs hasTests, centrality>=5, commits>=2), complexity_hotspot (line_count>=400 with centrality>=3, or >=800 lines), and debt_marker (TODO/FIXME/HACK/XXX/@deprecated counted in top-400 files by centrality). Headline (mcp/kernel.ts) now lists only non-zero categories; CLI (mcp/cli.ts) reframes zero categories as a 'Clean:' reassurance line instead of leading zeros. Do NOT loosen the strict duplicate/ghost/doc-lie thresholds (they exist to avoid the false positives fixed in task #34).\nVerified by: scan run on express/got/chalk/lodash + 341 tests pass",
+    "verification": "scan run on express/got/chalk/lodash + 341 tests pass"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-15T11:52:31.131Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "8f73a5d639044904624c55f8f6f97a68e5c917db9e0eb65d099713a5b47406f4",
+        "size": 829103
+      },
+      {
+        "path": "mcp/cli.ts",
+        "sha256": "ceb104554f417984e344c433199cb92934923ddb7a10d37d4611486a7afa0b2f",
+        "size": 112895
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture"
+  },
+  "edges": [],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "discovery_tokens": 2000,
+    "discovery_tokens_estimated": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "stale_reasons": [],
+    "estimated_tokens_saved": 244,
+    "contradicts": [
+      "repo:https-github-com-kage-core-kage:decision:agent-setup-verification-checks-claude-ambient-hooks-1779059804974",
+      "repo:https-github-com-kage-core-kage:workflow:auto-distill-fallback-and-kage-resume-continuity-verified-v2-2-1-1781268529282",
+      "repo:https-github-com-kage-core-kage:bug_fix:ci-kage-pr-check-blocks-only-on-hard-stale-memory-verified-v2-2-1-1781268529908",
+      "repo:https-github-com-kage-core-kage:decision:code-index-prefers-scip-with-lsp-fallback-1778265510094",
+      "repo:https-github-com-kage-core-kage:decision:code-index-inbox-and-benchmark-gates-harden-kage-handoff-quality-1778012973215"
+    ]
+  },
+  "created_at": "2026-06-15T11:52:31.131Z",
+  "updated_at": "2026-06-15T11:52:31.131Z",
+  "author_branch": "master"
+}

@@ -440,13 +440,16 @@ async function main(): Promise<void> {
     }
     console.log(`Kage Truth Report — ${result.project_dir}`);
     console.log(`Scanned ${result.totals.files_scanned} files, ${result.totals.symbols_scanned} symbols${result.totals.docs_scanned ? `, ${result.totals.docs_scanned} doc file(s)` : ""}\n`);
-    console.log(`  ${result.headline}\n`);
-    const sections: Array<{ kind: string; heading: string; count: number }> = [
-      { kind: "duplicate_cluster", heading: "DUPLICATE IMPLEMENTATIONS", count: result.totals.duplicate_clusters },
-      { kind: "ghost_export", heading: "GHOST KNOWLEDGE — exported, never called", count: result.totals.ghost_exports },
-      { kind: "bus_factor", heading: "BUS FACTOR 1 — one head holds it all", count: result.totals.bus_factor_files },
-      { kind: "knowledge_void", heading: "KNOWLEDGE VOID — high churn, zero memory", count: result.totals.knowledge_voids },
-      { kind: "doc_lie", heading: "DOC LIES — the README vs reality", count: result.totals.doc_lies },
+    console.log(result.headline ? `  ${result.headline}\n` : "");
+    const sections: Array<{ kind: string; heading: string; clean: string; count: number }> = [
+      { kind: "knowledge_void", heading: "KNOWLEDGE VOID — high churn, zero memory", clean: "no undocumented hot files", count: result.totals.knowledge_voids },
+      { kind: "untested_hot", heading: "UNTESTED HOT PATH — depended on, no test covers it", clean: "every hot path has a test", count: result.totals.untested_hot_paths },
+      { kind: "complexity_hotspot", heading: "COMPLEXITY HOTSPOT — big file, many dependents", clean: "no oversized hub files", count: result.totals.complexity_hotspots },
+      { kind: "debt_marker", heading: "KNOWN DEBT — TODO / FIXME / HACK left in code", clean: "no debt markers in code", count: result.totals.debt_markers },
+      { kind: "bus_factor", heading: "BUS FACTOR 1 — one head holds it all", clean: "no single-owner hot files", count: result.totals.bus_factor_files },
+      { kind: "duplicate_cluster", heading: "DUPLICATE IMPLEMENTATIONS", clean: "no duplicate implementations", count: result.totals.duplicate_clusters },
+      { kind: "ghost_export", heading: "GHOST KNOWLEDGE — exported, never called", clean: "no dead exports", count: result.totals.ghost_exports },
+      { kind: "doc_lie", heading: "DOC LIES — the README vs reality", clean: "docs match the code", count: result.totals.doc_lies },
     ];
     for (const section of sections) {
       const items = result.findings.filter((finding) => finding.kind === section.kind);
@@ -458,6 +461,14 @@ async function main(): Promise<void> {
         for (const evidence of finding.evidence) console.log(`      ${evidence}`);
       }
       console.log("");
+    }
+    // Reframe the categories that came back clean as reassurance, not emptiness.
+    // (doc checks only run when docs exist, so skip that line when none scanned.)
+    const cleanLabels = sections
+      .filter((section) => section.count === 0 && !(section.kind === "doc_lie" && !result.totals.docs_scanned))
+      .map((section) => section.clean);
+    if (result.findings.length && cleanLabels.length) {
+      console.log(`Clean: ${cleanLabels.join(" · ")}\n`);
     }
     if (!result.findings.length) {
       const small = result.totals.files_scanned < 30;

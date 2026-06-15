@@ -123,9 +123,11 @@ repo and verifies it — so it stays your team's, and stays true as the code cha
 
 ## Features
 
-- **Truth Report** — `kage scan` reads any repo in ~60s and surfaces duplicate
-  implementations, ghost exports, bus-factor-1 hot files, knowledge voids, and doc lies,
-  each cited to `file:line`. Zero setup, nothing generated.
+- **Truth Report** — `kage scan` reads any repo in ~60s and surfaces its highest-risk
+  knowledge gaps: undocumented hot files, untested hot paths, complexity hotspots,
+  unresolved code debt, and bus-factor-1 files — plus duplicate implementations, dead
+  exports, and doc lies when they exist. Every finding cited to `file:line`. Zero setup,
+  nothing generated, runs before you install anything.
 - **Savings receipts** — `kage gains` keeps a per-repo value ledger (tokens + $ the agent
   didn't have to re-spend), every number traceable to a logged event; the agent relays it
   after each recall.

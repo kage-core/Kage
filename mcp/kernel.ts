@@ -11377,7 +11377,15 @@ export function kageCleanupCandidates(projectDir: string): KageCleanupCandidates
 }
 
 export interface TruthFinding {
-  kind: "duplicate_cluster" | "ghost_export" | "bus_factor" | "knowledge_void" | "doc_lie";
+  kind:
+    | "duplicate_cluster"
+    | "ghost_export"
+    | "bus_factor"
+    | "knowledge_void"
+    | "untested_hot"
+    | "complexity_hotspot"
+    | "debt_marker"
+    | "doc_lie";
   title: string;
   detail: string;
   evidence: string[];
@@ -11395,6 +11403,9 @@ export interface TruthReport {
     ghost_exports: number;
     bus_factor_files: number;
     knowledge_voids: number;
+    untested_hot_paths: number;
+    complexity_hotspots: number;
+    debt_markers: number;
     doc_lies: number;
     docs_scanned: number;
   };
@@ -11404,7 +11415,7 @@ export interface TruthReport {
   next_actions: string[];
 }
 
-const TRUTH_REPORT_MAX_FINDINGS = 12;
+const TRUTH_REPORT_MAX_FINDINGS = 16;
 const TRUTH_REPORT_AI_ERA_DAYS = 120;
 
 // Symbol names too generic to mean "two teams built the same thing".
@@ -11671,6 +11682,96 @@ export function truthReport(projectDir: string): TruthReport {
   }
   voidFindings.sort((a, b) => b.surprise - a.surprise || a.title.localeCompare(b.title));
 
+  // 1e. Untested hot paths: central, churned source files no test exercises.
+  // Build the set of source paths some test covers — directly (covers_path /
+  // covers_symbol) or indirectly (a test file imports it). When the repo has no
+  // tests at all, "untested" is the baseline, not a finding, so we skip it.
+  const hasTests = graph.tests.length > 0 || graph.files.some((file) => file.kind === "test");
+  const testedPaths = new Set<string>();
+  if (hasTests) {
+    const symbolPathById = new Map(graph.symbols.map((symbol) => [symbol.id, symbol.path]));
+    const symbolPathsByName = new Map<string, string[]>();
+    for (const symbol of graph.symbols) {
+      const list = symbolPathsByName.get(symbol.name) ?? [];
+      list.push(symbol.path);
+      symbolPathsByName.set(symbol.name, list);
+    }
+    for (const test of graph.tests) {
+      if (test.covers_path) testedPaths.add(test.covers_path.replace(/\\/g, "/").replace(/^\/+/, ""));
+      if (test.covers_symbol) {
+        const byId = symbolPathById.get(test.covers_symbol);
+        if (byId) testedPaths.add(byId);
+        for (const path of symbolPathsByName.get(test.covers_symbol) ?? []) testedPaths.add(path);
+      }
+    }
+    for (const edge of graph.imports) {
+      if (edge.to_path && fileByPath.get(edge.from_path)?.kind === "test") testedPaths.add(edge.to_path);
+    }
+  }
+  const untestedFindings: TruthFinding[] = [];
+  if (hasTests) {
+    for (const file of sourceFiles) {
+      if (isEntrypointLike(file.path)) continue;
+      const fileCentrality = centrality.get(file.path) ?? 0;
+      const commits = fileCommits.get(file.path) ?? 0;
+      if (fileCentrality < 5) continue;
+      if (hasGit && commits < 2) continue;
+      if (testedPaths.has(file.path)) continue;
+      untestedFindings.push({
+        kind: "untested_hot",
+        title: `${file.path} — untested hot path`,
+        detail: `${fileCentrality} other file(s)/call(s) depend on it${commits ? ` and it has changed ${commits} time(s)` : ""}, yet no test imports or directly targets it. Coverage gaps on a hub file like this are where regressions hide.`,
+        evidence: [`${file.path}:1  centrality ${fileCentrality}, tests directly covering it: 0`],
+        surprise: Math.min(100, 30 + Math.min(45, fileCentrality * 3) + (hasGit ? Math.min(15, commits) : 0)),
+      });
+    }
+  }
+  untestedFindings.sort((a, b) => b.surprise - a.surprise || a.title.localeCompare(b.title));
+
+  // 1f. Complexity hotspots: very large source files many things depend on —
+  // where knowledge concentrates and onboarding stalls.
+  const complexityFindings: TruthFinding[] = [];
+  for (const file of sourceFiles) {
+    const fileCentrality = centrality.get(file.path) ?? 0;
+    if (file.line_count < 400) continue;
+    if (fileCentrality < 3 && file.line_count < 800) continue;
+    complexityFindings.push({
+      kind: "complexity_hotspot",
+      title: `${file.path} — ${file.line_count} lines, ${fileCentrality} dependent(s)`,
+      detail: `A ${file.line_count}-line file that ${fileCentrality} other file(s) depend on. The biggest, most-connected files are exactly where undocumented knowledge piles up.`,
+      evidence: [`${file.path}:1  ${file.line_count} lines, centrality ${fileCentrality}`],
+      surprise: Math.min(100, 25 + Math.min(40, Math.round(file.line_count / 40)) + Math.min(25, fileCentrality * 2)),
+    });
+  }
+  complexityFindings.sort((a, b) => b.surprise - a.surprise || a.title.localeCompare(b.title));
+
+  // 1g. Known debt: TODO/FIXME/HACK/deprecation markers left in code. Each is a
+  // decision deferred and undocumented. Scan the most-connected files first and
+  // bound the walk so a huge repo stays fast.
+  const debtFindings: TruthFinding[] = [];
+  const DEBT_RE = /(?:^|[^A-Za-z0-9_])(TODO|FIXME|HACK|XXX|@deprecated|@todo)(?:[^A-Za-z0-9_]|$)/gi;
+  const debtScanTargets = [...sourceFiles]
+    .sort((a, b) => (centrality.get(b.path) ?? 0) - (centrality.get(a.path) ?? 0))
+    .slice(0, 400);
+  for (const file of debtScanTargets) {
+    const text = truthFileText(file.path);
+    if (!text) continue;
+    const matches = text.match(DEBT_RE);
+    const count = matches ? matches.length : 0;
+    if (count < 1) continue;
+    const fileCentrality = centrality.get(file.path) ?? 0;
+    // A lone marker in a leaf file is noise; require either repetition or reach.
+    if (count < 2 && fileCentrality < 2) continue;
+    debtFindings.push({
+      kind: "debt_marker",
+      title: `${file.path} — ${count} unresolved debt marker${count === 1 ? "" : "s"}`,
+      detail: `TODO/FIXME/HACK/deprecation note(s) left in code${fileCentrality ? `, in a file ${fileCentrality} other(s) depend on` : ""}. Each is a decision deferred and undocumented.`,
+      evidence: [`${file.path}:1  ${count} marker(s), centrality ${fileCentrality}`],
+      surprise: Math.min(100, 20 + Math.min(35, count * 6) + Math.min(20, fileCentrality * 2)),
+    });
+  }
+  debtFindings.sort((a, b) => b.surprise - a.surprise || a.title.localeCompare(b.title));
+
   // 2. Doc-truth: checkable claims in README/docs vs reality.
   const docLieFindings: TruthFinding[] = [];
   if (docLines.length) {
@@ -11753,20 +11854,30 @@ export function truthReport(projectDir: string): TruthReport {
 
   // Cap per category so one noisy category cannot drown the report, then rank globally.
   const findings = [
+    ...voidFindings.slice(0, 4),
+    ...untestedFindings.slice(0, 4),
+    ...complexityFindings.slice(0, 4),
+    ...debtFindings.slice(0, 4),
+    ...busFindings.slice(0, 4),
     ...duplicateFindings.slice(0, 4),
     ...ghostFindings.slice(0, 4),
-    ...busFindings.slice(0, 4),
-    ...voidFindings.slice(0, 4),
     ...docLieFindings.slice(0, 4),
   ].sort((a, b) => b.surprise - a.surprise || a.title.localeCompare(b.title)).slice(0, TRUTH_REPORT_MAX_FINDINGS);
 
-  const headlineParts = [
-    `${duplicateFindings.length} duplicate cluster${duplicateFindings.length === 1 ? "" : "s"}`,
-    `${ghostFindings.length} ghost export${ghostFindings.length === 1 ? "" : "s"}`,
-    `${busFindings.length} bus-factor-1 hot file${busFindings.length === 1 ? "" : "s"}`,
-    `${voidFindings.length} knowledge void${voidFindings.length === 1 ? "" : "s"}`,
-    ...(docLines.length ? [`${docLieFindings.length} doc lie${docLieFindings.length === 1 ? "" : "s"}`] : []),
+  // Lead the headline with what we actually found; categories that came back
+  // clean are reported separately (see CLI "Clean:" line) so zeros never read
+  // as "scan found nothing".
+  const headlineCandidates: Array<[number, string]> = [
+    [voidFindings.length, `${voidFindings.length} knowledge void${voidFindings.length === 1 ? "" : "s"}`],
+    [untestedFindings.length, `${untestedFindings.length} untested hot path${untestedFindings.length === 1 ? "" : "s"}`],
+    [complexityFindings.length, `${complexityFindings.length} complexity hotspot${complexityFindings.length === 1 ? "" : "s"}`],
+    [debtFindings.length, `${debtFindings.length} debt marker file${debtFindings.length === 1 ? "" : "s"}`],
+    [busFindings.length, `${busFindings.length} bus-factor-1 hot file${busFindings.length === 1 ? "" : "s"}`],
+    [duplicateFindings.length, `${duplicateFindings.length} duplicate cluster${duplicateFindings.length === 1 ? "" : "s"}`],
+    [ghostFindings.length, `${ghostFindings.length} ghost export${ghostFindings.length === 1 ? "" : "s"}`],
+    ...(docLines.length ? [[docLieFindings.length, `${docLieFindings.length} doc lie${docLieFindings.length === 1 ? "" : "s"}`] as [number, string]] : []),
   ];
+  const headlineParts = headlineCandidates.filter(([count]) => count > 0).map(([, label]) => label);
 
   return {
     schema_version: 1,
@@ -11779,6 +11890,9 @@ export function truthReport(projectDir: string): TruthReport {
       ghost_exports: ghostFindings.length,
       bus_factor_files: busFindings.length,
       knowledge_voids: voidFindings.length,
+      untested_hot_paths: untestedFindings.length,
+      complexity_hotspots: complexityFindings.length,
+      debt_markers: debtFindings.length,
       doc_lies: docLieFindings.length,
       docs_scanned: docFiles.length,
     },
