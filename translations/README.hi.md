@@ -30,6 +30,14 @@ npx -y @kage-core/kage-graph-mcp install
 </p>
 
 <p>
+  <img src="https://img.shields.io/badge/LongMemEval--S%20R@5-96%25-1f6feb" alt="retrieval R@5 96%">
+  <img src="https://img.shields.io/badge/stale%20served-0%25-1f6feb" alt="0% stale served">
+  <img src="https://img.shields.io/badge/vs%20grep-18%25%20faster-1f6feb" alt="18% faster than grep">
+  <img src="https://img.shields.io/badge/external%20DBs-0-1f6feb" alt="zero external databases">
+  <img src="https://img.shields.io/badge/tests-340%2B%20passing-1f6feb" alt="340+ tests passing">
+</p>
+
+<p>
   <a href="https://kage-core.com/">वेबसाइट</a> ·
   <a href="https://kage-core.com/guide.html">दस्तावेज़</a> ·
   <a href="https://kage-core.com/viewer/">लाइव व्यूअर</a> ·
