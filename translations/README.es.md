@@ -6,6 +6,10 @@
 
 ### Memoria para agentes de código en la que puedes confiar
 
+<img src="../docs/kage-viewer.jpg" alt="El mapa memoria-código de kage viewer: packets de memoria enlazados a los archivos en los que se basan" width="760">
+
+<sub>El mapa memoria ↔ código en `kage viewer`: cada packet de memoria (morado) enlazado al archivo en el que se basa (azul).</sub>
+
 Tu agente de código olvida tu base de código en cada sesión, así que terminas
 explicándola una y otra vez. **Kage** le da memoria persistente que vive en tu
 repositorio como archivos de texto plano, y contrasta cada memoria con tu código real,

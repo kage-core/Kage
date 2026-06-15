@@ -6,6 +6,10 @@
 
 ### Une mémoire fiable pour vos agents de code
 
+<img src="../docs/kage-viewer.jpg" alt="La carte mémoire-code de kage viewer : packets de mémoire reliés aux fichiers sur lesquels ils s'appuient" width="760">
+
+<sub>La carte mémoire ↔ code dans `kage viewer` : chaque packet de mémoire (violet) relié au fichier sur lequel il s'appuie (bleu).</sub>
+
 Votre agent de code oublie votre base de code à chaque session, alors vous passez votre
 temps à la réexpliquer. **Kage** lui donne une mémoire persistante qui vit dans votre dépôt
 sous forme de fichiers en texte clair, et confronte chaque souvenir à votre code réel, pour

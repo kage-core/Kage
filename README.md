@@ -4,6 +4,10 @@
 
 ### Memory for coding agents you can trust
 
+<img src="docs/kage-viewer.jpg" alt="The kage viewer memory-to-code map: memory packets linked to the code files they are grounded in" width="760">
+
+<sub>The memory ↔ code map in `kage viewer`: every memory packet (purple) linked to the file it is grounded in (blue).</sub>
+
 Your coding agent forgets your codebase every session, so you keep re-explaining it.
 **Kage** gives it persistent memory that lives in your repo as plain files, and checks
 every memory against your actual code, so the agent never acts on something that is no

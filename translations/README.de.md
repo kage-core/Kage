@@ -6,6 +6,10 @@
 
 ### Verlässliches Gedächtnis für Coding-Agenten
 
+<img src="../docs/kage-viewer.jpg" alt="Die Gedächtnis-Code-Karte im kage viewer: Memory-Packets verbunden mit den Dateien, auf denen sie beruhen" width="760">
+
+<sub>Die Gedächtnis ↔ Code-Karte im `kage viewer`: jedes Memory-Packet (lila) ist mit der Datei verbunden, auf der es beruht (blau).</sub>
+
 Dein Coding-Agent vergisst deine Codebasis in jeder Sitzung, also erklärst du sie immer
 wieder neu. **Kage** gibt ihm ein dauerhaftes Gedächtnis, das als einfache Textdateien in
 deinem Repository lebt, und gleicht jede Erinnerung mit deinem echten Code ab, damit der
