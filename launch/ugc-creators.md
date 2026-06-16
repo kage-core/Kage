@@ -62,6 +62,35 @@ $15–30 deals. Avoid pure "AI news" accounts — their audience won't install a
 
 > Hey [name] — love your [Cursor/Claude Code] content. I built Kage (free, open-source memory for coding agents) and I'm paying a few creators $[20]/video + a bonus per signup to make a short, honest "tool I use" clip. ~45 sec, your style, your account. Brief + a free demo on your own repo if you want to try it first: kage-core.com/demo. Interested?
 
+## Negotiation playbook (the bargaining, scripted)
+
+**Your numbers (decide before you message):**
+- Target: **$20/video** flat, creator's account, you get usage rights to repost.
+- Ceiling: **$40/video** for a 30k+ creator with proven dev audience. Walk above that.
+- Perf bonus instead of higher flat: **$1 per verified signup** or **$200 per 100k views** — caps your risk, aligns incentives.
+- Bundle: **3 videos for $50** (test cadence, better rate). Always ask for the bundle.
+- Start with **5 creators**, one round, then only renew the 1–2 that drove clicks.
+
+**Message sequence (copy-paste, fill brackets):**
+
+1. **Opener** — see the DM template above.
+2. **They reply "I charge $X" (X within budget):**
+   > Works for me. To make it easy: $[X]/video, your account, 30–45s, your style — and I'd love rights to repost the clip on our channels. Can we do **3 videos for $[X*2.5]** so we can test what lands? I'll send the brief + a free demo on your repo so it's authentic.
+3. **They quote high (X > ceiling):**
+   > Appreciate it — a bit above what I've budgeted per creator this round. I can do **$[ceiling] flat + $[200] per 100k views**, which usually beats a flat fee if it performs. Open to that?
+4. **They're hesitant / want to try first:**
+   > Totally — try it free first, no obligation: `npx -y @kage-core/kage-graph-mcp scan --project .` or book a 30-min demo on your own repo (kage-core.com/demo). If you like it, we do the clip.
+5. **Close:**
+   > Great — sending: (1) the brief, (2) payment via [your method] on delivery, (3) the demo link. Post by [date]? I'll share the one-line CTA to pin in the caption.
+
+**Always get:** disclosure (#ad), repost/usage rights, the caption CTA (`npx … install` + kage-core.com/demo), and a posting date.
+
+## How we split this
+
+I can: research a **named shortlist** of real creators to approach, and pre-load
+every message above so each send is one click. **You** (or your explicit go,
+per message): hit send, agree to a price, and pay — those are yours to own.
+
 ## Tracking
 
 Spin up a simple sheet: Creator | Platform | Followers | Rate | Posted? | Views | Clicks/Signups. Keep the winners, cut the rest after round 1.
