@@ -75,14 +75,13 @@
     "estimated_tokens_saved": 82,
     "stale": true,
     "stale_reasons": [
-      "packet status is superseded",
-      "linked path changed since memory was verified: CHANGELOG.md"
+      "packet status is superseded"
     ],
     "suggested_action": "mark_stale",
     "superseded_by": "repo:https-github-com-kage-core-kage:decision:v2-2-x-closed-the-claude-mem-parity-gap-feature-map-and-what-remains-17812685329",
     "superseded_reason": "Newer repo memory supersedes this packet."
   },
   "created_at": "2026-06-12T11:49:36.416Z",
-  "updated_at": "2026-06-16T11:32:16.793Z",
+  "updated_at": "2026-06-16T14:06:27.655Z",
   "author_branch": "master"
 }
