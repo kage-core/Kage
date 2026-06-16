@@ -14,7 +14,7 @@ accounts). Dates are when the action was taken this session.
 | Directory | Status | Listing | Notes |
 |---|---|---|---|
 | **mcp.so** | ✅ Submitted | https://mcp.so/my-servers (status: created) | Name `kage`, logo set, tagline-led description, tags, server config. Pending mcp.so review before public. |
-| Glama | 🔑 your action | https://glama.ai/mcp/servers | Add Server requires creating a Glama account/OAuth — I don't create accounts. Glama also auto-indexes GitHub, so Kage should appear; claim it after sign-in. |
+| **Glama** | ✅ Submitted | https://glama.ai/mcp/servers | Added via Add Server (you logged in): name Kage, tagline-led description, GitHub URL. Pending Glama review before public. |
 | PulseMCP | 🔑 via registry | https://www.pulsemcp.com | No direct form — PulseMCP ingests from the Official MCP Registry daily. Publishing to the registry covers it automatically. |
 | Official MCP Registry | 🔑 your action (CLI) | — | **Linchpin** — PulseMCP + others ingest from it. server.json prepared. Run `mcp-publisher login github` (proves kage-core namespace) then `mcp-publisher publish`. I don't authenticate/OAuth on your behalf. |
 
