@@ -132,9 +132,6 @@ repo and verifies it, so it stays your team's and stays true as the code changes
 | Cross-machine sync | ✓ your own git remote | their cloud | their cloud |
 | Account / API key required | none | cloud optional | yes |
 
-Full, fair breakdown (including where claude-mem is genuinely strong):
-[docs/kage-vs-claude-mem.md](docs/kage-vs-claude-mem.md).
-
 ## Features
 
 - **Truth Report.** `kage scan` reads any repo in ~60s and surfaces its highest-risk

@@ -5,9 +5,8 @@ relevant MCP directory and coding-agent plugin marketplace.
 
 > **Why this exists (lever 1 of the growth plan).** Win distribution by being *present*,
 > with consistent on-message copy, in every place developers discover coding-agent tools.
-> Our direct competitor `claude-mem` hit 65K+ GitHub stars largely through the Claude Code
-> plugin marketplace + MCP directory presence. Kage has a more capable product but is
-> nearly invisible there (6 stars, ~3,400 npm downloads/month). Showing up fixes that.
+> Kage is a more capable memory layer than what's listed today but is nearly invisible
+> there (6 stars, ~3,400 npm downloads/month). Showing up — with our own story — fixes that.
 >
 > **Strategy / status / channels live in [`distribution-plan.md`](./distribution-plan.md).**
 > This file is the complement: the actual words to paste. Do not duplicate strategy here.
