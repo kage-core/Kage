@@ -122,11 +122,12 @@
     "reverified_at": "2026-06-15T21:58:11.610Z",
     "stale": true,
     "stale_reasons": [
-      "packet status is superseded"
+      "packet status is superseded",
+      "linked path changed since memory was verified: mcp/package.json"
     ],
     "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-11T15:23:34.916Z",
-  "updated_at": "2026-06-15T21:58:43.095Z",
+  "updated_at": "2026-06-16T08:56:16.130Z",
   "author_branch": "release/v2.0.0"
 }
