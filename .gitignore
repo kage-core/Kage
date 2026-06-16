@@ -30,3 +30,6 @@ docs/assets/*.typescript
 *.mov
 *.tgz
 .openai-bench.env
+# Private keys (e.g. MCP registry DNS-auth ed25519 key) — never commit
+*.pem
+kage-mcp-key.pem
