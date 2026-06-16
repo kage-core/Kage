@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📖 Documentation
+    url: https://kage-core.com/guide.html
+    about: Read the full CLI and MCP reference before filing.
+  - name: 💬 Discussions
+    url: https://github.com/kage-core/Kage/discussions
+    about: Questions, ideas, and show-and-tell — start here if it's not a bug.

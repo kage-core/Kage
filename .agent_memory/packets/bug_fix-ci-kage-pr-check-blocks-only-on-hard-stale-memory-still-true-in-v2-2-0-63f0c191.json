@@ -29,12 +29,34 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-12T11:52:28.819Z",
+    "last_verified_at": "2026-06-15T21:58:27.605Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "dd850d4105753866afe284732c0933deb94f4440684ddd5579f304dfdfd1734d",
-        "size": 782593
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "cited",
+            "kind": "constant",
+            "sha256": "7b4c95a8aed181f7a55a2c50e1825df87a03325cef56176f043f6b3bc8db9b19"
+          },
+          {
+            "name": "capture",
+            "kind": "function",
+            "sha256": "d6ab6995f6712c0c94fc325e5aaaf3f495bdd81ba660e115f3d467f89f93ef29"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          }
+        ]
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -78,16 +100,16 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 105,
+    "superseded_by": "repo:https-github-com-kage-core-kage:bug_fix:ci-kage-pr-check-blocks-only-on-hard-stale-memory-verified-v2-2-1-1781268529908",
+    "superseded_reason": "Newer repo memory supersedes this packet.",
+    "reverified_at": "2026-06-15T21:58:27.605Z",
     "stale": true,
     "stale_reasons": [
-      "packet status is superseded",
-      "linked path changed since memory was verified: mcp/kernel.ts"
+      "packet status is superseded"
     ],
-    "suggested_action": "mark_stale",
-    "superseded_by": "repo:https-github-com-kage-core-kage:bug_fix:ci-kage-pr-check-blocks-only-on-hard-stale-memory-verified-v2-2-1-1781268529908",
-    "superseded_reason": "Newer repo memory supersedes this packet."
+    "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-12T11:52:28.819Z",
-  "updated_at": "2026-06-12T12:49:56.269Z",
+  "updated_at": "2026-06-15T21:58:43.081Z",
   "author_branch": "master"
 }

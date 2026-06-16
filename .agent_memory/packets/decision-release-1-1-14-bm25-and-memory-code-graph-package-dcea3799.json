@@ -39,8 +39,82 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-06T06:01:23.391Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:29.738Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/package.json",
+        "sha256": "e77b80c8e3ef4eb7ccdf9f7dc775b51f18f1a7994092b538f81df874e8c91c5a",
+        "size": 1193
+      },
+      {
+        "path": "mcp/package-lock.json",
+        "sha256": "5cc3c1aa35fce1dc164444bb08d352f15590aa7fccfddbd7df1b6b7aaac67221",
+        "size": 42685
+      },
+      {
+        "path": "mcp/README.md",
+        "sha256": "5c852f608754e299c2cff74495862f1ce4775d0bda5776d7ce4f070f4e4a6494",
+        "size": 10129
+      },
+      {
+        "path": "CHANGELOG.md",
+        "sha256": "1d00aff932a74d380dad6e0d60ae0aed37e40aa5a03ae7ec0acb71f824d0ef0c",
+        "size": 46022
+      },
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "inbox",
+            "kind": "constant",
+            "sha256": "9d2097586a2527bfa63d55306c098fda29e1c3530771833e9aca5f986632d367"
+          },
+          {
+            "name": "readme",
+            "kind": "constant",
+            "sha256": "aa0f002dd3f57a6ca1e42c5aba625151268ed600bbbd7582f93a0a0bc7714404"
+          },
+          {
+            "name": "intent",
+            "kind": "constant",
+            "sha256": "3b69f45a6c78caa2dfa90d9f4c3b0b9b9ea67559d4df1b6f199ed8d7bb47cde9"
+          },
+          {
+            "name": "code",
+            "kind": "constant",
+            "sha256": "64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"
+          },
+          {
+            "name": "after",
+            "kind": "constant",
+            "sha256": "220a1c1969c37d53268e215419dcea650ffa901162d0a25e451bd90831fb0a1b"
+          },
+          {
+            "name": "trust",
+            "kind": "constant",
+            "sha256": "c4f3cf768a9a0a966c067fd73a1469f96703dc6373eb12e5440b885221736875"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          },
+          {
+            "name": "state",
+            "kind": "constant",
+            "sha256": "065fd1c87ce12edcfec7baca76dc9d91e35f5ea16490d33c8f85f3bdc3fee185"
+          }
+        ]
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -62,8 +136,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 215
+    "estimated_tokens_saved": 215,
+    "reverified_at": "2026-06-15T21:58:29.738Z"
   },
   "created_at": "2026-05-06T06:01:23.391Z",
-  "updated_at": "2026-06-05T14:03:30.160Z"
+  "updated_at": "2026-06-15T21:58:29.738Z"
 }

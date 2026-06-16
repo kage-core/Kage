@@ -17,8 +17,6 @@
     "branch:adopt-sse-live-feed"
   ],
   "paths": [
-    ".agent_memory/packets/workflow-change-memory-master-23634276.json",
-    ".agent_memory/packets/workflow-viewer-live-feed-sse-kage-events-from-fs-watch-on-agent-memory-818902c2.json",
     "mcp/daemon.test.ts",
     "mcp/daemon.ts"
   ],
@@ -48,18 +46,47 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-12T06:00:44.513Z",
+    "last_verified_at": "2026-06-15T21:58:21.293Z",
     "ttl_days": 180,
     "path_fingerprints": [
       {
         "path": "mcp/daemon.test.ts",
-        "sha256": "63ad996b6dea0bb5b6db7b903df3332d03fd6b41729806994abd3ce4d1f8dc5e",
-        "size": 12163
+        "sha256": "ef48ce8b21ff33ed39379a9be695f863280d552399973a742c0e3932c21bfe1e",
+        "size": 12250,
+        "symbols": [
+          {
+            "name": "feed",
+            "kind": "constant",
+            "sha256": "27c0b444f09314ac7e1e9800fb118a042bd8a36b4b031118e3db976a04bed7f2"
+          }
+        ]
       },
       {
         "path": "mcp/daemon.ts",
         "sha256": "4d558ba09071b09ab3d1a62d40af04edf17609c9ea98a571405883424cc1bf2f",
-        "size": 38423
+        "size": 38423,
+        "symbols": [
+          {
+            "name": "events",
+            "kind": "constant",
+            "sha256": "2b0aedca3d99c794be26575d8a62560478191aaa1d6092f7bc5756b69e0f320b"
+          },
+          {
+            "name": "json",
+            "kind": "function",
+            "sha256": "c6cfd13a6f9203c85fedf4efd643fcb209309a376a34ce77909c444a05e9b0e5"
+          },
+          {
+            "name": "text",
+            "kind": "constant",
+            "sha256": "70f68baaeedf940b18569f940046a8a0a978afd00077c6b27618336a05fa1cc1"
+          },
+          {
+            "name": "files",
+            "kind": "constant",
+            "sha256": "69140299050f3544f2a8f5cdcfa3672dd7f2a78cf8960d3197b23624253b5b9e"
+          }
+        ]
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -135,8 +162,9 @@
     },
     "candidate_kind": "change_memory",
     "review_boundary": "git_or_pr",
-    "promotion_requires_review": true
+    "promotion_requires_review": true,
+    "reverified_at": "2026-06-15T21:58:21.293Z"
   },
   "created_at": "2026-06-12T06:00:44.513Z",
-  "updated_at": "2026-06-12T06:01:01.448Z"
+  "updated_at": "2026-06-15T21:58:21.293Z"
 }

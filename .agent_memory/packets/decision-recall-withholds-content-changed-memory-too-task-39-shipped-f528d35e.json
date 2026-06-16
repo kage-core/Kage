@@ -36,22 +36,153 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-15T17:57:43.211Z",
+    "last_verified_at": "2026-06-15T21:58:36.709Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "c339a8e8d13226640fb42515ee1c5693aaf0f97ca86a6ad6457adf31f3687713",
-        "size": 837545
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "recallhardstalereason",
+            "kind": "function",
+            "sha256": "bc5094b9c34ac06c4424f01b2460eb03e812b9570ce812f540a38b94693cdabf"
+          },
+          {
+            "name": "recallstalereason",
+            "kind": "function",
+            "sha256": "c6fc366817dabb64fe33d27a4880bfa5ed5c5ac634e45d559d468e634a0bd5b3"
+          },
+          {
+            "name": "same",
+            "kind": "constant",
+            "sha256": "b150fada949a5c6d4babe0a0bc108765c6e7e1819d0ddbee55112b9c9a708447"
+          },
+          {
+            "name": "kagesuppressedmemory",
+            "kind": "function",
+            "sha256": "496a779e0c5ef8f8ceaf64ce9ac6846805e935f4067c06e3753d09cb6cf44651"
+          },
+          {
+            "name": "compactproject",
+            "kind": "function",
+            "sha256": "ee1d36e41ef017d59b40bbf47b11fea156ed8a4ff760224b98f9b4ac85c02bbb"
+          },
+          {
+            "name": "recallwithvectorscores",
+            "kind": "function",
+            "sha256": "870c029c28d0658a5057a2b43fc9f0242d0b578e195e55c6871d18e56ddf444d"
+          },
+          {
+            "name": "suppressed",
+            "kind": "constant",
+            "sha256": "68983b85837e14dadc02d44da6473dfbdfdc19ef9a6697a86b2217f341194be5"
+          },
+          {
+            "name": "code",
+            "kind": "constant",
+            "sha256": "64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"
+          },
+          {
+            "name": "cited",
+            "kind": "constant",
+            "sha256": "7b4c95a8aed181f7a55a2c50e1825df87a03325cef56176f043f6b3bc8db9b19"
+          },
+          {
+            "name": "citations",
+            "kind": "constant",
+            "sha256": "78b7b49fddee7f5495108e631981c2962515ed3d581135bfa9b536e2b3f30e9d"
+          },
+          {
+            "name": "withheld",
+            "kind": "constant",
+            "sha256": "eb7d70a0467b39f39545af788776ad26d8bce372b5fdcf2540f1c9433c48a517"
+          },
+          {
+            "name": "auto",
+            "kind": "constant",
+            "sha256": "00dfd4334aa51ffac12b575a6a2c33040556f4641b8e8806bee9af6d653df46c"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          },
+          {
+            "name": "section",
+            "kind": "constant",
+            "sha256": "94139d33e03721319bcd2ffe4b54948b3d0a4bb19839ff90b5383343a1eb4a41"
+          },
+          {
+            "name": "generateskills",
+            "kind": "function",
+            "sha256": "333536fde8703f467115835460b40b60c5d831938c0e9e90c71b49fe3331b2cb"
+          },
+          {
+            "name": "personalrecallentries",
+            "kind": "function",
+            "sha256": "b94f22fd2ae59763f343812835bb326c0c90e7d11002054dd8d0ba202c040677"
+          }
+        ]
       },
       {
         "path": "benchmarks/staleness-kage.mjs",
         "sha256": "a283dabe3c46caead471a8710dc10f68a30ca7e98a02ccae40da3c4af0b00b09",
-        "size": 4508
+        "size": 4508,
+        "symbols": [
+          {
+            "name": "kernel",
+            "kind": "constant",
+            "sha256": "57bca4a7a2d87a532d86a1bc9d8798b7ba2db2e1748c14b17be1cf9ea170e472"
+          },
+          {
+            "name": "deleted",
+            "kind": "constant",
+            "sha256": "673b3a8a65c2116a48a132c487136f8de8b546aeee2a6417478edf355d447686"
+          },
+          {
+            "name": "changed",
+            "kind": "constant",
+            "sha256": "8e2b9d2979bc32f703c9f6ecd423f0d33388d5a9aa778d079c4972bcb7f127ac"
+          },
+          {
+            "name": "served",
+            "kind": "constant",
+            "sha256": "8d005f5bbe9b2723eea39d79b1b4fd2b492a43be85795cc0b892bcc519b660f5"
+          },
+          {
+            "name": "suppressed",
+            "kind": "constant",
+            "sha256": "ad2dd227492fb1f4d3039eed78e52c0d075d23e9917fc337ade6f2796d3ae9ba"
+          }
+        ]
       },
       {
         "path": "mcp/trajectory.test.ts",
         "sha256": "991be7aa8959e57376ae66aa2927431da917882263c45f6d52a0d021040f8553",
-        "size": 11774
+        "size": 11774,
+        "symbols": [
+          {
+            "name": "file",
+            "kind": "constant",
+            "sha256": "f3626aae2e2b8cf9a338c620ffd83d99508b56d894b28bac1663c4464e521c06"
+          },
+          {
+            "name": "served",
+            "kind": "function",
+            "sha256": "472b21ea1f5d070acacf8c74bcd2e352117e3fc6e89f19bcd8766baa8b9eb5de"
+          },
+          {
+            "name": "withheld",
+            "kind": "constant",
+            "sha256": "0edea144806988c645314fe1cf68d5254cb8fc234aa058d6d99c6bed8ba0d9f0"
+          }
+        ]
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -87,9 +218,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 330,
-    "reverified_at": "2026-06-15T17:57:43.211Z"
+    "reverified_at": "2026-06-15T21:58:36.709Z"
   },
   "created_at": "2026-06-14T20:10:00.252Z",
-  "updated_at": "2026-06-15T17:57:43.211Z",
+  "updated_at": "2026-06-15T21:58:36.709Z",
   "author_branch": "master"
 }

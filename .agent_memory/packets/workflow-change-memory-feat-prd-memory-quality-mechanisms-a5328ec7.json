@@ -46,23 +46,60 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-04T18:27:15.281Z",
+    "last_verified_at": "2026-06-15T21:58:23.367Z",
     "ttl_days": 180,
     "path_fingerprints": [
       {
         "path": "CHANGELOG.md",
-        "sha256": "8065e06eb3b85ee32489fdb895d1e1f8f707fb61b7460e51ce1a3fa8ade33287",
-        "size": 14389
+        "sha256": "1d00aff932a74d380dad6e0d60ae0aed37e40aa5a03ae7ec0acb71f824d0ef0c",
+        "size": 46022
       },
       {
         "path": "README.md",
-        "sha256": "396a8078003fc268597d683a81ea30b7b77a3d463647e51e7e21a7ebe3b4dccc",
-        "size": 11333
+        "sha256": "9a533eee7962e84cdceef1bd8c9463233a575138fa143acafc8abd42f723944a",
+        "size": 10477
       },
       {
         "path": "mcp/cli.ts",
-        "sha256": "9d3ad45e628a513f81afb62b8d75ca392070f51bf2bd30c9265dfa20a43f83e1",
-        "size": 82680
+        "sha256": "a670bc601e227372c9ab3e862f4e25fa87ae4bfa90b63c3bbc61032d332da0d7",
+        "size": 114201,
+        "symbols": [
+          {
+            "name": "review",
+            "kind": "function",
+            "sha256": "cd5b65cd476d7eaecccc181de3bcad5b3d7c99237dcbfce313709f8eb35f9a13"
+          },
+          {
+            "name": "command",
+            "kind": "constant",
+            "sha256": "9e594169e1f8559f50d7e73b407f1aa3a9a0f14bf43a676fedefa72734badb98"
+          },
+          {
+            "name": "current",
+            "kind": "constant",
+            "sha256": "471f3cfbffa04d6ecddb2f3d4013027b71237de766afb69ec418f1f1b8308937"
+          },
+          {
+            "name": "agent",
+            "kind": "constant",
+            "sha256": "5b9caa614311fe691d6af171b9a8985b0d49464b9df178ad28ff5b9883eb4cf2"
+          },
+          {
+            "name": "from",
+            "kind": "constant",
+            "sha256": "b386d829bcacbd9e216c726f6dff71fc7d8a53aade383fa45b850387414b780c"
+          },
+          {
+            "name": "summary",
+            "kind": "constant",
+            "sha256": "0938b0afc17695033381e2248401bba9b7c6abb6f9f0eaae0d2a8ff2c660d662"
+          },
+          {
+            "name": "durable",
+            "kind": "constant",
+            "sha256": "59e1af86ee722f58562da0478f6f3fe6621ae96f9473de8c0037e63fe779215e"
+          }
+        ]
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -114,13 +151,13 @@
     "candidate_kind": "change_memory",
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true,
+    "reverified_at": "2026-06-15T21:58:23.367Z",
     "stale": true,
     "stale_reasons": [
-      "packet status is deprecated",
-      "linked path changed since memory was verified: README.md, mcp/cli.ts"
+      "packet status is deprecated"
     ],
     "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-04T18:27:15.281Z",
-  "updated_at": "2026-06-15T18:00:50.586Z"
+  "updated_at": "2026-06-15T21:58:43.096Z"
 }

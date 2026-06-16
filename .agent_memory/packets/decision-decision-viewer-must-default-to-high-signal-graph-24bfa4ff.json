@@ -29,8 +29,57 @@
   ],
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-02T19:57:39.592Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:30.020Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "parseporcelainstatus",
+            "kind": "function",
+            "sha256": "b6702bbf36bd5be92acd16ab86018edd227f02e5aa36c0ab89072c8ef4d157fb"
+          },
+          {
+            "name": "code",
+            "kind": "constant",
+            "sha256": "64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"
+          },
+          {
+            "name": "before",
+            "kind": "constant",
+            "sha256": "70c005bc3586ccb93799dfa1989dccca69b847916fd3fde1583578730922c50c"
+          },
+          {
+            "name": "after",
+            "kind": "constant",
+            "sha256": "220a1c1969c37d53268e215419dcea650ffa901162d0a25e451bd90831fb0a1b"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          },
+          {
+            "name": "proposal",
+            "kind": "constant",
+            "sha256": "2635ae339aa49ea3e4a223598b98a454a35fb29ef89fd02ff6ab0662362ab19f"
+          },
+          {
+            "name": "fixed",
+            "kind": "constant",
+            "sha256": "24c94f8af8d6bb9909e676bab33f87fca9b068e7ebf547b89b1ded262de468e1"
+          }
+        ]
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -52,8 +101,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 342
+    "estimated_tokens_saved": 342,
+    "reverified_at": "2026-06-15T21:58:30.020Z"
   },
   "created_at": "2026-05-02T19:57:39.592Z",
-  "updated_at": "2026-06-05T14:03:30.156Z"
+  "updated_at": "2026-06-15T21:58:30.020Z"
 }

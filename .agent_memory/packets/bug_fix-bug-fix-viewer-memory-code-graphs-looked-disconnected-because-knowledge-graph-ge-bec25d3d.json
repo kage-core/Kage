@@ -33,8 +33,74 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-09T07:57:42.238Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:16.734Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "explicit",
+            "kind": "constant",
+            "sha256": "3c7dc76a866b9617850dd05c43ef877cc5208ade5be761331cf32181ace414ff"
+          },
+          {
+            "name": "code",
+            "kind": "constant",
+            "sha256": "64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"
+          },
+          {
+            "name": "precise",
+            "kind": "constant",
+            "sha256": "fbc0f5272a936e5eef187431a6b4aad5f3786820696b4e9057fc1f8750027542"
+          },
+          {
+            "name": "graphs",
+            "kind": "constant",
+            "sha256": "5483925183f5f71c1681f32dbf4b745a68dc9fc52cb81abcc8410e5ad02b3dac"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          },
+          {
+            "name": "when",
+            "kind": "constant",
+            "sha256": "48bfd58b3cdbf2d407e4443b90727d548d96eceaa4372c099dcd22c52f498452"
+          }
+        ]
+      },
+      {
+        "path": "mcp/kernel.test.ts",
+        "sha256": "f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec",
+        "size": 290526,
+        "symbols": [
+          {
+            "name": "created",
+            "kind": "constant",
+            "sha256": "2b38c32a22801ef96565e462218f3f9ac64a1ef94a7562ac306eeb5988d14192"
+          },
+          {
+            "name": "edges",
+            "kind": "constant",
+            "sha256": "8c37bcd95245ff6d66b6f8b413ce98901f9c5e8bad1c2b4dc47e75e3b2815f73"
+          },
+          {
+            "name": "filter",
+            "kind": "constant",
+            "sha256": "f9235dbf87bd46a2346156a8d2fb71b581cb2a4e68085cbe25e3db0e2f04ed4a"
+          }
+        ]
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -57,6 +123,7 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 163,
+    "reverified_at": "2026-06-15T21:58:16.734Z",
     "stale": true,
     "stale_reasons": [
       "packet status is deprecated"
@@ -64,5 +131,5 @@
     "suggested_action": "mark_stale"
   },
   "created_at": "2026-05-09T07:57:42.238Z",
-  "updated_at": "2026-06-05T14:03:30.151Z"
+  "updated_at": "2026-06-15T21:58:43.081Z"
 }

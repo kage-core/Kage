@@ -36,8 +36,116 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-09T06:56:05.608Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:29.410Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.test.ts",
+        "sha256": "f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec",
+        "size": 290526,
+        "symbols": [
+          {
+            "name": "packets",
+            "kind": "constant",
+            "sha256": "f28a69afbf5d7a988e351fc5446a3b291a2451f97b8220c4e1a7629b3a50ffa3"
+          },
+          {
+            "name": "benchmark",
+            "kind": "constant",
+            "sha256": "5671166b34f289b838cd462807715792f2dda03a9870f4ca9e846b6ddd5ce769"
+          },
+          {
+            "name": "edges",
+            "kind": "constant",
+            "sha256": "8c37bcd95245ff6d66b6f8b413ce98901f9c5e8bad1c2b4dc47e75e3b2815f73"
+          },
+          {
+            "name": "capped",
+            "kind": "constant",
+            "sha256": "3970ad21021b970742071b0ec3b960a6c80a5c8639069172a5cfedccb46da334"
+          },
+          {
+            "name": "combined",
+            "kind": "constant",
+            "sha256": "554ec06aae48c9a47df84376a48ae5875cf9f989c81cbc3cead38693c38b4db7"
+          }
+        ]
+      },
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "time",
+            "kind": "constant",
+            "sha256": "36aa0a901e7fda47d7d7571d9c21879432386e4418ed56010d7e03c9a91f5482"
+          },
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "compact",
+            "kind": "constant",
+            "sha256": "c9b1c12cc7a86cc1cd5e8fe0a5d8f5153a50e841cc6135962452153780c8557f"
+          },
+          {
+            "name": "level",
+            "kind": "constant",
+            "sha256": "832bbcc09db2b0a822fe5b0f77875aea29528b0343bffcb1c71cf2fe73b9aa5e"
+          },
+          {
+            "name": "code",
+            "kind": "constant",
+            "sha256": "64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"
+          },
+          {
+            "name": "precise",
+            "kind": "constant",
+            "sha256": "fbc0f5272a936e5eef187431a6b4aad5f3786820696b4e9057fc1f8750027542"
+          },
+          {
+            "name": "graphs",
+            "kind": "constant",
+            "sha256": "5483925183f5f71c1681f32dbf4b745a68dc9fc52cb81abcc8410e5ad02b3dac"
+          },
+          {
+            "name": "combined",
+            "kind": "constant",
+            "sha256": "fd2198e3aa074f89cf88de8a00bd11199a1e734513e5d6a1acc79765d2c8338b"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          }
+        ]
+      },
+      {
+        "path": "mcp/cli.ts",
+        "sha256": "a670bc601e227372c9ab3e862f4e25fa87ae4bfa90b63c3bbc61032d332da0d7",
+        "size": 114201,
+        "symbols": [
+          {
+            "name": "report",
+            "kind": "constant",
+            "sha256": "8d05d375165d2273c6ec769d9538b412b0d08e00b21207889ab726b110c4ab04"
+          },
+          {
+            "name": "from",
+            "kind": "constant",
+            "sha256": "b386d829bcacbd9e216c726f6dff71fc7d8a53aade383fa45b850387414b780c"
+          }
+        ]
+      },
+      {
+        "path": "mcp/README.md",
+        "sha256": "5c852f608754e299c2cff74495862f1ce4775d0bda5776d7ce4f070f4e4a6494",
+        "size": 10129
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -59,8 +167,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 204
+    "estimated_tokens_saved": 204,
+    "reverified_at": "2026-06-15T21:58:29.410Z"
   },
   "created_at": "2026-05-09T06:56:05.608Z",
-  "updated_at": "2026-06-05T14:03:30.153Z"
+  "updated_at": "2026-06-15T21:58:29.410Z"
 }

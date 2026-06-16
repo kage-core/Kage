@@ -40,8 +40,104 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-15T02:54:30.160Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:25.566Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "cycles",
+            "kind": "constant",
+            "sha256": "8968b4e917ffe8da2ffd217096dc7977aae3aa5e84fe6d44fb013a65e27788a8"
+          },
+          {
+            "name": "communities",
+            "kind": "constant",
+            "sha256": "cc4a04d935c1d0cda512c6a3ce12be8ce113ba155f75f30d9565c0c9e3cc9c2b"
+          },
+          {
+            "name": "insights",
+            "kind": "constant",
+            "sha256": "67661337caa84462a920677f5721d5a484a3ac4263155c04bf106d2b6f8b5457"
+          },
+          {
+            "name": "central",
+            "kind": "constant",
+            "sha256": "cadb605ec607c15b376bd7ca7283743fcccb5f45190467501d6fc27be9363760"
+          },
+          {
+            "name": "before",
+            "kind": "constant",
+            "sha256": "70c005bc3586ccb93799dfa1989dccca69b847916fd3fde1583578730922c50c"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          },
+          {
+            "name": "keep",
+            "kind": "constant",
+            "sha256": "3e5df93c6de57dbae093461e4198d2bc24bb055a50d3f6a8bd6449397fd00f3b"
+          }
+        ]
+      },
+      {
+        "path": "mcp/cli.ts",
+        "sha256": "a670bc601e227372c9ab3e862f4e25fa87ae4bfa90b63c3bbc61032d332da0d7",
+        "size": 114201,
+        "symbols": [
+          {
+            "name": "json",
+            "kind": "constant",
+            "sha256": "9115381310c6d4c5ecb25a7e67e4fd0bb4b20a9b328adb25b606065454f79370"
+          },
+          {
+            "name": "from",
+            "kind": "constant",
+            "sha256": "b386d829bcacbd9e216c726f6dff71fc7d8a53aade383fa45b850387414b780c"
+          }
+        ]
+      },
+      {
+        "path": "mcp/index.ts",
+        "sha256": "d5abac0cb8d92d9074ae37a32ee515da8b03c43fe2d1a03d44447ee7b3493861",
+        "size": 69453
+      },
+      {
+        "path": "mcp/kernel.test.ts",
+        "sha256": "f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec",
+        "size": 290526
+      },
+      {
+        "path": "mcp/mcp.test.ts",
+        "sha256": "3f5e52ad72a2a4b4db9e8de8bdad60cfb622ec132c2a278523ca6aad79538ec0",
+        "size": 37910
+      },
+      {
+        "path": "README.md",
+        "sha256": "9a533eee7962e84cdceef1bd8c9463233a575138fa143acafc8abd42f723944a",
+        "size": 10477
+      },
+      {
+        "path": "mcp/README.md",
+        "sha256": "5c852f608754e299c2cff74495862f1ce4775d0bda5776d7ce4f070f4e4a6494",
+        "size": 10129
+      },
+      {
+        "path": "docs/guide.html",
+        "sha256": "33b57e522b1a49e48631042940e2ca7d281084371c3feb3210604e213e0e7f28",
+        "size": 51769
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -63,8 +159,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 96
+    "estimated_tokens_saved": 96,
+    "reverified_at": "2026-06-15T21:58:25.566Z"
   },
   "created_at": "2026-05-15T02:54:30.160Z",
-  "updated_at": "2026-05-19T04:53:22.455Z"
+  "updated_at": "2026-06-15T21:58:25.566Z"
 }

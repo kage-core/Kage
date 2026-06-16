@@ -47,9 +47,68 @@
     }
   ],
   "freshness": {
-    "last_verified_at": "2026-06-11T15:01:59.668Z",
+    "last_verified_at": "2026-06-15T21:58:21.772Z",
     "ttl_days": 180,
-    "verification": "git_diff"
+    "verification": "git_diff",
+    "path_fingerprints": [
+      {
+        "path": ".github/workflows/pages.yml",
+        "sha256": "0268e0222b1263c3f8a28e766b2b278e2ae269535d08bf2fcfd499d90b579fce",
+        "size": 5402
+      },
+      {
+        "path": "AGENTS.md",
+        "sha256": "d1e074d6887bacd550f629c53dae432477ebedf6548b14765396a408a4544d3a",
+        "size": 3427
+      },
+      {
+        "path": "CLAUDE.md",
+        "sha256": "d1e074d6887bacd550f629c53dae432477ebedf6548b14765396a408a4544d3a",
+        "size": 3427
+      },
+      {
+        "path": "docs/assets/site.css",
+        "sha256": "9f0c41aae773688ad78a04e6b264c9cfb7f93f5c69b4a4f24594de314979bc6f",
+        "size": 13767
+      },
+      {
+        "path": "docs/guide.html",
+        "sha256": "33b57e522b1a49e48631042940e2ca7d281084371c3feb3210604e213e0e7f28",
+        "size": 51769
+      },
+      {
+        "path": "docs/index.html",
+        "sha256": "97fa35c70c0a4682eb5e927543bea68306f073a0d683c92751aa021cc23f0d2c",
+        "size": 33562
+      },
+      {
+        "path": "mcp/daemon.test.ts",
+        "sha256": "ef48ce8b21ff33ed39379a9be695f863280d552399973a742c0e3932c21bfe1e",
+        "size": 12250
+      },
+      {
+        "path": "mcp/daemon.ts",
+        "sha256": "4d558ba09071b09ab3d1a62d40af04edf17609c9ea98a571405883424cc1bf2f",
+        "size": 38423,
+        "symbols": [
+          {
+            "name": "json",
+            "kind": "function",
+            "sha256": "c6cfd13a6f9203c85fedf4efd643fcb209309a376a34ce77909c444a05e9b0e5"
+          },
+          {
+            "name": "text",
+            "kind": "constant",
+            "sha256": "70f68baaeedf940b18569f940046a8a0a978afd00077c6b27618336a05fa1cc1"
+          },
+          {
+            "name": "files",
+            "kind": "constant",
+            "sha256": "69140299050f3544f2a8f5cdcfa3672dd7f2a78cf8960d3197b23624253b5b9e"
+          }
+        ]
+      }
+    ]
   },
   "edges": [
     {
@@ -152,8 +211,9 @@
     },
     "candidate_kind": "change_memory",
     "review_boundary": "git_or_pr",
-    "promotion_requires_review": true
+    "promotion_requires_review": true,
+    "reverified_at": "2026-06-15T21:58:21.772Z"
   },
   "created_at": "2026-06-11T15:01:59.668Z",
-  "updated_at": "2026-06-11T15:05:52.533Z"
+  "updated_at": "2026-06-15T21:58:21.772Z"
 }

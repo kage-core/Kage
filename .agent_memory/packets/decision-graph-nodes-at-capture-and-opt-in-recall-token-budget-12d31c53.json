@@ -35,22 +35,128 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-11T15:18:19.000Z",
+    "last_verified_at": "2026-06-15T21:58:13.619Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "feb28afccf9163d9a4a6f5e46e36e9d1b056043bec756ade4c492c0693e03162",
-        "size": 691945
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "boundcontextblock",
+            "kind": "function",
+            "sha256": "eff33069d887c3f6cb423fb2ab0abc00258441583d7f055da47a6dfdbf8637d5"
+          },
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "lineage",
+            "kind": "constant",
+            "sha256": "d95fb2fcf60b740e0ead538d68698eb4a371f46b66a22e0d241a07ef5c085b6b"
+          },
+          {
+            "name": "deduped",
+            "kind": "constant",
+            "sha256": "392c648e18f9ed5c5f6ef2938ad3a9258d8ccf9790aeb4fb94b07143cb2b94ce"
+          },
+          {
+            "name": "clean",
+            "kind": "function",
+            "sha256": "17cd330796a719d520826491a73ab88f886668a6f03c7ab8c85530d9cb3a996d"
+          },
+          {
+            "name": "explicit",
+            "kind": "constant",
+            "sha256": "3c7dc76a866b9617850dd05c43ef877cc5208ade5be761331cf32181ace414ff"
+          },
+          {
+            "name": "references",
+            "kind": "constant",
+            "sha256": "8e56a659477f8edc0dfadefc515e9ee2f26df3291d9c4294e8a31a9eac14c367"
+          },
+          {
+            "name": "code",
+            "kind": "constant",
+            "sha256": "64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"
+          },
+          {
+            "name": "token",
+            "kind": "constant",
+            "sha256": "9289e531e150dbf4533b30373feed670db17040de86f0a87bae921c5fb3ce702"
+          },
+          {
+            "name": "capture",
+            "kind": "function",
+            "sha256": "d6ab6995f6712c0c94fc325e5aaaf3f495bdd81ba660e115f3d467f89f93ef29"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          },
+          {
+            "name": "sections",
+            "kind": "constant",
+            "sha256": "f96165e061f972c6c7da14d41a49d7170c382a34d2a9521577f92fae79b3731a"
+          }
+        ]
       },
       {
         "path": "mcp/index.ts",
-        "sha256": "a3ba5c1b522dcfaf3f15b4a2b010f22116d07f3c810f38a6c4f8b0604dfd9a42",
-        "size": 63966
+        "sha256": "d5abac0cb8d92d9074ae37a32ee515da8b03c43fe2d1a03d44447ee7b3493861",
+        "size": 69453,
+        "symbols": [
+          {
+            "name": "index",
+            "kind": "constant",
+            "sha256": "ad98a75521fc0edce4fed6c6cd0503a41df66728efc44c4c3904db6a6ac89d7f"
+          },
+          {
+            "name": "sections",
+            "kind": "constant",
+            "sha256": "533e156b60355e2d78f8bdcd44b8dea7449aea2827470c4b5b1d5327e5119f2c"
+          },
+          {
+            "name": "maxcontexttokens",
+            "kind": "constant",
+            "sha256": "6035d34edf8fc7a58912c4a0d5d4351b232e1559f06ccb2993d3aee39cd414e4"
+          }
+        ]
       },
       {
         "path": "mcp/cli.ts",
-        "sha256": "728f18995f87914ae7d1ad827a7f5800f451e864d4b5790932e15ca10660e07d",
-        "size": 89956
+        "sha256": "a670bc601e227372c9ab3e862f4e25fa87ae4bfa90b63c3bbc61032d332da0d7",
+        "size": 114201,
+        "symbols": [
+          {
+            "name": "index",
+            "kind": "constant",
+            "sha256": "c201ee64cf24065dd2ba0bbdc7ff8399e5c1dd89783820e501d28f82019f08a8"
+          },
+          {
+            "name": "sections",
+            "kind": "constant",
+            "sha256": "769e7d08012081d23a4e6f197bbc0bfac46af976008bcb412db0352d78d8b628"
+          },
+          {
+            "name": "wired",
+            "kind": "constant",
+            "sha256": "53fd67a86d7030f97797810736da8e6d0dabcbd66260439181b3868c04cc4769"
+          },
+          {
+            "name": "agent",
+            "kind": "constant",
+            "sha256": "5b9caa614311fe691d6af171b9a8985b0d49464b9df178ad28ff5b9883eb4cf2"
+          },
+          {
+            "name": "maxcontexttokens",
+            "kind": "constant",
+            "sha256": "9376b184d5e86a15f1e29eb3aa44d299b484871c0c0bd3361948cd8f8eca9bd1"
+          }
+        ]
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -105,16 +211,16 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 200,
+    "superseded_by": "repo:https-github-com-kage-core-kage:decision:graph-nodes-at-capture-opt-in-recall-token-budget-still-true-in-v2-2-0-178126514",
+    "superseded_reason": "Newer repo memory supersedes this packet.",
+    "reverified_at": "2026-06-15T21:58:13.619Z",
     "stale": true,
     "stale_reasons": [
-      "packet status is superseded",
-      "linked path changed since memory was verified: mcp/kernel.ts, mcp/index.ts, mcp/cli.ts"
+      "packet status is superseded"
     ],
-    "suggested_action": "mark_stale",
-    "superseded_by": "repo:https-github-com-kage-core-kage:decision:graph-nodes-at-capture-opt-in-recall-token-budget-still-true-in-v2-2-0-178126514",
-    "superseded_reason": "Newer repo memory supersedes this packet."
+    "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-04T16:01:03.630Z",
-  "updated_at": "2026-06-12T11:54:26.172Z",
+  "updated_at": "2026-06-15T21:58:43.085Z",
   "author_branch": "master"
 }

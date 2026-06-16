@@ -33,8 +33,27 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-09T07:30:13.676Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:22.563Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.test.ts",
+        "sha256": "f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec",
+        "size": 290526,
+        "symbols": [
+          {
+            "name": "edges",
+            "kind": "constant",
+            "sha256": "8c37bcd95245ff6d66b6f8b413ce98901f9c5e8bad1c2b4dc47e75e3b2815f73"
+          },
+          {
+            "name": "filter",
+            "kind": "constant",
+            "sha256": "f9235dbf87bd46a2346156a8d2fb71b581cb2a4e68085cbe25e3db0e2f04ed4a"
+          }
+        ]
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -56,8 +75,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 194
+    "estimated_tokens_saved": 194,
+    "reverified_at": "2026-06-15T21:58:22.563Z"
   },
   "created_at": "2026-05-09T07:30:13.676Z",
-  "updated_at": "2026-06-05T14:03:30.153Z"
+  "updated_at": "2026-06-15T21:58:22.563Z"
 }

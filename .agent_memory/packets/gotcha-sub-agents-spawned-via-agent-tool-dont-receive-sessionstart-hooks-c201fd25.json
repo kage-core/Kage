@@ -30,8 +30,47 @@
   ],
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-02T15:55:14.881Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:06.368Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "code",
+            "kind": "constant",
+            "sha256": "64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"
+          },
+          {
+            "name": "hooks",
+            "kind": "constant",
+            "sha256": "7291847ee5dfe9b56b32a270d8bb6309f5740dde9443103ede1b01a377155e78"
+          },
+          {
+            "name": "present",
+            "kind": "constant",
+            "sha256": "b0fc5057457202bcbc10dd345333192f2bfeefdd0cd200d8c52d37c6444a3435"
+          },
+          {
+            "name": "when",
+            "kind": "constant",
+            "sha256": "48bfd58b3cdbf2d407e4443b90727d548d96eceaa4372c099dcd22c52f498452"
+          }
+        ]
+      },
+      {
+        "path": "AGENTS.md",
+        "sha256": "d1e074d6887bacd550f629c53dae432477ebedf6548b14765396a408a4544d3a",
+        "size": 3427
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -53,8 +92,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 278
+    "estimated_tokens_saved": 278,
+    "reverified_at": "2026-06-15T21:58:06.368Z"
   },
   "created_at": "2026-05-02T15:55:14.881Z",
-  "updated_at": "2026-05-19T04:53:22.461Z"
+  "updated_at": "2026-06-15T21:58:06.368Z"
 }

@@ -33,8 +33,94 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-17T22:56:11.895Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:01.111Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "order",
+            "kind": "constant",
+            "sha256": "db30b7ccb07d7f43001699200ace64babea1129360233ab863e59e09e926ef2c"
+          },
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "captures",
+            "kind": "constant",
+            "sha256": "950d879145f4f4e4ebd8ecf00c5108ded0ecf255269095620bc64abbdee6d4f2"
+          },
+          {
+            "name": "same",
+            "kind": "constant",
+            "sha256": "b150fada949a5c6d4babe0a0bc108765c6e7e1819d0ddbee55112b9c9a708447"
+          },
+          {
+            "name": "explicit",
+            "kind": "constant",
+            "sha256": "3c7dc76a866b9617850dd05c43ef877cc5208ade5be761331cf32181ace414ff"
+          },
+          {
+            "name": "diversifyrecallentries",
+            "kind": "function",
+            "sha256": "b1d80ed8fb48abf7cbc983a867956534964742d596df46f9921778f255a2a23f"
+          },
+          {
+            "name": "recallwithvectorscores",
+            "kind": "function",
+            "sha256": "870c029c28d0658a5057a2b43fc9f0242d0b578e195e55c6871d18e56ddf444d"
+          },
+          {
+            "name": "before",
+            "kind": "constant",
+            "sha256": "70c005bc3586ccb93799dfa1989dccca69b847916fd3fde1583578730922c50c"
+          },
+          {
+            "name": "after",
+            "kind": "constant",
+            "sha256": "220a1c1969c37d53268e215419dcea650ffa901162d0a25e451bd90831fb0a1b"
+          },
+          {
+            "name": "relevant",
+            "kind": "constant",
+            "sha256": "ecda229c929f06ede369f9d72be3d3211fef450b1056b73a121c5d925fac2c2b"
+          },
+          {
+            "name": "then",
+            "kind": "constant",
+            "sha256": "69e63ba481d1d2641d270176aed93aa51e363bcfe7c9903c448b032adf4c4129"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          }
+        ]
+      },
+      {
+        "path": "mcp/kernel.test.ts",
+        "sha256": "f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec",
+        "size": 290526,
+        "symbols": [
+          {
+            "name": "packets",
+            "kind": "constant",
+            "sha256": "f28a69afbf5d7a988e351fc5446a3b291a2451f97b8220c4e1a7629b3a50ffa3"
+          },
+          {
+            "name": "name",
+            "kind": "constant",
+            "sha256": "081c81b8ff45c590015f81a59547f9e3c7167d240fc7840015e0afccc683b329"
+          }
+        ]
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -56,8 +142,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 181
+    "estimated_tokens_saved": 181,
+    "reverified_at": "2026-06-15T21:58:01.111Z"
   },
   "created_at": "2026-05-17T22:56:11.895Z",
-  "updated_at": "2026-05-19T04:53:22.457Z"
+  "updated_at": "2026-06-15T21:58:01.111Z"
 }

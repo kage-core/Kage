@@ -36,8 +36,49 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-17T20:41:58.395Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:25.058Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/daemon.ts",
+        "sha256": "4d558ba09071b09ab3d1a62d40af04edf17609c9ea98a571405883424cc1bf2f",
+        "size": 38423,
+        "symbols": [
+          {
+            "name": "viewerstaticheaders",
+            "kind": "function",
+            "sha256": "79ee8c9984b8adf2a762e5744dab4e12175cb1b138e1da2da42d01aa5d97472a"
+          },
+          {
+            "name": "files",
+            "kind": "constant",
+            "sha256": "69140299050f3544f2a8f5cdcfa3672dd7f2a78cf8960d3197b23624253b5b9e"
+          }
+        ]
+      },
+      {
+        "path": "mcp/daemon.test.ts",
+        "sha256": "ef48ce8b21ff33ed39379a9be695f863280d552399973a742c0e3932c21bfe1e",
+        "size": 12250,
+        "symbols": [
+          {
+            "name": "headers",
+            "kind": "constant",
+            "sha256": "1f963460b9cc31fd7268aec54bfe87681383604fc46ef85358abdde2197d058f"
+          }
+        ]
+      },
+      {
+        "path": "README.md",
+        "sha256": "9a533eee7962e84cdceef1bd8c9463233a575138fa143acafc8abd42f723944a",
+        "size": 10477
+      },
+      {
+        "path": "mcp/README.md",
+        "sha256": "5c852f608754e299c2cff74495862f1ce4775d0bda5776d7ce4f070f4e4a6494",
+        "size": 10129
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -59,8 +100,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 165
+    "estimated_tokens_saved": 165,
+    "reverified_at": "2026-06-15T21:58:25.058Z"
   },
   "created_at": "2026-05-17T20:41:58.395Z",
-  "updated_at": "2026-05-19T04:50:14.876Z"
+  "updated_at": "2026-06-15T21:58:25.058Z"
 }

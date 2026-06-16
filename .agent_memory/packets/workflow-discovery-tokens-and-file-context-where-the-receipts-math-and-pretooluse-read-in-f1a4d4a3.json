@@ -36,27 +36,141 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-12T07:39:52.056Z",
+    "last_verified_at": "2026-06-15T21:58:08.057Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "938f4dbe69ba275d6172b6e2c01e382ef22b233a75423b555aa0fee993157946",
-        "size": 726179
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "default_discovery_tokens",
+            "kind": "constant",
+            "sha256": "56223ea2cf8fd41dc7fa5297455e07e2fe6f9a90a64b374f2579a8efad095c20"
+          },
+          {
+            "name": "replaytokenssaved",
+            "kind": "function",
+            "sha256": "9fa0f7aba4a4b8083a7d9002492502ac81900453a15295c55a457a5a9de0839f"
+          },
+          {
+            "name": "discovery",
+            "kind": "constant",
+            "sha256": "101ade4ac1655f4a5515202be00b88b950736716bed1e486b09d2db5580e1958"
+          },
+          {
+            "name": "kagefilecontext",
+            "kind": "function",
+            "sha256": "478dff28196874fdd86dae630e5c47b3f9cb1c77055eff97f9ef187d568b928c"
+          },
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "stalememoryreasons",
+            "kind": "function",
+            "sha256": "4e884b72e777070ffbcd049a35b2c0b92bc6363aec7e3dbdbf850898872fdf1f"
+          },
+          {
+            "name": "tokens",
+            "kind": "constant",
+            "sha256": "a8668ad3e7d13eada95708ada8f509b54a5029bdfa50d80521bb81fe0f3d5d12"
+          },
+          {
+            "name": "verification",
+            "kind": "constant",
+            "sha256": "faeb54eb75a6e60ebcab087f39fdd9f971c8a3a16e25846647ab2dd5802748f3"
+          },
+          {
+            "name": "code",
+            "kind": "constant",
+            "sha256": "64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"
+          },
+          {
+            "name": "read",
+            "kind": "constant",
+            "sha256": "ffe49534fbcdb7c556f32fa5120c3dd4c00fce60f148c94f79d0d94d71145efd"
+          },
+          {
+            "name": "capture",
+            "kind": "function",
+            "sha256": "d6ab6995f6712c0c94fc325e5aaaf3f495bdd81ba660e115f3d467f89f93ef29"
+          },
+          {
+            "name": "setupagent",
+            "kind": "function",
+            "sha256": "0ad3f8f44b973a13b0272e373fee8ac6519f790c0c2dcfafee9c84fe12850444"
+          },
+          {
+            "name": "hooks",
+            "kind": "constant",
+            "sha256": "7291847ee5dfe9b56b32a270d8bb6309f5740dde9443103ede1b01a377155e78"
+          },
+          {
+            "name": "auto",
+            "kind": "constant",
+            "sha256": "00dfd4334aa51ffac12b575a6a2c33040556f4641b8e8806bee9af6d653df46c"
+          },
+          {
+            "name": "when",
+            "kind": "constant",
+            "sha256": "48bfd58b3cdbf2d407e4443b90727d548d96eceaa4372c099dcd22c52f498452"
+          },
+          {
+            "name": "keep",
+            "kind": "constant",
+            "sha256": "3e5df93c6de57dbae093461e4198d2bc24bb055a50d3f6a8bd6449397fd00f3b"
+          },
+          {
+            "name": "state",
+            "kind": "constant",
+            "sha256": "065fd1c87ce12edcfec7baca76dc9d91e35f5ea16490d33c8f85f3bdc3fee185"
+          }
+        ]
       },
       {
         "path": "mcp/cli.ts",
-        "sha256": "61150c7062d22def512bc6e03c28107dc4936ddc08cf4c0d350e2bffa820a876",
-        "size": 97464
+        "sha256": "a670bc601e227372c9ab3e862f4e25fa87ae4bfa90b63c3bbc61032d332da0d7",
+        "size": 114201,
+        "symbols": [
+          {
+            "name": "value",
+            "kind": "constant",
+            "sha256": "c9560c65b946f6f8269de6cb5d49d3bb0dbabec6fb3119c445ad738f194d37ba"
+          },
+          {
+            "name": "command",
+            "kind": "constant",
+            "sha256": "9e594169e1f8559f50d7e73b407f1aa3a9a0f14bf43a676fedefa72734badb98"
+          },
+          {
+            "name": "from",
+            "kind": "constant",
+            "sha256": "b386d829bcacbd9e216c726f6dff71fc7d8a53aade383fa45b850387414b780c"
+          },
+          {
+            "name": "auto",
+            "kind": "constant",
+            "sha256": "b35a15a3c084f482674a7f570c7cdc322236fb24a812c3607b8a0e622927f531"
+          },
+          {
+            "name": "type",
+            "kind": "constant",
+            "sha256": "32ed8eb4ecde4706e2590380969ccb808068c46a3c687040703198e8c72d14e1"
+          }
+        ]
       },
       {
         "path": "plugin/hooks/kage-read-context.sh",
-        "sha256": "2cd1e31ae20f2af802f23e464190a8c42bd472891a1aa586a0d67ea687b43186",
-        "size": 2412
+        "sha256": "e83160801e722b7a30c1a6792afb0b478abfc60c3875e3f816bbeb1f9fcf6a55",
+        "size": 2536
       },
       {
         "path": "plugin/hooks/hooks.json",
-        "sha256": "b3004a45f9e656573062fdfc7d32abfabd35f226adf974d9c818c621f26a514b",
-        "size": 781
+        "sha256": "ed90980e5bc6df31b65f7bfa9d435f0f35502fad706b4540e987c3d1595ed137",
+        "size": 1034
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -82,15 +196,15 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "stale_reasons": [
-      "packet status is deprecated",
-      "linked path changed since memory was verified: mcp/kernel.ts, mcp/cli.ts, plugin/hooks/kage-read-context.sh, plugin/hooks/hooks.json"
-    ],
     "estimated_tokens_saved": 276,
+    "reverified_at": "2026-06-15T21:58:08.057Z",
     "stale": true,
+    "stale_reasons": [
+      "packet status is deprecated"
+    ],
     "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-12T07:39:52.056Z",
-  "updated_at": "2026-06-15T10:10:04.846Z",
+  "updated_at": "2026-06-15T21:58:43.100Z",
   "author_branch": "adopt/receipts-and-read-context"
 }

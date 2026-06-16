@@ -109,6 +109,8 @@ import {
   syncSetup,
   syncStatus,
   truthReport,
+  truthScorecardSvg,
+  truthScorecardMarkdown,
   validateProject,
   valueSummary,
   formatTokenCount,
@@ -145,7 +147,7 @@ const FULL_USAGE = `Kage — full command reference
 
 Usage:
   kage index --project <dir>
-  kage scan --project <dir> [--json]
+  kage scan --project <dir> [--json] [--scorecard [--out <file>]]
   kage demo [--project <dir>]
   kage install [--project <dir>] [--agents a,b] [--no-agents] [--json]
   kage init --project <dir> [--with-policy]
@@ -436,6 +438,18 @@ async function main(): Promise<void> {
     const result = truthReport(scanTarget);
     if (args.includes("--json")) {
       console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    if (args.includes("--scorecard")) {
+      // A shareable artifact, not terminal output: write the SVG (or Markdown if
+      // --out ends in .md) and echo the Markdown table so it's pasteable now.
+      const out = takeArg(args, "--out");
+      const asMarkdown = out ? out.toLowerCase().endsWith(".md") : false;
+      const outPath = out ?? join(scanTarget, "kage-scorecard.svg");
+      writeFileSync(outPath, asMarkdown ? truthScorecardMarkdown(result) : truthScorecardSvg(result), "utf8");
+      console.log(`Scorecard written to ${outPath}`);
+      console.log("Share it: embed the SVG in a README, screenshot it, or post it.\n");
+      console.log(truthScorecardMarkdown(result));
       return;
     }
     console.log(`Kage Truth Report — ${result.project_dir}`);
@@ -1383,7 +1397,13 @@ async function main(): Promise<void> {
     const plural = (count: number, singular: string, pluralForm: string): string => (count === 1 ? singular : pluralForm);
     const week = summary.last_7d;
     if (!summary.all_time.recalls && !summary.all_time.stale_withheld && !summary.all_time.stale_caught && !summary.all_time.caller_answers) {
-      console.log("No value events recorded yet. Run kage recall (or let your agent call kage_context) and check back.");
+      console.log("No value events recorded yet — this ledger fills up as your agent works.");
+      console.log("Every recall logs the tokens it saved (by not re-reading cited files) and every");
+      console.log("stale memory it withheld. Come back after a session and you'll see a receipt here.\n");
+      console.log("Start now:");
+      console.log("  kage scan --project .                  a 60-second Truth Report on this repo");
+      console.log("  kage scan --project . --scorecard      a shareable scorecard you can post");
+      console.log("  then just work — your agent captures and recalls, verified against this code.");
       return;
     }
     console.log(

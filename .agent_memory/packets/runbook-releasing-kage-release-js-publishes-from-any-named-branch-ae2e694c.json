@@ -36,32 +36,51 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-11T15:23:34.916Z",
+    "last_verified_at": "2026-06-15T21:58:11.610Z",
     "path_fingerprints": [
       {
         "path": "mcp/release.ts",
         "sha256": "526ba31170e96dabcc315dced845f1955a4adf92ae338c75954de7d0d088fb3d",
-        "size": 5908
+        "size": 5908,
+        "symbols": [
+          {
+            "name": "branch",
+            "kind": "constant",
+            "sha256": "ea669aa964d877b0f98c3acecc471a6a2f0f953ab3bfab33192a7e937508fbf5"
+          }
+        ]
       },
       {
         "path": "mcp/package.json",
-        "sha256": "b449aee3367abfb277dc85bb1375877c6dd97b823ac77e97f8cc8a6275369af9",
-        "size": 1095
+        "sha256": "e77b80c8e3ef4eb7ccdf9f7dc775b51f18f1a7994092b538f81df874e8c91c5a",
+        "size": 1193
       },
       {
         "path": "mcp/index.ts",
-        "sha256": "a3ba5c1b522dcfaf3f15b4a2b010f22116d07f3c810f38a6c4f8b0604dfd9a42",
-        "size": 63966
+        "sha256": "d5abac0cb8d92d9074ae37a32ee515da8b03c43fe2d1a03d44447ee7b3493861",
+        "size": 69453,
+        "symbols": [
+          {
+            "name": "server",
+            "kind": "constant",
+            "sha256": "4c51eb77c75ec82db0638b55b2c9c6e55a03a1594fa82c31b7304f8b924f091e"
+          },
+          {
+            "name": "index",
+            "kind": "constant",
+            "sha256": "ad98a75521fc0edce4fed6c6cd0503a41df66728efc44c4c3904db6a6ac89d7f"
+          }
+        ]
       },
       {
         "path": "plugin/.claude-plugin/plugin.json",
-        "sha256": "11153bbcdc50cae8982fdc01cd53b511eda853cabac692826b842e2b672d3982",
-        "size": 604
+        "sha256": "ad058fe3d0b7d571254c359dfd1d4ab2eb502b0157a8cabe32b33dc4d60a268d",
+        "size": 735
       },
       {
         "path": "plugin/.codex-plugin/plugin.json",
-        "sha256": "17d68feee3886a46bbf9a82ecbd536dc1b2b4d9784b2b23e6489820238478557",
-        "size": 267
+        "sha256": "29fa27abe5a059c855012fee1efdc8d9cdb6d1f30eec18b6db3d9eb46817db41",
+        "size": 394
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -98,16 +117,16 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 225,
+    "superseded_by": "repo:https-github-com-kage-core-kage:runbook:releasing-kage-release-js-flow-current-as-of-v2-2-0-1781265198248",
+    "superseded_reason": "Newer repo memory supersedes this packet.",
+    "reverified_at": "2026-06-15T21:58:11.610Z",
     "stale": true,
     "stale_reasons": [
-      "packet status is superseded",
-      "linked path changed since memory was verified: mcp/package.json, mcp/index.ts, plugin/.claude-plugin/plugin.json, plugin/.codex-plugin/plugin.json"
+      "packet status is superseded"
     ],
-    "suggested_action": "mark_stale",
-    "superseded_by": "repo:https-github-com-kage-core-kage:runbook:releasing-kage-release-js-flow-current-as-of-v2-2-0-1781265198248",
-    "superseded_reason": "Newer repo memory supersedes this packet."
+    "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-11T15:23:34.916Z",
-  "updated_at": "2026-06-12T11:54:26.180Z",
+  "updated_at": "2026-06-15T21:58:43.095Z",
   "author_branch": "release/v2.0.0"
 }

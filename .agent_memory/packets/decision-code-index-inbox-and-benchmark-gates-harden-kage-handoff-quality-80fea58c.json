@@ -43,8 +43,240 @@
   ],
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-05T20:29:33.215Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:30.951Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "inbox",
+            "kind": "constant",
+            "sha256": "9d2097586a2527bfa63d55306c098fda29e1c3530771833e9aca5f986632d367"
+          },
+          {
+            "name": "fact",
+            "kind": "constant",
+            "sha256": "adb9d6a773dc4dacf5613a3e7d4225436f1a23ff67de02659a247304284b10c6"
+          },
+          {
+            "name": "explicit",
+            "kind": "constant",
+            "sha256": "3c7dc76a866b9617850dd05c43ef877cc5208ade5be761331cf32181ace414ff"
+          },
+          {
+            "name": "writelspsymbolindex",
+            "kind": "function",
+            "sha256": "97a155fc14a3697d945d5dce97268045a8a2147598b1a10025a60a6db9583a6d"
+          },
+          {
+            "name": "code",
+            "kind": "constant",
+            "sha256": "64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"
+          },
+          {
+            "name": "handoff",
+            "kind": "constant",
+            "sha256": "7ca82bf8dfe8bd9cc41cf7de6d3a0421c3753588836a81fddf5ba5e62ae2781f"
+          },
+          {
+            "name": "overall",
+            "kind": "constant",
+            "sha256": "1014e0bebe729e96e36c5f4ab682e578fa6b851366f00a34d88423ad47ce21d3"
+          },
+          {
+            "name": "precise",
+            "kind": "constant",
+            "sha256": "fbc0f5272a936e5eef187431a6b4aad5f3786820696b4e9057fc1f8750027542"
+          },
+          {
+            "name": "risk",
+            "kind": "constant",
+            "sha256": "d8cefa2e26411c9cf6d7857bd9ff15e58ab6ff3e5ed30b4531801e725978a06d"
+          },
+          {
+            "name": "graphs",
+            "kind": "constant",
+            "sha256": "5483925183f5f71c1681f32dbf4b745a68dc9fc52cb81abcc8410e5ad02b3dac"
+          },
+          {
+            "name": "memoryinbox",
+            "kind": "function",
+            "sha256": "50d099e91d11b98ca772f39dadd78dfa1d00479628f5b41416b9900850ea2509"
+          },
+          {
+            "name": "before",
+            "kind": "constant",
+            "sha256": "70c005bc3586ccb93799dfa1989dccca69b847916fd3fde1583578730922c50c"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          },
+          {
+            "name": "when",
+            "kind": "constant",
+            "sha256": "48bfd58b3cdbf2d407e4443b90727d548d96eceaa4372c099dcd22c52f498452"
+          }
+        ]
+      },
+      {
+        "path": "mcp/kernel.test.ts",
+        "sha256": "f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec",
+        "size": 290526,
+        "symbols": [
+          {
+            "name": "quality",
+            "kind": "constant",
+            "sha256": "06eb60954e6f50dd593cacf74246243dccea1b5754f915a9f1a036ce481e3be7"
+          },
+          {
+            "name": "benchmark",
+            "kind": "constant",
+            "sha256": "5671166b34f289b838cd462807715792f2dda03a9870f4ca9e846b6ddd5ce769"
+          },
+          {
+            "name": "inbox",
+            "kind": "constant",
+            "sha256": "464a16980ca2a8d111706a50d8804e272daeb29f848c44faa47c005822a4a501"
+          },
+          {
+            "name": "root",
+            "kind": "constant",
+            "sha256": "54a6ff27b2242246917558965c17ead6799dd35dd11036cd210be20c06eb14e8"
+          }
+        ]
+      },
+      {
+        "path": "mcp/index.ts",
+        "sha256": "d5abac0cb8d92d9074ae37a32ee515da8b03c43fe2d1a03d44447ee7b3493861",
+        "size": 69453,
+        "symbols": [
+          {
+            "name": "score",
+            "kind": "constant",
+            "sha256": "70eda26cd548161422088eab86708387757c1c6de54f8eedf58911a554a9674b"
+          },
+          {
+            "name": "index",
+            "kind": "constant",
+            "sha256": "ad98a75521fc0edce4fed6c6cd0503a41df66728efc44c4c3904db6a6ac89d7f"
+          },
+          {
+            "name": "validation",
+            "kind": "constant",
+            "sha256": "98a7747d4e4a450a2444f7de45c545d9527be0675ece8ebe7ba615af1b017a39"
+          }
+        ]
+      },
+      {
+        "path": "mcp/cli.ts",
+        "sha256": "a670bc601e227372c9ab3e862f4e25fa87ae4bfa90b63c3bbc61032d332da0d7",
+        "size": 114201,
+        "symbols": [
+          {
+            "name": "index",
+            "kind": "constant",
+            "sha256": "c201ee64cf24065dd2ba0bbdc7ff8399e5c1dd89783820e501d28f82019f08a8"
+          },
+          {
+            "name": "review",
+            "kind": "function",
+            "sha256": "cd5b65cd476d7eaecccc181de3bcad5b3d7c99237dcbfce313709f8eb35f9a13"
+          },
+          {
+            "name": "command",
+            "kind": "constant",
+            "sha256": "9e594169e1f8559f50d7e73b407f1aa3a9a0f14bf43a676fedefa72734badb98"
+          },
+          {
+            "name": "report",
+            "kind": "constant",
+            "sha256": "8d05d375165d2273c6ec769d9538b412b0d08e00b21207889ab726b110c4ab04"
+          },
+          {
+            "name": "json",
+            "kind": "constant",
+            "sha256": "9115381310c6d4c5ecb25a7e67e4fd0bb4b20a9b328adb25b606065454f79370"
+          }
+        ]
+      },
+      {
+        "path": "mcp/daemon.ts",
+        "sha256": "4d558ba09071b09ab3d1a62d40af04edf17609c9ea98a571405883424cc1bf2f",
+        "size": 38423,
+        "symbols": [
+          {
+            "name": "gates",
+            "kind": "constant",
+            "sha256": "a1192d06de1fa74133b91caae5ac98af1fa094f213eeab6e7c69e30efaf6ff4e"
+          },
+          {
+            "name": "json",
+            "kind": "function",
+            "sha256": "c6cfd13a6f9203c85fedf4efd643fcb209309a376a34ce77909c444a05e9b0e5"
+          },
+          {
+            "name": "validation",
+            "kind": "constant",
+            "sha256": "bbdd48044fc9763b3feb36f3cbb91a457d9b7de5651a56b73a43e24c5f21c135"
+          },
+          {
+            "name": "warnings",
+            "kind": "constant",
+            "sha256": "1d8a94daa4057bb4c1a85d666c5232c5d25ffcede1f64d03ea097e34601bba6b"
+          },
+          {
+            "name": "reports",
+            "kind": "constant",
+            "sha256": "519ba3efc1950f2775b99f1d94f37e91b5caf269d027aedf80130fb06e9737ce"
+          },
+          {
+            "name": "metrics",
+            "kind": "constant",
+            "sha256": "2d8e6130c6f650f38167ac4472f5bf0003a2a363a71b1a81f9bedfdcd4687e4c"
+          },
+          {
+            "name": "inbox",
+            "kind": "constant",
+            "sha256": "8adffb0308864b6c3c291147dfcf76a44c57cfb1428f5a14a3c264135c698704"
+          }
+        ]
+      },
+      {
+        "path": ".github/workflows/ci.yml",
+        "sha256": "52dc835e898c3f47511537a02766f96116ffbbda38b3c5a9f21587d3e801a3ad",
+        "size": 783
+      },
+      {
+        "path": ".github/workflows/kage-pr.yml",
+        "sha256": "b0fc5799759da2f270a1ef1c037fcfb8212afdc4c1fff25cdb565abfe3c7f2bb",
+        "size": 4056
+      },
+      {
+        "path": ".github/workflows/kage-sync.yml",
+        "sha256": "356c7da8d10446b08b1f528ceb4fb4ff23a1dd32984343ef751746f3552acdb6",
+        "size": 2729
+      },
+      {
+        "path": "mcp/README.md",
+        "sha256": "5c852f608754e299c2cff74495862f1ce4775d0bda5776d7ce4f070f4e4a6494",
+        "size": 10129
+      },
+      {
+        "path": "README.md",
+        "sha256": "9a533eee7962e84cdceef1bd8c9463233a575138fa143acafc8abd42f723944a",
+        "size": 10477
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -66,8 +298,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 297
+    "estimated_tokens_saved": 297,
+    "reverified_at": "2026-06-15T21:58:30.951Z"
   },
   "created_at": "2026-05-05T20:29:33.215Z",
-  "updated_at": "2026-06-05T14:03:30.155Z"
+  "updated_at": "2026-06-15T21:58:30.951Z"
 }

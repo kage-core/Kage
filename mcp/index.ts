@@ -1304,8 +1304,14 @@ export async function callTool(name: string, args: Record<string, unknown> | und
       const docsSection = docsRecallSection(String(args?.project_dir ?? ""), String(args?.query ?? ""), 3);
       if (docsSection) result.context_block = `${result.context_block}\n\n${docsSection}`;
     }
+    // Visible receipt: in text mode, surface what this recall saved so the agent
+    // can relay it. Value is otherwise invisible; an unseen win is a churned user.
+    const receipt = result.value_receipt;
+    const gainsLine = receipt && (receipt.tokens_saved > 0 || receipt.stale_withheld > 0)
+      ? `\n\nGains: ~${formatTokenCount(receipt.tokens_saved)} tokens saved by this recall${receipt.stale_withheld ? ` · stale memories withheld: ${receipt.stale_withheld}` : ""}`
+      : "";
     return {
-      content: [{ type: "text", text: args?.json || args?.explain ? JSON.stringify(result, null, 2) : result.context_block }],
+      content: [{ type: "text", text: args?.json || args?.explain ? JSON.stringify(result, null, 2) : `${result.context_block}${gainsLine}` }],
     };
   }
 

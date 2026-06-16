@@ -130,6 +130,8 @@ import {
   supersedeMemory,
   structuralIndexDir,
   truthReport,
+  truthScorecardSvg,
+  truthScorecardMarkdown,
   qualityReport,
   evaluateMemoryAdmission,
   verifyAgentActivation,
@@ -4277,6 +4279,81 @@ test("truth report flags duplicates, ghost exports, and doc lies in a synthetic 
   assert.match(report.headline, /duplicate cluster/);
   assert.match(report.headline, /doc lie/);
   assert.equal(report.findings.length <= 16, true);
+});
+
+test("truth report scorecard renders a shareable SVG and Markdown from totals", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src", "auth"), { recursive: true });
+  mkdirSync(join(project, "src", "billing"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "scorecard-demo", scripts: { build: "tsc" } }), "utf8");
+  writeFileSync(
+    join(project, "src", "auth", "token.ts"),
+    "export function parseAuthToken(raw: string): string {\n  return raw.trim();\n}\nexport function orphanHelper(x: number): number {\n  return x * 2;\n}\n",
+    "utf8"
+  );
+  writeFileSync(
+    join(project, "src", "billing", "token.ts"),
+    "export function parseAuthToken(raw: string): string {\n  return raw.trim();\n}\n",
+    "utf8"
+  );
+  writeFileSync(
+    join(project, "src", "use.ts"),
+    "import { parseAuthToken } from \"./auth/token.js\";\nexport const value = parseAuthToken(\"a\");\n",
+    "utf8"
+  );
+  commitAll(project, "initial");
+
+  const report = truthReport(project);
+
+  const svg = truthScorecardSvg(report);
+  assert.match(svg, /^<svg /);
+  assert.match(svg, /<\/svg>$/);
+  assert.match(svg, /Kage Truth Report/);
+  // The repo name (a tempdir basename) must be escaped, never raw-injected.
+  assert.equal(svg.includes("<script"), false);
+  // Every signal card label is present.
+  assert.match(svg, /GHOST EXPORTS/);
+  assert.match(svg, /DOC LIES/);
+  // The viewBox dimensions parse and are positive.
+  const vb = svg.match(/viewBox="0 0 (\d+) (\d+)"/);
+  assert.ok(vb && Number(vb[1]) === 820 && Number(vb[2]) > 0);
+
+  const md = truthScorecardMarkdown(report);
+  assert.match(md, /## Kage Truth Report/);
+  assert.match(md, /\| Signal \| Count \|/);
+  assert.match(md, /Ghost Exports/);
+  assert.match(md, /npx -y @kage-core\/kage-graph-mcp install/);
+  // Counts in the table agree with the report totals.
+  assert.match(md, new RegExp(`Duplicate Implementations \\| ${report.totals.duplicate_clusters} `));
+});
+
+test("truth report scorecard escapes angle brackets in a repo name", () => {
+  const report = {
+    schema_version: 1 as const,
+    project_dir: "/tmp/<script>evil",
+    generated_at: "2026-01-01T00:00:00.000Z",
+    totals: {
+      files_scanned: 3,
+      symbols_scanned: 10,
+      duplicate_clusters: 0,
+      ghost_exports: 0,
+      bus_factor_files: 0,
+      knowledge_voids: 0,
+      untested_hot_paths: 0,
+      complexity_hotspots: 0,
+      debt_markers: 0,
+      doc_lies: 0,
+      docs_scanned: 0,
+    },
+    headline: "",
+    findings: [],
+    warnings: [],
+    next_actions: [],
+  };
+  const svg = truthScorecardSvg(report);
+  assert.equal(svg.includes("<script>evil"), false);
+  assert.match(svg, /&lt;script&gt;evil/);
 });
 
 test("truth report surfaces untested hot paths, complexity hotspots, and debt markers", () => {

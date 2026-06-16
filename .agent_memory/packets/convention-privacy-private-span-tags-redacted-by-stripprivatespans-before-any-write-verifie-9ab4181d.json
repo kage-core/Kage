@@ -28,12 +28,59 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-12T12:48:51.714Z",
+    "last_verified_at": "2026-06-15T21:58:25.889Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "abae50ee8a49b342f2cf6954044aed904d27421cd25db79ec0ab03d2575a6631",
-        "size": 783618
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "span",
+            "kind": "constant",
+            "sha256": "18fc7a11fea1ae488db45670cd590cee322a0965edb28d3f56de30c7c4c031b9"
+          },
+          {
+            "name": "stripprivatespans",
+            "kind": "function",
+            "sha256": "ba84a8fc3e6d28cb1b5961254b38ec923e69f24b0a89936bf5606ff7cbde5c30"
+          },
+          {
+            "name": "before",
+            "kind": "constant",
+            "sha256": "70c005bc3586ccb93799dfa1989dccca69b847916fd3fde1583578730922c50c"
+          },
+          {
+            "name": "learn",
+            "kind": "function",
+            "sha256": "93c4e74f4a7d140c065b4eaa12b6ef14ffa68bfaee0cfc0a3e3773881af468d3"
+          },
+          {
+            "name": "capture",
+            "kind": "function",
+            "sha256": "d6ab6995f6712c0c94fc325e5aaaf3f495bdd81ba660e115f3d467f89f93ef29"
+          },
+          {
+            "name": "observe",
+            "kind": "function",
+            "sha256": "ed8233b4571379b1176099bf36cd241bc60cb0e62a835060c6661bddf5d3c76b"
+          },
+          {
+            "name": "auto",
+            "kind": "constant",
+            "sha256": "00dfd4334aa51ffac12b575a6a2c33040556f4641b8e8806bee9af6d653df46c"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          }
+        ]
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -68,14 +115,14 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 126,
+    "reverified_at": "2026-06-15T21:58:25.889Z",
     "stale": true,
     "stale_reasons": [
-      "packet status is deprecated",
-      "linked path changed since memory was verified: mcp/kernel.ts"
+      "packet status is deprecated"
     ],
     "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-12T12:48:51.714Z",
-  "updated_at": "2026-06-12T16:34:19.639Z",
+  "updated_at": "2026-06-15T21:58:43.083Z",
   "author_branch": "master"
 }

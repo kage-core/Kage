@@ -31,8 +31,42 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-17T20:57:06.493Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:08.570Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "same",
+            "kind": "constant",
+            "sha256": "b150fada949a5c6d4babe0a0bc108765c6e7e1819d0ddbee55112b9c9a708447"
+          },
+          {
+            "name": "benchmarkcodingmemoryquality",
+            "kind": "function",
+            "sha256": "a6e1a06370fabc9f64862ef9a8a7c57134be71f5f2c3612812714827f6b6e762"
+          },
+          {
+            "name": "mode",
+            "kind": "constant",
+            "sha256": "8bd576eb1331064328ee58c6045807752b97bb5b2e94fc37cf9f79d5a6fa6f91"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          }
+        ]
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -54,8 +88,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 182
+    "estimated_tokens_saved": 182,
+    "reverified_at": "2026-06-15T21:58:08.570Z"
   },
   "created_at": "2026-05-17T20:57:06.493Z",
-  "updated_at": "2026-05-19T04:53:22.454Z"
+  "updated_at": "2026-06-15T21:58:08.570Z"
 }

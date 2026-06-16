@@ -40,8 +40,54 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-06T03:58:45.946Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:08.356Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/package.json",
+        "sha256": "e77b80c8e3ef4eb7ccdf9f7dc775b51f18f1a7994092b538f81df874e8c91c5a",
+        "size": 1193
+      },
+      {
+        "path": "mcp/kernel.test.ts",
+        "sha256": "f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec",
+        "size": 290526,
+        "symbols": [
+          {
+            "name": "root",
+            "kind": "constant",
+            "sha256": "54a6ff27b2242246917558965c17ead6799dd35dd11036cd210be20c06eb14e8"
+          },
+          {
+            "name": "full",
+            "kind": "constant",
+            "sha256": "6270b632fb8c1ec230ad23878da137aab65feab7105ddd15ff76a1d27e5b5b44"
+          }
+        ]
+      },
+      {
+        "path": "mcp/mcp.test.ts",
+        "sha256": "3f5e52ad72a2a4b4db9e8de8bdad60cfb622ec132c2a278523ca6aad79538ec0",
+        "size": 37910,
+        "symbols": [
+          {
+            "name": "check",
+            "kind": "constant",
+            "sha256": "620d8c4c121a80c990afb6b6c9d3145a945f6c38957782dcfc0b0632ffe8c087"
+          },
+          {
+            "name": "verify",
+            "kind": "constant",
+            "sha256": "f02dccd643285312f814c4b1bb8a3a55842d18807ca5dda55e9788cd21fd99a2"
+          }
+        ]
+      },
+      {
+        "path": "mcp/registry.test.ts",
+        "sha256": "5a5f9f8f1a493d1bc1e2cf608e5005427348ce4e941be2f97c3dbe45097a3325",
+        "size": 4615
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -63,8 +109,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 191
+    "estimated_tokens_saved": 191,
+    "reverified_at": "2026-06-15T21:58:08.356Z"
   },
   "created_at": "2026-05-06T03:58:45.946Z",
-  "updated_at": "2026-06-05T14:03:30.165Z"
+  "updated_at": "2026-06-15T21:58:08.356Z"
 }

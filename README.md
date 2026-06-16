@@ -132,6 +132,9 @@ repo and verifies it, so it stays your team's and stays true as the code changes
 | Cross-machine sync | ✓ your own git remote | their cloud | their cloud |
 | Account / API key required | none | cloud optional | yes |
 
+Full, fair breakdown (including where claude-mem is genuinely strong):
+[docs/kage-vs-claude-mem.md](docs/kage-vs-claude-mem.md).
+
 ## Features
 
 - **Truth Report.** `kage scan` reads any repo in ~60s and surfaces its highest-risk
@@ -190,6 +193,19 @@ npm install
 npm test
 npm run build
 ```
+
+## Contributing & community
+
+Kage is built in the open and we'd love your help. Zero runtime dependencies, no
+account, no cloud — it's a friendly codebase to jump into.
+
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — dev setup, project layout, conventions.
+- **[ROADMAP.md](ROADMAP.md)** — where Kage is headed, and where to plug in.
+- **[Good first issues](https://github.com/kage-core/Kage/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)** ·
+  **[Help wanted](https://github.com/kage-core/Kage/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)** — scoped places to start.
+- **[Discussions](https://github.com/kage-core/Kage/discussions)** — questions, ideas, show-and-tell.
+
+By participating you agree to our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 

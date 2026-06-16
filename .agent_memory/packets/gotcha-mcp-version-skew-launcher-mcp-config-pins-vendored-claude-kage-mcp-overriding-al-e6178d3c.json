@@ -30,12 +30,39 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-11T19:15:37.084Z",
+    "last_verified_at": "2026-06-15T21:58:02.504Z",
     "path_fingerprints": [
       {
         "path": "mcp/cli.ts",
-        "sha256": "728f18995f87914ae7d1ad827a7f5800f451e864d4b5790932e15ca10660e07d",
-        "size": 89956
+        "sha256": "a670bc601e227372c9ab3e862f4e25fa87ae4bfa90b63c3bbc61032d332da0d7",
+        "size": 114201,
+        "symbols": [
+          {
+            "name": "index",
+            "kind": "constant",
+            "sha256": "c201ee64cf24065dd2ba0bbdc7ff8399e5c1dd89783820e501d28f82019f08a8"
+          },
+          {
+            "name": "json",
+            "kind": "constant",
+            "sha256": "9115381310c6d4c5ecb25a7e67e4fd0bb4b20a9b328adb25b606065454f79370"
+          },
+          {
+            "name": "agent",
+            "kind": "constant",
+            "sha256": "5b9caa614311fe691d6af171b9a8985b0d49464b9df178ad28ff5b9883eb4cf2"
+          },
+          {
+            "name": "from",
+            "kind": "constant",
+            "sha256": "b386d829bcacbd9e216c726f6dff71fc7d8a53aade383fa45b850387414b780c"
+          },
+          {
+            "name": "type",
+            "kind": "constant",
+            "sha256": "32ed8eb4ecde4706e2590380969ccb808068c46a3c687040703198e8c72d14e1"
+          }
+        ]
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -62,14 +89,14 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 260,
+    "reverified_at": "2026-06-15T21:58:02.504Z",
     "stale": true,
     "stale_reasons": [
-      "packet status is deprecated",
-      "linked path changed since memory was verified: mcp/cli.ts"
+      "packet status is deprecated"
     ],
     "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-11T19:15:37.084Z",
-  "updated_at": "2026-06-12T03:53:34.314Z",
+  "updated_at": "2026-06-15T21:58:43.093Z",
   "author_branch": "release/v2.0.0"
 }

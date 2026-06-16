@@ -17,17 +17,6 @@
     "branch:release-v2-0-1"
   ],
   "paths": [
-    ".agent_memory/packets/bug_fix-ci-kage-pr-check-must-block-only-on-hard-stale-memory-f9e2c269.json",
-    ".agent_memory/packets/code_explanation-stale-catch-change-time-invalidation-heartbeat-stalecatch-kage-staleguard-b1f7baca.json",
-    ".agent_memory/packets/decision-graph-nodes-at-capture-and-opt-in-recall-token-budget-12d31c53.json",
-    ".agent_memory/packets/decision-value-ledger-records-recall-stale-withheld-and-caller-answered-receipts-e4e651f1.json",
-    ".agent_memory/packets/gotcha-mcp-version-skew-launcher-mcp-config-pins-vendored-claude-kage-mcp-overriding-al-e6178d3c.json",
-    ".agent_memory/packets/reference-claude-mem-cmem-exploded-to-81-8k-stars-category-demand-proven-distribution-is-t-fbe4d6cd.json",
-    ".agent_memory/packets/reference-market-position-june-2026-three-unique-axes-write-gate-stale-catch-receipts-copi-3a112704.json",
-    ".agent_memory/packets/runbook-2-0-user-acquisition-sprint-channels-live-baselines-and-what-each-channel-needs-81c82450.json",
-    ".agent_memory/packets/runbook-releasing-kage-release-js-publishes-from-any-named-branch-ae2e694c.json",
-    ".agent_memory/packets/workflow-change-memory-v2-stale-catch-4b48862c.json",
-    ".agent_memory/packets/workflow-stale-catch-feature-landed-via-pr-64-kernel-test-ts-seam-carries-both-v2-test-su-9ad40729.json",
     ".claude-plugin/marketplace.json",
     "CHANGELOG.md",
     "README.md",
@@ -92,53 +81,110 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-12T03:47:27.664Z",
+    "last_verified_at": "2026-06-15T21:58:10.473Z",
     "ttl_days": 180,
     "path_fingerprints": [
       {
         "path": ".claude-plugin/marketplace.json",
-        "sha256": "863516f0ee39ee45acf893c7f795d235ea6194fca8627eb28973def885123e32",
-        "size": 631
+        "sha256": "f4ab5ca529c517c5a0fee033dee5d18b937d0bf8bfe14584364806e99766488b",
+        "size": 750
       },
       {
         "path": "CHANGELOG.md",
-        "sha256": "f3fdff0a364d08172032a84784177b7ffab9767bc612245aaadf005670d59082",
-        "size": 21458
+        "sha256": "1d00aff932a74d380dad6e0d60ae0aed37e40aa5a03ae7ec0acb71f824d0ef0c",
+        "size": 46022
       },
       {
         "path": "README.md",
-        "sha256": "a00595d2d0add6b979ec788b9150198274ad4895a84bbf14e9737f24e3844cdd",
-        "size": 9690
+        "sha256": "9a533eee7962e84cdceef1bd8c9463233a575138fa143acafc8abd42f723944a",
+        "size": 10477
       },
       {
         "path": "docs/guide.html",
-        "sha256": "736bae5e9035eca263a1125f1f59dd786fe7ffaa7b46e9ad76c323278ea8fba8",
-        "size": 43693
+        "sha256": "33b57e522b1a49e48631042940e2ca7d281084371c3feb3210604e213e0e7f28",
+        "size": 51769
       },
       {
         "path": "docs/index.html",
-        "sha256": "1c9e78b6c469d6948bd17b745fac3f611535d4c3f80412425806ad716274735e",
-        "size": 19083
+        "sha256": "97fa35c70c0a4682eb5e927543bea68306f073a0d683c92751aa021cc23f0d2c",
+        "size": 33562
       },
       {
         "path": "mcp/cli.ts",
-        "sha256": "86f7d71f19a4b0fc1cd401f22bb4d16852c11d49a15f6d47e3988d7f8237102b",
-        "size": 93640
+        "sha256": "a670bc601e227372c9ab3e862f4e25fa87ae4bfa90b63c3bbc61032d332da0d7",
+        "size": 114201,
+        "symbols": [
+          {
+            "name": "index",
+            "kind": "constant",
+            "sha256": "c201ee64cf24065dd2ba0bbdc7ff8399e5c1dd89783820e501d28f82019f08a8"
+          },
+          {
+            "name": "value",
+            "kind": "constant",
+            "sha256": "c9560c65b946f6f8269de6cb5d49d3bb0dbabec6fb3119c445ad738f194d37ba"
+          },
+          {
+            "name": "review",
+            "kind": "function",
+            "sha256": "cd5b65cd476d7eaecccc181de3bcad5b3d7c99237dcbfce313709f8eb35f9a13"
+          },
+          {
+            "name": "command",
+            "kind": "constant",
+            "sha256": "9e594169e1f8559f50d7e73b407f1aa3a9a0f14bf43a676fedefa72734badb98"
+          },
+          {
+            "name": "json",
+            "kind": "constant",
+            "sha256": "9115381310c6d4c5ecb25a7e67e4fd0bb4b20a9b328adb25b606065454f79370"
+          },
+          {
+            "name": "init",
+            "kind": "constant",
+            "sha256": "26deffe9920c2d94de7d47e5f251282d9ed1957290b0de2f41e8b86e4d99dd7b"
+          },
+          {
+            "name": "current",
+            "kind": "constant",
+            "sha256": "471f3cfbffa04d6ecddb2f3d4013027b71237de766afb69ec418f1f1b8308937"
+          },
+          {
+            "name": "agent",
+            "kind": "constant",
+            "sha256": "5b9caa614311fe691d6af171b9a8985b0d49464b9df178ad28ff5b9883eb4cf2"
+          },
+          {
+            "name": "from",
+            "kind": "constant",
+            "sha256": "b386d829bcacbd9e216c726f6dff71fc7d8a53aade383fa45b850387414b780c"
+          },
+          {
+            "name": "summary",
+            "kind": "constant",
+            "sha256": "0938b0afc17695033381e2248401bba9b7c6abb6f9f0eaae0d2a8ff2c660d662"
+          },
+          {
+            "name": "durable",
+            "kind": "constant",
+            "sha256": "59e1af86ee722f58562da0478f6f3fe6621ae96f9473de8c0037e63fe779215e"
+          }
+        ]
       },
       {
         "path": "mcp/server.json",
-        "sha256": "6d296a6b44dd17dfe68a173cb034083965c8f30ab456738e4f1d8df02e0f672e",
-        "size": 604
+        "sha256": "9e91de082d4ee89c20d52390c95918d2fd7ac9a90942a22d184eeb631528b31a",
+        "size": 667
       },
       {
         "path": "plugin/.claude-plugin/plugin.json",
-        "sha256": "5b470036636217155edd0454c67f39719e181d78b433f8229cb1a209d9f83b12",
-        "size": 612
+        "sha256": "ad058fe3d0b7d571254c359dfd1d4ab2eb502b0157a8cabe32b33dc4d60a268d",
+        "size": 735
       },
       {
         "path": "plugin/.codex-plugin/plugin.json",
-        "sha256": "9111c2cf362c3ba2273006b0e18a1278d56e03150cba0aa798ad13687c7a9ff7",
-        "size": 295
+        "sha256": "29fa27abe5a059c855012fee1efdc8d9cdb6d1f30eec18b6db3d9eb46817db41",
+        "size": 394
       },
       {
         "path": "plugin/commands/gains.md",
@@ -157,18 +203,18 @@
       },
       {
         "path": "plugin/hooks/hooks.json",
-        "sha256": "6a5d08580d6af105a3cac9417115260f1d871bf5adff5bc146e0cf9c920a7d74",
-        "size": 518
+        "sha256": "ed90980e5bc6df31b65f7bfa9d435f0f35502fad706b4540e987c3d1595ed137",
+        "size": 1034
       },
       {
         "path": "plugin/hooks/session-start.sh",
-        "sha256": "2aa27945bc0d3ffbaff6da83bce9f24a6974dcaac4e2a30ee2a465d2a4b38e4e",
-        "size": 1640
+        "sha256": "c56aef5f98ae30cb2b3fb6601695b7a9255d60aeb9fa7b58290242c2796a6c5b",
+        "size": 1919
       },
       {
         "path": "plugin/hooks/stop.sh",
-        "sha256": "bb253694a0fdff9ff18659def0923efe9f108a99b15645a8287aa665875f4666",
-        "size": 1465
+        "sha256": "cc7414511674dcf61bb40c7c37be23c5b7327f2caa979d8b8b1aebe25d4fbaef",
+        "size": 2229
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -305,13 +351,13 @@
     "candidate_kind": "change_memory",
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true,
+    "reverified_at": "2026-06-15T21:58:10.473Z",
     "stale": true,
     "stale_reasons": [
-      "packet status is deprecated",
-      "linked path changed since memory was verified: .claude-plugin/marketplace.json, README.md, docs/guide.html, docs/index.html"
+      "packet status is deprecated"
     ],
     "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-12T03:47:27.664Z",
-  "updated_at": "2026-06-15T18:00:50.589Z"
+  "updated_at": "2026-06-15T21:58:43.099Z"
 }

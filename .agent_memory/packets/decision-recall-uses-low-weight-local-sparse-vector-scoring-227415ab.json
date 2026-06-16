@@ -36,8 +36,111 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-17T14:19:55.016Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:09.051Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "scorepacketsvector",
+            "kind": "function",
+            "sha256": "f1348afecb0fabe5a1e94d770adca2f018ba13bc5b8763c6ad9be212246b1a87"
+          },
+          {
+            "name": "expansion",
+            "kind": "constant",
+            "sha256": "077b75d250f9536ee59d78254a6dbf5a52371829ca1a9f2a8f7577bb170be66d"
+          },
+          {
+            "name": "temporal",
+            "kind": "constant",
+            "sha256": "eb17097c42e0a93975c68a139b241065930cc14345f1722b7468f195612eab1b"
+          },
+          {
+            "name": "score_breakdown",
+            "kind": "constant",
+            "sha256": "6736c5d1a87ae2caf0ebb9a62affbf4903b7b39b1dec80d5e00e5df6d5705461"
+          },
+          {
+            "name": "data",
+            "kind": "constant",
+            "sha256": "491aa781049f0ad6b9dc4a2b393461ed407cfa306b0cf11bfad03315940015d7"
+          },
+          {
+            "name": "full",
+            "kind": "constant",
+            "sha256": "9213768c4e556655970d7db34f178f135ab91810c1a0a99bba63452c01924f4f"
+          }
+        ]
+      },
+      {
+        "path": "mcp/kernel.test.ts",
+        "sha256": "f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec",
+        "size": 290526,
+        "symbols": [
+          {
+            "name": "added",
+            "kind": "constant",
+            "sha256": "bc14da9c82da760a8d437c7e912b7909ab47e5de278fb9a951ae4702a8835975"
+          },
+          {
+            "name": "quality",
+            "kind": "constant",
+            "sha256": "06eb60954e6f50dd593cacf74246243dccea1b5754f915a9f1a036ce481e3be7"
+          },
+          {
+            "name": "benchmark",
+            "kind": "constant",
+            "sha256": "5671166b34f289b838cd462807715792f2dda03a9870f4ca9e846b6ddd5ce769"
+          },
+          {
+            "name": "body",
+            "kind": "constant",
+            "sha256": "86c3abc23bd7873dfd4cd604a3b20a7bc2ead9b796fa0130c0231824e123d7f4"
+          },
+          {
+            "name": "full",
+            "kind": "constant",
+            "sha256": "6270b632fb8c1ec230ad23878da137aab65feab7105ddd15ff76a1d27e5b5b44"
+          }
+        ]
+      },
+      {
+        "path": "benchmarks/LONGMEMEVAL.md",
+        "sha256": "5df10a3e759e49d4a1f48d158d4178ac75fcada36ec0efa45012a679359a3e40",
+        "size": 5319
+      },
+      {
+        "path": "benchmarks/longmemeval-kage-retrieval.mjs",
+        "sha256": "83ba9c74cb46c4947adbc05c807fa3592ba9e15200a5888a75c7bfd3f2ec0ae6",
+        "size": 11728,
+        "symbols": [
+          {
+            "name": "kernel",
+            "kind": "constant",
+            "sha256": "57bca4a7a2d87a532d86a1bc9d8798b7ba2db2e1748c14b17be1cf9ea170e472"
+          },
+          {
+            "name": "limit",
+            "kind": "constant",
+            "sha256": "0e2a17e846a5fdf03268968ec1830066d5709310b0694af277ce9171a5751e89"
+          },
+          {
+            "name": "data",
+            "kind": "constant",
+            "sha256": "6cab80023def84e843bbcabb8d5ff162dea81906193f82f3f4f955fa4bab9f55"
+          }
+        ]
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -59,8 +162,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 218
+    "estimated_tokens_saved": 218,
+    "reverified_at": "2026-06-15T21:58:09.051Z"
   },
   "created_at": "2026-05-17T14:19:55.016Z",
-  "updated_at": "2026-05-19T04:53:22.458Z"
+  "updated_at": "2026-06-15T21:58:09.051Z"
 }

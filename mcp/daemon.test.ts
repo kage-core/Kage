@@ -46,9 +46,10 @@ test("viewer dashboard is a CSP-safe multi-section page backed by external conso
   // CSP forbids inline scripts: the page must load console.js externally.
   assert.match(indexHtml, /<script src="\.\/console\.js/);
   assert.doesNotMatch(indexHtml, /<script>\s*\n\s*\(function/);
-  // Multi-section dashboard: sidebar nav drives separate Gains / Overview / Graph / Memory / Insights sections.
-  // Gains is the landing tab: value first, trust as proof.
-  assert.match(indexHtml, /data-section="gains" aria-current="true"/);
+  // Multi-section dashboard: sidebar nav drives separate Dashboard / Gains / Overview / Graph / Memory / Insights sections.
+  // Dashboard is the landing tab (overview first); Gains stays one click away.
+  assert.match(indexHtml, /data-section="dashboard" aria-current="true"/);
+  assert.match(indexHtml, /data-section="gains"/);
   assert.match(indexHtml, /id="gainsHero"/);
   assert.match(indexHtml, /id="gainsTimeline"/);
   assert.match(indexHtml, /data-section="overview"/);

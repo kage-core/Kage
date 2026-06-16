@@ -29,12 +29,44 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-12T12:05:41.738Z",
+    "last_verified_at": "2026-06-15T21:58:14.446Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "320e08eb96780bbb282102bcd4399a39a72afcc4beed26d28ce1147f844943b8",
-        "size": 782689
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "same",
+            "kind": "constant",
+            "sha256": "b150fada949a5c6d4babe0a0bc108765c6e7e1819d0ddbee55112b9c9a708447"
+          },
+          {
+            "name": "auto",
+            "kind": "constant",
+            "sha256": "00dfd4334aa51ffac12b575a6a2c33040556f4641b8e8806bee9af6d653df46c"
+          },
+          {
+            "name": "syncidentityargs",
+            "kind": "function",
+            "sha256": "8e08cefc54e889ccb9238f995b3fc162e050aa03c21232b269a06577f324a1fc"
+          },
+          {
+            "name": "email",
+            "kind": "constant",
+            "sha256": "199395307c68dc949d8fbdb80a25939ef72fdae9a6d01c9ebb6aded312a80d0c"
+          },
+          {
+            "name": "rebaseontoupstream",
+            "kind": "function",
+            "sha256": "07b3dc33a9084b9b8995cfcb099b69b154968716a04f74b5995d98c94d0ba10c"
+          },
+          {
+            "name": "skip",
+            "kind": "constant",
+            "sha256": "84ce913f797ae6f1160ffe3c80d4f9852f31f1ce9c118d5e1a8be145e564b569"
+          }
+        ]
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -72,17 +104,17 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "stale_reasons": [
-      "packet status is superseded",
-      "linked path changed since memory was verified: mcp/kernel.ts"
-    ],
     "estimated_tokens_saved": 143,
     "superseded_by": "repo:https-github-com-kage-core-kage:bug_fix:kage-sync-ci-fix-rebase-identity-fallback-self-healing-non-fast-forward-push-ret",
     "superseded_reason": "Newer repo memory supersedes this packet.",
+    "reverified_at": "2026-06-15T21:58:14.446Z",
     "stale": true,
+    "stale_reasons": [
+      "packet status is superseded"
+    ],
     "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-12T12:05:41.738Z",
-  "updated_at": "2026-06-12T12:10:32.279Z",
+  "updated_at": "2026-06-15T21:58:43.082Z",
   "author_branch": "master"
 }

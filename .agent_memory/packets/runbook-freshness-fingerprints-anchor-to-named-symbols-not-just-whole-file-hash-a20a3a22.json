@@ -29,12 +29,12 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-15T13:01:33.258Z",
+    "last_verified_at": "2026-06-15T21:58:40.567Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "c339a8e8d13226640fb42515ee1c5693aaf0f97ca86a6ad6457adf31f3687713",
-        "size": 837545,
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
         "symbols": [
           {
             "name": "verified",
@@ -149,9 +149,10 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 261
+    "estimated_tokens_saved": 261,
+    "reverified_at": "2026-06-15T21:58:40.567Z"
   },
   "created_at": "2026-06-15T13:01:33.258Z",
-  "updated_at": "2026-06-15T13:02:56.147Z",
+  "updated_at": "2026-06-15T21:58:40.567Z",
   "author_branch": "master"
 }

@@ -36,8 +36,124 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-31T06:12:02.047Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:16.425Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "parseporcelainpath",
+            "kind": "function",
+            "sha256": "a08da812c1c25fc40108627499f50e815f9aad3b54406eaebbfb7edaac79ed95"
+          },
+          {
+            "name": "heading",
+            "kind": "constant",
+            "sha256": "d70b145d051bd67f89346d7d60dede30cf35f94506a399ec4e0e4ba8ff98909c"
+          },
+          {
+            "name": "labels",
+            "kind": "constant",
+            "sha256": "778f0005621bcaee46c842df3c8fb0f762390050af67f84ae3ec5c3017c5e515"
+          },
+          {
+            "name": "code",
+            "kind": "constant",
+            "sha256": "64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"
+          },
+          {
+            "name": "gitlines",
+            "kind": "function",
+            "sha256": "613c14812ee91624947ba715e91f1007e39e4af75d82595087fc07b03137329c"
+          },
+          {
+            "name": "gitchangedfiles",
+            "kind": "function",
+            "sha256": "9625fbdd0f21fba80ddb96a6eb46ab740f9ee6aae81e5a7115c49267e6578975"
+          },
+          {
+            "name": "checklist",
+            "kind": "constant",
+            "sha256": "59f141481bcdcc967fc5d4e57fbed5ad6f92311c3f4093875d321cd719f5af09"
+          },
+          {
+            "name": "risk",
+            "kind": "constant",
+            "sha256": "d8cefa2e26411c9cf6d7857bd9ff15e58ab6ff3e5ed30b4531801e725978a06d"
+          },
+          {
+            "name": "before",
+            "kind": "constant",
+            "sha256": "70c005bc3586ccb93799dfa1989dccca69b847916fd3fde1583578730922c50c"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          },
+          {
+            "name": "when",
+            "kind": "constant",
+            "sha256": "48bfd58b3cdbf2d407e4443b90727d548d96eceaa4372c099dcd22c52f498452"
+          },
+          {
+            "name": "show",
+            "kind": "constant",
+            "sha256": "a1286db8e7ca4067e360ba4fb6da776faab1a9b50a1ce06dd8efb185376816f6"
+          },
+          {
+            "name": "step",
+            "kind": "constant",
+            "sha256": "12e0cf0bb75c9b15151aa0b4cb87f8ad818357d6a7c7a2490efdf7678888fc1b"
+          }
+        ]
+      },
+      {
+        "path": "mcp/kernel.test.ts",
+        "sha256": "f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec",
+        "size": 290526,
+        "symbols": [
+          {
+            "name": "real",
+            "kind": "constant",
+            "sha256": "856bf47487b3742dc24d08df1d5fbdb66e78329577cae25b2d31af5ccc9aade1"
+          },
+          {
+            "name": "body",
+            "kind": "constant",
+            "sha256": "86c3abc23bd7873dfd4cd604a3b20a7bc2ead9b796fa0130c0231824e123d7f4"
+          },
+          {
+            "name": "filter",
+            "kind": "constant",
+            "sha256": "f9235dbf87bd46a2346156a8d2fb71b581cb2a4e68085cbe25e3db0e2f04ed4a"
+          },
+          {
+            "name": "rows",
+            "kind": "constant",
+            "sha256": "c88a7715618c34af1ee0d582eb7707e1c1ba4bebbd6b29f12994136263c6a825"
+          },
+          {
+            "name": "reported",
+            "kind": "constant",
+            "sha256": "ec1c76f9f75507520a36a6adfea93b5399da6eb62bda8c7532b81519cf56b1ff"
+          }
+        ]
+      },
+      {
+        "path": "mcp/daemon.test.ts",
+        "sha256": "ef48ce8b21ff33ed39379a9be695f863280d552399973a742c0e3932c21bfe1e",
+        "size": 12250
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -59,8 +175,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 240
+    "estimated_tokens_saved": 240,
+    "reverified_at": "2026-06-15T21:58:16.425Z"
   },
   "created_at": "2026-05-31T06:12:02.047Z",
-  "updated_at": "2026-06-05T14:03:30.154Z"
+  "updated_at": "2026-06-15T21:58:16.425Z"
 }

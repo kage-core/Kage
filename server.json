@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+  "name": "io.github.kage-core/kage",
+  "description": "Git-native, verified memory for coding agents — shared across your team through git, checked against the actual code so it never goes stale.",
+  "repository": {
+    "url": "https://github.com/kage-core/Kage",
+    "source": "github"
+  },
+  "version": "2.3.0",
+  "websiteUrl": "https://kage-core.com",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@kage-core/kage-graph-mcp",
+      "version": "2.3.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

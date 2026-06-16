@@ -30,8 +30,52 @@
   ],
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-11T08:45:03.507Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:24.167Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "treesitterruntime",
+            "kind": "constant",
+            "sha256": "1dcc217ea3a0fc0cf7dee89d2f3c9a508db5a7703cccbbf471f1548659afb17f"
+          },
+          {
+            "name": "ensuretreesitterlanguages",
+            "kind": "function",
+            "sha256": "753fdb12e20b8ec5838c785de97dff220f53009acaf95a3851f8622c13bafb20"
+          },
+          {
+            "name": "grammar",
+            "kind": "constant",
+            "sha256": "9eaf03a4a0343fc29c6d504a27dbbf05f5eccf5eec1f686cdbf7053eea232992"
+          },
+          {
+            "name": "packages",
+            "kind": "constant",
+            "sha256": "b3f7f5751231d35d1ebe98313a00f4b11f967ab95d187f7c6ec82578a5ad5177"
+          },
+          {
+            "name": "init",
+            "kind": "constant",
+            "sha256": "98655f2d0fc070b28035aca2482248d7700d68ebe4e14487f630c5992d447dcd"
+          }
+        ]
+      },
+      {
+        "path": "mcp/package.json",
+        "sha256": "e77b80c8e3ef4eb7ccdf9f7dc775b51f18f1a7994092b538f81df874e8c91c5a",
+        "size": 1193
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -53,8 +97,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 270
+    "estimated_tokens_saved": 270,
+    "reverified_at": "2026-06-15T21:58:24.167Z"
   },
   "created_at": "2026-06-11T08:45:03.507Z",
-  "updated_at": "2026-06-11T08:45:17.056Z"
+  "updated_at": "2026-06-15T21:58:24.167Z"
 }

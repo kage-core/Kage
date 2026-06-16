@@ -38,8 +38,84 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-06T03:53:03.812Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:34.840Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "fact",
+            "kind": "constant",
+            "sha256": "adb9d6a773dc4dacf5613a3e7d4225436f1a23ff67de02659a247304284b10c6"
+          },
+          {
+            "name": "recallintentboost",
+            "kind": "function",
+            "sha256": "f9e4d9307e6ee9a2e15c3dddbbeedfb98a0640f54e38f5c9786536801a9f3d77"
+          },
+          {
+            "name": "intent",
+            "kind": "constant",
+            "sha256": "3b69f45a6c78caa2dfa90d9f4c3b0b9b9ea67559d4df1b6f199ed8d7bb47cde9"
+          },
+          {
+            "name": "verification",
+            "kind": "constant",
+            "sha256": "faeb54eb75a6e60ebcab087f39fdd9f971c8a3a16e25846647ab2dd5802748f3"
+          },
+          {
+            "name": "risk",
+            "kind": "constant",
+            "sha256": "d8cefa2e26411c9cf6d7857bd9ff15e58ab6ff3e5ed30b4531801e725978a06d"
+          },
+          {
+            "name": "before",
+            "kind": "constant",
+            "sha256": "70c005bc3586ccb93799dfa1989dccca69b847916fd3fde1583578730922c50c"
+          },
+          {
+            "name": "scenarios",
+            "kind": "constant",
+            "sha256": "0169c661b5c94b7cd8cdc6f7d6affcdd6eb0cdb31711e5329a76350b1545c192"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          },
+          {
+            "name": "when",
+            "kind": "constant",
+            "sha256": "48bfd58b3cdbf2d407e4443b90727d548d96eceaa4372c099dcd22c52f498452"
+          }
+        ]
+      },
+      {
+        "path": "mcp/kernel.test.ts",
+        "sha256": "f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec",
+        "size": 290526,
+        "symbols": [
+          {
+            "name": "packets",
+            "kind": "constant",
+            "sha256": "f28a69afbf5d7a988e351fc5446a3b291a2451f97b8220c4e1a7629b3a50ffa3"
+          },
+          {
+            "name": "benchmark",
+            "kind": "constant",
+            "sha256": "5671166b34f289b838cd462807715792f2dda03a9870f4ca9e846b6ddd5ce769"
+          }
+        ]
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -61,8 +137,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 191
+    "estimated_tokens_saved": 191,
+    "reverified_at": "2026-06-15T21:58:34.840Z"
   },
   "created_at": "2026-05-06T03:53:03.812Z",
-  "updated_at": "2026-05-19T04:53:22.451Z"
+  "updated_at": "2026-06-15T21:58:34.840Z"
 }

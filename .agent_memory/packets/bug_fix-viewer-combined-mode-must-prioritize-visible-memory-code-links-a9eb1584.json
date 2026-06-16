@@ -33,8 +33,42 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-09T07:22:43.533Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:13.928Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.test.ts",
+        "sha256": "f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec",
+        "size": 290526,
+        "symbols": [
+          {
+            "name": "structure",
+            "kind": "constant",
+            "sha256": "f60b9908654ca2ff71e7337900d421fab57f358a2060a8648c070247d73f543c"
+          },
+          {
+            "name": "visual",
+            "kind": "constant",
+            "sha256": "a0630c4ed26b5e862890a7c58fce446a06e8cb913119cf35dd93dd6badc58286"
+          },
+          {
+            "name": "edges",
+            "kind": "constant",
+            "sha256": "8c37bcd95245ff6d66b6f8b413ce98901f9c5e8bad1c2b4dc47e75e3b2815f73"
+          },
+          {
+            "name": "signal",
+            "kind": "constant",
+            "sha256": "f084f4945e43a881cf04b4d6eff63df1f052d4d6e933b089af3696e2bc699289"
+          },
+          {
+            "name": "combined",
+            "kind": "constant",
+            "sha256": "554ec06aae48c9a47df84376a48ae5875cf9f989c81cbc3cead38693c38b4db7"
+          }
+        ]
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -56,8 +90,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 185
+    "estimated_tokens_saved": 185,
+    "reverified_at": "2026-06-15T21:58:13.928Z"
   },
   "created_at": "2026-05-09T07:22:43.533Z",
-  "updated_at": "2026-06-05T14:03:30.153Z"
+  "updated_at": "2026-06-15T21:58:13.928Z"
 }

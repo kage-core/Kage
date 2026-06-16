@@ -35,17 +35,66 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-14T19:09:09.960Z",
+    "last_verified_at": "2026-06-15T21:58:34.652Z",
     "path_fingerprints": [
       {
         "path": "mcp/index.ts",
-        "sha256": "4353a28c596b05203096d9ee8ef56604fb0fb019d67952e92bfb0a21eac000cf",
-        "size": 68945
+        "sha256": "d5abac0cb8d92d9074ae37a32ee515da8b03c43fe2d1a03d44447ee7b3493861",
+        "size": 69453,
+        "symbols": [
+          {
+            "name": "core_tools",
+            "kind": "constant",
+            "sha256": "b43c87d958b8b11a31fffc9dd75340a10f6eefb84b3d6fd374d3abbab35724c1"
+          },
+          {
+            "name": "listtools",
+            "kind": "function",
+            "sha256": "7dd935484c64ac0bc6fd923acc211287a596be386def386adee11658e98c4afa"
+          },
+          {
+            "name": "calltool",
+            "kind": "function",
+            "sha256": "87a6ef6bc62a00ba9d50c5a20cfba1b80a75677206b3c461097eb8936154309d"
+          },
+          {
+            "name": "index",
+            "kind": "constant",
+            "sha256": "ad98a75521fc0edce4fed6c6cd0503a41df66728efc44c4c3904db6a6ac89d7f"
+          }
+        ]
       },
       {
         "path": "mcp/mcp.test.ts",
         "sha256": "3f5e52ad72a2a4b4db9e8de8bdad60cfb622ec132c2a278523ca6aad79538ec0",
-        "size": 37910
+        "size": 37910,
+        "symbols": [
+          {
+            "name": "core",
+            "kind": "constant",
+            "sha256": "57cd814974b6f0449f12266cd73c5483d34372211de55cf8791e1bdb7253b0b2"
+          },
+          {
+            "name": "tool",
+            "kind": "constant",
+            "sha256": "c730b2f983ea9b4965a3ae0d8eec26c8af27380cfb28c180ae2d9f2493727d7b"
+          },
+          {
+            "name": "context",
+            "kind": "constant",
+            "sha256": "94e5c3947ba282a9ec60de88384111292e685f5f46509d61ddf1eadfab8915da"
+          },
+          {
+            "name": "deleted",
+            "kind": "constant",
+            "sha256": "93aeed4ae0813e805f1e3cc24fc4041ca5ac236d67feb9ea59f8e296beeee0c4"
+          },
+          {
+            "name": "check",
+            "kind": "constant",
+            "sha256": "620d8c4c121a80c990afb6b6c9d3145a945f6c38957782dcfc0b0632ffe8c087"
+          }
+        ]
       },
       {
         "path": "evals/agent-trajectory/scenarios.mjs",
@@ -78,9 +127,10 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 326
+    "estimated_tokens_saved": 326,
+    "reverified_at": "2026-06-15T21:58:34.652Z"
   },
   "created_at": "2026-06-14T19:09:09.960Z",
-  "updated_at": "2026-06-14T19:49:25.428Z",
+  "updated_at": "2026-06-15T21:58:34.652Z",
   "author_branch": "master"
 }

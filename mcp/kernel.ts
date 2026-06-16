@@ -2306,6 +2306,13 @@ If Kage appears installed but no Kage tools are available, report that the activ
 agent session has not loaded the MCP server and ask the user to restart the
 agent. After restart, call \`kage_verify_agent\` to prove the harness is live.
 
+## Show the Value
+
+\`kage_context\` and \`kage_recall\` return a one-line gains receipt (tokens/$ saved
+this session, stale memories withheld). When it is non-trivial, relay it to the
+user in your own words — Kage's value is otherwise invisible, and a user who never
+sees it churns. Repeat only what the tool actually reported; never fabricate numbers.
+
 ## Automatic Capture
 
 When you learn something reusable, create repo-local memory with \`kage_learn\`.
@@ -12069,6 +12076,126 @@ export function truthReport(projectDir: string): TruthReport {
       "kage gains --project .      the receipt: what the memory loop saved you this week",
     ],
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shareable Truth Report scorecard. `kage scan --scorecard` turns a TruthReport
+// into a screenshot-able SVG (and a Markdown variant) so the 60-second scan
+// becomes something people post — a repo scorecard, not just terminal output.
+// This is the top-of-funnel artifact: a stranger runs it on any repo, gets a
+// shareable card, and the memory loop is what they install afterwards.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SCORECARD_CARDS: Array<{ key: keyof TruthReport["totals"]; label: string }> = [
+  { key: "knowledge_voids", label: "KNOWLEDGE VOIDS" },
+  { key: "untested_hot_paths", label: "UNTESTED HOT PATHS" },
+  { key: "complexity_hotspots", label: "COMPLEXITY HOTSPOTS" },
+  { key: "debt_markers", label: "KNOWN DEBT" },
+  { key: "bus_factor_files", label: "BUS-FACTOR-1 FILES" },
+  { key: "duplicate_clusters", label: "DUPLICATE IMPLS" },
+  { key: "ghost_exports", label: "GHOST EXPORTS" },
+  { key: "doc_lies", label: "DOC LIES" },
+];
+
+function scorecardRepoName(projectDir: string): string {
+  const parts = projectDir.split(/[\\/]+/).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : projectDir;
+}
+
+function svgEscape(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// 0 findings is good (green); a few is worth a look (amber); a pile is red.
+function scorecardColor(count: number): string {
+  if (count === 0) return "#1a7f37";
+  if (count < 5) return "#bc4c00";
+  return "#cf222e";
+}
+
+export function truthScorecardSvg(report: TruthReport): string {
+  const repo = scorecardRepoName(report.project_dir);
+  const totalFindings = SCORECARD_CARDS.reduce((sum, card) => sum + (report.totals[card.key] || 0), 0);
+  const width = 820;
+  const pad = 24;
+  const gap = 16;
+  const cols = 4;
+  const cardW = Math.round((width - pad * 2 - gap * (cols - 1)) / cols);
+  const cardH = 96;
+  const gridTop = 104;
+  const rows = Math.ceil(SCORECARD_CARDS.length / cols);
+  const footerTop = gridTop + rows * cardH + (rows - 1) * gap + 20;
+  const height = footerTop + 56;
+
+  const subtitle = `${repo} · ${report.totals.files_scanned} files · ${report.totals.symbols_scanned} symbols scanned`;
+  const headline = report.headline
+    ? report.headline.length > 92
+      ? `${report.headline.slice(0, 89)}…`
+      : report.headline
+    : totalFindings === 0
+      ? "No surprising findings — this repo's knowledge is well distributed."
+      : `${totalFindings} knowledge risk${totalFindings === 1 ? "" : "s"} surfaced`;
+
+  const cards = SCORECARD_CARDS.map((card, i) => {
+    const count = report.totals[card.key] || 0;
+    const x = pad + (i % cols) * (cardW + gap);
+    const y = gridTop + Math.floor(i / cols) * (cardH + gap);
+    const cx = x + cardW / 2;
+    return [
+      `  <g>`,
+      `    <rect x="${x}" y="${y}" width="${cardW}" height="${cardH}" rx="12" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>`,
+      `    <text x="${cx}" y="${y + 50}" text-anchor="middle" font-size="34" font-weight="700" fill="${scorecardColor(count)}">${count}</text>`,
+      `    <text x="${cx}" y="${y + 76}" text-anchor="middle" font-size="10.5" font-weight="600" letter-spacing="0.8" fill="#57606a">${svgEscape(card.label)}</text>`,
+      `  </g>`,
+    ].join("\n");
+  }).join("\n");
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">`,
+    `  <rect x="0" y="0" width="${width}" height="${height}" rx="16" fill="#0d1117"/>`,
+    `  <text x="${pad}" y="46" font-size="22" font-weight="700" fill="#41ff8f">Kage Truth Report</text>`,
+    `  <text x="${pad}" y="72" font-size="13" fill="#8b949e">${svgEscape(subtitle)}</text>`,
+    `  <text x="${pad}" y="${gridTop - 14}" font-size="13" font-weight="600" fill="#c9d1d9">${svgEscape(headline)}</text>`,
+    cards,
+    `  <text x="${pad}" y="${footerTop + 22}" font-size="12.5" fill="#8b949e">Run it on your repo:</text>`,
+    `  <text x="${pad + 130}" y="${footerTop + 22}" font-size="12.5" font-weight="600" fill="#41ff8f">npx -y @kage-core/kage-graph-mcp install</text>`,
+    `  <text x="${width - pad}" y="${footerTop + 22}" text-anchor="end" font-size="12.5" fill="#57606a">kage-core.com</text>`,
+    `</svg>`,
+  ].join("\n");
+}
+
+export function truthScorecardMarkdown(report: TruthReport): string {
+  const repo = scorecardRepoName(report.project_dir);
+  const totalFindings = SCORECARD_CARDS.reduce((sum, card) => sum + (report.totals[card.key] || 0), 0);
+  const rows = SCORECARD_CARDS.map((card) => {
+    const count = report.totals[card.key] || 0;
+    const mark = count === 0 ? "✅" : count < 5 ? "⚠️" : "🔴";
+    const label = card.label.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()).replace(/\bImpls\b/, "Implementations");
+    return `| ${label} | ${count} ${mark} |`;
+  }).join("\n");
+  const headline = report.headline || (totalFindings === 0
+    ? "No surprising findings — this repo's knowledge is well distributed."
+    : `${totalFindings} knowledge risk${totalFindings === 1 ? "" : "s"} surfaced`);
+  return [
+    `## Kage Truth Report — ${repo}`,
+    ``,
+    `Scanned ${report.totals.files_scanned} files, ${report.totals.symbols_scanned} symbols.`,
+    ``,
+    `> ${headline}`,
+    ``,
+    `| Signal | Count |`,
+    `| --- | --- |`,
+    rows,
+    ``,
+    `Each signal is a place an agent loses time re-learning what your team already knows — [what these mean](https://github.com/kage-core/Kage/blob/master/docs/scorecard-metrics.md).`,
+    ``,
+    `Run it on your repo: \`npx -y @kage-core/kage-graph-mcp install\` · [kage-core.com](https://kage-core.com)`,
+    ``,
+  ].join("\n");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -33,8 +33,15 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-31T08:44:34.351Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:15.665Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/daemon.test.ts",
+        "sha256": "ef48ce8b21ff33ed39379a9be695f863280d552399973a742c0e3932c21bfe1e",
+        "size": 12250
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -56,8 +63,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 143
+    "estimated_tokens_saved": 143,
+    "reverified_at": "2026-06-15T21:58:15.665Z"
   },
   "created_at": "2026-05-31T08:44:34.351Z",
-  "updated_at": "2026-06-05T14:03:30.162Z"
+  "updated_at": "2026-06-15T21:58:15.665Z"
 }

@@ -18,7 +18,6 @@
   ],
   "paths": [
     "mcp/kernel.ts",
-    ".agent_memory/packets",
     "benchmarks/README.md"
   ],
   "stack": [],
@@ -34,12 +33,69 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-23T14:25:21.183Z",
+    "last_verified_at": "2026-06-15T21:57:54.934Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "0f43a36933c6e333905fd362aaa182174c4df5c1d7152f4cfd2efc23ef593b8f",
-        "size": 585123
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "extra",
+            "kind": "constant",
+            "sha256": "e60db0ecfdf0048240c715b5beb9820e4e1fc79c7c2522cbbd54f35860692687"
+          },
+          {
+            "name": "ignore",
+            "kind": "function",
+            "sha256": "3eee15379e111fc3066636e779769471e2ba26f4ccf38736888f5c1eec25dd08"
+          },
+          {
+            "name": "shared",
+            "kind": "constant",
+            "sha256": "460b2356d24cb4febb5770d5aad45c46f57c2ae76ff809b94ab2d711ad8ab082"
+          },
+          {
+            "name": "references",
+            "kind": "constant",
+            "sha256": "8e56a659477f8edc0dfadefc515e9ee2f26df3291d9c4294e8a31a9eac14c367"
+          },
+          {
+            "name": "workspace_skip_dirs",
+            "kind": "constant",
+            "sha256": "e40bba8369ffeef57b2e0e8e017fb3fecf2e1b13e4dcbbe0b519eee732ffdb77"
+          },
+          {
+            "name": "workspace",
+            "kind": "constant",
+            "sha256": "fc67e2dd3e7f4ea865d3e01787ca073218c159c6ee26d3ca83996fc9e32abd9e"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          },
+          {
+            "name": "removed",
+            "kind": "constant",
+            "sha256": "a0797a6325a4353640d2ec426c8c94ea9d093091c3e97fdacfd8387aec73d583"
+          },
+          {
+            "name": "when",
+            "kind": "constant",
+            "sha256": "48bfd58b3cdbf2d407e4443b90727d548d96eceaa4372c099dcd22c52f498452"
+          },
+          {
+            "name": "skip",
+            "kind": "constant",
+            "sha256": "84ce913f797ae6f1160ffe3c80d4f9852f31f1ce9c118d5e1a8be145e564b569"
+          }
+        ]
       },
       {
         "path": "benchmarks/README.md",
@@ -87,15 +143,15 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 178,
+    "superseded_by": "repo:https-github-com-kage-core-kage:decision:public-source-skip-lists-remain-generic-after-risk-path-parser-fix-1780217154439",
+    "superseded_reason": "Updated after risk path parser fix; public skip-list decision remains generic.",
+    "reverified_at": "2026-06-15T21:57:54.934Z",
     "stale": true,
     "stale_reasons": [
-      "packet status is superseded",
-      "linked path changed since memory was verified: mcp/kernel.ts"
+      "packet status is superseded"
     ],
-    "suggested_action": "mark_stale",
-    "superseded_by": "repo:https-github-com-kage-core-kage:decision:public-source-skip-lists-remain-generic-after-risk-path-parser-fix-1780217154439",
-    "superseded_reason": "Updated after risk path parser fix; public skip-list decision remains generic."
+    "suggested_action": "mark_stale"
   },
   "created_at": "2026-05-23T14:25:21.183Z",
-  "updated_at": "2026-06-11T19:32:22.053Z"
+  "updated_at": "2026-06-15T21:58:43.088Z"
 }

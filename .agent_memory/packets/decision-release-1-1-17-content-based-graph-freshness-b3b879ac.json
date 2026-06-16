@@ -39,8 +39,94 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-06T08:00:04.602Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:04.223Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "readme",
+            "kind": "constant",
+            "sha256": "aa0f002dd3f57a6ca1e42c5aba625151268ed600bbbd7582f93a0a0bc7714404"
+          },
+          {
+            "name": "same",
+            "kind": "constant",
+            "sha256": "b150fada949a5c6d4babe0a0bc108765c6e7e1819d0ddbee55112b9c9a708447"
+          },
+          {
+            "name": "code",
+            "kind": "constant",
+            "sha256": "64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          },
+          {
+            "name": "changelog",
+            "kind": "function",
+            "sha256": "1b80272f5a58f56742b1e1ffccb8b8bad542436311476eca4a275896297f76af"
+          }
+        ]
+      },
+      {
+        "path": "mcp/kernel.test.ts",
+        "sha256": "f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec",
+        "size": 290526,
+        "symbols": [
+          {
+            "name": "packets",
+            "kind": "constant",
+            "sha256": "f28a69afbf5d7a988e351fc5446a3b291a2451f97b8220c4e1a7629b3a50ffa3"
+          },
+          {
+            "name": "approved",
+            "kind": "constant",
+            "sha256": "171aaa19fb00d03fd3ac915407ce29bf1b975dd242d15989e08241caf5c05506"
+          },
+          {
+            "name": "config",
+            "kind": "constant",
+            "sha256": "dadedb2c7835eb30472da759f3e2177ea09582ea0ac93eaf2fdc871ba1720bde"
+          },
+          {
+            "name": "real",
+            "kind": "constant",
+            "sha256": "856bf47487b3742dc24d08df1d5fbdb66e78329577cae25b2d31af5ccc9aade1"
+          }
+        ]
+      },
+      {
+        "path": "mcp/package.json",
+        "sha256": "e77b80c8e3ef4eb7ccdf9f7dc775b51f18f1a7994092b538f81df874e8c91c5a",
+        "size": 1193
+      },
+      {
+        "path": "mcp/package-lock.json",
+        "sha256": "5cc3c1aa35fce1dc164444bb08d352f15590aa7fccfddbd7df1b6b7aaac67221",
+        "size": 42685
+      },
+      {
+        "path": "CHANGELOG.md",
+        "sha256": "1d00aff932a74d380dad6e0d60ae0aed37e40aa5a03ae7ec0acb71f824d0ef0c",
+        "size": 46022
+      },
+      {
+        "path": "mcp/README.md",
+        "sha256": "5c852f608754e299c2cff74495862f1ce4775d0bda5776d7ce4f070f4e4a6494",
+        "size": 10129
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -62,8 +148,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 137
+    "estimated_tokens_saved": 137,
+    "reverified_at": "2026-06-15T21:58:04.223Z"
   },
   "created_at": "2026-05-06T08:00:04.602Z",
-  "updated_at": "2026-05-19T04:53:22.458Z"
+  "updated_at": "2026-06-15T21:58:04.223Z"
 }

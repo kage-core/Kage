@@ -39,8 +39,62 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-15T04:48:34.857Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:00.164Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "framework",
+            "kind": "constant",
+            "sha256": "cb381325be9217683b113006f82ffbcd46b3baf69b1a4be3620de53b07f1ad3b"
+          },
+          {
+            "name": "code",
+            "kind": "constant",
+            "sha256": "64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"
+          }
+        ]
+      },
+      {
+        "path": "mcp/kernel.test.ts",
+        "sha256": "f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec",
+        "size": 290526
+      },
+      {
+        "path": "README.md",
+        "sha256": "9a533eee7962e84cdceef1bd8c9463233a575138fa143acafc8abd42f723944a",
+        "size": 10477
+      },
+      {
+        "path": "mcp/README.md",
+        "sha256": "5c852f608754e299c2cff74495862f1ce4775d0bda5776d7ce4f070f4e4a6494",
+        "size": 10129
+      },
+      {
+        "path": "docs/guide.html",
+        "sha256": "33b57e522b1a49e48631042940e2ca7d281084371c3feb3210604e213e0e7f28",
+        "size": 51769
+      },
+      {
+        "path": "docs/releases.html",
+        "sha256": "140753f257c74e24bb1a62c3ab5c5ff165c9cfb5ac6501645be913eab1e03a88",
+        "size": 11134
+      },
+      {
+        "path": "CHANGELOG.md",
+        "sha256": "1d00aff932a74d380dad6e0d60ae0aed37e40aa5a03ae7ec0acb71f824d0ef0c",
+        "size": 46022
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -62,8 +116,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 98
+    "estimated_tokens_saved": 98,
+    "reverified_at": "2026-06-15T21:58:00.164Z"
   },
   "created_at": "2026-05-15T04:48:34.857Z",
-  "updated_at": "2026-05-19T04:53:22.457Z"
+  "updated_at": "2026-06-15T21:58:00.164Z"
 }

@@ -17,7 +17,6 @@
     "branch:v2-stale-catch"
   ],
   "paths": [
-    ".agent_memory/packets/code_explanation-stale-catch-change-time-invalidation-heartbeat-stalecatch-kage-staleguard-b1f7baca.json",
     "mcp/cli.ts",
     "mcp/index.ts",
     "mcp/kernel.test.ts",
@@ -52,33 +51,193 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-11T15:18:19.000Z",
+    "last_verified_at": "2026-06-15T21:58:23.833Z",
     "ttl_days": 180,
     "path_fingerprints": [
       {
         "path": "mcp/cli.ts",
-        "sha256": "728f18995f87914ae7d1ad827a7f5800f451e864d4b5790932e15ca10660e07d",
-        "size": 89956
+        "sha256": "a670bc601e227372c9ab3e862f4e25fa87ae4bfa90b63c3bbc61032d332da0d7",
+        "size": 114201,
+        "symbols": [
+          {
+            "name": "index",
+            "kind": "constant",
+            "sha256": "c201ee64cf24065dd2ba0bbdc7ff8399e5c1dd89783820e501d28f82019f08a8"
+          },
+          {
+            "name": "review",
+            "kind": "function",
+            "sha256": "cd5b65cd476d7eaecccc181de3bcad5b3d7c99237dcbfce313709f8eb35f9a13"
+          },
+          {
+            "name": "command",
+            "kind": "constant",
+            "sha256": "9e594169e1f8559f50d7e73b407f1aa3a9a0f14bf43a676fedefa72734badb98"
+          },
+          {
+            "name": "json",
+            "kind": "constant",
+            "sha256": "9115381310c6d4c5ecb25a7e67e4fd0bb4b20a9b328adb25b606065454f79370"
+          },
+          {
+            "name": "current",
+            "kind": "constant",
+            "sha256": "471f3cfbffa04d6ecddb2f3d4013027b71237de766afb69ec418f1f1b8308937"
+          },
+          {
+            "name": "agent",
+            "kind": "constant",
+            "sha256": "5b9caa614311fe691d6af171b9a8985b0d49464b9df178ad28ff5b9883eb4cf2"
+          },
+          {
+            "name": "from",
+            "kind": "constant",
+            "sha256": "b386d829bcacbd9e216c726f6dff71fc7d8a53aade383fa45b850387414b780c"
+          },
+          {
+            "name": "summary",
+            "kind": "constant",
+            "sha256": "0938b0afc17695033381e2248401bba9b7c6abb6f9f0eaae0d2a8ff2c660d662"
+          },
+          {
+            "name": "durable",
+            "kind": "constant",
+            "sha256": "59e1af86ee722f58562da0478f6f3fe6621ae96f9473de8c0037e63fe779215e"
+          }
+        ]
       },
       {
         "path": "mcp/index.ts",
-        "sha256": "a3ba5c1b522dcfaf3f15b4a2b010f22116d07f3c810f38a6c4f8b0604dfd9a42",
-        "size": 63966
+        "sha256": "d5abac0cb8d92d9074ae37a32ee515da8b03c43fe2d1a03d44447ee7b3493861",
+        "size": 69453,
+        "symbols": [
+          {
+            "name": "summary",
+            "kind": "constant",
+            "sha256": "16f7c65f25e8bfb3d6fca589dbf7ddcc3930490fe5a6dcdb90e6a7e5dd344398"
+          },
+          {
+            "name": "index",
+            "kind": "constant",
+            "sha256": "ad98a75521fc0edce4fed6c6cd0503a41df66728efc44c4c3904db6a6ac89d7f"
+          }
+        ]
       },
       {
         "path": "mcp/kernel.test.ts",
-        "sha256": "ed805e5cb77b0bcd3282f42cf7d33fe7a6c956eb9f8fc862f24c6ce09007ac62",
-        "size": 189477
+        "sha256": "f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec",
+        "size": 290526,
+        "symbols": [
+          {
+            "name": "packets",
+            "kind": "constant",
+            "sha256": "f28a69afbf5d7a988e351fc5446a3b291a2451f97b8220c4e1a7629b3a50ffa3"
+          },
+          {
+            "name": "changed",
+            "kind": "constant",
+            "sha256": "8acd4ea8821c48290e59ddcd8f60fc34f9c721f4cc2c515fcff04820d8b159cd"
+          },
+          {
+            "name": "manual",
+            "kind": "constant",
+            "sha256": "f8502a2f13344d0dc48912357b32bd77516b46c56e970206fce7993703ff91bf"
+          }
+        ]
       },
       {
         "path": "mcp/kernel.ts",
-        "sha256": "feb28afccf9163d9a4a6f5e46e36e9d1b056043bec756ade4c492c0693e03162",
-        "size": 691945
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "time",
+            "kind": "constant",
+            "sha256": "36aa0a901e7fda47d7d7571d9c21879432386e4418ed56010d7e03c9a91f5482"
+          },
+          {
+            "name": "untracked",
+            "kind": "constant",
+            "sha256": "8d31cffa2e43e8e8498c30a2e6eeb043120941acd973d64ecda430b13f52d855"
+          },
+          {
+            "name": "explicit",
+            "kind": "constant",
+            "sha256": "3c7dc76a866b9617850dd05c43ef877cc5208ade5be761331cf32181ace414ff"
+          },
+          {
+            "name": "verification",
+            "kind": "constant",
+            "sha256": "faeb54eb75a6e60ebcab087f39fdd9f971c8a3a16e25846647ab2dd5802748f3"
+          },
+          {
+            "name": "code",
+            "kind": "constant",
+            "sha256": "64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"
+          },
+          {
+            "name": "after",
+            "kind": "constant",
+            "sha256": "220a1c1969c37d53268e215419dcea650ffa901162d0a25e451bd90831fb0a1b"
+          },
+          {
+            "name": "verify",
+            "kind": "constant",
+            "sha256": "a52f5b45a4f358248075422f84ac83e7d291e8e7acb866eeabdb692896bc9c0d"
+          },
+          {
+            "name": "relevant",
+            "kind": "constant",
+            "sha256": "ecda229c929f06ede369f9d72be3d3211fef450b1056b73a121c5d925fac2c2b"
+          },
+          {
+            "name": "durable",
+            "kind": "constant",
+            "sha256": "3fa48acfe2e95fa0fcf831049f2d1aa3ddf26ddc5a1d10724db5da185389e634"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          },
+          {
+            "name": "stalecatch",
+            "kind": "function",
+            "sha256": "f5c8a3a19318806b2dd089f0ece8a92a7b5799089c796665109fc20c63fdab9a"
+          },
+          {
+            "name": "when",
+            "kind": "constant",
+            "sha256": "48bfd58b3cdbf2d407e4443b90727d548d96eceaa4372c099dcd22c52f498452"
+          }
+        ]
       },
       {
         "path": "mcp/mcp.test.ts",
-        "sha256": "5f2abcfe35cf6bc7e24cc44f2a0b333d5d0bcc4fd48ae2efed1b16172058c927",
-        "size": 36787
+        "sha256": "3f5e52ad72a2a4b4db9e8de8bdad60cfb622ec132c2a278523ca6aad79538ec0",
+        "size": 37910,
+        "symbols": [
+          {
+            "name": "context",
+            "kind": "constant",
+            "sha256": "94e5c3947ba282a9ec60de88384111292e685f5f46509d61ddf1eadfab8915da"
+          },
+          {
+            "name": "packets",
+            "kind": "constant",
+            "sha256": "8e24ebb99173a9fd5301b27e9ac55682bbb2605c03f9db6118e86695ee44a56d"
+          },
+          {
+            "name": "summary",
+            "kind": "constant",
+            "sha256": "ce5a0ae27c7e31896d8b1045100cf88f02038a09fb4ac7e4991f3d466fe095a3"
+          },
+          {
+            "name": "verify",
+            "kind": "constant",
+            "sha256": "f02dccd643285312f814c4b1bb8a3a55842d18807ca5dda55e9788cd21fd99a2"
+          }
+        ]
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -154,15 +313,15 @@
     "candidate_kind": "change_memory",
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true,
+    "superseded_by": "repo:https-github-com-kage-core-kage:workflow:stale-catch-feature-landed-via-pr-64-kernel-test-ts-seam-carries-both-v2-test-su",
+    "superseded_reason": "Branch-time change memory replaced by post-merge verified state (PR #64; kernel.test.ts seam resolution documented)",
+    "reverified_at": "2026-06-15T21:58:23.833Z",
     "stale": true,
     "stale_reasons": [
-      "packet status is superseded",
-      "linked path changed since memory was verified: mcp/cli.ts, mcp/index.ts, mcp/kernel.test.ts, mcp/kernel.ts"
+      "packet status is superseded"
     ],
-    "suggested_action": "mark_stale",
-    "superseded_by": "repo:https-github-com-kage-core-kage:workflow:stale-catch-feature-landed-via-pr-64-kernel-test-ts-seam-carries-both-v2-test-su",
-    "superseded_reason": "Branch-time change memory replaced by post-merge verified state (PR #64; kernel.test.ts seam resolution documented)"
+    "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-11T14:52:02.865Z",
-  "updated_at": "2026-06-12T07:43:38.418Z"
+  "updated_at": "2026-06-15T21:58:43.099Z"
 }

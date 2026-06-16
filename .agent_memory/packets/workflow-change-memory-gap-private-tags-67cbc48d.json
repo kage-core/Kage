@@ -17,11 +17,6 @@
     "branch:gap-private-tags"
   ],
   "paths": [
-    ".agent_memory/packets/convention-privacy-private-tags-are-redacted-by-stripprivatespans-before-any-memory-write-e7c147f0.json",
-    ".agent_memory/packets/reference-claude-mem-implementation-teardown-zero-verification-confirmed-5-mechanics-worth-f7674b1c.json",
-    ".agent_memory/packets/workflow-change-memory-master-23634276.json",
-    ".agent_memory/packets/workflow-change-memory-release-v2-0-1-d6e19752.json",
-    ".agent_memory/packets/workflow-stale-catch-feature-landed-via-pr-64-kernel-test-ts-seam-carries-both-v2-test-su-9ad40729.json",
     "CHANGELOG.md",
     "README.md",
     "mcp/kernel.test.ts",
@@ -58,28 +53,127 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-12T06:04:21.978Z",
+    "last_verified_at": "2026-06-15T21:58:07.452Z",
     "ttl_days": 180,
     "path_fingerprints": [
       {
         "path": "CHANGELOG.md",
-        "sha256": "5d2ea99bd0ac456c4d6458fd7cde7d3f64573b7806ad4a5f8e35710b6e30cfaa",
-        "size": 21858
+        "sha256": "1d00aff932a74d380dad6e0d60ae0aed37e40aa5a03ae7ec0acb71f824d0ef0c",
+        "size": 46022
       },
       {
         "path": "README.md",
-        "sha256": "2091b63e0704d4c9aabc23f1766d6d407360a974a089c39dfae5573e0c59f84b",
-        "size": 9883
+        "sha256": "9a533eee7962e84cdceef1bd8c9463233a575138fa143acafc8abd42f723944a",
+        "size": 10477
       },
       {
         "path": "mcp/kernel.test.ts",
-        "sha256": "3674b35af15decbd9c95fd4e1ca58512ecb0121a804dce1c0398cae87dfbea38",
-        "size": 195826
+        "sha256": "f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec",
+        "size": 290526,
+        "symbols": [
+          {
+            "name": "packets",
+            "kind": "constant",
+            "sha256": "f28a69afbf5d7a988e351fc5446a3b291a2451f97b8220c4e1a7629b3a50ffa3"
+          },
+          {
+            "name": "changed",
+            "kind": "constant",
+            "sha256": "8acd4ea8821c48290e59ddcd8f60fc34f9c721f4cc2c515fcff04820d8b159cd"
+          },
+          {
+            "name": "claude",
+            "kind": "constant",
+            "sha256": "30e40d593cb285fac2f86d1766fed1b16495cc38548f9b27af90a180acfac1d6"
+          },
+          {
+            "name": "manual",
+            "kind": "constant",
+            "sha256": "f8502a2f13344d0dc48912357b32bd77516b46c56e970206fce7993703ff91bf"
+          },
+          {
+            "name": "reference",
+            "kind": "constant",
+            "sha256": "ea0156b0af7eca0a3b159bd94ec6d6b12f0506c9bc51164bcfdd4e3b3a294177"
+          }
+        ]
       },
       {
         "path": "mcp/kernel.ts",
-        "sha256": "fcd60dd37b36af6c282896d03a971505f9c034bfbbc55b2ce3237c15e9f4e55e",
-        "size": 695567
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "stripprivatespans",
+            "kind": "function",
+            "sha256": "ba84a8fc3e6d28cb1b5961254b38ec923e69f24b0a89936bf5606ff7cbde5c30"
+          },
+          {
+            "name": "untracked",
+            "kind": "constant",
+            "sha256": "8d31cffa2e43e8e8498c30a2e6eeb043120941acd973d64ecda430b13f52d855"
+          },
+          {
+            "name": "readme",
+            "kind": "constant",
+            "sha256": "aa0f002dd3f57a6ca1e42c5aba625151268ed600bbbd7582f93a0a0bc7714404"
+          },
+          {
+            "name": "explicit",
+            "kind": "constant",
+            "sha256": "3c7dc76a866b9617850dd05c43ef877cc5208ade5be761331cf32181ace414ff"
+          },
+          {
+            "name": "verification",
+            "kind": "constant",
+            "sha256": "faeb54eb75a6e60ebcab087f39fdd9f971c8a3a16e25846647ab2dd5802748f3"
+          },
+          {
+            "name": "code",
+            "kind": "constant",
+            "sha256": "64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"
+          },
+          {
+            "name": "before",
+            "kind": "constant",
+            "sha256": "70c005bc3586ccb93799dfa1989dccca69b847916fd3fde1583578730922c50c"
+          },
+          {
+            "name": "after",
+            "kind": "constant",
+            "sha256": "220a1c1969c37d53268e215419dcea650ffa901162d0a25e451bd90831fb0a1b"
+          },
+          {
+            "name": "verify",
+            "kind": "constant",
+            "sha256": "a52f5b45a4f358248075422f84ac83e7d291e8e7acb866eeabdb692896bc9c0d"
+          },
+          {
+            "name": "relevant",
+            "kind": "constant",
+            "sha256": "ecda229c929f06ede369f9d72be3d3211fef450b1056b73a121c5d925fac2c2b"
+          },
+          {
+            "name": "durable",
+            "kind": "constant",
+            "sha256": "3fa48acfe2e95fa0fcf831049f2d1aa3ddf26ddc5a1d10724db5da185389e634"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          },
+          {
+            "name": "changelog",
+            "kind": "function",
+            "sha256": "1b80272f5a58f56742b1e1ffccb8b8bad542436311476eca4a275896297f76af"
+          },
+          {
+            "name": "when",
+            "kind": "constant",
+            "sha256": "48bfd58b3cdbf2d407e4443b90727d548d96eceaa4372c099dcd22c52f498452"
+          }
+        ]
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -161,13 +255,13 @@
     "candidate_kind": "change_memory",
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true,
+    "reverified_at": "2026-06-15T21:58:07.452Z",
     "stale": true,
     "stale_reasons": [
-      "packet status is deprecated",
-      "linked path changed since memory was verified: README.md, mcp/kernel.test.ts, mcp/kernel.ts"
+      "packet status is deprecated"
     ],
     "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-12T06:04:21.978Z",
-  "updated_at": "2026-06-15T18:00:50.587Z"
+  "updated_at": "2026-06-15T21:58:43.097Z"
 }

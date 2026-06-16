@@ -36,8 +36,69 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-05-09T06:14:16.086Z",
-    "verification": "repo_local_agent_capture"
+    "last_verified_at": "2026-06-15T21:58:17.682Z",
+    "verification": "repo_local_agent_capture",
+    "path_fingerprints": [
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "compact",
+            "kind": "constant",
+            "sha256": "c9b1c12cc7a86cc1cd5e8fe0a5d8f5153a50e841cc6135962452153780c8557f"
+          },
+          {
+            "name": "references",
+            "kind": "constant",
+            "sha256": "8e56a659477f8edc0dfadefc515e9ee2f26df3291d9c4294e8a31a9eac14c367"
+          },
+          {
+            "name": "code",
+            "kind": "constant",
+            "sha256": "64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"
+          },
+          {
+            "name": "data",
+            "kind": "constant",
+            "sha256": "491aa781049f0ad6b9dc4a2b393461ed407cfa306b0cf11bfad03315940015d7"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          }
+        ]
+      },
+      {
+        "path": "mcp/kernel.test.ts",
+        "sha256": "f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec",
+        "size": 290526,
+        "symbols": [
+          {
+            "name": "packed",
+            "kind": "constant",
+            "sha256": "317e6f8b0fb6ec31dd0da9bb7b91a3ca6c1a65c922d249e29e6d1a58d15234d3"
+          }
+        ]
+      },
+      {
+        "path": "mcp/README.md",
+        "sha256": "5c852f608754e299c2cff74495862f1ce4775d0bda5776d7ce4f070f4e4a6494",
+        "size": 10129
+      },
+      {
+        "path": "README.md",
+        "sha256": "9a533eee7962e84cdceef1bd8c9463233a575138fa143acafc8abd42f723944a",
+        "size": 10477
+      }
+    ]
   },
   "edges": [],
   "quality": {
@@ -59,8 +120,9 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 185
+    "estimated_tokens_saved": 185,
+    "reverified_at": "2026-06-15T21:58:17.682Z"
   },
   "created_at": "2026-05-09T06:14:16.086Z",
-  "updated_at": "2026-06-05T14:03:30.156Z"
+  "updated_at": "2026-06-15T21:58:17.682Z"
 }

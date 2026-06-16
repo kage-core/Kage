@@ -34,22 +34,126 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-12T06:06:01.588Z",
+    "last_verified_at": "2026-06-15T21:58:11.790Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "1141e2889c74d29bccbf09fba7e32f4e17d2b73b33fd558c77e958ffeaea8363",
-        "size": 701748
+        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
+        "size": 844113,
+        "symbols": [
+          {
+            "name": "recallablependingpackets",
+            "kind": "function",
+            "sha256": "fd7d9e30ca2f63231e7eb48a83087c45f9b868dce9bef2ea9fa4852a8c71ef34"
+          },
+          {
+            "name": "inbox",
+            "kind": "constant",
+            "sha256": "9d2097586a2527bfa63d55306c098fda29e1c3530771833e9aca5f986632d367"
+          },
+          {
+            "name": "code",
+            "kind": "constant",
+            "sha256": "64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"
+          },
+          {
+            "name": "data",
+            "kind": "constant",
+            "sha256": "491aa781049f0ad6b9dc4a2b393461ed407cfa306b0cf11bfad03315940015d7"
+          },
+          {
+            "name": "after",
+            "kind": "constant",
+            "sha256": "220a1c1969c37d53268e215419dcea650ffa901162d0a25e451bd90831fb0a1b"
+          },
+          {
+            "name": "captured",
+            "kind": "constant",
+            "sha256": "e04b2f71594d268cd1cd207bde02d83cf64a96299b1b11f9c484721b04d6d3a8"
+          },
+          {
+            "name": "setupagent",
+            "kind": "function",
+            "sha256": "0ad3f8f44b973a13b0272e373fee8ac6519f790c0c2dcfafee9c84fe12850444"
+          },
+          {
+            "name": "hooks",
+            "kind": "constant",
+            "sha256": "7291847ee5dfe9b56b32a270d8bb6309f5740dde9443103ede1b01a377155e78"
+          },
+          {
+            "name": "sessionalreadycaptured",
+            "kind": "function",
+            "sha256": "e7247bb7b38657b85a01f70e7d88184f8f79c8ad59356befb286efa2bb66e8b2"
+          },
+          {
+            "name": "auto",
+            "kind": "constant",
+            "sha256": "00dfd4334aa51ffac12b575a6a2c33040556f4641b8e8806bee9af6d653df46c"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          },
+          {
+            "name": "proposal",
+            "kind": "constant",
+            "sha256": "2635ae339aa49ea3e4a223598b98a454a35fb29ef89fd02ff6ab0662362ab19f"
+          },
+          {
+            "name": "digest",
+            "kind": "constant",
+            "sha256": "bf80848b147fafe4061b39b31d12fa39391f5652128d2041ade2a545b4de91ce"
+          },
+          {
+            "name": "when",
+            "kind": "constant",
+            "sha256": "48bfd58b3cdbf2d407e4443b90727d548d96eceaa4372c099dcd22c52f498452"
+          }
+        ]
       },
       {
         "path": "mcp/cli.ts",
-        "sha256": "353fba70962c448f903cd9a36d0642e14873faf641e4547d44c12e3e6e2397bc",
-        "size": 94616
+        "sha256": "a670bc601e227372c9ab3e862f4e25fa87ae4bfa90b63c3bbc61032d332da0d7",
+        "size": 114201,
+        "symbols": [
+          {
+            "name": "pending",
+            "kind": "constant",
+            "sha256": "a5c954f82ccd521900e167411c7765f13e7112ccae3bb034e8ad0d6c8996187a"
+          },
+          {
+            "name": "items",
+            "kind": "constant",
+            "sha256": "58773111fa0213a42f9e6c5e0a61d88bbbe2437579da81d45b817ed70e2ff039"
+          },
+          {
+            "name": "policy",
+            "kind": "constant",
+            "sha256": "cf633997bca2c423f8d8503f7a63e82be06cfdac197c3246dc2ca178188133a5"
+          },
+          {
+            "name": "agent",
+            "kind": "constant",
+            "sha256": "5b9caa614311fe691d6af171b9a8985b0d49464b9df178ad28ff5b9883eb4cf2"
+          },
+          {
+            "name": "from",
+            "kind": "constant",
+            "sha256": "b386d829bcacbd9e216c726f6dff71fc7d8a53aade383fa45b850387414b780c"
+          },
+          {
+            "name": "auto",
+            "kind": "constant",
+            "sha256": "b35a15a3c084f482674a7f570c7cdc322236fb24a812c3607b8a0e622927f531"
+          }
+        ]
       },
       {
         "path": "plugin/hooks/stop.sh",
-        "sha256": "7c4b7870bb49dd1b66eb6a8c90a6fdeda4729ebfb384912da8cc5a4ab2e22a84",
-        "size": 2105
+        "sha256": "cc7414511674dcf61bb40c7c37be23c5b7327f2caa979d8b8b1aebe25d4fbaef",
+        "size": 2229
       },
       {
         "path": "plugin/hooks/session-start.sh",
@@ -90,16 +194,16 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 275,
+    "superseded_by": "repo:https-github-com-kage-core-kage:workflow:auto-distill-fallback-and-kage-resume-continuity-v2-2-0-behavior-1781265030797",
+    "superseded_reason": "Newer repo memory supersedes this packet.",
+    "reverified_at": "2026-06-15T21:58:11.790Z",
     "stale": true,
     "stale_reasons": [
-      "packet status is superseded",
-      "linked path changed since memory was verified: mcp/kernel.ts, mcp/cli.ts, plugin/hooks/stop.sh"
+      "packet status is superseded"
     ],
-    "suggested_action": "mark_stale",
-    "superseded_by": "repo:https-github-com-kage-core-kage:workflow:auto-distill-fallback-and-kage-resume-continuity-v2-2-0-behavior-1781265030797",
-    "superseded_reason": "Newer repo memory supersedes this packet."
+    "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-12T06:06:01.588Z",
-  "updated_at": "2026-06-15T10:10:04.841Z",
+  "updated_at": "2026-06-15T21:58:43.095Z",
   "author_branch": "gap/auto-capture-continuity"
 }
