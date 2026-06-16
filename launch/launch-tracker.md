@@ -48,6 +48,11 @@ accounts). Dates are when the action was taken this session.
 - **Newsletters:** TLDR AI, Ben's Bites, AlphaSignal, Latent Space (pitch template in [outreach.md](./outreach.md))
 - **Podcasts/accounts:** Latent Space, AI-coding YouTubers; engage, offer a `kage scan` of their repo
 
+## Video asset (new)
+- **`docs/assets/kage-viewer-walkthrough.gif`** (2.7MB, 1512×793) — clean screen-recording of the live Kage viewer on this repo's real data: memory↔code map → dashboard (190 packets) → Trust (99/100, stale excluded 100%) → Gains (1.4M tokens saved). No watermark/overlays. Use as README hero, on X/LinkedIn, in listings.
+- ⚠️ I can't upload this to X via the browser tool (it only attaches files you've shared with the session). Post it manually, or I can wire it into the README hero on request.
+- For a narrated launch video, a 60-sec Loom over `kage scan` + this viewer is still the gold standard (your record).
+
 ## What needs you (can't be automated)
 - **Official MCP Registry publish** (`mcp-publisher login github` + `publish`) — unlocks PulseMCP and other ingesters. Highest remaining leverage.
 - **Glama** — create/sign-in account, then claim the auto-indexed listing.
