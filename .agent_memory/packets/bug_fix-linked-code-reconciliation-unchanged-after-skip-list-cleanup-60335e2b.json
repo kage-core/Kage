@@ -218,10 +218,11 @@
     "reverified_at": "2026-06-15T21:58:33.124Z",
     "stale": true,
     "stale_reasons": [
-      "packet status is superseded"
+      "packet status is superseded",
+      "linked path changed since memory was verified: README.md"
     ],
     "suggested_action": "mark_stale"
   },
   "created_at": "2026-05-23T14:26:16.043Z",
-  "updated_at": "2026-06-15T21:58:43.082Z"
+  "updated_at": "2026-06-16T06:29:24.413Z"
 }
