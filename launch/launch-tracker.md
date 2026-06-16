@@ -26,6 +26,28 @@ accounts). Dates are when the action was taken this session.
 | **X/Twitter (scan hook)** | ✅ Posted | x.com/183kush | "Ran Kage's Truth Report on Flask/Requests/FastAPI" — the viral scan angle, GitHub card. Live. |
 | Reddit r/mcp · r/ClaudeAI | 🚫 blocked | — | Reddit is blocked by the browser tool's safety restrictions — can't post via Chrome. Use launch/comparison-posts.md manually. |
 
+## YC "first 100 customers" playbook → Kage (from @fin465 thread)
+
+| # | Step | Kage status / action |
+|---|---|---|
+| 1 | **Launch-max** (PH, HN, devhunt, betalist, peerlist, indie hackers; launch 3×) | Directories: mcp.so ✅, Glama ✅. **Show HN drafted & ready** ([show-hn.md](./show-hn.md)) — fire at a US-morning window (Tue–Thu ~8–10am ET) and man the comments for 2h. PH draft ([product-hunt.md](./product-hunt.md)). devhunt/betalist/peerlist/indiehackers = your accounts. |
+| 2 | **Get listed where the category is listed** | Target placements below. Distribution only — no competitor framing in copy. |
+| 3 | **Warm outbound** (scrape engagers, filter to ICP, DM) | Needs your LinkedIn/X + tooling. ICP: small eng teams on Claude Code/Cursor; OSS dev-tool maintainers. |
+| 4 | **20–30 UGC creators** ($15–30/video + perf) | Needs budget + your call. Niche: dev-tooling / AI-coding creators. |
+| 5 | **Build in public — video > text; show use-cases** | Have assets (kage-viewer.gif, kage-demo.gif). Browser upload tool can't attach repo files — record a short Loom/screen-cap of `kage scan` + `kage demo` and post natively. |
+| 6 | **Go where customers spend time** (slack/discord/newsletters/podcasts) | Target list below. |
+| 7 | **Ride a weekly X trend, fold Kage in** | Ongoing; pick the relevant AI-coding trend each week. |
+
+### Step 2 — placement targets (get Kage listed)
+- Official MCP Registry (linchpin), Smithery, Glama ✅, mcp.so ✅, PulseMCP (via registry), mcp.directory, Cursor MCP directory, Cline marketplace, Continue hub
+- "Awesome" GitHub lists: awesome-mcp-servers (punkpeye), awesome-claude-code, awesome-ai-coding
+- Listicles/SEO: "best AI agent memory", "Claude Code memory", "MCP memory server" round-ups — request inclusion
+
+### Step 6 — where Kage's users are
+- **Discords/Slacks:** MCP community, Cursor, Cline, Aider, Claude developers, r/LocalLLaMA-adjacent servers
+- **Newsletters:** TLDR AI, Ben's Bites, AlphaSignal, Latent Space (pitch template in [outreach.md](./outreach.md))
+- **Podcasts/accounts:** Latent Space, AI-coding YouTubers; engage, offer a `kage scan` of their repo
+
 ## What needs you (can't be automated)
 - **Official MCP Registry publish** (`mcp-publisher login github` + `publish`) — unlocks PulseMCP and other ingesters. Highest remaining leverage.
 - **Glama** — create/sign-in account, then claim the auto-indexed listing.
