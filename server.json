@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
-  "name": "io.github.kage-core/kage",
+  "name": "com.kage-core/kage",
   "description": "Git-native, verified memory for coding agents — shared via git, kept true to your code.",
   "repository": {
     "url": "https://github.com/kage-core/Kage",
