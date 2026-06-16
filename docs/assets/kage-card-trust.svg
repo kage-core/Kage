@@ -6,63 +6,61 @@
       <stop offset="0.72" stop-color="#0bbf67"/>
       <stop offset="1" stop-color="#06351f"/>
     </radialGradient>
-    <linearGradient id="bg2" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#161a18"/>
-      <stop offset="1" stop-color="#101312"/>
+    <linearGradient id="paper" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#f7f6f0"/>
+      <stop offset="1" stop-color="#eceee6"/>
     </linearGradient>
+    <radialGradient id="glow" cx="85%" cy="12%" r="55%">
+      <stop offset="0" stop-color="#43c98a" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#43c98a" stop-opacity="0"/>
+    </radialGradient>
   </defs>
 
-  <rect x="0" y="0" width="1270" height="760" fill="url(#bg2)"/>
-  <rect x="0.5" y="0.5" width="1269" height="759" fill="none" stroke="#2c302c"/>
+  <rect x="0" y="0" width="1270" height="760" fill="url(#paper)"/>
+  <rect x="0" y="0" width="1270" height="760" fill="url(#glow)"/>
+  <rect x="0.5" y="0.5" width="1269" height="759" fill="none" stroke="#dcded3"/>
 
-  <!-- wordmark -->
   <g transform="translate(64,52) scale(0.42)">
-    <path d="M9 49c9-15 22-23 39-23s30 8 39 23c-9 14-22 21-39 21S18 63 9 49Z" fill="#06130d" stroke="#39ff9a" stroke-width="3"/>
+    <path d="M9 49c9-15 22-23 39-23s30 8 39 23c-9 14-22 21-39 21S18 63 9 49Z" fill="#06130d" stroke="#0bbf67" stroke-width="3"/>
     <circle cx="48" cy="48" r="16" fill="url(#iris)"/>
     <circle cx="48" cy="48" r="6" fill="#020405"/>
     <path d="M24 47c7-7 15-10 24-10s17 3 24 10" stroke="#eafff4" stroke-width="2" stroke-linecap="round" opacity=".72"/>
   </g>
-  <text x="118" y="82" font-size="26" font-weight="700" letter-spacing="3" fill="#edefe9">KAGE</text>
-  <rect x="1040" y="56" width="166" height="34" rx="17" fill="rgba(67,201,138,0.12)" stroke="#43c98a"/>
-  <text x="1123" y="78" text-anchor="middle" font-size="14" font-weight="600" letter-spacing="0.5" fill="#5fdca0">MEMORY TRUST</text>
+  <text x="118" y="82" font-size="26" font-weight="800" letter-spacing="3" fill="#16201b">KAGE</text>
+  <rect x="1040" y="56" width="166" height="34" rx="17" fill="#0e9c57"/>
+  <text x="1123" y="78" text-anchor="middle" font-size="14" font-weight="700" letter-spacing="0.5" fill="#ffffff">MEMORY TRUST</text>
 
   <!-- headline -->
-  <text x="64" y="212" font-family="Georgia, 'Times New Roman', serif" font-size="56" font-weight="700" fill="#edefe9">Memory that proves</text>
-  <text x="64" y="276" font-family="Georgia, 'Times New Roman', serif" font-size="56" font-weight="700" fill="#5fdca0">it's still true.</text>
-  <text x="64" y="328" font-size="21" fill="#a4aba1">Most memory tools remember everything and verify nothing. Kage checks every</text>
-  <text x="64" y="356" font-size="21" fill="#a4aba1">memory against your real code — at write, at recall, and at diff time.</text>
+  <text x="64" y="210" font-size="54" font-weight="800" letter-spacing="-1" fill="#16201b">Memory that proves</text>
+  <text x="64" y="272" font-size="54" font-weight="800" letter-spacing="-1" fill="#0e9c57">it's still true.</text>
+  <text x="64" y="324" font-size="21" fill="#5c655e">Most memory tools remember everything and verify nothing. Kage checks every</text>
+  <text x="64" y="352" font-size="21" fill="#5c655e">memory against your real code — at write, at recall, and at diff time.</text>
 
-  <!-- trust panel -->
-  <rect x="64" y="396" width="1142" height="232" rx="18" fill="#1a1d1b" stroke="#2c302c"/>
-
-  <!-- left: score -->
+  <!-- dark trust panel -->
+  <rect x="64" y="396" width="1142" height="232" rx="18" fill="#0e1311" stroke="#20251f"/>
   <text x="120" y="452" font-size="14" font-weight="600" letter-spacing="1.5" fill="#a4aba1">TRUST SCORE</text>
-  <text x="116" y="546" font-family="Georgia, 'Times New Roman', serif" font-size="104" font-weight="700" fill="#5fdca0">99</text>
-  <text x="250" y="546" font-size="30" fill="#767d74">/ 100</text>
+  <text x="116" y="546" font-size="104" font-weight="800" fill="#5fdca0">99</text>
+  <text x="280" y="546" font-size="30" fill="#7d847a">/ 100</text>
   <text x="120" y="586" font-size="15" fill="#a4aba1">Agents recall only memory</text>
   <text x="120" y="608" font-size="15" fill="#a4aba1">grounded in current code.</text>
-  <line x1="400" y1="430" x2="400" y2="594" stroke="#2c302c"/>
+  <line x1="430" y1="430" x2="430" y2="594" stroke="#262b24"/>
 
-  <!-- right: bars -->
   <g>
-    <text x="450" y="456" font-size="17" fill="#edefe9">Hallucinated citations rejected</text>
+    <text x="476" y="456" font-size="17" fill="#edefe9">Hallucinated citations rejected</text>
     <text x="1158" y="456" text-anchor="end" font-size="17" font-weight="700" fill="#5fdca0">100%</text>
-    <rect x="450" y="466" width="708" height="8" rx="4" fill="#0e1110"/>
-    <rect x="450" y="466" width="708" height="8" rx="4" fill="#43c98a"/>
-
-    <text x="450" y="514" font-size="17" fill="#edefe9">Stale memory withheld on recall</text>
+    <rect x="476" y="466" width="682" height="8" rx="4" fill="#0a0d0c"/>
+    <rect x="476" y="466" width="682" height="8" rx="4" fill="#43c98a"/>
+    <text x="476" y="514" font-size="17" fill="#edefe9">Stale memory withheld on recall</text>
     <text x="1158" y="514" text-anchor="end" font-size="17" font-weight="700" fill="#5fdca0">100%</text>
-    <rect x="450" y="524" width="708" height="8" rx="4" fill="#0e1110"/>
-    <rect x="450" y="524" width="708" height="8" rx="4" fill="#43c98a"/>
-
-    <text x="450" y="572" font-size="17" fill="#edefe9">Live memory grounded to code</text>
+    <rect x="476" y="524" width="682" height="8" rx="4" fill="#0a0d0c"/>
+    <rect x="476" y="524" width="682" height="8" rx="4" fill="#43c98a"/>
+    <text x="476" y="572" font-size="17" fill="#edefe9">Live memory grounded to code</text>
     <text x="1158" y="572" text-anchor="end" font-size="17" font-weight="700" fill="#5fdca0">98%</text>
-    <rect x="450" y="582" width="708" height="8" rx="4" fill="#0e1110"/>
-    <rect x="450" y="582" width="694" height="8" rx="4" fill="#43c98a"/>
+    <rect x="476" y="582" width="682" height="8" rx="4" fill="#0a0d0c"/>
+    <rect x="476" y="582" width="668" height="8" rx="4" fill="#43c98a"/>
   </g>
 
-  <!-- footer -->
-  <line x1="64" y1="676" x2="1206" y2="676" stroke="#2c302c"/>
-  <text x="64" y="712" font-size="16" font-weight="600" fill="#43c98a">kage-core.com</text>
-  <text x="1206" y="712" text-anchor="end" font-size="16" fill="#767d74">Run it yourself: kage benchmark --trust</text>
+  <line x1="64" y1="676" x2="1206" y2="676" stroke="#dcded3"/>
+  <text x="64" y="712" font-size="16" font-weight="700" fill="#0e9c57">kage-core.com</text>
+  <text x="1206" y="712" text-anchor="end" font-size="16" fill="#8a9189">Run it yourself: kage benchmark --trust</text>
 </svg>

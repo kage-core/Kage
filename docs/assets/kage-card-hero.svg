@@ -6,58 +6,61 @@
       <stop offset="0.72" stop-color="#0bbf67"/>
       <stop offset="1" stop-color="#06351f"/>
     </radialGradient>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#161a18"/>
-      <stop offset="1" stop-color="#101312"/>
+    <linearGradient id="paper" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#f7f6f0"/>
+      <stop offset="1" stop-color="#eceee6"/>
     </linearGradient>
+    <radialGradient id="glow" cx="82%" cy="14%" r="55%">
+      <stop offset="0" stop-color="#43c98a" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#43c98a" stop-opacity="0"/>
+    </radialGradient>
   </defs>
 
-  <rect x="0" y="0" width="1270" height="760" fill="url(#bg)"/>
-  <rect x="0.5" y="0.5" width="1269" height="759" fill="none" stroke="#2c302c" stroke-width="1"/>
+  <rect x="0" y="0" width="1270" height="760" fill="url(#paper)"/>
+  <rect x="0" y="0" width="1270" height="760" fill="url(#glow)"/>
+  <rect x="0.5" y="0.5" width="1269" height="759" fill="none" stroke="#dcded3" stroke-width="1"/>
 
   <!-- wordmark -->
   <g transform="translate(64,52) scale(0.42)">
-    <path d="M9 49c9-15 22-23 39-23s30 8 39 23c-9 14-22 21-39 21S18 63 9 49Z" fill="#06130d" stroke="#39ff9a" stroke-width="3"/>
+    <path d="M9 49c9-15 22-23 39-23s30 8 39 23c-9 14-22 21-39 21S18 63 9 49Z" fill="#06130d" stroke="#0bbf67" stroke-width="3"/>
     <circle cx="48" cy="48" r="16" fill="url(#iris)"/>
     <circle cx="48" cy="48" r="6" fill="#020405"/>
     <path d="M24 47c7-7 15-10 24-10s17 3 24 10" stroke="#eafff4" stroke-width="2" stroke-linecap="round" opacity=".72"/>
   </g>
-  <text x="118" y="82" font-size="26" font-weight="700" letter-spacing="3" fill="#edefe9">KAGE</text>
+  <text x="118" y="82" font-size="26" font-weight="800" letter-spacing="3" fill="#16201b">KAGE</text>
 
   <!-- top-right pill -->
-  <rect x="912" y="56" width="294" height="34" rx="17" fill="none" stroke="#2c302c"/>
-  <text x="1059" y="78" text-anchor="middle" font-size="13.5" letter-spacing="0.4" fill="#a4aba1">open source · CLI + MCP · zero-dependency</text>
+  <rect x="912" y="56" width="294" height="34" rx="17" fill="#ffffff" stroke="#d3d5c9"/>
+  <text x="1059" y="78" text-anchor="middle" font-size="13.5" letter-spacing="0.4" fill="#5c655e">open source · CLI + MCP · zero-dependency</text>
 
   <!-- headline -->
-  <text x="64" y="292" font-family="Georgia, 'Times New Roman', serif" font-size="60" font-weight="700" fill="#edefe9">Your repo remembers</text>
-  <text x="64" y="360" font-family="Georgia, 'Times New Roman', serif" font-size="60" font-weight="700" fill="#5fdca0">what agents forget.</text>
+  <text x="64" y="290" font-size="58" font-weight="800" letter-spacing="-1" fill="#16201b">Your repo remembers</text>
+  <text x="64" y="356" font-size="58" font-weight="800" letter-spacing="-1" fill="#0e9c57">what agents forget.</text>
 
   <!-- subhead -->
-  <text x="64" y="418" font-size="21" fill="#a4aba1">Git-native, verified memory for your coding agents —</text>
-  <text x="64" y="450" font-size="21" fill="#a4aba1">captured as they work, kept in your repo, shared with the team.</text>
+  <text x="64" y="414" font-size="21" fill="#5c655e">Git-native, verified memory for your coding agents —</text>
+  <text x="64" y="446" font-size="21" fill="#5c655e">captured as they work, kept in your repo, shared with the team.</text>
 
   <!-- pills -->
   <g font-size="15" font-weight="600">
-    <rect x="64" y="506" width="176" height="40" rx="20" fill="rgba(67,201,138,0.12)" stroke="#43c98a"/>
-    <text x="152" y="531" text-anchor="middle" fill="#5fdca0">verified memory</text>
-    <rect x="252" y="506" width="156" height="40" rx="20" fill="rgba(111,180,232,0.12)" stroke="#6fb4e8"/>
-    <text x="330" y="531" text-anchor="middle" fill="#6fb4e8">linked to code</text>
-    <rect x="420" y="506" width="152" height="40" rx="20" fill="rgba(176,149,232,0.12)" stroke="#b095e8"/>
-    <text x="496" y="531" text-anchor="middle" fill="#b095e8">shared via git</text>
+    <rect x="64" y="502" width="176" height="40" rx="20" fill="#16201b"/>
+    <text x="152" y="527" text-anchor="middle" fill="#eaf3ee">verified memory</text>
+    <rect x="252" y="502" width="156" height="40" rx="20" fill="#0e9c57"/>
+    <text x="330" y="527" text-anchor="middle" fill="#ffffff">linked to code</text>
+    <rect x="420" y="502" width="156" height="40" rx="20" fill="#16201b"/>
+    <text x="498" y="527" text-anchor="middle" fill="#eaf3ee">shared via git</text>
   </g>
 
-  <!-- right: memory <-> code graph panel -->
+  <!-- right: dark product panel (memory <-> code graph) -->
   <g>
-    <rect x="770" y="150" width="436" height="470" rx="18" fill="#1a1d1b" stroke="#2c302c"/>
-    <!-- legend -->
+    <rect x="770" y="150" width="436" height="470" rx="18" fill="#0e1311" stroke="#20251f"/>
     <g font-size="13" fill="#a4aba1">
       <rect x="792" y="176" width="12" height="12" rx="3" fill="#1a1320" stroke="#b095e8" stroke-width="1.5"/>
       <text x="811" y="186">memory</text>
       <rect x="884" y="176" width="12" height="12" rx="3" fill="#0e1110" stroke="#6fb4e8" stroke-width="1.5"/>
       <text x="903" y="186">code</text>
     </g>
-    <!-- edges -->
-    <g stroke="#41463f" stroke-width="1.5" opacity="0.85">
+    <g stroke="#3a3f38" stroke-width="1.5" opacity="0.9">
       <line x1="992" y1="322" x2="877" y2="241"/>
       <line x1="992" y1="322" x2="1127" y2="267"/>
       <line x1="992" y1="322" x2="857" y2="417"/>
@@ -68,27 +71,23 @@
       <line x1="1050" y1="440" x2="1113" y2="517"/>
       <line x1="1040" y1="252" x2="1127" y2="267"/>
     </g>
-    <!-- code nodes (blue) -->
     <g fill="#0e1110" stroke="#6fb4e8" stroke-width="2">
       <rect x="838" y="222" width="78" height="38" rx="8"/>
       <rect x="1086" y="248" width="82" height="38" rx="8"/>
       <rect x="818" y="398" width="78" height="38" rx="8"/>
       <rect x="1080" y="498" width="66" height="38" rx="8"/>
     </g>
-    <!-- memory nodes (purple diamonds) -->
     <g fill="#1a1320" stroke="#b095e8" stroke-width="2">
       <rect x="1025" y="237" width="30" height="30" rx="6" transform="rotate(45 1040 252)"/>
       <rect x="1036" y="426" width="28" height="28" rx="5" transform="rotate(45 1050 440)"/>
       <rect x="907" y="487" width="26" height="26" rx="5" transform="rotate(45 920 500)"/>
     </g>
-    <!-- center hub -->
     <circle cx="992" cy="322" r="10" fill="#5fdca0"/>
-    <!-- caption -->
-    <text x="988" y="586" text-anchor="middle" font-size="14" fill="#767d74">every memory linked to the code it's grounded in</text>
+    <text x="988" y="586" text-anchor="middle" font-size="14" fill="#7d847a">every memory linked to the code it's grounded in</text>
   </g>
 
   <!-- footer -->
-  <line x1="64" y1="676" x2="1206" y2="676" stroke="#2c302c"/>
-  <text x="64" y="712" font-size="16" font-weight="600" fill="#43c98a">kage-core.com</text>
-  <text x="1206" y="712" text-anchor="end" font-size="16" fill="#767d74">A framework for collaborative agent memory</text>
+  <line x1="64" y1="676" x2="1206" y2="676" stroke="#dcded3"/>
+  <text x="64" y="712" font-size="16" font-weight="700" fill="#0e9c57">kage-core.com</text>
+  <text x="1206" y="712" text-anchor="end" font-size="16" fill="#8a9189">A framework for collaborative agent memory</text>
 </svg>

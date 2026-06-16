@@ -6,84 +6,78 @@
       <stop offset="0.72" stop-color="#0bbf67"/>
       <stop offset="1" stop-color="#06351f"/>
     </radialGradient>
-    <linearGradient id="bg4" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#161a18"/>
-      <stop offset="1" stop-color="#101312"/>
+    <linearGradient id="paper" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#f7f6f0"/>
+      <stop offset="1" stop-color="#eceee6"/>
     </linearGradient>
+    <radialGradient id="glow" cx="85%" cy="12%" r="55%">
+      <stop offset="0" stop-color="#43c98a" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#43c98a" stop-opacity="0"/>
+    </radialGradient>
   </defs>
 
-  <rect x="0" y="0" width="1270" height="760" fill="url(#bg4)"/>
-  <rect x="0.5" y="0.5" width="1269" height="759" fill="none" stroke="#2c302c"/>
+  <rect x="0" y="0" width="1270" height="760" fill="url(#paper)"/>
+  <rect x="0" y="0" width="1270" height="760" fill="url(#glow)"/>
+  <rect x="0.5" y="0.5" width="1269" height="759" fill="none" stroke="#dcded3"/>
 
-  <!-- wordmark -->
   <g transform="translate(64,52) scale(0.42)">
-    <path d="M9 49c9-15 22-23 39-23s30 8 39 23c-9 14-22 21-39 21S18 63 9 49Z" fill="#06130d" stroke="#39ff9a" stroke-width="3"/>
+    <path d="M9 49c9-15 22-23 39-23s30 8 39 23c-9 14-22 21-39 21S18 63 9 49Z" fill="#06130d" stroke="#0bbf67" stroke-width="3"/>
     <circle cx="48" cy="48" r="16" fill="url(#iris)"/>
     <circle cx="48" cy="48" r="6" fill="#020405"/>
     <path d="M24 47c7-7 15-10 24-10s17 3 24 10" stroke="#eafff4" stroke-width="2" stroke-linecap="round" opacity=".72"/>
   </g>
-  <text x="118" y="82" font-size="26" font-weight="700" letter-spacing="3" fill="#edefe9">KAGE</text>
-  <rect x="1046" y="56" width="160" height="34" rx="17" fill="rgba(176,149,232,0.12)" stroke="#b095e8"/>
-  <text x="1126" y="78" text-anchor="middle" font-size="14" font-weight="600" letter-spacing="0.5" fill="#b095e8">SHARED VIA GIT</text>
+  <text x="118" y="82" font-size="26" font-weight="800" letter-spacing="3" fill="#16201b">KAGE</text>
+  <rect x="1046" y="56" width="160" height="34" rx="17" fill="#16201b"/>
+  <text x="1126" y="78" text-anchor="middle" font-size="14" font-weight="700" letter-spacing="0.5" fill="#eaf3ee">SHARED VIA GIT</text>
 
-  <!-- headline -->
-  <text x="64" y="212" font-family="Georgia, 'Times New Roman', serif" font-size="56" font-weight="700" fill="#edefe9">What one teammate learns,</text>
-  <text x="64" y="276" font-family="Georgia, 'Times New Roman', serif" font-size="56" font-weight="700" fill="#5fdca0">every agent knows.</text>
-  <text x="64" y="328" font-size="21" fill="#a4aba1">Memory is plain JSON committed to your repo and reviewed in the same PR as the code.</text>
-  <text x="64" y="356" font-size="21" fill="#a4aba1">Push once — your teammates' next agent session starts already knowing it.</text>
+  <text x="64" y="210" font-size="54" font-weight="800" letter-spacing="-1" fill="#16201b">What one teammate learns,</text>
+  <text x="64" y="272" font-size="54" font-weight="800" letter-spacing="-1" fill="#0e9c57">every agent knows.</text>
+  <text x="64" y="324" font-size="21" fill="#5c655e">Memory is plain JSON committed to your repo and reviewed in the same PR as the code.</text>
+  <text x="64" y="352" font-size="21" fill="#5c655e">Push once — your teammates' next agent session starts already knowing it.</text>
 
-  <!-- flow panel -->
-  <rect x="64" y="396" width="1142" height="232" rx="18" fill="#1a1d1b" stroke="#2c302c"/>
+  <!-- light flow panel -->
+  <rect x="64" y="396" width="1142" height="232" rx="18" fill="#ffffff" stroke="#dfe0d6"/>
 
-  <!-- LEFT: one agent learns -->
-  <text x="104" y="440" font-size="13" font-weight="600" letter-spacing="1.2" fill="#767d74">ONE AGENT LEARNS IT</text>
-  <rect x="104" y="456" width="286" height="120" rx="12" fill="#1a1320" stroke="#b095e8" stroke-width="1.5"/>
-  <rect x="104" y="456" width="4" height="120" rx="2" fill="#b095e8"/>
-  <text x="128" y="492" font-size="15" fill="#edefe9">"retry uses exponential</text>
-  <text x="128" y="514" font-size="15" fill="#edefe9">backoff — don't lower the cap"</text>
-  <text x="128" y="552" font-size="13" fill="#a4aba1">decision · src/retry.ts</text>
+  <text x="104" y="440" font-size="13" font-weight="700" letter-spacing="1.2" fill="#8a9189">ONE AGENT LEARNS IT</text>
+  <rect x="104" y="456" width="286" height="120" rx="12" fill="#faf8fd" stroke="#7c54c9" stroke-width="1.5"/>
+  <rect x="104" y="456" width="5" height="120" rx="2.5" fill="#7c54c9"/>
+  <text x="128" y="492" font-size="15" fill="#16201b">"retry uses exponential</text>
+  <text x="128" y="514" font-size="15" fill="#16201b">backoff — don't lower the cap"</text>
+  <text x="128" y="552" font-size="13" fill="#5c655e">decision · src/retry.ts</text>
 
-  <!-- arrow to git -->
-  <line x1="390" y1="516" x2="470" y2="516" stroke="#41463f" stroke-width="2"/>
-  <path d="M470 516 l-10 -5 v10 z" fill="#41463f"/>
+  <line x1="390" y1="516" x2="470" y2="516" stroke="#c9cabf" stroke-width="2"/>
+  <path d="M470 516 l-10 -5 v10 z" fill="#c9cabf"/>
 
-  <!-- MIDDLE: git -->
-  <g stroke="#6fb4e8" stroke-width="2" fill="#0e1110">
+  <g stroke="#2f6fb0" stroke-width="2" fill="#eaf1f8">
     <line x1="528" y1="466" x2="528" y2="566"/>
     <circle cx="528" cy="476" r="7"/>
     <circle cx="528" cy="516" r="7"/>
     <circle cx="528" cy="556" r="7"/>
   </g>
-  <text x="556" y="500" font-size="14" font-weight="600" fill="#6fb4e8">git</text>
-  <text x="556" y="540" font-size="13" fill="#a4aba1">committed ·</text>
-  <text x="556" y="558" font-size="13" fill="#a4aba1">PR-reviewed</text>
+  <text x="556" y="500" font-size="14" font-weight="700" fill="#2f6fb0">git</text>
+  <text x="556" y="540" font-size="13" fill="#5c655e">committed ·</text>
+  <text x="556" y="558" font-size="13" fill="#5c655e">PR-reviewed</text>
 
-  <!-- arrows fan out -->
-  <g stroke="#41463f" stroke-width="2" fill="none">
+  <g stroke="#c9cabf" stroke-width="2" fill="none">
     <path d="M624 516 C 660 516, 660 480, 700 480"/>
     <path d="M624 516 L 700 516"/>
     <path d="M624 516 C 660 516, 660 552, 700 552"/>
   </g>
 
-  <!-- RIGHT: every teammate's agent recalls it -->
-  <text x="700" y="440" font-size="13" font-weight="600" letter-spacing="1.2" fill="#767d74">EVERY TEAMMATE'S AGENT RECALLS IT</text>
+  <text x="700" y="440" font-size="13" font-weight="700" letter-spacing="1.2" fill="#8a9189">EVERY TEAMMATE'S AGENT RECALLS IT</text>
   <g>
-    <!-- row 1 -->
-    <circle cx="716" cy="480" r="9" fill="#1a1320" stroke="#b095e8" stroke-width="1.5"/>
-    <text x="742" y="485" font-size="16" fill="#edefe9">Aanya's agent</text>
-    <text x="1166" y="485" text-anchor="end" font-size="14" font-weight="600" fill="#5fdca0">✓ recalled</text>
-    <!-- row 2 -->
-    <circle cx="716" cy="516" r="9" fill="#1a1320" stroke="#b095e8" stroke-width="1.5"/>
-    <text x="742" y="521" font-size="16" fill="#edefe9">Diego's agent</text>
-    <text x="1166" y="521" text-anchor="end" font-size="14" font-weight="600" fill="#5fdca0">✓ recalled</text>
-    <!-- row 3 -->
-    <circle cx="716" cy="552" r="9" fill="#1a1320" stroke="#b095e8" stroke-width="1.5"/>
-    <text x="742" y="557" font-size="16" fill="#edefe9">the new hire's agent</text>
-    <text x="1166" y="557" text-anchor="end" font-size="14" font-weight="600" fill="#5fdca0">✓ recalled</text>
+    <circle cx="716" cy="480" r="9" fill="#faf8fd" stroke="#7c54c9" stroke-width="1.5"/>
+    <text x="742" y="485" font-size="16" fill="#16201b">Aanya's agent</text>
+    <text x="1166" y="485" text-anchor="end" font-size="14" font-weight="700" fill="#0e9c57">✓ recalled</text>
+    <circle cx="716" cy="516" r="9" fill="#faf8fd" stroke="#7c54c9" stroke-width="1.5"/>
+    <text x="742" y="521" font-size="16" fill="#16201b">Diego's agent</text>
+    <text x="1166" y="521" text-anchor="end" font-size="14" font-weight="700" fill="#0e9c57">✓ recalled</text>
+    <circle cx="716" cy="552" r="9" fill="#faf8fd" stroke="#7c54c9" stroke-width="1.5"/>
+    <text x="742" y="557" font-size="16" fill="#16201b">the new hire's agent</text>
+    <text x="1166" y="557" text-anchor="end" font-size="14" font-weight="700" fill="#0e9c57">✓ recalled</text>
   </g>
 
-  <!-- footer -->
-  <line x1="64" y1="676" x2="1206" y2="676" stroke="#2c302c"/>
-  <text x="64" y="712" font-size="16" font-weight="600" fill="#43c98a">kage-core.com</text>
-  <text x="1206" y="712" text-anchor="end" font-size="16" fill="#767d74">No cloud, no account — your knowledge stays in your repo</text>
+  <line x1="64" y1="676" x2="1206" y2="676" stroke="#dcded3"/>
+  <text x="64" y="712" font-size="16" font-weight="700" fill="#0e9c57">kage-core.com</text>
+  <text x="1206" y="712" text-anchor="end" font-size="16" fill="#8a9189">No cloud, no account — your knowledge stays in your repo</text>
 </svg>
