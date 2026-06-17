@@ -292,6 +292,8 @@ p { color: var(--muted); font: 400 15px/1.65 var(--sans); }
   gap: 12px;
 }
 
+.cards-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
 .cards-2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -522,6 +524,8 @@ p { color: var(--muted); font: 400 15px/1.65 var(--sans); }
   .nav-cta { white-space: nowrap; padding: 0 12px; }
   .gh-btn { white-space: nowrap; padding: 6px 11px; gap: 6px; }
   .cards, .cards-2 { grid-template-columns: 1fr; }
+  /* 4-step grid: 2-up on tablet so cards aren't pencil-thin. */
+  .cards-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .footer-inner { display: grid; }
   .pflow { flex-direction: column; }
   .parrow { transform: rotate(90deg); align-self: center; }
@@ -542,4 +546,6 @@ p { color: var(--muted); font: 400 15px/1.65 var(--sans); }
   .gh-btn .gh-sep { display: none; }
   h1 { font-size: 30px; }
   .section { padding: 44px 0; }
+  /* Single column on phones so step text isn't one word per line. */
+  .cards-4 { grid-template-columns: 1fr; }
 }
