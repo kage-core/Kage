@@ -63,4 +63,12 @@ Date,Platform,Creator,Handle,Followers,Fit,Reachable,Action,Message summary,Stat
 ,,,,,,,,,,
 # DEVHUNT (2026-06-17): listing fully prepped (PH import auto-fills name/logo/slogan/desc/screenshots + URLs + Free). BUT every launch week is $49 — NO free path. Not paid per your call. Rebuild in ~30s via PH-import (slug kage-3) if you ever pay.,,,,,,,,,,
 # BETALIST: paywalled ($39+). Skipped.,,,,,,,,,,
+,,,,,,,,,,
+# ===== USERS round 2 — devs who voiced the pain (X DMs; genuine try-it, no paid ask) =====,,,,,,,,,,
+2026-06-17,X,Tech with Mak,@techNmak,39.6K,HOT user — "done re-explaining my stack to Claude every Monday"; hand-rolls INDEX.md/LOG.md,X DM (open),DM SENT,Kage automates his manual memory hack,DM SENT (X) — await reply,https://x.com/techNmak
+2026-06-17,X,Wolfram Ravenwolf,@WolframRvnwlf,4.3K,HOT user — burned by CC silently purging session history; builds agents,X DM (open),DM SENT,git-native memory never silently expires,DM SENT (X) — await reply,https://x.com/WolframRvnwlf
+2026-06-17,X,Markets & Mayhem,@Mayhem4Markets,267K,SKIP — great "amnesia" quote but a finance/markets commentator, not a hands-on dev who'd install an MCP,n/a,Skipped (wrong audience),Won't install a CLI,Skipped,https://x.com/Mayhem4Markets
+2026-06-17,X,tom tokita,@tomtokita,n/a,SKIP — handle SUSPENDED (built a CC memory server per dev.to; no live X),Account suspended,Skipped,Dead handle,Skipped,https://x.com/tomtokita
+2026-06-17,X,Daniel San (Avila),@dani_avila7,mid,SKIP as adopter — building his own CC decision-save tooling (claude-code-templates); peer/competitor not adopter,X DM,Held,Would not adopt a rival; possible peer chat only,Held — peer not user,https://x.com/dani_avila7
+# USER backlog (built their own memory hack = high intent but verify live X handle; peer/compare angle): dev.to dalimay28 (MemCP); arpitnath42 (Super Claude Kit); yahav10; prodevel (context-window),,,,,,,,,,
 # HN: SKIPPED per your call (3 staged earlier remain in tabs if you want them; 22-thread backlog in hn-live-threads.md),,,,,,,,,,
