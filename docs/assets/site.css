@@ -521,4 +521,9 @@ p { color: var(--muted); font: 400 15px/1.65 var(--sans); }
   .footer-inner { display: grid; }
   .pflow { flex-direction: column; }
   .parrow { transform: rotate(90deg); align-self: center; }
+  /* Let command chips wrap and break long URLs instead of overflowing the screen. */
+  .cmd { max-width: 100%; white-space: normal; }
+  .cmd > span { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+  /* Wide comparison tables scroll inside their own box. */
+  .compare { display: block; overflow-x: auto; }
 }

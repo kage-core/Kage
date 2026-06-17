@@ -146,9 +146,16 @@
       .access .fine a:hover { color: var(--green); }
 
       @media (max-width: 820px) {
-        .hero-grid { grid-template-columns: 1fr; }
-        .feature, .feature.flip { grid-template-columns: 1fr; }
+        /* minmax(0,1fr), not 1fr: keep min:0 so the column shrinks to the
+           viewport instead of growing to fit wide/unbreakable content. */
+        .hero-grid { grid-template-columns: minmax(0, 1fr); }
+        .feature, .feature.flip { grid-template-columns: minmax(0, 1fr); }
         .feature.flip > .feature-copy { order: 0; }
+        /* never let hero blocks exceed the screen */
+        .hero h1, .hero-copy, .cmd { max-width: 100%; }
+        /* let command boxes wrap and break the long URL instead of overflowing */
+        .cmd { white-space: normal; }
+        .cmd > span { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
       }
     </style>
   </head>
