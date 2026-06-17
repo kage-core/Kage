@@ -3052,9 +3052,10 @@
         "4f12bd186e537ba81be972d0",
         "b254a2d87e5ee70d16e2258a",
         "77b0a34d16fa40074ce0c1af",
-        "35873573600836ceca70d30e"
+        "35873573600836ceca70d30e",
+        "7e274e9441308ca5ba56a644"
       ],
-      "observation_count": 3031
+      "observation_count": 3032
     }
   ],
   "context": {
@@ -3063,7 +3064,7 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-16T14:46:52.123Z",
+    "last_verified_at": "2026-06-16T16:28:11.257Z",
     "path_fingerprints": [],
     "path_fingerprint_policy": "source_hash_staleness",
     "verification": "repo_local_agent_capture"
@@ -3077,7 +3078,7 @@
     "reports_stale": 0,
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true,
-    "discovery_tokens": 608081,
+    "discovery_tokens": 608101,
     "discovery_tokens_estimated": true,
     "score": 74,
     "reasons": [
@@ -3107,7 +3108,7 @@
     },
     "suggested_review_action": "keep"
   },
-  "created_at": "2026-06-16T14:46:52.123Z",
-  "updated_at": "2026-06-16T14:59:53.794Z",
+  "created_at": "2026-06-16T16:28:11.257Z",
+  "updated_at": "2026-06-16T16:58:44.848Z",
   "author_branch": "master"
 }
