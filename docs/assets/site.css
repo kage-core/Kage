@@ -517,13 +517,29 @@ p { color: var(--muted); font: 400 15px/1.65 var(--sans); }
   /* Keep the GitHub button reachable on mobile; hide only the text links. */
   .nav-links a:not(.gh-btn) { display: none; }
   .nav-links { gap: 10px; }
+  /* Tighten the bar and stop the CTA/GitHub pills from wrapping. */
+  .nav { gap: 10px; padding: 0 16px; }
+  .nav-cta { white-space: nowrap; padding: 0 12px; }
+  .gh-btn { white-space: nowrap; padding: 6px 11px; gap: 6px; }
   .cards, .cards-2 { grid-template-columns: 1fr; }
   .footer-inner { display: grid; }
   .pflow { flex-direction: column; }
   .parrow { transform: rotate(90deg); align-self: center; }
+  /* Scale display type down to phone size. */
+  h1 { font-size: 34px; line-height: 1.06; }
+  h2 { font-size: 25px; line-height: 1.12; }
+  .section { padding: 52px 0; }
   /* Let command chips wrap and break long URLs instead of overflowing the screen. */
   .cmd { max-width: 100%; white-space: normal; }
   .cmd > span { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
   /* Wide comparison tables scroll inside their own box. */
   .compare { display: block; overflow-x: auto; }
+}
+
+@media (max-width: 480px) {
+  /* On narrow phones, drop the "GitHub" word so the bar fits: icon + star + count stays. */
+  .gh-btn > span:first-of-type { display: none; }
+  .gh-btn .gh-sep { display: none; }
+  h1 { font-size: 30px; }
+  .section { padding: 44px 0; }
 }
