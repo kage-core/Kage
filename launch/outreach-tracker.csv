@@ -50,4 +50,17 @@ Date,Platform,Creator,Handle,Followers,Fit,Reachable,Action,Message summary,Stat
 # 4 staged UNSENT in browser tabs: GitHub donaldinos comment + HN replies (context-windows / Ask-HN-next-memory / continuity),,,,,,,,,,
 # 6 DM/message scripts ready in launch/dm-scripts.md: IndyDevDan; Volo Builds; Yifan; Cole Medin; Henrique Cruz; Seba Lopez (X / contact-form; warm reply first where DMs closed),,,,,,,,,,
 # DM RESULTS (2026-06-17): SENT live on X -> IndyDevDan; Volo Builds; Yifan. Skipped -> Henrique + Seba (timelines off-topic; no on-topic post to reply to). Pending -> Cole Medin (X DMs closed; contact form not in send scope).,,,,,,,,,,
+,,,,,,,,,,
+# ===== CREATORS round 2 (new finds; X DMs) =====,,,,,,,,,,
+2026-06-17,X,Eric Buess,@EricBuess,4.7K,TOP — Claude Code consultant; built PROJECT_INDEX (architectural awareness for CC),X DM (open),DM SENT,Peer + try-it + paid clip,DM SENT (X) — await reply,https://x.com/EricBuess
+2026-06-17,X,Dan Okhlopkov,@danokhlopkov,3.8K,High — posted detailed Claude Code setup (MCP/hooks/skills/agents),X DM (open),DM SENT,Peer + paid clip,DM SENT (X) — await reply,https://x.com/danokhlopkov
+2026-06-17,X,AICodeKing,@aicodeking,3.4K X / 120K YT,High — daily AI-coding videos (CC/agents); big YouTube reach,X DM (open),DM SENT,Paid clip,DM SENT (X) — await reply,https://x.com/aicodeking
+2026-06-17,X,Ray Fernando,@RayFernando1337,36K,High — ex-Apple; advanced Claude Code masterclass (subagents/hooks),X DM (open),DM SENT,Paid clip,DM SENT (X) — await reply,https://x.com/RayFernando1337
+2026-06-17,X,GosuCoder,@GosuCoder,5K,High — evaluates AI coding agents; but X DMs CLOSED,DMs closed,Skipped,Reach via reply/YouTube instead,Prospect — DMs closed,https://x.com/GosuCoder
+2026-06-17,X,Ras Mic,@Rasmic,33K,High — teaches building agents/MCP; argued AGENTS.md mostly unnecessary (great hook),TBD,Identified,Not yet contacted,Prospect — next batch,https://x.com/Rasmic
+2026-06-17,X,Vaskin Kissoyan,@vaskin,small,Niche — Agentic Coding Newsletter (CC context mgmt/subagents),TBD,Identified,Not yet contacted,Prospect — next batch,https://x.com/vaskin
+2026-06-17,X,Patrick Ellis,@PatOakEllis,1.3K,Borderline (<3k) — built OneRedOak CC design-review subagent,TBD,Identified,Not yet contacted,Prospect — next batch,https://x.com/PatOakEllis
+,,,,,,,,,,
+# DEVHUNT (2026-06-17): listing fully prepped (PH import auto-fills name/logo/slogan/desc/screenshots + URLs + Free). BUT every launch week is $49 — NO free path. Not paid per your call. Rebuild in ~30s via PH-import (slug kage-3) if you ever pay.,,,,,,,,,,
+# BETALIST: paywalled ($39+). Skipped.,,,,,,,,,,
 # HN: SKIPPED per your call (3 staged earlier remain in tabs if you want them; 22-thread backlog in hn-live-threads.md),,,,,,,,,,
