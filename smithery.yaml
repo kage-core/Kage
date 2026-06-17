@@ -1,0 +1,11 @@
+# Smithery configuration for Kage (https://smithery.ai)
+# Kage is a stdio MCP server published to npm as @kage-core/kage-graph-mcp.
+# No config or API key is required; tools take the project directory per call.
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties: {}
+  commandFunction: |
+    (config) => ({ command: 'npx', args: ['-y', '@kage-core/kage-graph-mcp'] })
+exampleConfig: {}
