@@ -483,11 +483,11 @@ export function listTools() {
     {
       name: "kage_decisions",
       description:
-        "Summarize Kage why-memory for a repo: decisions, gotchas, runbooks, conventions, code explanations, path coverage, weak/stale memory, and important code paths that still lack decision memory.",
+        "Summarize the repo's 'why' memory at a glance: the decisions, gotchas, runbooks, conventions, and code explanations Kage has captured, plus which high-traffic code paths still have no decision memory. Use it to brief yourself on a repo before changing it, or to audit where institutional knowledge is thin or going stale. Read-only: returns grouped entries with titles, types, cited file paths, and call-outs for weak, stale, or undocumented hot paths. Does not modify any memory.",
       inputSchema: {
         type: "object",
         properties: {
-          project_dir: { type: "string" },
+          project_dir: { type: "string", description: "Absolute path to the repository root to summarize." },
         },
         required: ["project_dir"],
       },
@@ -765,14 +765,14 @@ export function listTools() {
     {
       name: "kage_supersede",
       description:
-        "Mark one repo-local memory packet as superseded by a replacement packet and write bidirectional lineage edges.",
+        "Replace one repo-local memory packet with a newer one that corrects or obsoletes it. Marks the old packet superseded, links it to the replacement, and writes bidirectional lineage edges so the history stays traceable. Use this instead of deleting when new knowledge updates an old fact, or to resolve a contradiction surfaced by kage_conflicts. Mutates both packets on disk: the superseded packet is withheld from recall but kept for lineage.",
       inputSchema: {
         type: "object",
         properties: {
-          project_dir: { type: "string" },
-          packet_id: { type: "string" },
-          replacement_packet_id: { type: "string" },
-          reason: { type: "string" },
+          project_dir: { type: "string", description: "Absolute path to the repository root." },
+          packet_id: { type: "string", description: "Id of the existing packet to retire (the one being replaced)." },
+          replacement_packet_id: { type: "string", description: "Id of the newer packet that wins and stays active." },
+          reason: { type: "string", description: "Optional human note recorded on the lineage edge explaining why it was superseded." },
         },
         required: ["project_dir", "packet_id", "replacement_packet_id"],
       },
@@ -898,21 +898,21 @@ export function listTools() {
     {
       name: "kage_learn",
       description:
-        "Capture an actual reusable learning from the current session as repo-local memory. Prefer this over diff proposal when the agent knows what was learned. Capture is rejected if every referenced path is missing from the repo; set allow_missing_paths to record anyway (e.g. a file you are about to create).",
+        "Capture a durable, reusable learning from the current session as a verified repo-local memory packet (committed under .agent_memory/, shared with the team via git). Use it the moment you discover something a future session should know: a decision and its rationale, a bug's root cause and fix, a convention, or a setup step. Prefer it over diff-based proposals when you already know what was learned. The write is rejected if every cited path is missing from the repo (set allow_missing_paths for a file you are about to create), and secrets/PII are scanned out before writing. Returns the new packet id plus any contradiction warnings against existing memory.",
       inputSchema: {
         type: "object",
         properties: {
-          project_dir: { type: "string" },
-          learning: { type: "string" },
-          title: { type: "string" },
-          type: { type: "string" },
-          evidence: { type: "string" },
-          verified_by: { type: "string" },
-          tags: { type: "array", items: { type: "string" } },
-          paths: { type: "array", items: { type: "string" } },
-          stack: { type: "array", items: { type: "string" } },
-          graph_nodes: { type: "array", items: { type: "string" } },
-          allow_missing_paths: { type: "boolean" },
+          project_dir: { type: "string", description: "Absolute path to the repository root." },
+          learning: { type: "string", description: "The insight to store, in full sentences: what was learned and why it matters to a future session." },
+          title: { type: "string", description: "Short headline for the packet. Derived from the learning if omitted." },
+          type: { type: "string", description: "Memory type: decision, bug_fix, runbook, convention, gotcha, workflow, code_explanation. Inferred if omitted." },
+          evidence: { type: "string", description: "How the learning was confirmed (e.g. test output, a reproduced behavior)." },
+          verified_by: { type: "string", description: "What verified it (e.g. a command run, a passing test, a reviewer)." },
+          tags: { type: "array", items: { type: "string" }, description: "Optional keywords to aid future recall." },
+          paths: { type: "array", items: { type: "string" }, description: "Repo files this memory is about; used to verify the citation now and to recall the memory when those files are touched later." },
+          stack: { type: "array", items: { type: "string" }, description: "Optional technologies/frameworks the learning relates to." },
+          graph_nodes: { type: "array", items: { type: "string" }, description: "Optional code-graph symbol or file ids this memory is grounded to." },
+          allow_missing_paths: { type: "boolean", description: "Allow the write even if cited paths do not exist yet (e.g. a file you are about to create)." },
           discovery_tokens: { type: "number", description: "Approximate token cost of producing this knowledge (exploration + reasoning). Stored on the packet so recall receipts can report replay value; a conservative per-type default is estimated when omitted." },
         },
         required: ["project_dir", "learning"],
@@ -1044,13 +1044,13 @@ export function listTools() {
     {
       name: "kage_feedback",
       description:
-        "Record usefulness feedback on an approved repo-local memory packet: helpful, wrong, or stale.",
+        "Record how useful a recalled repo-local memory packet was, which tunes Kage's trust and future recall. 'helpful' reinforces the packet, 'wrong' flags it as disputed, and 'stale' marks it for re-verification and withholds it from recall until refreshed. Use it right after a recalled packet helped you, misled you, or no longer matched the code. Mutates the packet's quality signals on disk.",
       inputSchema: {
         type: "object",
         properties: {
-          project_dir: { type: "string" },
-          packet_id: { type: "string" },
-          kind: { type: "string", enum: ["helpful", "wrong", "stale"] },
+          project_dir: { type: "string", description: "Absolute path to the repository root." },
+          packet_id: { type: "string", description: "Id of the memory packet you are rating." },
+          kind: { type: "string", enum: ["helpful", "wrong", "stale"], description: "helpful = it was accurate and useful; wrong = it was incorrect (flag as disputed); stale = it no longer matches the code (mark for re-verification)." },
         },
         required: ["project_dir", "packet_id", "kind"],
       },

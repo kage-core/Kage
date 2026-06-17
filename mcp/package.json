@@ -1,6 +1,6 @@
 {
   "name": "@kage-core/kage-graph-mcp",
-  "version": "2.3.2",
+  "version": "2.3.3",
   "description": "Team memory for coding agents: captures the decisions, runbooks, and bug fixes that get lost, verified against your code and shared via git. MCP server, zero deps, no account.",
   "main": "dist/index.js",
   "files": [
