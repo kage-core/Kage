@@ -71,4 +71,13 @@ Date,Platform,Creator,Handle,Followers,Fit,Reachable,Action,Message summary,Stat
 2026-06-17,X,tom tokita,@tomtokita,n/a,SKIP — handle SUSPENDED (built a CC memory server per dev.to; no live X),Account suspended,Skipped,Dead handle,Skipped,https://x.com/tomtokita
 2026-06-17,X,Daniel San (Avila),@dani_avila7,mid,SKIP as adopter — building his own CC decision-save tooling (claude-code-templates); peer/competitor not adopter,X DM,Held,Would not adopt a rival; possible peer chat only,Held — peer not user,https://x.com/dani_avila7
 # USER backlog (built their own memory hack = high intent but verify live X handle; peer/compare angle): dev.to dalimay28 (MemCP); arpitnath42 (Super Claude Kit); yahav10; prodevel (context-window),,,,,,,,,,
+,,,,,,,,,,
+# ===== USERS round 3 — devs voicing the pain (X DMs; genuine try-it) =====,,,,,,,,,,
+2026-06-17,X,Sid Dani,@siddaniagi,507,HOT user — "Claude Code forgets everything between sessions; memory files are the fix",X DM (open),DM SENT,Kage automates the memory-files fix,DM SENT (X) — await reply,https://x.com/siddaniagi
+2026-06-17,X,Anuj,@anujcodes_21,19K,User+sharer — "re-explain your stack to Claude then Cursor"; shares AI tools (could feature),X DM (open),DM SENT,carries across sessions+tools via git,DM SENT (X) — await reply,https://x.com/anujcodes_21
+2026-06-17,X,Suni,@suni_code,10.6K,User — Claude Code mistakes thread (lost context); builds AI agents,X DM (open),DM SENT,verified memory for the lost-context problem,DM SENT (X) — await reply,https://x.com/suni_code
+2026-06-17,X,Sarthak Rawool,@sarthakcore,156,User — keeps CLAUDE.md under 500 lines (token bloat); but X DMs CLOSED,DMs closed,Skipped,Reach via reply if desired,Prospect — DMs closed,https://x.com/sarthakcore
+2026-06-17,X,Matt Ragudo,@mattragudo,946,User — CLAUDE.md blind to built features; juggling agent.md; but X DMs CLOSED,DMs closed,Skipped,Reach via reply if desired,Prospect — DMs closed,https://x.com/mattragudo
+2026-06-17,X,Azubuike Ibe,@ai_dev_official,1.5K,User — wished agent had repo docs to read; X DMs CLOSED (consistent w/ earlier),DMs closed,Skipped,Reach via reply if desired,Prospect — DMs closed,https://x.com/ai_dev_official
+# USER DM RESULTS (2026-06-17): SENT live -> techNmak; WolframRvnwlf; siddaniagi; anujcodes_21; suni_code (5). DMs-closed -> sarthakcore; mattragudo; ai_dev_official. Skipped -> Mayhem4Markets (finance pundit); tomtokita (suspended); dani_avila7 (competitor).,,,,,,,,,,
 # HN: SKIPPED per your call (3 staged earlier remain in tabs if you want them; 22-thread backlog in hn-live-threads.md),,,,,,,,,,
