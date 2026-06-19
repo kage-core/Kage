@@ -22,7 +22,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node index.ts",
-    "test": "npm run build && node --test dist/**/*.test.js"
+    "test": "npm run build && node --test dist/**/*.test.js && npm run test:dogfood",
+    "test:dogfood": "node --test ../evals/agent-trajectory/replay.test.mjs"
   },
   "keywords": [
     "mcp",
