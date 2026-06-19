@@ -191,7 +191,7 @@
         <div class="wrap hero-grid">
           <div>
             <span class="eyebrow">Git-native memory for coding agents</span>
-            <h1>A framework for <span class="accent">collaborative</span> agent memory.</h1>
+            <h1>Your coding agent forgets everything. Kage gives it memory that's <span class="accent">verified</span> against your code.</h1>
             <p class="hero-copy">
               Open, git-native memory your team's coding agents read and write together.
               Every lesson an agent learns becomes a file in your repo: versioned in git,
@@ -210,9 +210,17 @@
               <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('agent-prompt').textContent).then(()=>{this.textContent='copied';setTimeout(()=>this.textContent='copy',1200)})">copy</button>
             </div>
             <div class="actions">
-              <a class="button primary" href="#access">Get early access</a>
-              <a class="button" href="guide.html#quickstart">Read the docs</a>
+              <a class="button primary" href="guide.html#quickstart">Install in 60s</a>
+              <a class="button" href="https://github.com/kage-core/Kage">★ Star on GitHub</a>
+              <a class="button" href="guide.html">Read the docs</a>
             </div>
+            <p style="margin:14px 0 0;color:var(--muted);font:400 13px/1.6 var(--sans)">
+              <strong style="color:var(--ink)">100/100</strong> trust benchmark ·
+              <strong style="color:var(--ink)">0</strong> dependencies ·
+              no account, no API key ·
+              free &amp; open source —
+              or try it before installing anything: <code>npx -y @kage-core/kage-graph-mcp scan&nbsp;--project&nbsp;.</code>
+            </p>
           </div>
 
           <div class="receipt" aria-label="Example Kage savings receipt">
@@ -488,12 +496,15 @@ $ kage learn --personal --learning "Always run the full suite before releasing"
             <span class="agent">OpenCode</span>
             <span class="agent">Aider</span>
             <span class="agent">Claude Desktop</span>
+            <span class="agent">Copilot</span>
+            <span class="agent">OpenClaw</span>
+            <span class="agent">Hermes</span>
             <span class="agent">any MCP client</span>
           </div>
           <div class="stat-strip" aria-label="Kage signals">
             <div class="stat-chip"><strong>100/100</strong><span>trust benchmark — hallucination &amp; staleness</span></div>
             <div class="stat-chip"><strong>0 deps</strong><span>no API key, no database, no daemon</span></div>
-            <div class="stat-chip"><strong>238</strong><span>tests passing on every release</span></div>
+            <div class="stat-chip"><strong>348</strong><span>tests passing on every release</span></div>
             <div class="stat-chip"><strong>Git-native</strong><span>memory reviewed in the same PR as code</span></div>
           </div>
           <div style="display:flex; gap:8px; margin-top:18px; flex-wrap:wrap;">
@@ -516,7 +527,7 @@ $ kage learn --personal --learning "Always run the full suite before releasing"
             <div class="card">
               <h3>Open source</h3>
               <p style="font: 600 26px/1 var(--serif); color: var(--ink); margin-top: 10px;">$0 <span style="font: 400 13px/1 var(--sans); color: var(--muted);">forever</span></p>
-              <p>Everything on this page: verified memory, Truth Report, receipts, auto-capture, repair, live viewer, 13 agents, <code>kage sync</code> over your own private git remote. No account, no API key.</p>
+              <p>Everything on this page: verified memory, Truth Report, receipts, auto-capture, repair, live viewer, 15 agents, <code>kage sync</code> over your own private git remote. No account, no API key.</p>
             </div>
             <div class="card" style="border-color: var(--hairline-green);">
               <h3>Kage Cloud</h3>
