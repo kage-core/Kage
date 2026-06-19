@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
@@ -229,6 +229,7 @@ Usage:
   kage recall "<query>" --project <dir> [--json] [--explain] [--embeddings] [--docs] [--max-context-tokens <n>] [--structural-hops <n>]
   kage docs-search "<query>" --project <dir> [--limit <n>] [--json]   search this repo's own committed docs (README, docs/**, *.md)
   kage file-context --project <dir> --path <file> [--json]
+  kage prompt-context --project <dir> --query "<task>" [--json]   recall + savings receipt for an ambient prompt hook
   kage observe --project <dir> --event <json>
   kage sessions --project <dir> [--json]
   kage replay --project <dir> [--session <id>] [--limit <n>] [--json]
@@ -435,9 +436,18 @@ async function main(): Promise<void> {
       console.log("  npx -y kage-graph-mcp scan --project /path/to/repo");
       process.exit(2);
     }
+    // scan is read-only by promise ("nothing generated"): if the repo has no Kage memory
+    // yet — e.g. a one-off scan of a repo you don't own — don't leave a .agent_memory/
+    // tree behind. Remove what the graph build created, but only if it wasn't there before.
+    const hadMemory = existsSync(join(scanTarget, ".agent_memory"));
+    const cleanupScanArtifacts = () => {
+      if (hadMemory) return;
+      try { rmSync(join(scanTarget, ".agent_memory"), { recursive: true, force: true }); } catch {}
+    };
     const result = truthReport(scanTarget);
     if (args.includes("--json")) {
       console.log(JSON.stringify(result, null, 2));
+      cleanupScanArtifacts();
       return;
     }
     if (args.includes("--scorecard")) {
@@ -450,6 +460,7 @@ async function main(): Promise<void> {
       console.log(`Scorecard written to ${outPath}`);
       console.log("Share it: embed the SVG in a README, screenshot it, or post it.\n");
       console.log(truthScorecardMarkdown(result));
+      cleanupScanArtifacts();
       return;
     }
     console.log(`Kage Truth Report — ${result.project_dir}`);
@@ -497,6 +508,7 @@ async function main(): Promise<void> {
     if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}\n`);
     console.log(result.findings.length ? "Fix the void:" : "Next:");
     for (const action of result.next_actions) console.log(`  ${action}`);
+    cleanupScanArtifacts();
     return;
   }
 
@@ -1436,6 +1448,25 @@ async function main(): Promise<void> {
     if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
     else if (result.context_block) console.log(result.context_block);
     // No verified packets cite this file: print nothing so hooks can gate on empty output.
+    return;
+  }
+
+  if (command === "prompt-context") {
+    // Top-of-task recall for an ambient UserPromptSubmit hook: recall on the user's prompt
+    // and emit the memory PLUS a one-line savings receipt (what was recalled + tokens saved).
+    // Silent when nothing relevant is found, so hooks can gate on empty output.
+    const query = takeArg(args, "--query") ?? firstPositional(args);
+    if (!query) usage();
+    const result = recall(projectArg(args), query!, 5, false, {});
+    if (args.includes("--json")) { console.log(JSON.stringify(result, null, 2)); return; }
+    if (!result.results.length) return;
+    let out = result.context_block;
+    if (result.value_receipt) {
+      const r = result.value_receipt;
+      const plural = result.results.length === 1 ? "y" : "ies";
+      out += `\n\n_↳ Kage recalled ${result.results.length} verified memor${plural} · ~${formatTokenCount(r.tokens_saved)} tokens saved this recall · ${r.stale_withheld} stale withheld._`;
+    }
+    console.log(out);
     return;
   }
 

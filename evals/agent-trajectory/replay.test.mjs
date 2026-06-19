@@ -39,3 +39,22 @@ for (const scenario of SCENARIOS) {
     assert.equal(score.passed, true, `agent did not meet expectations: ${unmet.join(", ")} (in ${score.event_count} tool calls)`);
   });
 }
+
+// Freshness gate: frozen goldens silently rot — a new model or changed harness can break
+// real recall while stale recordings still pass. Fail if any recording ages past the window
+// so it gets re-recorded with record.mjs against the current model.
+const MAX_RECORDING_AGE_DAYS = 90;
+test("agent-trajectory recordings are fresh enough to gate on", () => {
+  const now = Date.now();
+  const stale = [];
+  for (const scenario of SCENARIOS) {
+    const file = join(recDir, `${scenario.id}.json`);
+    if (!existsSync(file)) continue;
+    const at = Date.parse(JSON.parse(readFileSync(file, "utf8")).recorded_at ?? "");
+    if (!Number.isFinite(at)) continue;
+    const ageDays = (now - at) / 86_400_000;
+    if (ageDays > MAX_RECORDING_AGE_DAYS) stale.push(`${scenario.id} (${Math.round(ageDays)}d)`);
+  }
+  assert.equal(stale.length, 0,
+    `stale agent-trajectory recordings (> ${MAX_RECORDING_AGE_DAYS}d) — re-record against the current model: node evals/agent-trajectory/record.mjs <id>. Stale: ${stale.join(", ")}`);
+});

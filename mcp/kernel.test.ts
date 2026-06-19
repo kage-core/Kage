@@ -2196,6 +2196,7 @@ test("setup generates all-agent MCP configuration and writes Codex config idempo
   writeFileSync(fakeKage, `#!/usr/bin/env bash
 echo "$@" >> "$KAGE_FAKE_LOG"
 case "$*" in
+  prompt-context*) printf '%s' '# Kage Context\\nRemember auth tests.\\n\\n_Kage recalled 1 verified memory - ~1k tokens saved this recall - 0 stale withheld._' ;;
   recall*) printf '%s' '{"results":[{"packet":{"title":"Auth runbook"}}],"context_block":"# Kage Context\\nRemember auth tests."}' ;;
   *) exit 0 ;;
 esac
@@ -2213,7 +2214,7 @@ esac
   });
   const fakeCalls = readFileSync(fakeLog, "utf8");
   assert.match(fakeCalls, /observe/);
-  assert.match(fakeCalls, /recall/);
+  assert.match(fakeCalls, /prompt-context/);
   assert.match(fakeCalls, /distill/);
   assert.match(readFileSync(join(home, ".claude", "kage", "hooks", "stop.sh"), "utf8"), /kage refresh/);
   assert.match(readFileSync(join(home, ".claude", "kage", "hooks", "stop.sh"), "utf8"), /kage pr summarize/);

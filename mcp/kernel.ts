@@ -5408,6 +5408,14 @@ const MAX_CODE_GRAPH_CALLS_PER_FILE = positiveIntEnv("KAGE_MAX_CODE_GRAPH_CALLS_
 const MAX_STRUCTURAL_EXTRACT_FILE_BYTES = positiveIntEnv("KAGE_MAX_STRUCTURAL_EXTRACT_FILE_BYTES", MAX_CODE_FILE_BYTES);
 const MAX_STRUCTURAL_WORKERS = positiveIntEnv("KAGE_STRUCTURAL_WORKERS", Math.max(1, Math.min(8, availableParallelism() - 1)));
 const MIN_STRUCTURAL_PARALLEL_FILES = positiveIntEnv("KAGE_STRUCTURAL_PARALLEL_MIN_FILES", 64);
+// Hard ceiling on indexable files a single scan will parse, so a very large monorepo
+// degrades to a bounded sample instead of an unbounded (and effectively quadratic) parse.
+// The skipped count is recorded in the scan's ignoredSummary as "exceeded_file_cap".
+const MAX_SCAN_FILES = positiveIntEnv("KAGE_MAX_SCAN_FILES", 25000);
+// Bound the single full-history git-log pass in truthReport to the most recent N commits.
+// Covers virtually every repo fully while preventing an unbounded log + buffer on a
+// deep-history monorepo (Linux/Chromium-class).
+const TRUTH_REPORT_MAX_COMMITS = positiveIntEnv("KAGE_SCAN_MAX_COMMITS", 8000);
 const CONFIG_NAMES = new Set([
   "package.json",
   "pyproject.toml",
@@ -5990,6 +5998,10 @@ function scanStructuralFiles(projectDir: string): { files: string[]; ignoredSumm
         ignore("unsupported_file_type");
         continue;
       }
+      if (files.length >= MAX_SCAN_FILES) {
+        ignore("exceeded_file_cap");
+        continue;
+      }
       files.push(absolutePath);
     }
   };
@@ -6003,10 +6015,23 @@ function scanStructuralFiles(projectDir: string): { files: string[]; ignoredSumm
 
 function countBufferLines(buffer: Buffer): number {
   if (buffer.length === 0) return 0;
-  let lines = 1;
+  // Count newline bytes (matches `wc -l` for newline-terminated files) and add one for a
+  // final line without a trailing newline, so the count is not inflated by +1.
+  let lines = 0;
   for (const byte of buffer) {
     if (byte === 10) lines += 1;
   }
+  if (buffer[buffer.length - 1] !== 10) lines += 1;
+  return lines;
+}
+
+function countTextLines(text: string): number {
+  if (text.length === 0) return 0;
+  let lines = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    if (text.charCodeAt(i) === 10) lines += 1;
+  }
+  if (text.charCodeAt(text.length - 1) !== 10) lines += 1;
   return lines;
 }
 
@@ -6277,7 +6302,7 @@ function buildStructuralFile(
     language,
     kind: codeFileKind(rel),
     size_bytes: stats.size,
-    line_count: content ? content.split(/\r?\n/).length : countBufferLines(buffer ?? readFileSync(absolutePath)),
+    line_count: content ? countTextLines(content) : countBufferLines(buffer ?? readFileSync(absolutePath)),
     hash: hash.slice(0, 16),
     mtime_ms: stats.mtimeMs,
     extraction: entry.extraction,
@@ -8050,10 +8075,12 @@ export function buildCodeGraph(projectDir: string, options: { force?: boolean } 
     const file = fileByPath.get(symbol.path);
     if (file) file.parser = strongerParser(file.parser, symbol.parser);
   }
+  const symbolById = new Map<string, CodeSymbolNode>();
+  for (const symbol of symbols) if (!symbolById.has(symbol.id)) symbolById.set(symbol.id, symbol);
   const addSymbol = (symbol: CodeSymbolNode) => {
     if (!fileByPath.has(symbol.path)) return;
     const file = fileByPath.get(symbol.path);
-    const existing = symbols.find((candidate) => candidate.id === symbol.id);
+    const existing = symbolById.get(symbol.id);
     if (existing) {
       existing.parser = strongerParser(existing.parser, symbol.parser);
       if (file) file.parser = strongerParser(file.parser, symbol.parser);
@@ -8061,6 +8088,7 @@ export function buildCodeGraph(projectDir: string, options: { force?: boolean } 
     }
     if (file) file.parser = strongerParser(file.parser, symbol.parser);
     symbols.push(symbol);
+    symbolById.set(symbol.id, symbol);
   };
   for (const symbol of externalFacts.symbols) addSymbol(symbol);
   for (const edge of externalFacts.imports) {
@@ -8076,14 +8104,29 @@ export function buildCodeGraph(projectDir: string, options: { force?: boolean } 
     list.push(symbol);
     symbolByName.set(symbol.name, list);
   }
+  // Index symbols and imports by file once, so the per-file loop below is an O(1) lookup
+  // instead of an O(files × symbols) / O(files × imports) scan over the global arrays —
+  // the dominant cost on large monorepos.
+  const symbolsByPath = new Map<string, CodeSymbolNode[]>();
+  for (const symbol of symbols) {
+    const list = symbolsByPath.get(symbol.path) ?? [];
+    list.push(symbol);
+    symbolsByPath.set(symbol.path, list);
+  }
+  const importsByFromPath = new Map<string, CodeImportEdge[]>();
+  for (const item of imports) {
+    const list = importsByFromPath.get(item.from_path) ?? [];
+    list.push(item);
+    importsByFromPath.set(item.from_path, list);
+  }
 
   const calls: CodeCallEdge[] = [];
   const routes: CodeRouteNode[] = [];
   const tests: CodeTestEdge[] = [];
   for (const [rel, content] of contents) {
     if (calls.length >= MAX_CODE_GRAPH_CALLS) break;
-    const fileSymbols = symbols.filter((symbol) => symbol.path === rel);
-    const fileImports = imports.filter((item) => item.from_path === rel);
+    const fileSymbols = symbolsByPath.get(rel) ?? [];
+    const fileImports = importsByFromPath.get(rel) ?? [];
     const importedNames = new Map<string, string | null>();
     for (const item of fileImports) {
       for (const importedName of item.imported) {
@@ -10216,7 +10259,12 @@ function recallBreakdown(
   const vector = Number(vectorScore.toFixed(2));
   const usage = Number(usageScore.toFixed(2));
   const pathTypeTagWeight = packet.type === "reference" ? 0.2 : 0.8;
-  const final = Number((textScore + graphScore + pathTypeTag * pathTypeTagWeight + intent + vector + usage + freshness + quality + feedback).toFixed(2));
+  // Popularity (usage) must only AMPLIFY genuine relevance, never float a packet that has no
+  // lexical/semantic/graph/intent match to the top — that is what produced confident
+  // off-domain junk (a hot packet ranked #1 for a query it shared no terms with).
+  const coreRelevance = textScore + graphScore + intent + vector;
+  const effectiveUsage = coreRelevance > 0 ? usage : 0;
+  const final = Number((textScore + graphScore + pathTypeTag * pathTypeTagWeight + intent + vector + effectiveUsage + freshness + quality + feedback).toFixed(2));
   return {
     bm25: textScore,
     text: textScore,
@@ -10277,6 +10325,17 @@ function diversifyRecallEntries(entries: ScoredRecallEntry[], limit: number, max
   }
 
   return selected.slice(0, limit);
+}
+
+// Raw transcript / serialized tool-output packets are capture noise, not knowledge. Keep
+// them out of recall so they can never outrank real memory. This is the recall-side safety
+// net; the durable fixes are a capture-time guard and pruning the existing ones (`kage prune`).
+function isSerializedDumpTitle(title: string): boolean {
+  const t = (title ?? "").trimStart();
+  return /^(workflow|runbook)\s*:?\s*[{[]/i.test(t)
+    || t.startsWith('{"')
+    || /^<(task-notification|div|svg|html)\b/i.test(t)
+    || /\btool_use_id\b|toolu_[A-Za-z0-9]{10}/.test(title);
 }
 
 function recallWithVectorScores(projectDir: string, query: string, limit = 5, explain = false, inputs: GraphInputs = {}, externalVectorScores?: Map<string, VectorScore>): RecallResult {
@@ -10347,7 +10406,7 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
       ];
       return { packet, score: score_breakdown.final, relevance, why_matched: unique(why).slice(0, 12), score_breakdown };
     })
-    .filter((entry) => entry.relevance > 0)
+    .filter((entry) => entry.relevance > 0 && !isSerializedDumpTitle(entry.packet.title))
     .sort((a, b) => b.score - a.score || a.packet.title.localeCompare(b.packet.title));
   const scored = diversifyRecallEntries(rankedScored, limit)
     .map(({ relevance, ...entry }) => entry);
@@ -11588,6 +11647,13 @@ export interface TruthReport {
 
 const TRUTH_REPORT_MAX_FINDINGS = 16;
 const TRUTH_REPORT_AI_ERA_DAYS = 120;
+// A same-name, same-signature symbol spread across more than this many directories is a
+// framework/language convention (e.g. Go's per-package addKnownTypes / AddToScheme), not
+// copy-paste worth surfacing. Real, actionable duplication is a handful of sites.
+const TRUTH_DUPLICATE_MAX_DIRS = 8;
+// A directory whose last segment is an API version (v1, v2, v1beta1, v2alpha3, ...). The
+// same type redefined across sibling version packages is API versioning, not duplication.
+const TRUTH_VERSION_DIR = /(^|\/)v\d+((alpha|beta)\d+)?$/i;
 
 // Symbol names too generic to mean "two teams built the same thing".
 const TRUTH_COMMON_SYMBOL_NAMES = new Set([
@@ -11604,10 +11670,25 @@ const TRUTH_DUPLICATE_NAME_DENYLIST = new Set([
   "predicate", "comparator", "getter", "setter", "factory", "visit",
 ]);
 
+// Machine-generated code (protobuf, conversion/deepcopy codegen, mocks, minified bundles)
+// is not where a human's undocumented knowledge lives — flagging it as a hotspot, duplicate,
+// or ghost export is pure noise. Detected by the conventional names generators emit.
+function isGeneratedPath(path: string): boolean {
+  const p = path.toLowerCase();
+  return /(^|[/._-])(zz_generated|generated|autogen|codegen)[._-]/.test(p)
+    || /(^|\/)(generated|__generated__)\//.test(p)
+    || /\.pb\.(go|cc|h|ts|js|py|rb|dart|swift)$/.test(p)
+    || /[._](pb2|pb2_grpc)\.py$/.test(p)
+    || /\.(gen|g|freezed)\.[^.]+$/.test(p)
+    || /(^|\/)(mock_[^/]*|wire_gen)\.[^.]+$/.test(p)
+    || /\.min\.(js|css)$/.test(p);
+}
+
 function truthExcludedPath(path: string): boolean {
   return /(^|\/)(tests?|__tests__|specs?|examples?|fixtures?|benchmarks?|mocks?|__mocks__|vendor|node_modules|dist|build)\//i.test(path)
     || /\.(test|spec)\.[^.]+$/i.test(path)
-    || /(^|\/)test[^/]*\.[^.]+$/i.test(path);
+    || /(^|\/)test[^/]*\.[^.]+$/i.test(path)
+    || isGeneratedPath(path);
 }
 
 const TRUTH_DOC_PATH_EXTENSIONS = "ts|tsx|js|jsx|mjs|cjs|json|md|yml|yaml|toml|py|rb|go|rs|java|kt|sh|bash|css|scss|html|sql|proto|graphql|c|h|cpp|hpp|cs|txt";
@@ -11628,6 +11709,103 @@ function truthDocPathCandidates(line: string): string[] {
     && !candidate.startsWith(".agent_memory"));
 }
 
+const TRUTH_DECL_KEYWORDS = new Set([
+  "function", "func", "fn", "def", "class", "struct", "trait", "interface",
+  "type", "enum", "const", "let", "var", "impl", "module", "object",
+]);
+// Render "<path>:<line>  <kind> <signature>" without doubling the declaration keyword.
+// The captured signature often already declares the construct ("export function abort(...)",
+// "pub fn abort(...)", "class Foo"), so blindly prefixing the kind yields
+// "function export function abort". Only add the kind when the signature carries no
+// leading declaration keyword of its own.
+function truthSymbolEvidence(path: string, line: number, kind: string, signature: string): string {
+  const sig = signature.slice(0, 80).trim();
+  const leadTokens = sig.toLowerCase().split(/[^a-z]+/, 4);
+  const selfDescribing = leadTokens.some((tok) => TRUTH_DECL_KEYWORDS.has(tok))
+    || sig.toLowerCase().startsWith(`${kind.toLowerCase()} `);
+  return `${path}:${line}  ${selfDescribing ? sig : `${kind} ${sig}`}`;
+}
+
+// Real test coverage beats the import-reachability heuristic. When a standard coverage
+// report exists we read measured line coverage; KAGE_COVERAGE_MIN (default 0.5) is the
+// fraction below which a hot file counts as under-tested.
+const COVERAGE_TESTED_MIN = (() => {
+  const raw = Number(process.env.KAGE_COVERAGE_MIN);
+  return Number.isFinite(raw) && raw > 0 && raw <= 1 ? raw : 0.5;
+})();
+
+interface CoverageReport {
+  source: string;
+  byPath: Map<string, { hit: number; total: number }>;
+  entries: Array<[string, { hit: number; total: number }]>;
+}
+
+function parseLcovCoverage(text: string): Map<string, { hit: number; total: number }> {
+  const map = new Map<string, { hit: number; total: number }>();
+  let file: string | null = null;
+  let hit = 0;
+  let total = 0;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (line.startsWith("SF:")) { file = line.slice(3).trim(); hit = 0; total = 0; }
+    else if (line.startsWith("DA:")) {
+      const count = Number(line.slice(3).split(",")[1] ?? 0) || 0;
+      total += 1;
+      if (count > 0) hit += 1;
+    } else if (line.startsWith("LH:")) { hit = Number(line.slice(3)) || hit; }
+    else if (line.startsWith("LF:")) { total = Number(line.slice(3)) || total; }
+    else if (line === "end_of_record" && file) { map.set(file, { hit, total }); file = null; }
+  }
+  return map;
+}
+
+function parseIstanbulCoverage(text: string): Map<string, { hit: number; total: number }> {
+  const map = new Map<string, { hit: number; total: number }>();
+  let json: Record<string, { path?: string; s?: Record<string, number> }>;
+  try { json = JSON.parse(text); } catch { return map; }
+  for (const [key, entry] of Object.entries(json)) {
+    if (!entry || typeof entry !== "object") continue;
+    const counts = Object.values(entry.s ?? {});
+    if (!counts.length) continue;
+    const hit = counts.filter((value) => Number(value) > 0).length;
+    map.set(entry.path ?? key, { hit, total: counts.length });
+  }
+  return map;
+}
+
+function readCoverageReport(projectDir: string): CoverageReport | null {
+  const candidates = ["coverage/lcov.info", "lcov.info", "coverage/coverage-final.json", "coverage-final.json"];
+  const root = projectDir.replace(/\\/g, "/").replace(/\/+$/, "");
+  for (const rel of candidates) {
+    const abs = join(projectDir, rel);
+    if (!existsSync(abs)) continue;
+    const text = safeReadText(abs);
+    if (!text) continue;
+    const parsed = rel.endsWith(".info") ? parseLcovCoverage(text) : parseIstanbulCoverage(text);
+    if (!parsed.size) continue;
+    const byPath = new Map<string, { hit: number; total: number }>();
+    for (const [rawPath, value] of parsed) {
+      let p = rawPath.replace(/\\/g, "/");
+      if (p.startsWith(`${root}/`)) p = p.slice(root.length + 1);
+      p = p.replace(/^\.\//, "").replace(/^\/+/, "");
+      byPath.set(p, value);
+    }
+    return { source: rel, byPath, entries: [...byPath.entries()] };
+  }
+  return null;
+}
+
+// Coverage paths can carry an absolute or CI-machine prefix; fall back to suffix match.
+function coverageFor(report: CoverageReport, path: string): { hit: number; total: number } | null {
+  const direct = report.byPath.get(path);
+  if (direct) return direct;
+  const suffix = `/${path}`;
+  for (const [key, value] of report.entries) {
+    if (key.endsWith(suffix) || path.endsWith(`/${key}`)) return value;
+  }
+  return null;
+}
+
 export function truthReport(projectDir: string): TruthReport {
   const graph = readCurrentCodeGraph(projectDir) ?? buildCodeGraph(projectDir);
   const warnings: string[] = [];
@@ -11643,12 +11821,13 @@ export function truthReport(projectDir: string): TruthReport {
   const fileCommits = new Map<string, number>();
   const fileNewestEpoch = new Map<string, number>();
   if (hasGit) {
-    const raw = readGit(projectDir, ["log", "--no-renames", "--format=__KAGE_SCAN__%x1f%ae%x1f%ct", "--name-only"]) ?? "";
+    const raw = readGit(projectDir, ["log", `--max-count=${TRUTH_REPORT_MAX_COMMITS}`, "--no-renames", "--format=__KAGE_SCAN__%x1f%ae%x1f%ct", "--name-only"]) ?? "";
     // Resolve the repo->project prefix once; gitPathToProjectRelative spawns git per call,
     // which is far too slow for a full-history name-only walk.
     const projectPrefix = readGit(projectDir, ["rev-parse", "--show-prefix"])?.replace(/\\/g, "/").replace(/\/+$/, "") ?? "";
     let author = "";
     let epoch = 0;
+    let commitsSeen = 0;
     for (const rawLine of raw.split(/\r?\n/)) {
       const line = rawLine.trim();
       if (!line) continue;
@@ -11656,6 +11835,7 @@ export function truthReport(projectDir: string): TruthReport {
         const parts = line.split("\x1f");
         author = (parts[1] ?? "").toLowerCase();
         epoch = Number(parts[2] ?? 0) || 0;
+        commitsSeen += 1;
         continue;
       }
       if (!author) continue;
@@ -11668,6 +11848,9 @@ export function truthReport(projectDir: string): TruthReport {
       fileCommits.set(path, (fileCommits.get(path) ?? 0) + 1);
       // git log is newest-first, so the first sighting is the newest commit touching the file.
       if (!fileNewestEpoch.has(path)) fileNewestEpoch.set(path, epoch);
+    }
+    if (commitsSeen >= TRUTH_REPORT_MAX_COMMITS) {
+      warnings.push(`Git history is large; churn, bus-factor, and recency are computed from the most recent ${TRUTH_REPORT_MAX_COMMITS} commits.`);
     }
   }
 
@@ -11707,6 +11890,10 @@ export function truthReport(projectDir: string): TruthReport {
     const dirs = new Set(members.map((member) => dirname(member.path)));
     const paths = new Set(members.map((member) => member.path));
     if (dirs.size < 2 || paths.size < 2) continue;
+    if (dirs.size > TRUTH_DUPLICATE_MAX_DIRS) continue;
+    // Skip the same symbol redefined across sibling API-version packages (v1/v1beta1/...).
+    const versionedCount = members.filter((member) => TRUTH_VERSION_DIR.test(dirname(member.path))).length;
+    if (versionedCount >= 2 && members.length - versionedCount <= 1) continue;
     const signatureCounts = new Map<string, number>();
     for (const member of members) {
       const normalized = member.signature.replace(/\s+/g, "");
@@ -11722,7 +11909,7 @@ export function truthReport(projectDir: string): TruthReport {
       kind: "duplicate_cluster",
       title: `${members[0].name} — ${paths.size} implementations across ${dirs.size} directories${recent ? " [recently changed]" : ""}`,
       detail: "Same name and near-identical signature in unrelated directories — likely parallel implementations of the same idea, worth a look.",
-      evidence: members.slice(0, 5).map((member) => `${member.path}:${member.line}  ${member.kind} ${member.signature.slice(0, 80)}`),
+      evidence: members.slice(0, 5).map((member) => truthSymbolEvidence(member.path, member.line, member.kind, member.signature)),
       surprise: Math.min(100, 45 + paths.size * 8 + (signatureMatch ? 15 : 0) + (recent ? 20 : 0)),
     });
   }
@@ -11765,7 +11952,7 @@ export function truthReport(projectDir: string): TruthReport {
       kind: "ghost_export" as const,
       title: `${symbol.name} — exported, never called`,
       detail: "No call edge, no import, and the name appears in no other file. Dead code, or knowledge nobody wired in.",
-      evidence: [`${symbol.path}:${symbol.line}  ${symbol.kind} ${symbol.signature.slice(0, 80)}`],
+      evidence: [truthSymbolEvidence(symbol.path, symbol.line, symbol.kind, symbol.signature)],
       surprise: Math.min(100, 35 + Math.min(30, fileCentrality)),
     }];
   });
@@ -11879,15 +12066,34 @@ export function truthReport(projectDir: string): TruthReport {
       if (edge.to_path && fileByPath.get(edge.from_path)?.kind === "test") testedPaths.add(edge.to_path);
     }
   }
+  const coverage = readCoverageReport(projectDir);
   const untestedFindings: TruthFinding[] = [];
-  if (hasTests) {
+  if (hasTests || coverage) {
     for (const file of sourceFiles) {
       if (isEntrypointLike(file.path)) continue;
       const fileCentrality = centrality.get(file.path) ?? 0;
       const commits = fileCommits.get(file.path) ?? 0;
       if (fileCentrality < 5) continue;
       if (hasGit && commits < 2) continue;
-      if (testedPaths.has(file.path)) continue;
+      // Prefer measured line coverage when the file is in the report; only fall back to
+      // the import-reachability heuristic for files the report doesn't cover.
+      if (coverage) {
+        const cov = coverageFor(coverage, file.path);
+        if (cov && cov.total > 0) {
+          const pct = cov.hit / cov.total;
+          if (pct >= COVERAGE_TESTED_MIN) continue;
+          const pctLabel = Math.round(pct * 100);
+          untestedFindings.push({
+            kind: "untested_hot",
+            title: `${file.path} — undertested hot path`,
+            detail: `Only ${pctLabel}% line coverage (${cov.hit}/${cov.total} lines, measured from ${coverage.source}) on a file ${fileCentrality} other(s) depend on${commits ? `, changed ${commits} time(s)` : ""}. Thinly-covered hub files are where regressions hide.`,
+            evidence: [`${file.path}:1  ${pctLabel}% line coverage (${cov.hit}/${cov.total} lines), centrality ${fileCentrality}`],
+            surprise: Math.min(100, 30 + Math.min(45, fileCentrality * 3) + (hasGit ? Math.min(15, commits) : 0) + Math.round((1 - pct) * 12)),
+          });
+          continue;
+        }
+      }
+      if (!hasTests || testedPaths.has(file.path)) continue;
       untestedFindings.push({
         kind: "untested_hot",
         title: `${file.path} — untested hot path`,
@@ -11896,6 +12102,11 @@ export function truthReport(projectDir: string): TruthReport {
         surprise: Math.min(100, 30 + Math.min(45, fileCentrality * 3) + (hasGit ? Math.min(15, commits) : 0)),
       });
     }
+  }
+  if (coverage) {
+    warnings.push(`Test coverage measured from ${coverage.source} (${coverage.byPath.size} files); files outside it fall back to static test-import heuristics.`);
+  } else if (untestedFindings.length) {
+    warnings.push(`Untested findings are heuristic (no coverage report found): they flag hot files no test imports directly, not measured line coverage. Generate coverage/lcov.info for exact results.`);
   }
   untestedFindings.sort((a, b) => b.surprise - a.surprise || a.title.localeCompare(b.title));
 
@@ -12049,6 +12260,14 @@ export function truthReport(projectDir: string): TruthReport {
     ...(docLines.length ? [[docLieFindings.length, `${docLieFindings.length} doc lie${docLieFindings.length === 1 ? "" : "s"}`] as [number, string]] : []),
   ];
   const headlineParts = headlineCandidates.filter(([count]) => count > 0).map(([, label]) => label);
+
+  // If the file-count ceiling kicked in, say so plainly — a silent "scanned 25,000 files"
+  // on a 60k-file monorepo reads as "covered everything" when it didn't.
+  const cappedFiles = readCodeIndexManifest(projectDir).ignored_summary?.["exceeded_file_cap"] ?? 0;
+  if (cappedFiles > 0) {
+    const totalIndexable = graph.files.length + cappedFiles;
+    warnings.push(`Large repo: scanned ${graph.files.length.toLocaleString()} of ${totalIndexable.toLocaleString()} indexable files (capped). Set KAGE_MAX_SCAN_FILES higher to scan more.`);
+  }
 
   return {
     schema_version: 1,
@@ -16058,6 +16277,16 @@ export function capture(input: CaptureInput): CaptureResult {
     return { ok: false, errors: [`Invalid memory type: ${type}`] };
   }
 
+  // Reject raw transcript / serialized tool-output dumps from agent-facing capture — these
+  // are observation noise, not durable knowledge, and they pollute recall. Recall filters
+  // them as a safety net (isSerializedDumpTitle); this stops them at the source.
+  if (input.strictCitations && isSerializedDumpTitle(input.title)) {
+    return {
+      ok: false,
+      errors: ["Capture blocked: the title looks like a raw transcript or serialized tool output, not a durable learning. Summarize the insight in a short, human-readable title."],
+    };
+  }
+
   const scanFindings = scanSensitiveText([input.title, input.summary ?? "", input.body].join("\n"));
   if (scanFindings.length) {
     return {
@@ -16585,14 +16814,7 @@ except Exception:
 print((d.get("prompt") or d.get("user_prompt") or d.get("message") or "")[:1000])
 ' 2>/dev/null || echo "")"
   if [[ -n "$QUERY" ]]; then
-    CONTEXT="$(kage recall "$QUERY" --project "$CWD" --json 2>/dev/null | python3 -c 'import json, sys
-try:
-    d = json.load(sys.stdin)
-except Exception:
-    d = {}
-text = d.get("context_block") or ""
-print(text[:6000] if d.get("results") else "")
-' 2>/dev/null || true)"
+    CONTEXT="$(kage prompt-context --project "$CWD" --query "$QUERY" 2>/dev/null || true)"
     if [[ -n "$CONTEXT" ]]; then
       KAGE_CONTEXT="$CONTEXT" python3 -c 'import json, os
 print(json.dumps({"additionalContext": os.environ.get("KAGE_CONTEXT", "")}))
