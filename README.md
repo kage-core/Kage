@@ -1,8 +1,7 @@
 <div align="center">
 
-<img src="docs/assets/kage-banner.svg" alt="Kage" width="100%">
+<img src="docs/assets/kage-banner.svg" alt="Kage" width="150%">
 
-# Kage
 
 ### Team memory for coding agents that never gets lost
 
