@@ -1951,6 +1951,7 @@
     ],
     "duplicate_candidates": [],
     "stale_reasons": [
+      "packet status is deprecated",
       "all referenced paths are missing: /Users/kushaljain/code/Kage/README.md, /Users/kushaljain/code/Kage/mcp/cli.ts, /Users/kushaljain/code/Kage/mcp/kernel.ts, /Users/kushaljain/code/Kage/launch/hn.md"
     ],
     "estimated_tokens_saved": 28694,
@@ -1971,9 +1972,9 @@
     },
     "suggested_review_action": "mark_stale",
     "stale": true,
-    "suggested_action": "update"
+    "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-18T18:47:02.762Z",
-  "updated_at": "2026-06-19T06:52:23.932Z",
+  "updated_at": "2026-06-19T07:05:46.510Z",
   "author_branch": "master"
 }

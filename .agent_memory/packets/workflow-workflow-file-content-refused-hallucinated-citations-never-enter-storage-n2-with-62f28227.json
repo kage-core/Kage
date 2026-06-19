@@ -3587,6 +3587,7 @@
     ],
     "duplicate_candidates": [],
     "stale_reasons": [
+      "packet status is deprecated",
       "all referenced paths are missing: /Users/kushaljain/code/Kage/README.md, /Users/kushaljain/code/Kage/docs/index.html, /Users/kushaljain/code/Kage/docs/releases.html, /Users/kushaljain/code/Kage/docs/guide.html"
     ],
     "estimated_tokens_saved": 64073,
@@ -3607,9 +3608,9 @@
     },
     "suggested_review_action": "mark_stale",
     "stale": true,
-    "suggested_action": "update"
+    "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-18T21:11:05.138Z",
-  "updated_at": "2026-06-19T06:52:23.936Z",
+  "updated_at": "2026-06-19T07:05:46.511Z",
   "author_branch": "master"
 }
