@@ -200,11 +200,12 @@
     "reverified_at": "2026-06-15T21:58:08.057Z",
     "stale": true,
     "stale_reasons": [
-      "packet status is deprecated"
+      "packet status is deprecated",
+      "linked path changed since memory was verified: mcp/kernel.ts, plugin/hooks/hooks.json"
     ],
     "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-12T07:39:52.056Z",
-  "updated_at": "2026-06-15T21:58:43.100Z",
+  "updated_at": "2026-06-19T13:57:42.733Z",
   "author_branch": "adopt/receipts-and-read-context"
 }
