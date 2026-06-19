@@ -227,6 +227,7 @@ export function listTools() {
       name: "kage_context",
       description:
         "Primary kage entry point. Validates memory health, recalls relevant packets, and queries both the code graph and knowledge graph — all in one call. Call this at the start of every task; it answers caller/usage questions from the code graph too, so you rarely need a separate graph tool.",
+      annotations: { title: "Recall verified memory and query the code/knowledge graph", readOnlyHint: true },
       inputSchema: {
         type: "object",
         properties: {
@@ -339,10 +340,11 @@ export function listTools() {
       name: "kage_risk",
       description:
         "Assess modification risk for files using Kage's code graph plus local git history: dependents, impact surface, churn, ownership, co-change partners, and test gaps. Use before editing hotspot or shared files.",
+      annotations: { title: "Assess file modification risk", readOnlyHint: true },
       inputSchema: {
         type: "object",
         properties: {
-          project_dir: { type: "string" },
+          project_dir: { type: "string", description: "Absolute path to the repository root." },
           targets: { type: "array", items: { type: "string" }, description: "File paths to assess" },
           changed_files: { type: "array", items: { type: "string" }, description: "Optional PR/branch changed files. If targets is omitted, these are assessed." },
         },
@@ -353,10 +355,11 @@ export function listTools() {
       name: "kage_dependency_path",
       description:
         "Find how two files are connected in Kage's source-derived code graph. Reports direct dependency direction, reverse impact direction, or undirected graph connection.",
+      annotations: { title: "Trace the dependency path between two files", readOnlyHint: true },
       inputSchema: {
         type: "object",
         properties: {
-          project_dir: { type: "string" },
+          project_dir: { type: "string", description: "Absolute path to the repository root." },
           from: { type: "string", description: "Source file path or unique suffix" },
           to: { type: "string", description: "Target file path or unique suffix" },
         },
@@ -484,6 +487,7 @@ export function listTools() {
       name: "kage_decisions",
       description:
         "Summarize the repo's 'why' memory at a glance: the decisions, gotchas, runbooks, conventions, and code explanations Kage has captured, plus which high-traffic code paths still have no decision memory. Use it to brief yourself on a repo before changing it, or to audit where institutional knowledge is thin or going stale. Read-only: returns grouped entries with titles, types, cited file paths, and call-outs for weak, stale, or undocumented hot paths. Does not modify any memory.",
+      annotations: { title: "Summarize the repo's decision memory", readOnlyHint: true },
       inputSchema: {
         type: "object",
         properties: {
@@ -520,12 +524,13 @@ export function listTools() {
       name: "kage_docs_search",
       description:
         "Search this repo's OWN committed documentation (README, docs/**, *.md, common doc dirs — including any framework/API docs checked into the repo). BM25 over heading-anchored chunks from .agent_memory/indexes/docs-index.json. Returns ranked doc hits with doc_path, heading, line, and snippet. This indexes only files on disk in the project, never the internet.",
+      annotations: { title: "Search the repo's own committed docs", readOnlyHint: true },
       inputSchema: {
         type: "object",
         properties: {
-          query: { type: "string" },
-          project_dir: { type: "string" },
-          limit: { type: "number" },
+          query: { type: "string", description: "Search terms to match against the repo's documentation." },
+          project_dir: { type: "string", description: "Absolute path to the repository root." },
+          limit: { type: "number", description: "Max ranked doc hits to return (default 5)." },
         },
         required: ["query", "project_dir"],
       },
@@ -632,10 +637,11 @@ export function listTools() {
       name: "kage_refresh",
       description:
         "Rebuild repo indexes, code graph, memory graph, metrics, and stale-memory metadata. Agents should run this after meaningful file/content changes before PR checks; push-only or same-tree commits do not need another refresh. On non-default git branches metadata-only packet rewrites are skipped (quiet refresh) to avoid merge conflicts; pass force to persist them anyway.",
+      annotations: { title: "Rebuild Kage indexes and graphs", readOnlyHint: false, idempotentHint: true },
       inputSchema: {
         type: "object",
         properties: {
-          project_dir: { type: "string" },
+          project_dir: { type: "string", description: "Absolute path to the repository root." },
           force: { type: "boolean", description: "Persist packet metadata rewrites even on a non-default branch" },
         },
         required: ["project_dir"],
@@ -666,10 +672,11 @@ export function listTools() {
       name: "kage_pr_check",
       description:
         "Check whether repo memory, code graph, memory graph, and stale-memory state are ready for merge. Leads with a human summary of team memories invalidated by the current change — relay it to the developer.",
+      annotations: { title: "Check memory readiness for merge", readOnlyHint: true },
       inputSchema: {
         type: "object",
         properties: {
-          project_dir: { type: "string" },
+          project_dir: { type: "string", description: "Absolute path to the repository root." },
         },
         required: ["project_dir"],
       },
@@ -766,6 +773,7 @@ export function listTools() {
       name: "kage_supersede",
       description:
         "Replace one repo-local memory packet with a newer one that corrects or obsoletes it. Marks the old packet superseded, links it to the replacement, and writes bidirectional lineage edges so the history stays traceable. Use this instead of deleting when new knowledge updates an old fact, or to resolve a contradiction surfaced by kage_conflicts. Mutates both packets on disk: the superseded packet is withheld from recall but kept for lineage.",
+      annotations: { title: "Supersede a memory packet with a newer one", readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       inputSchema: {
         type: "object",
         properties: {
@@ -793,12 +801,13 @@ export function listTools() {
       name: "kage_skills",
       description:
         "Codify durable, verified repo memory (runbooks, workflows, actionable decisions) into git-native SKILL.md files under .claude/skills/ that every teammate's agent auto-loads. Only grounded, non-stale packets become skills. Pass dry_run to preview without writing. dir overrides the output directory.",
+      annotations: { title: "Codify verified memory into agent skills", readOnlyHint: false, idempotentHint: true },
       inputSchema: {
         type: "object",
         properties: {
-          project_dir: { type: "string" },
-          dry_run: { type: "boolean" },
-          dir: { type: "string" },
+          project_dir: { type: "string", description: "Absolute path to the repository root." },
+          dry_run: { type: "boolean", description: "Preview which skills would be written without creating any files." },
+          dir: { type: "string", description: "Override the output directory (default .claude/skills/)." },
         },
         required: ["project_dir"],
       },
@@ -899,6 +908,7 @@ export function listTools() {
       name: "kage_learn",
       description:
         "Capture a durable, reusable learning from the current session as a verified repo-local memory packet (committed under .agent_memory/, shared with the team via git). Use it the moment you discover something a future session should know: a decision and its rationale, a bug's root cause and fix, a convention, or a setup step. Prefer it over diff-based proposals when you already know what was learned. The write is rejected if every cited path is missing from the repo (set allow_missing_paths for a file you are about to create), and secrets/PII are scanned out before writing. Returns the new packet id plus any contradiction warnings against existing memory.",
+      annotations: { title: "Capture a verified learning to repo memory", readOnlyHint: false },
       inputSchema: {
         type: "object",
         properties: {
@@ -1045,6 +1055,7 @@ export function listTools() {
       name: "kage_feedback",
       description:
         "Record how useful a recalled repo-local memory packet was, which tunes Kage's trust and future recall. 'helpful' reinforces the packet, 'wrong' flags it as disputed, and 'stale' marks it for re-verification and withholds it from recall until refreshed. Use it right after a recalled packet helped you, misled you, or no longer matched the code. Mutates the packet's quality signals on disk.",
+      annotations: { title: "Rate a recalled memory packet", readOnlyHint: false },
       inputSchema: {
         type: "object",
         properties: {
