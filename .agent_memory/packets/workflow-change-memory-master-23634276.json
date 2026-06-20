@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
-  "summary": "Repo-local context for 24 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/bug_fix-kage-context-bloat-dump-packet-capture-cause-and-fix-e5060da1.json\n- .agent_memory/packets/decision-agent-mcp-surface-is-eval-driven-core-11-kage-code-graph-deleted-337d02ef.json\n- .agent_memory/packets/decision-graph-nodes-at-capture-opt-in-recall-token-budget-verified-v2-2-1-6c65628a.json\n- .agent_memory/packets/decision-injection-capture-hardening-sessionstart-pinned-context-universal-dump-guard-c6710261.json\n- .agent_memory/packets/decision-recall-withholds-content-changed-memory-too-task-39-shipped-f528d35e.json\n- .agent_memory/packets/decision-scan-scorecard-cold-start-receipts-the-visible-value-growth-levers-96b273b2.json\n- .agent_memory/packets/issue_context-kushaljain-kushals-macbook-air-kage-mcp-publisher-publish-publishing-to-https-re-5034c58d.json\n- .agent_memory/packets/issue_context-task-notification-task-id-a28796694fe6b88d6-task-id-tool-use-id-toolu-011bm1xtsw-e93eeb83.json\n- .agent_memory/packets/issue_context-task-notification-task-id-wqlzfp86l-task-id-tool-use-id-toolu-01kmshfqt4yqddohiv-5e2b0f35.json\n- .agent_memory/packets/runbook-capture-distill-fixes-need-a-rebuild-restart-to-take-effect-in-live-tooling-4a2f3232.json\n- .agent_memory/packets/runbook-freshness-fingerprints-anchor-to-named-symbols-not-just-whole-file-hash-a20a3a22.json\n- .agent_memory/packets/runbook-runbook-interrupted-false-isimage-false-nooutputexpected-false-stderr-stdout-kag-99ad0294.json\n- .agent_memory/packets/runbook-runbook-interrupted-false-isimage-false-nooutputexpected-false-stderr-stdout-rec-e39ccba3.json\n- .agent_memory/packets/runbook-runbook-interrupted-false-isimage-false-nooutputexpected-false-stderr-stdout-svg-6c8b6580.json\n- .agent_memory/packets/runbook-truth-report-detectors-lead-with-reliably-firing-signal-f9853daf.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n- .agent_memory/packets/workflow-workflow-file-content-div-align-center-n-n-kage-n-n-team-memory-for-coding-agent-75529905.json\n- .agent_memory/packets/workflow-workflow-file-content-import-createhash-from-node-crypto-nimport-execfilesync-fr-46083cfb.json\n- .agent_memory/packets/workflow-workflow-file-content-nname-kage-funnel-diagnosis-ndescription-what-actually-mov-7dae01b9.json\n- .agent_memory/packets/workflow-workflow-file-content-refused-hallucinated-citations-never-enter-storage-n2-with-62f28227.json\n- AGENTS.md\n- CLAUDE.md\n- card.svg\n- docs/index.html\n\nDiff summary:\n```text\n...n-core-11-kage-code-graph-deleted-337d02ef.json |  17 +--\n ...call-token-budget-verified-v2-2-1-6c65628a.json |  17 +--\n ...hanged-memory-too-task-39-shipped-f528d35e.json |  17 +--\n ...s-the-visible-value-growth-levers-96b273b2.json |  45 +++---\n ...-symbols-not-just-whole-file-hash-a20a3a22.json |  17 +--\n ...-lead-with-reliably-firing-signal-f9853daf.json |  10 +-\n .../workflow-change-memory-master-23634276.json    | 153 +++++++++++++++++----\n AGENTS.md                                          |  27 +++-\n CLAUDE.md                                          |  27 +++-\n docs/index.html                                    |   8 +-\n 10 files changed, 224 insertions(+), 114 deletions(-)\n.agent_memory/packets/bug_fix-kage-context-bloat-dump-packet-capture-cause-and-fix-e5060da1.json | untracked\n.agent_memory/packets/decision-injection-capture-hardening-sessionstart-pinned-context-universal-dump-guard-c6710261.json | untracked\n.agent_memory/packets/issue_context-kushaljain-kushals-macbook-air-kage-mcp-publisher-publish-publishing-to-https-re-5034c58d.json | untracked\n.agent_memory/packets/issue_context-task-notification-task-id-a28796694fe6b88d6-task-id-tool-use-id-toolu-011bm1xtsw-e93eeb83.json | untracked\n.agent_memory/packets/issue_context-task-notification-task-id-wqlzfp86l-task-id-tool-use-id-toolu-01kmshfqt4yqddohiv-5e2b0f35.json | untracked\n.agent_memory/packets/runbook-capture-distill-fixes-need-a-rebuild-restart-to-take-effect-in-live-tooling-4a2f3232.json | untracked\n.agent_memory/packets/runbook-runbook-interrupted-false-isimage-false-nooutputexpected-false-stderr-stdout-kag-99ad0294.json | untracked\n.agent_memory/packets/runbook-runbook-interrupted-false-isimage-false-nooutputexpected-false-stderr-stdout-rec-e39ccba3.json | untracked\n.agent_memory/packets/runbook-runbook-interrupted-false-isimage-false-nooutputexpected-false-stderr-stdout-svg-6c8b6580.json | untracked\n.agent_memory/packets/workflow-workflow-file-content-div-align-center-n-n-kage-n-n-team-memory-for-coding-agent-75529905.json | untracked\n.agent_memory/packets/workflow-workflow-file-content-import-createhash-from-node-crypto-nimport-execfilesync-fr-46083cfb.json | untracked\n.agent_memory/packets/workflow-workflow-file-content-nname-kage-funnel-diagnosis-ndescription-what-actually-mov-7dae01b9.json | untracked\n.agent_memory/packets/workflow-workflow-file-content-refused-hallucinated-citations-never-enter-storage-n2-with-62f28227.json | untracked\ncard.svg | untracked\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "summary": "Repo-local context for 1 changed repo path on master.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n.../packets/workflow-change-memory-master-23634276.json       | 11 ++++++++---\n 1 file changed, 8 insertions(+), 3 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -17,69 +17,23 @@
     "branch:master"
   ],
   "paths": [
-    ".agent_memory/packets/bug_fix-kage-context-bloat-dump-packet-capture-cause-and-fix-e5060da1.json",
-    ".agent_memory/packets/decision-agent-mcp-surface-is-eval-driven-core-11-kage-code-graph-deleted-337d02ef.json",
-    ".agent_memory/packets/decision-graph-nodes-at-capture-opt-in-recall-token-budget-verified-v2-2-1-6c65628a.json",
-    ".agent_memory/packets/decision-injection-capture-hardening-sessionstart-pinned-context-universal-dump-guard-c6710261.json",
-    ".agent_memory/packets/decision-recall-withholds-content-changed-memory-too-task-39-shipped-f528d35e.json",
-    ".agent_memory/packets/decision-scan-scorecard-cold-start-receipts-the-visible-value-growth-levers-96b273b2.json",
-    ".agent_memory/packets/issue_context-kushaljain-kushals-macbook-air-kage-mcp-publisher-publish-publishing-to-https-re-5034c58d.json",
-    ".agent_memory/packets/issue_context-task-notification-task-id-a28796694fe6b88d6-task-id-tool-use-id-toolu-011bm1xtsw-e93eeb83.json",
-    ".agent_memory/packets/issue_context-task-notification-task-id-wqlzfp86l-task-id-tool-use-id-toolu-01kmshfqt4yqddohiv-5e2b0f35.json",
-    ".agent_memory/packets/runbook-capture-distill-fixes-need-a-rebuild-restart-to-take-effect-in-live-tooling-4a2f3232.json",
-    ".agent_memory/packets/runbook-freshness-fingerprints-anchor-to-named-symbols-not-just-whole-file-hash-a20a3a22.json",
-    ".agent_memory/packets/runbook-runbook-interrupted-false-isimage-false-nooutputexpected-false-stderr-stdout-kag-99ad0294.json",
-    ".agent_memory/packets/runbook-runbook-interrupted-false-isimage-false-nooutputexpected-false-stderr-stdout-rec-e39ccba3.json",
-    ".agent_memory/packets/runbook-runbook-interrupted-false-isimage-false-nooutputexpected-false-stderr-stdout-svg-6c8b6580.json",
-    ".agent_memory/packets/runbook-truth-report-detectors-lead-with-reliably-firing-signal-f9853daf.json",
-    ".agent_memory/packets/workflow-change-memory-master-23634276.json",
-    ".agent_memory/packets/workflow-workflow-file-content-div-align-center-n-n-kage-n-n-team-memory-for-coding-agent-75529905.json",
-    ".agent_memory/packets/workflow-workflow-file-content-import-createhash-from-node-crypto-nimport-execfilesync-fr-46083cfb.json",
-    ".agent_memory/packets/workflow-workflow-file-content-nname-kage-funnel-diagnosis-ndescription-what-actually-mov-7dae01b9.json",
-    ".agent_memory/packets/workflow-workflow-file-content-refused-hallucinated-citations-never-enter-storage-n2-with-62f28227.json",
-    "AGENTS.md",
-    "CLAUDE.md",
-    "card.svg",
-    "docs/index.html"
+    ".agent_memory/packets/workflow-change-memory-master-23634276.json"
   ],
   "stack": [],
   "source_refs": [
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "a8d83c6d1409c754e862599adbb96a6aa78d0cc4",
-      "merge_base": "a8d83c6d1409c754e862599adbb96a6aa78d0cc4",
+      "head": "67bf6c518cfd3a474bb24ad3b8e1a650b398e1fe",
+      "merge_base": "67bf6c518cfd3a474bb24ad3b8e1a650b398e1fe",
       "changed_files": [
-        ".agent_memory/packets/bug_fix-kage-context-bloat-dump-packet-capture-cause-and-fix-e5060da1.json",
-        ".agent_memory/packets/decision-agent-mcp-surface-is-eval-driven-core-11-kage-code-graph-deleted-337d02ef.json",
-        ".agent_memory/packets/decision-graph-nodes-at-capture-opt-in-recall-token-budget-verified-v2-2-1-6c65628a.json",
-        ".agent_memory/packets/decision-injection-capture-hardening-sessionstart-pinned-context-universal-dump-guard-c6710261.json",
-        ".agent_memory/packets/decision-recall-withholds-content-changed-memory-too-task-39-shipped-f528d35e.json",
-        ".agent_memory/packets/decision-scan-scorecard-cold-start-receipts-the-visible-value-growth-levers-96b273b2.json",
-        ".agent_memory/packets/issue_context-kushaljain-kushals-macbook-air-kage-mcp-publisher-publish-publishing-to-https-re-5034c58d.json",
-        ".agent_memory/packets/issue_context-task-notification-task-id-a28796694fe6b88d6-task-id-tool-use-id-toolu-011bm1xtsw-e93eeb83.json",
-        ".agent_memory/packets/issue_context-task-notification-task-id-wqlzfp86l-task-id-tool-use-id-toolu-01kmshfqt4yqddohiv-5e2b0f35.json",
-        ".agent_memory/packets/runbook-capture-distill-fixes-need-a-rebuild-restart-to-take-effect-in-live-tooling-4a2f3232.json",
-        ".agent_memory/packets/runbook-freshness-fingerprints-anchor-to-named-symbols-not-just-whole-file-hash-a20a3a22.json",
-        ".agent_memory/packets/runbook-runbook-interrupted-false-isimage-false-nooutputexpected-false-stderr-stdout-kag-99ad0294.json",
-        ".agent_memory/packets/runbook-runbook-interrupted-false-isimage-false-nooutputexpected-false-stderr-stdout-rec-e39ccba3.json",
-        ".agent_memory/packets/runbook-runbook-interrupted-false-isimage-false-nooutputexpected-false-stderr-stdout-svg-6c8b6580.json",
-        ".agent_memory/packets/runbook-truth-report-detectors-lead-with-reliably-firing-signal-f9853daf.json",
-        ".agent_memory/packets/workflow-change-memory-master-23634276.json",
-        ".agent_memory/packets/workflow-workflow-file-content-div-align-center-n-n-kage-n-n-team-memory-for-coding-agent-75529905.json",
-        ".agent_memory/packets/workflow-workflow-file-content-import-createhash-from-node-crypto-nimport-execfilesync-fr-46083cfb.json",
-        ".agent_memory/packets/workflow-workflow-file-content-nname-kage-funnel-diagnosis-ndescription-what-actually-mov-7dae01b9.json",
-        ".agent_memory/packets/workflow-workflow-file-content-refused-hallucinated-citations-never-enter-storage-n2-with-62f28227.json",
-        "AGENTS.md",
-        "CLAUDE.md",
-        "card.svg",
-        "docs/index.html"
+        ".agent_memory/packets/workflow-change-memory-master-23634276.json"
       ],
-      "summary_path": "/Users/kushaljain/code/Kage/.agent_memory/review/branch-summary-master.json"
+      "summary_path": ".agent_memory/review/branch-summary-master.json"
     }
   ],
   "context": {
-    "fact": "Current branch master changes 24 repo paths.",
+    "fact": "Current branch master changes 1 repo path.",
     "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
     "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
     "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
@@ -88,132 +42,16 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-20T12:35:35.210Z",
+    "last_verified_at": "2026-06-20T15:43:06.906Z",
     "ttl_days": 180,
-    "path_fingerprints": [
-      {
-        "path": "AGENTS.md",
-        "sha256": "864f8c3fab570becc84b6988a18df1911da5b92d9f67ee05dae2c149c3347ad0",
-        "size": 4579
-      },
-      {
-        "path": "CLAUDE.md",
-        "sha256": "864f8c3fab570becc84b6988a18df1911da5b92d9f67ee05dae2c149c3347ad0",
-        "size": 4579
-      },
-      {
-        "path": "card.svg",
-        "sha256": "529efa20b494ac970b4ff2406abf3cecbb6f7311e75ee9c287942befe30f70ff",
-        "size": 3885
-      },
-      {
-        "path": "docs/index.html",
-        "sha256": "01428b103186cf0b25db4b8736aa466ab4f4eb3bc06b5ebd831f90f203a23564",
-        "size": 35079
-      }
-    ],
+    "path_fingerprints": [],
     "path_fingerprint_policy": "source_hash_staleness",
     "verification": "git_diff"
   },
   "edges": [
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-kage-context-bloat-dump-packet-capture-cause-and-fix-e5060da1.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-agent-mcp-surface-is-eval-driven-core-11-kage-code-graph-deleted-337d02ef.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-graph-nodes-at-capture-opt-in-recall-token-budget-verified-v2-2-1-6c65628a.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-injection-capture-hardening-sessionstart-pinned-context-universal-dump-guard-c6710261.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-recall-withholds-content-changed-memory-too-task-39-shipped-f528d35e.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-scan-scorecard-cold-start-receipts-the-visible-value-growth-levers-96b273b2.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/issue_context-kushaljain-kushals-macbook-air-kage-mcp-publisher-publish-publishing-to-https-re-5034c58d.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/issue_context-task-notification-task-id-a28796694fe6b88d6-task-id-tool-use-id-toolu-011bm1xtsw-e93eeb83.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/issue_context-task-notification-task-id-wqlzfp86l-task-id-tool-use-id-toolu-01kmshfqt4yqddohiv-5e2b0f35.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/runbook-capture-distill-fixes-need-a-rebuild-restart-to-take-effect-in-live-tooling-4a2f3232.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/runbook-freshness-fingerprints-anchor-to-named-symbols-not-just-whole-file-hash-a20a3a22.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/runbook-runbook-interrupted-false-isimage-false-nooutputexpected-false-stderr-stdout-kag-99ad0294.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/runbook-runbook-interrupted-false-isimage-false-nooutputexpected-false-stderr-stdout-rec-e39ccba3.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/runbook-runbook-interrupted-false-isimage-false-nooutputexpected-false-stderr-stdout-svg-6c8b6580.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/runbook-truth-report-detectors-lead-with-reliably-firing-signal-f9853daf.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
       "to": "path:.agent_memory/packets/workflow-change-memory-master-23634276.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/workflow-workflow-file-content-div-align-center-n-n-kage-n-n-team-memory-for-coding-agent-75529905.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/workflow-workflow-file-content-import-createhash-from-node-crypto-nimport-execfilesync-fr-46083cfb.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/workflow-workflow-file-content-nname-kage-funnel-diagnosis-ndescription-what-actually-mov-7dae01b9.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/workflow-workflow-file-content-refused-hallucinated-citations-never-enter-storage-n2-with-62f28227.json",
       "evidence": "git_diff"
     }
   ],
@@ -230,7 +68,7 @@
     "risks": [],
     "duplicate_candidates": [],
     "stale_reasons": [],
-    "estimated_tokens_saved": 1411,
+    "estimated_tokens_saved": 233,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -248,6 +86,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-06-20T12:35:35.210Z",
-  "updated_at": "2026-06-20T12:35:35.210Z"
+  "created_at": "2026-06-20T15:43:06.906Z",
+  "updated_at": "2026-06-20T15:43:06.906Z"
 }
