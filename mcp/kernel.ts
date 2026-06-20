@@ -17263,6 +17263,19 @@ export function observe(projectDir: string, event: ObservationEvent): ObserveRes
     summary: event.summary === undefined ? undefined : stripPrivateSpans(event.summary),
     command: event.command === undefined ? undefined : stripPrivateSpans(event.command),
   };
+  // Cap free-text fields so a giant pasted command or tool-output dump can't bloat the
+  // observation log (and the resume digest distilled from it). The gist is enough for
+  // distillation; the full payload is not durable memory.
+  const capObservationField = (value: string | undefined, max: number): string | undefined =>
+    value === undefined ? undefined
+      : value.length > max ? `${value.slice(0, max).trimEnd()}… [+${value.length - max} chars truncated]`
+      : value;
+  event = {
+    ...event,
+    command: capObservationField(event.command, 600),
+    summary: capObservationField(event.summary, 600),
+    text: capObservationField(event.text, 4000),
+  };
   const allowed: ObservationEventType[] = ["session_start", "user_prompt", "tool_use", "tool_result", "file_change", "command_result", "test_result", "session_end"];
   if (!allowed.includes(event.type)) return { ok: false, stored: false, duplicate: false, errors: [`Invalid observation type: ${event.type}`] };
   const text = [event.text, event.summary, event.command, event.path, JSON.stringify(event.metadata ?? {})].filter(Boolean).join("\n");
