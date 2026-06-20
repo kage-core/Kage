@@ -2349,6 +2349,36 @@ test("distillation creates command memory only for reusable command learnings", 
   assert.equal((packet?.quality.admission as { admit?: boolean } | undefined)?.admit, true);
 });
 
+test("distillation rejects dump-like observations end-to-end (no raw transcript becomes a packet)", () => {
+  const project = tempProject();
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "server.ts"), "", "utf8");
+
+  // A file-change observation whose "learning" is a serialized file-content dump. It even
+  // carries durable-signal words (workflow/fix/test/decision) so the OLD code would have
+  // distilled it into a 300KB-style packet. It must now be skipped at the helper.
+  assert.equal(observe(project, {
+    type: "file_change",
+    session_id: "dump-session",
+    path: "src/server.ts",
+    summary: '{"file": {"content": "workflow runbook fix bug test decision because requires must"}}',
+  }).ok, true);
+
+  // A command observation whose summary is a raw tool-output dump.
+  assert.equal(observe(project, {
+    type: "command_result",
+    session_id: "dump-session",
+    command: "npm test",
+    exit_code: 0,
+    summary: '{"interrupted": false, "isImage": false, "noOutputExpected": false, "stdout": "fixed the error after changing"}',
+  }).ok, true);
+
+  const distilled = distillSession(project, "dump-session");
+  assert.equal(distilled.ok, true);
+  assert.equal(distilled.candidates.length, 0, "no dump observation is distilled into a packet");
+});
+
 test("distillation does not create useless touched-file memory", () => {
   const project = tempProject();
   mkdirSync(join(project, "src"), { recursive: true });
@@ -3583,6 +3613,101 @@ test("gc deprecates stale packets by exact packet file path", () => {
   packet = JSON.parse(readFileSync(result.path!, "utf8"));
   assert.equal(packet.status, "deprecated");
   assert.equal(loadApprovedPackets(project).some((candidate) => candidate.id === result.packet!.id), false);
+});
+
+test("capture rejects serialized-dump titles and bodies on every path (not just strictCitations)", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo" }), "utf8");
+
+  // Dump TITLE, no strictCitations — this is the auto-distill / observation path that
+  // previously slipped 300KB blobs into storage. Must now be blocked.
+  const dumpTitle = capture({
+    projectDir: project,
+    title: 'Runbook: {"interrupted": false, "isImage": false}',
+    body: "Body text describing a thing.",
+    type: "runbook",
+    paths: ["package.json"],
+  });
+  assert.equal(dumpTitle.ok, false);
+  assert.match(dumpTitle.errors[0], /raw transcript|dump|durable learning/i);
+
+  // Clean title, but the BODY is an oversized dump (the shell-prompt-paste case whose title
+  // didn't match the old title-only check).
+  const dumpBody = capture({
+    projectDir: project,
+    title: "Publish notes",
+    body: "y".repeat(20000),
+    type: "runbook",
+    paths: ["package.json"],
+  });
+  assert.equal(dumpBody.ok, false);
+
+  // A real, concise learning still goes through unchanged.
+  const ok = capture({
+    projectDir: project,
+    title: "Run the test suite",
+    body: "Run npm test from the mcp directory; it builds first, then runs node --test over dist.",
+    type: "runbook",
+    paths: ["package.json"],
+  });
+  assert.equal(ok.ok, true);
+});
+
+test("gc deletes serialized-dump packets that predate the capture guard", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo" }), "utf8");
+
+  const legit = capture({
+    projectDir: project,
+    title: "Legit runbook",
+    body: "Run npm test to validate changes.",
+    type: "runbook",
+    paths: ["package.json"],
+  });
+  assert.equal(legit.ok, true);
+
+  // Simulate a legacy dump packet written before the guard existed by writing it directly
+  // to disk (bypassing capture). gc must reclaim it.
+  const base = JSON.parse(readFileSync(legit.path!, "utf8"));
+  const dumpPacket = { ...base, id: "dump-legacy-id", title: 'Workflow: {"file": {"content": "x"}}', body: "z".repeat(50000) };
+  const dumpPath = join(packetsDir(project), "dump-legacy.json");
+  writeFileSync(dumpPath, JSON.stringify(dumpPacket), "utf8");
+
+  const gc = gcProject(project);
+  assert.ok(gc.deleted.some((p) => /^Workflow: \{/.test(p.title)), "dump packet is deleted");
+  assert.equal(existsSync(dumpPath), false, "dump file removed from disk");
+  assert.equal(existsSync(legit.path!), true, "real packet is untouched");
+});
+
+test("queryGraph filters and clamps oversized/dump edge facts so one edge cannot bloat context", () => {
+  const project = tempProject();
+  const dumpFact = "x".repeat(200000);
+  const longFact = `deploy ${"y".repeat(1000)}`;
+  const graphFixture = {
+    schema_version: 1 as const,
+    project_dir: project,
+    repo_key: "test",
+    generated_from_updated_at: null,
+    repo_state: { branch: null, head: null, merge_base: null, tree: null, input_hash: null },
+    episodes: [],
+    entities: [
+      { id: "e1", type: "file" as any, name: "deploy", aliases: [], summary: "deploy runbook", first_seen_at: "2026-01-01T00:00:00Z", last_seen_at: "2026-01-01T00:00:00Z", evidence: [] },
+      { id: "e2", type: "file" as any, name: "deploy target", aliases: [], summary: "", first_seen_at: "2026-01-01T00:00:00Z", last_seen_at: "2026-01-01T00:00:00Z", evidence: [] },
+    ],
+    edges: [
+      { id: "dump", from: "e1", to: "e2", relation: "deploy", fact: dumpFact, confidence: 1, valid_from: "2026-01-01T00:00:00Z", invalidated_at: null, branch: null, commit: null, evidence: ["deploy"] },
+      { id: "long", from: "e1", to: "e2", relation: "deploy", fact: longFact, confidence: 1, valid_from: "2026-01-01T00:00:00Z", invalidated_at: null, branch: null, commit: null, evidence: ["deploy"] },
+      { id: "good", from: "e1", to: "e2", relation: "deploy", fact: "Deploy with npm run deploy after building.", confidence: 1, valid_from: "2026-01-01T00:00:00Z", invalidated_at: null, branch: null, commit: null, evidence: ["deploy.sh"] },
+    ],
+  };
+
+  const res = queryGraph(project, "deploy", 5, graphFixture);
+  assert.ok(res.context_block.length < 5000, `graph context stayed bounded (was ${res.context_block.length})`);
+  assert.ok(!res.context_block.includes(dumpFact), "the raw 200k dump fact is filtered out entirely");
+  assert.ok(!res.context_block.includes("y".repeat(400)), "the long fact is clamped, not dumped whole");
+  assert.ok(res.context_block.includes("npm run deploy"), "the real, concise fact survives");
 });
 
 test("pr summarize and check make merge-time memory health explicit", () => {

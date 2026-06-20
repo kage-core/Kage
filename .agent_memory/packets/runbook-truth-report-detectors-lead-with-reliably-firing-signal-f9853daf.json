@@ -30,12 +30,12 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-15T21:58:15.830Z",
+    "last_verified_at": "2026-06-19T13:59:26.397Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
-        "size": 844113,
+        "sha256": "f28324ed873b19cfa023b54a5f749c6e271d85b80b13e4302b3636b3abe676eb",
+        "size": 856035,
         "symbols": [
           {
             "name": "verified",
@@ -50,7 +50,7 @@
           {
             "name": "truthreport",
             "kind": "function",
-            "sha256": "7bc85694125a3971d9f161c4c029d90e2a12ac26c337613912a41aa3b44cb27e"
+            "sha256": "e036d75134eed78ba2e1f3acc4c97ef2549ffe9838c00a6b17e0d9888968e8d4"
           },
           {
             "name": "centrality",
@@ -96,8 +96,8 @@
       },
       {
         "path": "mcp/cli.ts",
-        "sha256": "a670bc601e227372c9ab3e862f4e25fa87ae4bfa90b63c3bbc61032d332da0d7",
-        "size": 114201,
+        "sha256": "71a8ba94e3be3f845c0ea955393db2402849dd1c96569aefe5c20356d443a777",
+        "size": 115942,
         "symbols": [
           {
             "name": "report",
@@ -133,14 +133,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 244,
-    "reverified_at": "2026-06-15T21:58:15.830Z",
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: mcp/kernel.ts"
-    ],
-    "suggested_action": "update"
+    "reverified_at": "2026-06-19T13:59:26.397Z"
   },
   "created_at": "2026-06-15T11:52:31.131Z",
-  "updated_at": "2026-06-19T13:57:42.729Z",
+  "updated_at": "2026-06-19T13:59:26.397Z",
   "author_branch": "master"
 }

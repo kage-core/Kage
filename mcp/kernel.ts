@@ -9300,6 +9300,14 @@ export function gcProject(projectDir: string, options: { dryRun?: boolean; force
       skipped.push({ id: packet.id, title: packet.title, reason: "already deprecated" });
       continue;
     }
+    // Serialized transcript / tool-output / file-content dumps carry no durable knowledge
+    // and bloat recall + the graph. Always delete them (deprecating would leave the blob on
+    // disk) — this also reclaims legacy dumps written before the capture-time guard existed.
+    if (isSerializedDumpTitle(packet.title) || isSerializedDumpBody(packet.body)) {
+      if (!options.dryRun) unlinkSync(path);
+      deleted.push({ id: packet.id, title: packet.title });
+      continue;
+    }
     const reasons = staleMemoryReasons(projectDir, packet);
     if (!reasons.length) {
       skipped.push({ id: packet.id, title: packet.title, reason: "healthy" });
@@ -10338,6 +10346,40 @@ function isSerializedDumpTitle(title: string): boolean {
     || /\btool_use_id\b|toolu_[A-Za-z0-9]{10}/.test(title);
 }
 
+// Durable-learning size ceiling. A memory packet body is a distilled insight, not a
+// document; anything past this is almost certainly a raw transcript, file-content, or
+// tool-output dump. Env-overridable for unusual repos.
+const MAX_PACKET_BODY_CHARS = positiveIntEnv("KAGE_MAX_PACKET_BODY_CHARS", 16000);
+
+// Body-level counterpart to isSerializedDumpTitle: catches raw transcript, serialized
+// tool-output, or file-content dumps that arrive as a packet/edge body even when the
+// title was massaged into something innocuous (e.g. a shell-prompt paste). The byte cap
+// alone catches the rest — a 300KB "learning" is never knowledge.
+function isSerializedDumpBody(body: string): boolean {
+  const t = (body ?? "").trimStart();
+  if (!t) return false;
+  if (t.length > MAX_PACKET_BODY_CHARS) return true;
+  return isSerializedDumpTitle(t)
+    || /<task-notification\b|<tool-use-id\b|"hookSpecificOutput"|"isImage"\s*:|"noOutputExpected"\s*:|"interrupted"\s*:\s*(true|false)/i.test(t.slice(0, 4000));
+}
+
+// Collapse whitespace and hard-cap a value rendered inline in a context block, so one
+// oversized field (e.g. a graph fact whose body is a raw transcript) can never blow up
+// the assembled output — the 270k-char overflow that motivated this guard.
+function clampInline(text: string, max = 280): string {
+  const oneLine = (text ?? "").replace(/\s+/g, " ").trim();
+  if (oneLine.length <= max) return oneLine;
+  return `${oneLine.slice(0, max)}… [+${oneLine.length - max} chars truncated]`;
+}
+
+// Like clampInline but preserves newlines — for multi-line blocks (git diff stats, packet
+// bodies shown in diagnostics) where line structure carries meaning.
+function clampBlock(text: string, max: number): string {
+  const t = (text ?? "").trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max)}\n… [+${t.length - max} chars truncated]`;
+}
+
 function recallWithVectorScores(projectDir: string, query: string, limit = 5, explain = false, inputs: GraphInputs = {}, externalVectorScores?: Map<string, VectorScore>): RecallResult {
   const current = inputs.codeGraph && inputs.knowledgeGraph ? null : readCurrentGraphs(projectDir);
   const detailedIndex = inputs.codeGraph && inputs.knowledgeGraph || current ? null : indexProjectDetailed(projectDir);
@@ -10489,7 +10531,7 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
     ]),
     "",
     graphContext.edges.length ? "## Related Graph Facts" : "",
-    ...graphContext.edges.slice(0, 5).map((edge, index) => `${index + 1}. ${edge.fact} (evidence: ${edge.evidence.join(", ")})`),
+    ...graphContext.edges.slice(0, 5).map((edge, index) => `${index + 1}. ${clampInline(edge.fact)} (evidence: ${clampInline(edge.evidence.join(", "), 200)})`),
     ...(suppressed.length
       ? [
           "",
@@ -14646,7 +14688,9 @@ export function queryGraph(projectDir: string, query: string, limit = 10, graph?
       const temporalPenalty = edge.invalidated_at ? -4 : 0;
       return { edge, score: textScore + graphScore + evidenceScore + temporalPenalty };
     })
-    .filter((entry) => entry.score > 0)
+    // Serialized transcript / tool-output / file-content dumps are capture noise, not
+    // facts. Keep them out of the graph context so one raw edge can't dominate the output.
+    .filter((entry) => entry.score > 0 && !isSerializedDumpBody(entry.edge.fact))
     .sort((a, b) => b.score - a.score || a.edge.fact.localeCompare(b.edge.fact))
     .slice(0, limit)
     .map((entry) => entry.edge);
@@ -14659,7 +14703,8 @@ export function queryGraph(projectDir: string, query: string, limit = 10, graph?
     `Query: ${query}`,
     "",
     edges.length ? "## Facts" : "No related graph facts found.",
-    ...edges.map((edge, index) => `${index + 1}. ${edge.fact}\n   Relation: ${edge.relation}\n   Evidence: ${edge.evidence.join(", ")}`),
+    // Clamp every field: a fact is a one-liner, never a document.
+    ...edges.map((edge, index) => `${index + 1}. ${clampInline(edge.fact)}\n   Relation: ${clampInline(edge.relation, 80)}\n   Evidence: ${clampInline(edge.evidence.join(", "), 200)}`),
   ];
 
   return {
@@ -16277,13 +16322,16 @@ export function capture(input: CaptureInput): CaptureResult {
     return { ok: false, errors: [`Invalid memory type: ${type}`] };
   }
 
-  // Reject raw transcript / serialized tool-output dumps from agent-facing capture — these
-  // are observation noise, not durable knowledge, and they pollute recall. Recall filters
-  // them as a safety net (isSerializedDumpTitle); this stops them at the source.
-  if (input.strictCitations && isSerializedDumpTitle(input.title)) {
+  // Reject raw transcript / serialized tool-output / file-content dumps at the source.
+  // This fires on EVERY capture path, not just strictCitations: the auto-distill /
+  // observation pipeline (distillSession) calls capture()/learn() without strictCitations,
+  // which is exactly how the 300KB dumps got in and then bloated recall and the graph.
+  // Title OR body trips it — a massaged title (e.g. a shell-prompt paste) won't sneak a
+  // dump past the title check. Recall + graph filtering is the safety net; this is the gate.
+  if (isSerializedDumpTitle(input.title) || isSerializedDumpBody(input.body)) {
     return {
       ok: false,
-      errors: ["Capture blocked: the title looks like a raw transcript or serialized tool output, not a durable learning. Summarize the insight in a short, human-readable title."],
+      errors: ["Capture blocked: this looks like a raw transcript, serialized tool output, or file-content dump, not a durable learning. Summarize the insight in a short, human-readable title and a concise body."],
     };
   }
 
@@ -17386,6 +17434,8 @@ export function observationSignalScore(
 function reusableFileObservation(event: ObservationRecord): string {
   const text = `${event.summary ?? ""}\n${event.text ?? ""}`.trim();
   if (!text) return "";
+  // A captured file diff / file content blob is not a learning — skip it outright.
+  if (isSerializedDumpBody(text)) return "";
   const lower = text.toLowerCase();
   const generic = [
     "file changed",
@@ -17425,7 +17475,7 @@ function reusableFileObservation(event: ObservationRecord): string {
     "bug",
     "test",
   ];
-  return durableSignals.some((signal) => lower.includes(signal)) ? text : "";
+  return durableSignals.some((signal) => lower.includes(signal)) ? clampInline(text, 1200) : "";
 }
 
 function normalizeCommandText(command: string): string {
@@ -17446,6 +17496,8 @@ function reusableCommandObservation(event: ObservationRecord, knownCommands: Set
   const command = normalizeCommandText(event.command ?? "");
   if (!command) return null;
   const summary = `${event.summary ?? ""}\n${event.text ?? ""}`.trim();
+  // A raw stdout/stderr dump is not a reusable command learning — skip it.
+  if (isSerializedDumpBody(summary)) return null;
   const lower = summary.toLowerCase();
   const known = knownCommands.has(command);
   const commandLooksUseful = /^(npm|pnpm|yarn|bun|npx|node|vitest|jest|pytest|cargo|go test|make|uv|ruff|mypy|tsc)\b/.test(command);
@@ -17472,13 +17524,15 @@ function reusableCommandObservation(event: ObservationRecord, knownCommands: Set
   const hasSpecialArgs = /\s--|:[A-Za-z0-9._/-]+|\s[A-Za-z0-9._/-]*test[A-Za-z0-9._/-]*/.test(command.replace(/^npm run [^ ]+$/, ""));
   if (known && !hasDurableSignal && event.exit_code === 0) return null;
   if (!known && !hasDurableSignal && !hasSpecialArgs && event.exit_code === 0) return null;
-  const learning = summary || `Use ${command}.`;
+  const learning = clampInline(summary, 1200) || `Use ${command}.`;
   return { command, learning };
 }
 
 function reusablePromptObservation(event: ObservationRecord): string {
   const text = `${event.summary ?? ""}\n${event.text ?? ""}`.trim();
   if (!text) return "";
+  // A pasted transcript / tool-notification block is not an intent learning — skip it.
+  if (isSerializedDumpBody(text)) return "";
   const lower = text.toLowerCase();
   const durableSignals = [
     "remember",
@@ -18103,11 +18157,16 @@ export function kageResume(projectDir: string): ResumeReport {
     });
   }
 
+  // Lead the SessionStart injection with the team's pinned, always-on repo memory (the
+  // curated high-signal facts), not just the recent-timeline digest — parity with recall's
+  // context block, so a new session starts already holding the key knowledge, not only a
+  // usage policy.
+  const pinnedBlock = renderPinnedRepoContext(readContextSlots(projectDir));
   return {
     schema_version: 1,
     project_dir: projectDir,
     generated_at: nowIso(),
-    has_content: hasContent,
+    has_content: hasContent || Boolean(pinnedBlock),
     last_session: lastSession,
     last_change_memory: lastChangeMemory,
     pending_auto_distilled: pendingAutoDistilled,
@@ -18115,7 +18174,7 @@ export function kageResume(projectDir: string): ResumeReport {
     ...(pendingAutoDistilled ? { review_command: `kage review --project ${projectDir}` } : {}),
     reconciliation: { unresolved_count: reconciliation.unresolved_count, items: reconciliationItems },
     recent_memory: recentMemory,
-    context_block: block.join("\n"),
+    context_block: [pinnedBlock, block.join("\n")].filter((part) => part && part.trim()).join("\n\n"),
   };
 }
 
@@ -18160,7 +18219,9 @@ function createDiffChangeMemory(projectDir: string, summary: BranchReviewSummary
     "",
     "Diff summary:",
     "```text",
-    summary.diff_stat.trim(),
+    // Clamp the diff stat: a huge diff would otherwise produce a dump-sized change-memory
+    // body. This path builds the packet directly (not via capture()), so bound it here.
+    clampBlock(summary.diff_stat, 4000),
     "```",
     "",
     "How to verify:",
@@ -18887,7 +18948,8 @@ function recallFromPackets(query: string, packets: MemoryPacket[], limit: number
       "",
       packet.summary,
       "",
-      packet.body,
+      // Diagnostic sample only — clamp the body so an oversized packet can't bloat output.
+      clampBlock(packet.body, 1500),
     ].join("\n");
   });
 
@@ -20167,6 +20229,15 @@ export function capturePersonal(input: CaptureInput): CaptureResult {
   const type = input.type ?? "reference";
   if (!MEMORY_TYPES.includes(type)) {
     return { ok: false, errors: [`Invalid memory type: ${type}`] };
+  }
+  // Same dump guard as repo capture(): a raw transcript / tool-output / file-content dump
+  // is never a durable learning, and personal memory syncs to a remote, so junk here is
+  // worse, not better.
+  if (isSerializedDumpTitle(input.title) || isSerializedDumpBody(input.body)) {
+    return {
+      ok: false,
+      errors: ["Capture blocked: this looks like a raw transcript, serialized tool output, or file-content dump, not a durable learning. Summarize the insight in a short, human-readable title and a concise body."],
+    };
   }
   // Personal memory syncs to a remote, so the secret scan matters MORE here, not less.
   const scanFindings = scanSensitiveText([input.title, input.summary ?? "", input.body].join("\n"));

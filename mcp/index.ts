@@ -1259,10 +1259,11 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     const validationText = validation.ok
       ? "Memory healthy."
       : `Warnings: ${validation.warnings.join("; ")}`;
-    // recall (memory + code graph + knowledge graph combined)
+    // recall already includes the code graph + knowledge-graph facts (its "## Related Graph
+    // Facts" section). We deliberately do NOT query the graph a second time here: doing so
+    // emitted a near-duplicate dump of the same edges which, with no size cap, blew
+    // kage_context past 270k chars and overflowed the response.
     const recallResult = recall(projectDir, query, limit, false);
-    // graph facts on top of recall
-    const graphResult = queryGraph(projectDir, query, 5);
     const explicitTargets = [...arrayArg(args?.targets), ...filePathHints(query)];
     const changedFiles = arrayArg(args?.changed_files);
     const riskResult = explicitTargets.length || changedFiles.length ? kageRisk(projectDir, explicitTargets, changedFiles) : null;
@@ -1285,23 +1286,27 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     const learningLedger = typeof args?.session_id === "string" && args.session_id.trim()
       ? kageSessionLearningLedger(projectDir, { sessionId: args.session_id, limit: 20 })
       : null;
-    const sections = [
+    const body = [
       recallResult.context_block,
       teammateBrief.context_block,
       learningLedger ? learningLedger.context_block : "",
-      graphResult.context_block ? `\n## Graph Facts\n${graphResult.context_block}` : "",
       riskResult ? riskContextBlock(riskResult) : "",
       dependencyResult ? `\n## Dependency Path\n${dependencyResult.summary}${dependencyResult.path.length ? `\nPath: ${dependencyResult.path.join(" -> ")}` : ""}` : "",
       reconciliation.unresolved_count ? `\n## Memory Reconciliation\n${reconciliation.agent_instruction}` : "",
       `\n_${validationText}_`,
-      // Visible receipt: surface what the harness saved today so agents relay it.
-      (() => {
-        const gains = valueSummary(projectDir).today;
-        return `\n\nGains: ~${formatTokenCount(gains.tokens_saved)} tokens saved this session · stale memories withheld: ${gains.stale_withheld}`;
-      })(),
     ].filter(Boolean).join("");
+    // Visible receipt: surface what the harness saved today so agents relay it. Kept
+    // outside the size cap so it always survives.
+    const gains = valueSummary(projectDir).today;
+    const gainsLine = `\n\nGains: ~${formatTokenCount(gains.tokens_saved)} tokens saved this session · stale memories withheld: ${gains.stale_withheld}`;
+    // Backstop: per-field clamping + graph dedup keep this compact in practice, but never
+    // let a pathological repo overflow the MCP response again. ~24k chars ≈ 6k tokens.
+    const MAX_CONTEXT_CHARS = 24000;
+    const cappedBody = body.length > MAX_CONTEXT_CHARS
+      ? `${body.slice(0, MAX_CONTEXT_CHARS)}\n\n_…kage_context truncated to keep the response within limits; narrow your query for more specific memory._`
+      : body;
     return {
-      content: [{ type: "text", text: sections }],
+      content: [{ type: "text", text: `${cappedBody}${gainsLine}` }],
     };
   }
 
