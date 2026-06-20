@@ -21,9 +21,7 @@
   "paths": [
     "mcp/kernel.ts",
     "mcp/cli.ts",
-    "mcp/index.ts",
-    "docs/kage-vs-claude-mem.md",
-    "launch/compare-claude-mem.md"
+    "mcp/index.ts"
   ],
   "stack": [],
   "source_refs": [
@@ -39,12 +37,12 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-15T21:58:31.585Z",
+    "last_verified_at": "2026-06-20T12:09:27.760Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
-        "size": 844113,
+        "sha256": "d312499b5646e0a66e9ef329b56515626d0262a14bc33c3afd51e6c482a642ec",
+        "size": 861489,
         "symbols": [
           {
             "name": "agents_policy",
@@ -60,6 +58,11 @@
             "name": "verification",
             "kind": "constant",
             "sha256": "faeb54eb75a6e60ebcab087f39fdd9f971c8a3a16e25846647ab2dd5802748f3"
+          },
+          {
+            "name": "direct",
+            "kind": "constant",
+            "sha256": "853c29ac28fd41bb1a34289263ae3eabfaf28b886b3f7c125769cd1b80cf6b94"
           },
           {
             "name": "truthscorecardsvg",
@@ -85,8 +88,8 @@
       },
       {
         "path": "mcp/cli.ts",
-        "sha256": "a670bc601e227372c9ab3e862f4e25fa87ae4bfa90b63c3bbc61032d332da0d7",
-        "size": 114201,
+        "sha256": "71a8ba94e3be3f845c0ea955393db2402849dd1c96569aefe5c20356d443a777",
+        "size": 115942,
         "symbols": [
           {
             "name": "index",
@@ -112,8 +115,8 @@
       },
       {
         "path": "mcp/index.ts",
-        "sha256": "d5abac0cb8d92d9074ae37a32ee515da8b03c43fe2d1a03d44447ee7b3493861",
-        "size": 69453,
+        "sha256": "7347b408c41d2eb2e9b6b8929098b4cbf2d70bf63fd75ad7b9d9f80c4ba1fe58",
+        "size": 74677,
         "symbols": [
           {
             "name": "index",
@@ -123,7 +126,7 @@
           {
             "name": "gains",
             "kind": "constant",
-            "sha256": "6ead44231b8d89b472e3f16d82948ef49ab2189cf72644b0cf1f5bd72bab4147"
+            "sha256": "f1d801ddc8d3cecd2971dc54faf9a98ccc489baeca14cb0b1d9ea6763e239fdb"
           },
           {
             "name": "receipt",
@@ -131,16 +134,6 @@
             "sha256": "14d180864a23d0a4b567585d787f486a8228a091d06ae18ac123027f2b6f6494"
           }
         ]
-      },
-      {
-        "path": "docs/kage-vs-claude-mem.md",
-        "sha256": "b99409e46f7fe8922b9d07bd8835fe84832f56e3c89d4346c9076a460c97fc37",
-        "size": 4356
-      },
-      {
-        "path": "launch/compare-claude-mem.md",
-        "sha256": "9efb7e70f2e18d5e3aaa4d13aa135188789fc846d608164bc5a8ecd3a947f6a0",
-        "size": 6091
       }
     ],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -169,15 +162,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 222,
-    "reverified_at": "2026-06-15T21:58:31.585Z",
-    "stale": true,
-    "stale_reasons": [
-      "some referenced paths are missing: docs/kage-vs-claude-mem.md, launch/compare-claude-mem.md",
-      "linked path changed since memory was verified: mcp/index.ts"
-    ],
-    "suggested_action": "update"
+    "reverified_at": "2026-06-20T12:09:27.760Z"
   },
   "created_at": "2026-06-15T21:24:40.465Z",
-  "updated_at": "2026-06-20T11:30:44.034Z",
+  "updated_at": "2026-06-20T12:09:27.760Z",
   "author_branch": "master"
 }

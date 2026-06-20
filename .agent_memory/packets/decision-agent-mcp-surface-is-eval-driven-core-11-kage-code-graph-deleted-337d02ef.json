@@ -35,12 +35,12 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-19T06:50:53.668Z",
+    "last_verified_at": "2026-06-20T12:06:04.661Z",
     "path_fingerprints": [
       {
         "path": "mcp/index.ts",
-        "sha256": "17f98901f89221e82477ffa2e859255d9b4c2267bd5d29a8cd9bcc215225774a",
-        "size": 74099,
+        "sha256": "7347b408c41d2eb2e9b6b8929098b4cbf2d70bf63fd75ad7b9d9f80c4ba1fe58",
+        "size": 74677,
         "symbols": [
           {
             "name": "core_tools",
@@ -55,7 +55,7 @@
           {
             "name": "calltool",
             "kind": "function",
-            "sha256": "87a6ef6bc62a00ba9d50c5a20cfba1b80a75677206b3c461097eb8936154309d"
+            "sha256": "36da7a5234cce01e99d059492b2185fe3be552a8da02a473656ff414773a91c8"
           },
           {
             "name": "index",
@@ -128,14 +128,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 326,
-    "reverified_at": "2026-06-19T06:50:53.668Z",
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: mcp/index.ts"
-    ],
-    "suggested_action": "update"
+    "reverified_at": "2026-06-20T12:06:04.661Z"
   },
   "created_at": "2026-06-14T19:09:09.960Z",
-  "updated_at": "2026-06-20T11:30:44.021Z",
+  "updated_at": "2026-06-20T12:06:04.661Z",
   "author_branch": "master"
 }
