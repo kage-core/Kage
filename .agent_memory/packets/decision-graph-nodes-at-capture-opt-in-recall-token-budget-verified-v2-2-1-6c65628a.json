@@ -134,9 +134,14 @@
       }
     ],
     "estimated_tokens_saved": 74,
-    "reverified_at": "2026-06-19T13:59:25.859Z"
+    "reverified_at": "2026-06-19T13:59:25.859Z",
+    "stale": true,
+    "stale_reasons": [
+      "linked path changed since memory was verified: mcp/kernel.ts"
+    ],
+    "suggested_action": "update"
   },
   "created_at": "2026-06-12T12:48:51.115Z",
-  "updated_at": "2026-06-19T13:59:25.859Z",
+  "updated_at": "2026-06-20T11:30:44.026Z",
   "author_branch": "master"
 }

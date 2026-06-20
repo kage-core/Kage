@@ -217,11 +217,11 @@
     "stale": true,
     "stale_reasons": [
       "packet status is superseded",
-      "linked path changed since memory was verified: mcp/kernel.ts"
+      "linked path changed since memory was verified: mcp/kernel.ts, mcp/index.ts"
     ],
     "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-04T16:01:03.630Z",
-  "updated_at": "2026-06-19T13:57:42.716Z",
+  "updated_at": "2026-06-20T11:30:44.025Z",
   "author_branch": "master"
 }
