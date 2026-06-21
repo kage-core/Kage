@@ -2,8 +2,6 @@
 # Kage PreToolUse(Read) hook — injects verified file-linked memory right before the agent reads a file.
 # Only currently-verified packets (citations checked, not stale) are ever injected.
 # Silent if Kage is not initialized in the current project. Never blocks the Read.
-# Mirrors the script written by `kage setup claude-code` (kernel.ts setupAgent);
-# keep the two in sync when editing.
 set -euo pipefail
 
 PAYLOAD="$(cat || true)"

@@ -4313,10 +4313,19 @@ export function evaluateMemoryAdmission(projectDir: string, packet: MemoryPacket
     score -= 10;
     risks.push("too little context");
   }
+  // Ungrounded conversational chatter (a path-less, repo-reference-free user outburst) is not
+  // durable memory regardless of its other signals — keywords like "issue"/"before" can
+  // otherwise score it as a candidate. Hard-block admission so it can never auto-promote.
+  if (isUngroundedConversationalCapture(packet)) {
+    score -= 45;
+    risks.push("ungrounded conversational utterance, not durable knowledge");
+  }
 
   const bounded = Math.max(0, Math.min(100, score));
   return {
-    admit: bounded >= 45 && risks.indexOf("session bookkeeping, not durable knowledge") === -1,
+    admit: bounded >= 45
+      && risks.indexOf("session bookkeeping, not durable knowledge") === -1
+      && risks.indexOf("ungrounded conversational utterance, not durable knowledge") === -1,
     class: bounded >= 72 ? "high_signal" : bounded >= 45 ? "candidate" : "episodic_only",
     score: bounded,
     reasons,
@@ -10373,6 +10382,60 @@ function isSerializedDumpBody(body: string): boolean {
     || /<task-notification\b|<tool-use-id\b|"hookSpecificOutput"|"isImage"\s*:|"noOutputExpected"\s*:|"interrupted"\s*:\s*(true|false)/i.test(t.slice(0, 4000));
 }
 
+// Repo grounding signals — does the text point at something concrete in the codebase? These
+// three predicates are the shared vocabulary for "grounded": observationSignalScore weights
+// them into its durable-knowledge score, and the ungrounded-utterance guard uses their union
+// to decide whether a path-less capture references the repo at all. Kept as one source of
+// truth so the scorer and the guard can never drift on what "grounded" means.
+function textCitesPath(text: string): boolean {
+  return /\b[\w.-]+\/[\w./-]+\b/.test(text)
+    || /\b[\w-]+\.(ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|rb|json|ya?ml|toml|md|sh|css|html|sql)\b/i.test(text);
+}
+function textHasCodeIdentifier(text: string): boolean {
+  return /\b[a-z][a-z0-9]*[A-Z]\w*\b/.test(text) // camelCase
+    || /\b[a-z0-9]+_[a-z0-9_]+\b/.test(text) // snake_case
+    || /`[^`]+`/.test(text)
+    || /\b\w+\(\)/.test(text);
+}
+function textHasCommand(text: string): boolean {
+  return /(^|\s)(npm|pnpm|yarn|npx|node|git|cargo|make|pytest|go|tsc|kage)\s+[\w.-]/.test(text);
+}
+function hasRepoGroundingSignal(text: string): boolean {
+  const t = text ?? "";
+  if (!t.trim()) return false;
+  return textCitesPath(t) || textHasCodeIdentifier(t) || textHasCommand(t);
+}
+
+// A raw conversational user utterance: a frustrated/rhetorical/imperative chat message aimed
+// at the agent — e.g. "why are you asking me???!!! it's your job, don't stop before you...".
+// It is plain prose, so the serialized-dump guard waves it through, yet it is chatter, not
+// durable repo knowledge. Detection is deliberately narrow — a run of emphatic terminal
+// punctuation, or one of a curated set of rhetorical / second-person-at-the-assistant
+// phrases — so it stays clear of normal declarative learnings (which read as statements, not
+// outbursts addressed to "you").
+function looksLikeRawUserUtterance(text: string): boolean {
+  const t = (text ?? "").trim();
+  if (!t) return false;
+  // Emphatic or mixed terminal punctuation ("???", "!!", "?!") — common in venting chat,
+  // essentially absent from curated memory prose.
+  if (/[!?]{2,}/.test(t)) return true;
+  // Rhetorical questions / second-person-imperative frustration directed at the assistant.
+  return /\b(why are you|why did you|why would you|why aren'?t you|are you (kidding|serious|even|really)|it'?s your job|that'?s your job|do your job|don'?t stop|stop asking|stop before you|keep going|hurry up|just do it|figure it out yourself|i (already )?told you)\b/i.test(t);
+}
+
+// Capture-noise guard for ungrounded chat. A packet trips it only when ALL hold: it cites zero
+// repo paths, its text carries no repo grounding signal (no path/file/identifier/command), and
+// it reads as a raw conversational user utterance. The conjunction is what keeps it safe — a
+// real ungrounded decision or convention names a symbol, file, command, or rule and so is never
+// caught. Such packets are routed to pending (not auto-approved) at capture time and withheld
+// from recall, mirroring how serialized dumps are gated.
+export function isUngroundedConversationalCapture(packet: Pick<MemoryPacket, "title" | "body" | "paths">): boolean {
+  if (packet.paths && packet.paths.length > 0) return false;
+  const text = `${packet.title ?? ""}\n${packet.body ?? ""}`;
+  if (hasRepoGroundingSignal(text)) return false;
+  return looksLikeRawUserUtterance(text);
+}
+
 // Collapse whitespace and hard-cap a value rendered inline in a context block, so one
 // oversized field (e.g. a graph fact whose body is a raw transcript) can never blow up
 // the assembled output — the 270k-char overflow that motivated this guard.
@@ -10458,7 +10521,7 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
       ];
       return { packet, score: score_breakdown.final, relevance, why_matched: unique(why).slice(0, 12), score_breakdown };
     })
-    .filter((entry) => entry.relevance > 0 && !isSerializedDumpTitle(entry.packet.title))
+    .filter((entry) => entry.relevance > 0 && !isSerializedDumpTitle(entry.packet.title) && !isUngroundedConversationalCapture(entry.packet))
     .sort((a, b) => b.score - a.score || a.packet.title.localeCompare(b.packet.title));
   const scored = diversifyRecallEntries(rankedScored, limit)
     .map(({ relevance, ...entry }) => entry);
@@ -10470,7 +10533,7 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
       const { score, why } = pendingLexicalScores.get(packet.id) ?? { score: 0, why: [] };
       return { packet, score, why_matched: why };
     })
-    .filter((entry) => entry.score > 0)
+    .filter((entry) => entry.score > 0 && !isUngroundedConversationalCapture(entry.packet))
     .sort((a, b) => b.score - a.score || a.packet.title.localeCompare(b.packet.title))
     .filter((entry) => {
       const key = `${entry.packet.type}:${entry.packet.title.toLowerCase()}:${entry.packet.paths.join(",")}`;
@@ -16386,6 +16449,23 @@ export function capture(input: CaptureInput): CaptureResult {
     warnings.push(`Some referenced paths do not exist in this repo: ${missingPaths.join(", ")}`);
   }
 
+  // Ungrounded conversational chatter — a frustrated/rhetorical user message with no cited repo
+  // paths — is not durable memory. Don't hard-reject (a reviewer may still salvage it); instead
+  // deny it the auto-approve fast path so it lands in the pending inbox, tagged with why. Recall
+  // withholds it regardless of status. Explicit pendingReview captures already route to review.
+  const ungroundedUtterance = isUngroundedConversationalCapture({
+    title: input.title,
+    body: input.body,
+    paths: groundedPaths,
+  });
+  const routeToPending = Boolean(input.pendingReview) || ungroundedUtterance;
+  if (ungroundedUtterance && !input.pendingReview) {
+    warnings.push(
+      "Routed to pending review: this reads as an ungrounded conversational message with no cited repo paths, " +
+        "not a durable learning. Cite a repo path or restate it as a reusable insight to approve it.",
+    );
+  }
+
   const createdAt = nowIso();
   // Agent-asserted links to code-graph nodes (PRD `graph_nodes`): the agent recording the
   // memory knows which symbol/route/file the rule is about, so let it declare them instead
@@ -16404,9 +16484,9 @@ export function capture(input: CaptureInput): CaptureResult {
     scope: "repo",
     visibility: "team",
     sensitivity: "internal",
-    status: input.pendingReview ? "pending" : "approved",
+    status: routeToPending ? "pending" : "approved",
     confidence: DEFAULT_CONFIDENCE,
-    tags: input.tags ?? [],
+    tags: ungroundedUtterance ? unique([...(input.tags ?? []), "needs-grounding"]) : (input.tags ?? []),
     paths: groundedPaths,
     stack: input.stack ?? [],
     source_refs: [
@@ -16470,7 +16550,7 @@ export function capture(input: CaptureInput): CaptureResult {
     ...evaluateMemoryQuality(input.projectDir, packet),
     ...(contradictions.length ? { contradicts: contradictions.map((c) => c.packet_id) } : {}),
   };
-  const path = writePacket(input.projectDir, packet, input.pendingReview ? "pending" : "packets");
+  const path = writePacket(input.projectDir, packet, routeToPending ? "pending" : "packets");
   recordMemoryAudit(input.projectDir, "capture", [packet], {
     type: packet.type,
     status: packet.status,
@@ -17045,6 +17125,63 @@ exit 0
   return result;
 }
 
+// Single source of truth for Claude Code hooks. The plugin's hook scripts and hooks.json are
+// GENERATED from the exact same setupAgent("claude-code") output the npm install path writes —
+// so a hook fix lands in both channels and they can't silently drift. The hook scripts call the
+// kage CLI and never reference their own location, so the same bodies serve both the ~/.claude
+// install and the plugin; only the wiring's command path is re-targeted to ${CLAUDE_PLUGIN_ROOT}.
+// Run via `kage gen-plugin-hooks`; a unit test asserts the committed plugin/hooks match this.
+export function generatePluginHooks(pluginDir: string): { scripts: string[]; removed: string[]; events: string[] } {
+  const tmpHome = mkdtempSync(join(tmpdir(), "kage-plugin-home-"));
+  const tmpProject = mkdtempSync(join(tmpdir(), "kage-plugin-proj-"));
+  try {
+    setupAgent("claude-code", tmpProject, { write: true, homeDir: tmpHome });
+    const srcHookDir = join(tmpHome, ".claude", "kage", "hooks");
+    const settings = JSON.parse(readFileSync(join(tmpHome, ".claude", "settings.json"), "utf8")) as {
+      hooks?: Record<string, Array<{ matcher?: string; hooks: Array<{ type: string; command: string; timeout?: number }> }>>;
+    };
+    const hooksOut = join(pluginDir, "hooks");
+    mkdirSync(hooksOut, { recursive: true });
+
+    // Copy the generated hook scripts verbatim (path-agnostic — they shell out to `kage`).
+    const scripts = readdirSync(srcHookDir).filter((f) => f.endsWith(".sh")).sort();
+    for (const file of scripts) {
+      writeFileSync(join(hooksOut, file), readFileSync(join(srcHookDir, file), "utf8"), { mode: 0o755 });
+    }
+
+    // Re-target the event wiring from the install path's `~/.claude/kage/hooks/` to the plugin's
+    // `${CLAUDE_PLUGIN_ROOT}/hooks/`, preserving events, matchers, and timeouts exactly.
+    const events = Object.keys(settings.hooks ?? {});
+    const pluginHooks: { hooks: Record<string, unknown> } = { hooks: {} };
+    for (const event of events) {
+      pluginHooks.hooks[event] = (settings.hooks ?? {})[event].map((entry) => ({
+        ...(entry.matcher !== undefined ? { matcher: entry.matcher } : {}),
+        hooks: entry.hooks.map((h) => {
+          const m = h.command.match(/^bash ~\/\.claude\/kage\/hooks\/(.+)$/);
+          return {
+            type: h.type,
+            command: m ? `bash "\${CLAUDE_PLUGIN_ROOT}/hooks/${m[1]}"` : h.command,
+            ...(h.timeout !== undefined ? { timeout: h.timeout } : {}),
+          };
+        }),
+      }));
+    }
+    writeFileSync(join(hooksOut, "hooks.json"), `${JSON.stringify(pluginHooks, null, 2)}\n`, "utf8");
+
+    // Drop committed scripts the install path no longer emits (e.g. kage-prompt-context.sh,
+    // now subsumed by observe.sh handling UserPromptSubmit).
+    const removed: string[] = [];
+    for (const stale of readdirSync(hooksOut).filter((f) => f.endsWith(".sh") && !scripts.includes(f))) {
+      unlinkSync(join(hooksOut, stale));
+      removed.push(stale);
+    }
+    return { scripts, removed, events };
+  } finally {
+    rmSync(tmpHome, { recursive: true, force: true });
+    rmSync(tmpProject, { recursive: true, force: true });
+  }
+}
+
 function upsertJsonMcpServer(path: string, name: string, server: { type?: string; command: string; args: string[]; env?: Record<string, string> }): void {
   ensureDir(dirname(path));
   let config: Record<string, unknown> = {};
@@ -17453,17 +17590,11 @@ export function observationSignalScore(
   let score = 0;
   const causalHits = SIGNAL_CAUSAL_MARKERS.filter((marker) => lower.includes(marker)).length;
   if (causalHits > 0) score += Math.min(0.35, 0.25 + (causalHits - 1) * 0.05);
-  const citesPath = Boolean(observation.path)
-    || /\b[\w.-]+\/[\w./-]+\b/.test(prose)
-    || /\b[\w-]+\.(ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|rb|json|ya?ml|toml|md|sh|css|html|sql)\b/i.test(prose);
+  const citesPath = Boolean(observation.path) || textCitesPath(prose);
   if (citesPath) score += 0.2;
-  const codeIdentifier = /\b[a-z][a-z0-9]*[A-Z]\w*\b/.test(prose) // camelCase
-    || /\b[a-z0-9]+_[a-z0-9_]+\b/.test(prose) // snake_case
-    || /`[^`]+`/.test(prose)
-    || /\b\w+\(\)/.test(prose);
+  const codeIdentifier = textHasCodeIdentifier(prose);
   if (codeIdentifier) score += 0.15;
-  const commandLine = Boolean(observation.command)
-    || /(^|\s)(npm|pnpm|yarn|npx|node|git|cargo|make|pytest|go|tsc|kage)\s+[\w.-]/.test(prose);
+  const commandLine = Boolean(observation.command) || textHasCommand(prose);
   if (commandLine) score += 0.15;
   const words = combined.split(/\s+/).filter(Boolean).length;
   if (combined.length >= 80 && words >= 10) score += 0.1;

@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # Kage SessionStart hook — injects full memory policy as a system message.
 # Silent if Kage is not initialized in the current project.
-# Mirrors the script written by `kage setup claude-code` (kernel.ts setupAgent);
-# keep the two in sync when editing.
 set -euo pipefail
 
 CWD="$(cat | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('cwd',''))" 2>/dev/null || echo "")"

@@ -1,5 +1,26 @@
 # Changelog
 
+## v2.5.5 — one source of truth for hooks
+
+- **Plugin hooks are now generated from `setupAgent`.** The Claude Code plugin's
+  hook scripts and `hooks.json` previously drifted from the npm install path —
+  the plugin had no `observe.sh` at all, so plugin users got recall + file-context
+  but none of the ambient observation/auto-distill capture pipeline, and its
+  scripts were stale copies. `kage gen-plugin-hooks` now derives `plugin/hooks/*`
+  from the exact `setupAgent("claude-code")` output the npm path writes (re-targeting
+  command paths to `${CLAUDE_PLUGIN_ROOT}`), so both channels ship identical hooks.
+  A unit test asserts the committed plugin matches the generator, so they can't
+  drift again. Result: plugin installs now get the full memory loop (observe,
+  PostToolUse/PreCompact/SessionEnd/SubagentStop capture, reconcile-on-stop).
+- Removed the plugin-only `kage-prompt-context.sh` (subsumed by `observe.sh`).
+- **Ungrounded-utterance capture guard.** A new `isUngroundedConversationalCapture`
+  check stops raw conversational user outbursts (path-less, repo-reference-free,
+  rhetorical/imperative chat aimed at the assistant) from becoming approved or
+  recallable memory — they route to pending instead. Conjunctive (zero cited
+  paths AND no symbol/file/command/rule reference AND reads as raw chatter), so a
+  legitimate ungrounded decision or convention is never caught. Closes the leak
+  that saved a frustrated user message as a packet.
+
 ## v2.5.4 — remove nudge surfacing
 
 - Removed `surfacePendingNudges` and its wiring into `prompt-context` and

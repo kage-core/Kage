@@ -99,6 +99,7 @@ import {
   rejectPending,
   registryRecommendations,
   setupAgent,
+  generatePluginHooks,
   setupDoctor,
   setContextSlot,
   staleCatch,
@@ -795,6 +796,19 @@ async function main(): Promise<void> {
       console.log("\nWarnings:");
       for (const warning of result.warnings) console.log(`- ${warning}`);
     }
+    return;
+  }
+
+  if (command === "gen-plugin-hooks") {
+    // Maintainer tool: regenerate plugin/hooks/* from the setupAgent("claude-code") templates
+    // so the plugin and the npm install path ship identical hooks (one source of truth).
+    const pluginDir = takeArg(args, "--plugin-dir") ?? join(process.cwd(), "plugin");
+    const result = generatePluginHooks(pluginDir);
+    if (args.includes("--json")) { console.log(JSON.stringify({ plugin_dir: pluginDir, ...result }, null, 2)); return; }
+    console.log(`Generated plugin hooks in ${join(pluginDir, "hooks")}`);
+    console.log(`  scripts: ${result.scripts.join(", ")}`);
+    console.log(`  events:  ${result.events.join(", ")}`);
+    if (result.removed.length) console.log(`  removed: ${result.removed.join(", ")}`);
     return;
   }
 

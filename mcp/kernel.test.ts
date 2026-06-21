@@ -125,6 +125,7 @@ import {
   registryRecommendations,
   scanSensitiveText,
   setupAgent,
+  generatePluginHooks,
   setupDoctor,
   setContextSlot,
   supersedeMemory,
@@ -134,6 +135,7 @@ import {
   truthScorecardMarkdown,
   qualityReport,
   evaluateMemoryAdmission,
+  isUngroundedConversationalCapture,
   verifyAgentActivation,
   validatePacket,
   validateProject,
@@ -3668,6 +3670,73 @@ test("shell-prompt-paste titles are blocked by the capture guard", () => {
     paths: ["package.json"],
   });
   assert.equal(shellPaste.ok, false);
+});
+
+test("plugin hooks are generated from setupAgent — committed plugin/hooks must not drift", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "kage-plugin-gen-"));
+  try {
+    generatePluginHooks(tmp);
+    const genDir = join(tmp, "hooks");
+    const repoDir = join(__dirname, "..", "..", "plugin", "hooks");
+    // Every generated file matches the committed plugin file byte-for-byte.
+    for (const file of readdirSync(genDir).sort()) {
+      assert.equal(
+        readFileSync(join(genDir, file), "utf8"),
+        readFileSync(join(repoDir, file), "utf8"),
+        `plugin/hooks/${file} is out of sync with setupAgent — run: kage gen-plugin-hooks`);
+    }
+    // No committed hook file exists that the generator no longer emits (stale leftover).
+    const generated = new Set(readdirSync(genDir));
+    for (const file of readdirSync(repoDir).filter((f) => f.endsWith(".sh") || f === "hooks.json")) {
+      assert.ok(generated.has(file), `plugin/hooks/${file} is stale (generator no longer emits it) — run: kage gen-plugin-hooks`);
+    }
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("ungrounded conversational user utterances never become approved or recallable memory", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo" }), "utf8");
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "outreach.ts"), "export const outreach = true;\n", "utf8");
+
+  // A frustrated chat message with no cited repo paths — the leak: it slips the dump guard
+  // (it is plain prose) and the "issue"/"before" keywords would otherwise score it admissible.
+  const ranted = capture({
+    projectDir: project,
+    title: "why are you asking me",
+    body: "why are you asking me???!!! it's your job, don't stop before you find and message 50 people about outreach.",
+    type: "issue_context",
+  });
+  // Not hard-rejected — captured, but routed to pending review (never auto-approved) and tagged.
+  assert.equal(ranted.ok, true);
+  assert.equal(ranted.packet!.status, "pending");
+  assert.ok(ranted.packet!.tags.includes("needs-grounding"), "tagged needs-grounding");
+  assert.ok(isUngroundedConversationalCapture(ranted.packet!), "predicate flags the utterance");
+  assert.equal(evaluateMemoryAdmission(project, ranted.packet!).admit, false, "admission denied");
+
+  // It must never surface in recall — not in approved results, not in the pending section.
+  const recalled = recall(project, "outreach message people asking", 5);
+  assert.ok(!recalled.results.some((entry) => entry.packet.id === ranted.packet!.id), "withheld from approved results");
+  assert.ok(!recalled.context_block.includes("why are you asking me"), "withheld from pending working-memory section");
+
+  // A real, grounded learning with the SAME outreach topic still passes end to end.
+  const grounded = capture({
+    projectDir: project,
+    title: "Outreach module gates sends behind a flag",
+    body: "The outreach sender in src/outreach.ts must check the `outreach` flag before messaging contacts, because unguarded sends caused duplicate outreach. Verified by: npm test.",
+    type: "decision",
+    paths: ["src/outreach.ts"],
+  });
+  assert.equal(grounded.ok, true);
+  assert.equal(grounded.packet!.status, "approved");
+  assert.ok(!grounded.packet!.tags.includes("needs-grounding"), "real learning not tagged needs-grounding");
+  assert.equal(isUngroundedConversationalCapture(grounded.packet!), false, "predicate ignores grounded learning");
+  assert.equal(evaluateMemoryAdmission(project, grounded.packet!).admit, true, "grounded learning admitted");
+  const recalledGrounded = recall(project, "outreach flag duplicate sends", 5);
+  assert.ok(recalledGrounded.results.some((entry) => entry.packet.id === grounded.packet!.id), "grounded learning is recallable");
 });
 
 test("gc deletes serialized-dump packets that predate the capture guard", () => {

@@ -2,8 +2,6 @@
 # Kage PreToolUse(Edit/Write) hook — injects verified file-linked memory right before the agent edits a file, so recall precedes every change.
 # Only currently-verified packets (citations checked, not stale) are ever injected.
 # Silent if Kage is not initialized in the current project. Never blocks the edit.
-# Mirrors the script written by `kage setup claude-code` (kernel.ts setupAgent);
-# keep the two in sync when editing.
 set -euo pipefail
 
 PAYLOAD="$(cat || true)"

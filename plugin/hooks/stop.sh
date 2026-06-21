@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # Kage Stop hook — refreshes repo memory and blocks final handoff when linked memory needs agent reconciliation.
 # Silent if Kage is not initialized in the current project or no git changes exist.
-# Mirrors the script written by `kage setup claude-code` (kernel.ts setupAgent);
-# keep the two in sync when editing.
 set -euo pipefail
 
 PAYLOAD="$(cat || true)"

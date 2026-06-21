@@ -1,6 +1,6 @@
 {
   "name": "kage",
-  "version": "2.0.1",
+  "version": "2.5.5",
   "description": "A framework for collaborative agent memory. Recall git-native, team-shared repo knowledge before acting, capture durable learnings as reviewable files in your repo, and get warned when your diff invalidates a memory. Every packet is checked against your code; deleted and stale citations are caught.",
   "author": {
     "name": "Kage",
