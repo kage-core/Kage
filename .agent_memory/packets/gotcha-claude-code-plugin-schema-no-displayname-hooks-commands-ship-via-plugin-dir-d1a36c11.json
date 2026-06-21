@@ -29,11 +29,11 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-14T16:42:05.466Z",
+    "last_verified_at": "2026-06-21T17:14:43.726Z",
     "path_fingerprints": [
       {
         "path": "plugin/.claude-plugin/plugin.json",
-        "sha256": "ad058fe3d0b7d571254c359dfd1d4ab2eb502b0157a8cabe32b33dc4d60a268d",
+        "sha256": "9f4521259210b15b008a3afc93eaf9138a6d35039c55da84ee2d9c2ffd921cb2",
         "size": 735
       }
     ],
@@ -61,14 +61,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 164,
-    "reverified_at": "2026-06-14T16:42:05.466Z",
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: plugin/.claude-plugin/plugin.json"
-    ],
-    "suggested_action": "update"
+    "reverified_at": "2026-06-21T17:14:43.726Z"
   },
   "created_at": "2026-06-12T03:48:32.785Z",
-  "updated_at": "2026-06-21T17:13:29.099Z",
+  "updated_at": "2026-06-21T17:14:43.726Z",
   "author_branch": "release/v2.0.1"
 }
