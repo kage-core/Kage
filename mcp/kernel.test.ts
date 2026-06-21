@@ -98,6 +98,7 @@ import {
   queryCodeGraph,
   queryGraph,
   recall,
+  surfacePendingNudges,
   recallWithEmbeddings,
   buildDocsIndex,
   searchDocs,
@@ -3652,6 +3653,37 @@ test("capture rejects serialized-dump titles and bodies on every path (not just 
     paths: ["package.json"],
   });
   assert.equal(ok.ok, true);
+});
+
+test("shell-prompt-paste titles are blocked; surfacePendingNudges surfaces each nudge once", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo" }), "utf8");
+
+  // A pasted terminal prompt as a title (the leak that slipped the old guard) is rejected.
+  const shellPaste = capture({
+    projectDir: project,
+    title: "kushaljain@Kushals-MacBook-Air kage % mcp-publisher publish --json",
+    body: "A note about publishing the package.",
+    type: "runbook",
+    paths: ["package.json"],
+  });
+  assert.equal(shellPaste.ok, false);
+
+  // surfacePendingNudges returns unsurfaced nudges as a block and marks them surfaced.
+  const nudgeDir = join(project, ".agent_memory", "nudges");
+  mkdirSync(nudgeDir, { recursive: true });
+  writeFileSync(join(nudgeDir, "pending.jsonl"),
+    `${JSON.stringify({ message: "use jose, not jsonwebtoken", file: "src/auth.ts", kind: "recall", surfaced: false })}\n${JSON.stringify({ message: "already shown", surfaced: true })}\n`,
+    "utf8");
+  const first = surfacePendingNudges(project);
+  assert.equal(first.count, 1);
+  assert.match(first.block, /use jose, not jsonwebtoken/);
+  assert.match(first.block, /src\/auth\.ts/);
+  // Idempotent: a second pass finds nothing new (each nudge surfaces exactly once).
+  const second = surfacePendingNudges(project);
+  assert.equal(second.count, 0);
+  assert.equal(second.block, "");
 });
 
 test("gc deletes serialized-dump packets that predate the capture guard", () => {

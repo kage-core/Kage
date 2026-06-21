@@ -10343,7 +10343,10 @@ function isSerializedDumpTitle(title: string): boolean {
   return /^(workflow|runbook)\s*:?\s*[{[]/i.test(t)
     || t.startsWith('{"')
     || /^<(task-notification|div|svg|html)\b/i.test(t)
-    || /\btool_use_id\b|toolu_[A-Za-z0-9]{10}/.test(title);
+    || /\btool_use_id\b|toolu_[A-Za-z0-9]{10}/.test(title)
+    // Shell-prompt / terminal paste, e.g. "user@host dir % cmd" or "user@host:path$ cmd" —
+    // a pasted command transcript, not a durable learning.
+    || /^[\w.+-]+@[\w.+-]+[\s:].*[%$#]\s/.test(t);
 }
 
 // Durable-learning size ceiling. A memory packet body is a distilled insight, not a
@@ -10361,6 +10364,38 @@ function isSerializedDumpBody(body: string): boolean {
   if (t.length > MAX_PACKET_BODY_CHARS) return true;
   return isSerializedDumpTitle(t)
     || /<task-notification\b|<tool-use-id\b|"hookSpecificOutput"|"isImage"\s*:|"noOutputExpected"\s*:|"interrupted"\s*:\s*(true|false)/i.test(t.slice(0, 4000));
+}
+
+// Surface watcher nudges: read the nudge inbox the kage-watcher writes, return the
+// unsurfaced ones as a prominent block, and mark them surfaced so each shows exactly once.
+// This is what makes recall/nudges FELT — the UserPromptSubmit hook injects this block, so
+// the agent sees "act on this" memory instead of it sitting silently in a file.
+export function surfacePendingNudges(projectDir: string): { block: string; items: Array<{ message: string; file?: string; kind?: string }>; count: number } {
+  const path = join(projectDir, ".agent_memory", "nudges", "pending.jsonl");
+  if (!existsSync(path)) return { block: "", items: [], count: 0 };
+  let raw: string;
+  try { raw = readFileSync(path, "utf8"); } catch { return { block: "", items: [], count: 0 }; }
+  const records: Array<Record<string, unknown>> = [];
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const parsed = JSON.parse(trimmed) as unknown;
+      if (parsed && typeof parsed === "object") records.push(parsed as Record<string, unknown>);
+    } catch { /* drop malformed lines */ }
+  }
+  const unsurfaced = records.filter((record) => record.surfaced !== true && typeof record.message === "string");
+  if (!unsurfaced.length) return { block: "", items: [], count: 0 };
+  const items = unsurfaced.map((record) => ({
+    message: String(record.message),
+    file: typeof record.file === "string" ? record.file : undefined,
+    kind: typeof record.kind === "string" ? record.kind : undefined,
+  }));
+  for (const record of unsurfaced) record.surfaced = true;
+  try { writeFileSync(path, `${records.map((record) => JSON.stringify(record)).join("\n")}\n`, "utf8"); } catch { /* best-effort; recall still works */ }
+  const block = ["", "## ⚠ Kage nudges — act on these before proceeding",
+    ...items.map((item) => `- ${item.file ? `${item.file}: ` : ""}${item.message}`)].join("\n");
+  return { block, items, count: items.length };
 }
 
 // Collapse whitespace and hard-cap a value rendered inline in a context block, so one

@@ -82,6 +82,7 @@ import {
   queryCodeGraph,
   queryGraph,
   recall,
+  surfacePendingNudges,
   recallWithEmbeddings,
   searchDocs,
   docsRecallSection,
@@ -1457,17 +1458,25 @@ async function main(): Promise<void> {
     // Silent when nothing relevant is found, so hooks can gate on empty output.
     const query = takeArg(args, "--query") ?? firstPositional(args);
     if (!query) usage();
-    const result = recall(projectArg(args), query!, 5, false, {});
-    if (args.includes("--json")) { console.log(JSON.stringify(result, null, 2)); return; }
-    if (!result.results.length) return;
-    let out = result.context_block;
-    // Lead with felt behavior, not a vanity/gameable token number: tell the agent these are
-    // verified team memories to follow. (The tokens/$ ledger lives in `kage gains` for anyone
-    // who wants it.) Keep only the trust-relevant stale-withheld signal here.
-    const plural = result.results.length === 1 ? "y" : "ies";
-    const withheld = result.value_receipt?.stale_withheld ?? 0;
-    out += `\n\n_${result.results.length} verified team memor${plural} above — follow them.${withheld ? ` ${withheld} stale memor${withheld === 1 ? "y" : "ies"} withheld (code changed under them).` : ""}_`;
-    console.log(out);
+    const project = projectArg(args);
+    const result = recall(project, query!, 5, false, {});
+    // Surface any nudges the kage-watcher wrote (marks them surfaced so each shows once) —
+    // this is what makes recall/nudges felt instead of silently sitting in a file.
+    const nudges = surfacePendingNudges(project);
+    if (args.includes("--json")) { console.log(JSON.stringify({ ...result, nudges: nudges.items }, null, 2)); return; }
+    const parts: string[] = [];
+    if (result.results.length) {
+      // Lead with felt behavior, not a vanity/gameable token number: tell the agent these are
+      // verified team memories to follow. (The tokens/$ ledger lives in `kage gains`.) Keep
+      // only the trust-relevant stale-withheld signal here.
+      const plural = result.results.length === 1 ? "y" : "ies";
+      const withheld = result.value_receipt?.stale_withheld ?? 0;
+      parts.push(result.context_block);
+      parts.push(`_${result.results.length} verified team memor${plural} above — follow them.${withheld ? ` ${withheld} stale memor${withheld === 1 ? "y" : "ies"} withheld (code changed under them).` : ""}_`);
+    }
+    if (nudges.block) parts.push(nudges.block.trimStart());
+    if (!parts.length) return;
+    console.log(parts.join("\n\n"));
     return;
   }
 

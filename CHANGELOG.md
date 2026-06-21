@@ -1,5 +1,32 @@
 # Changelog
 
+## v2.5.2 — nudges become felt; capture leak closed
+
+- **Watcher nudges surface to the agent.** `surfacePendingNudges` reads the
+  nudge inbox the `kage-watcher` writes (`.agent_memory/nudges/pending.jsonl`),
+  injects the unsurfaced ones as a prominent "⚠ Kage nudges — act on these"
+  block via the `UserPromptSubmit` hook (`kage prompt-context`), and marks each
+  surfaced so it shows exactly once. This is what turns recall/nudges from
+  silent context into *felt* behavior. Nudges now surface even when a prompt has
+  no other relevant memory.
+- **Capture leak closed.** The serialized-dump guard now also rejects
+  shell-prompt / terminal-paste titles (`user@host dir % cmd`) — the one class
+  that kept slipping back into storage.
+
+## v2.5.1 — capture flywheel + felt recall format
+
+- **Tiered auto-promote.** A distilled draft jumps straight to trusted,
+  recallable memory — instead of waiting in the pending inbox — only when it is
+  clearly-good (admission `high_signal`), code-grounded, and neither a duplicate
+  nor a contradiction; everything else still goes to review
+  (`KAGE_AUTO_PROMOTE=0` disables). Starts the capture flywheel without breaking
+  the verification wedge (grounded memory is still checked against the code).
+- **Felt recall format.** Recall reads as "Team memory: \<claim\> (decided/fixed
+  \<date\> · cited files)" instead of `[type|scope|confidence] / Why matched /
+  Source`; the injection drops the gameable tokens-saved number for "N verified
+  team memories above — follow them" + the stale-withheld trust signal (the
+  tokens/$ ledger stays in `kage gains`).
+
 ## v2.5.0 — scan hardening, ambient recall, capture quality
 
 - **`kage scan` hardened for big repos and monorepos.** Removed the
