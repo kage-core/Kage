@@ -24,8 +24,8 @@
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "733fa556eeb7a877c62fe848b3eb10a5f04ddcbb",
-      "merge_base": "733fa556eeb7a877c62fe848b3eb10a5f04ddcbb",
+      "head": "8967f3ca9bad6ec8f424329dad654baa47bad474",
+      "merge_base": "8967f3ca9bad6ec8f424329dad654baa47bad474",
       "changed_files": [
         ".agent_memory/packets/workflow-change-memory-master-23634276.json"
       ],
@@ -42,7 +42,7 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-20T15:49:37.504Z",
+    "last_verified_at": "2026-06-21T05:44:00.721Z",
     "ttl_days": 180,
     "path_fingerprints": [],
     "path_fingerprint_policy": "source_hash_staleness",
@@ -86,6 +86,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-06-20T15:49:37.504Z",
-  "updated_at": "2026-06-20T15:49:37.504Z"
+  "created_at": "2026-06-21T05:44:00.721Z",
+  "updated_at": "2026-06-21T05:44:00.721Z"
 }
