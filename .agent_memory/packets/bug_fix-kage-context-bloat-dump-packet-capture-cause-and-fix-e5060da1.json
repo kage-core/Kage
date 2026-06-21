@@ -35,12 +35,12 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-20T06:42:05.161Z",
+    "last_verified_at": "2026-06-21T14:30:05.151Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "faed8d26ffdb2f62b48cc79efce2600d5280623ccc206dc58586b9f0815fc179",
-        "size": 859151,
+        "sha256": "50cb354d8d434d6dde4415ab57d60a93c45da913eed128ad328bb662df31f493",
+        "size": 865960,
         "symbols": [
           {
             "name": "dropped",
@@ -90,7 +90,7 @@
           {
             "name": "isserializeddumptitle",
             "kind": "function",
-            "sha256": "738ef0c4713b0fc04c9616bedbf41634a9d3cd038b2a2ae0f494833b7c16c807"
+            "sha256": "4e5cb56404e74fc9c839cb772e5c1680b103f8e724db730c2cdb0ac12220541d"
           },
           {
             "name": "max_packet_body_chars",
@@ -151,11 +151,6 @@
             "name": "fixed",
             "kind": "constant",
             "sha256": "24c94f8af8d6bb9909e676bab33f87fca9b068e7ebf547b89b1ded262de468e1"
-          },
-          {
-            "name": "when",
-            "kind": "constant",
-            "sha256": "48bfd58b3cdbf2d407e4443b90727d548d96eceaa4372c099dcd22c52f498452"
           },
           {
             "name": "skip",
@@ -232,13 +227,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 519,
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: mcp/kernel.ts"
-    ],
-    "suggested_action": "update"
+    "reverified_at": "2026-06-21T14:30:05.151Z"
   },
   "created_at": "2026-06-20T06:42:05.161Z",
-  "updated_at": "2026-06-21T14:26:28.723Z",
+  "updated_at": "2026-06-21T14:30:05.151Z",
   "author_branch": "master"
 }

@@ -29,12 +29,12 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-20T12:06:05.156Z",
+    "last_verified_at": "2026-06-21T13:23:02.348Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "d312499b5646e0a66e9ef329b56515626d0262a14bc33c3afd51e6c482a642ec",
-        "size": 861489,
+        "sha256": "4912dd66976eaf3c6c2514a9f21f0a3250dceaeda4e42f7ca2dea57ed9afbb92",
+        "size": 863775,
         "symbols": [
           {
             "name": "verified",
@@ -112,11 +112,6 @@
             "sha256": "f5c8a3a19318806b2dd089f0ece8a92a7b5799089c796665109fc20c63fdab9a"
           },
           {
-            "name": "when",
-            "kind": "constant",
-            "sha256": "48bfd58b3cdbf2d407e4443b90727d548d96eceaa4372c099dcd22c52f498452"
-          },
-          {
             "name": "keep",
             "kind": "constant",
             "sha256": "3e5df93c6de57dbae093461e4198d2bc24bb055a50d3f6a8bd6449397fd00f3b"
@@ -150,9 +145,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 261,
-    "reverified_at": "2026-06-20T12:06:05.156Z"
+    "reverified_at": "2026-06-21T13:23:02.348Z"
   },
   "created_at": "2026-06-15T13:01:33.258Z",
-  "updated_at": "2026-06-20T12:06:05.156Z",
+  "updated_at": "2026-06-21T13:23:02.348Z",
   "author_branch": "master"
 }

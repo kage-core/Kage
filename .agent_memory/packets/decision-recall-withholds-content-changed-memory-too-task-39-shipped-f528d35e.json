@@ -36,12 +36,12 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-20T12:06:05.703Z",
+    "last_verified_at": "2026-06-21T13:23:02.892Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "d312499b5646e0a66e9ef329b56515626d0262a14bc33c3afd51e6c482a642ec",
-        "size": 861489,
+        "sha256": "4912dd66976eaf3c6c2514a9f21f0a3250dceaeda4e42f7ca2dea57ed9afbb92",
+        "size": 863775,
         "symbols": [
           {
             "name": "verified",
@@ -76,7 +76,7 @@
           {
             "name": "recallwithvectorscores",
             "kind": "function",
-            "sha256": "754f7f47d1279281ed9aa9ed6d795f8e1fa7c9b729bc8e363870c676f6fd408b"
+            "sha256": "ab020871f07c48f8cfc4a0731b2e538e0fa011229c118978b81c958f1eba9439"
           },
           {
             "name": "suppressed",
@@ -87,11 +87,6 @@
             "name": "code",
             "kind": "constant",
             "sha256": "64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"
-          },
-          {
-            "name": "cited",
-            "kind": "constant",
-            "sha256": "7b4c95a8aed181f7a55a2c50e1825df87a03325cef56176f043f6b3bc8db9b19"
           },
           {
             "name": "citations",
@@ -218,14 +213,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 330,
-    "reverified_at": "2026-06-20T12:06:05.703Z",
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: mcp/kernel.ts"
-    ],
-    "suggested_action": "update"
+    "reverified_at": "2026-06-21T13:23:02.892Z"
   },
   "created_at": "2026-06-14T20:10:00.252Z",
-  "updated_at": "2026-06-21T13:22:47.589Z",
+  "updated_at": "2026-06-21T13:23:02.892Z",
   "author_branch": "master"
 }

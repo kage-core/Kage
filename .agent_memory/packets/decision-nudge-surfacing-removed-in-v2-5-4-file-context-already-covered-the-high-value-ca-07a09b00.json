@@ -1,0 +1,206 @@
+{
+  "schema_version": 2,
+  "id": "repo:https-github-com-kage-core-kage:decision:nudge-surfacing-removed-in-v2-5-4-file-context-already-covered-the-high-value-ca",
+  "title": "Nudge surfacing removed in v2.5.4 — file-context already covered the high-value case",
+  "summary": "The watcher \"nudge\" surfacing — added in 2.5.2 prompt context and 2.5.3 edit time file context — was REMOVED in v2.5.4. surfacePendingNudges and its wiring into the prompt context and file context CLI commands mcp/cli.ts",
+  "body": "The watcher \"nudge\" surfacing — added in 2.5.2 (prompt-context) and 2.5.3 (edit-time file-context) — was REMOVED in v2.5.4. surfacePendingNudges and its wiring into the prompt-context and file-context CLI commands (mcp/cli.ts, mcp/kernel.ts) are deleted. Rationale: the high-value behavior (\"here's verified memory for the file you're about to touch\") is already delivered by the file-context PreToolUse(Read/Edit) hook injecting the packets that cite the file, so the nudge channel was redundant for that case; and it had no generator for the rest — nothing auto-runs the kage-watcher, so .agent_memory/nudges/pending.jsonl stayed empty in practice. What was NOT removed and is still current: recall (prompt-context), file-context citation injection, capture, the shell-paste capture guard (isSerializedDumpTitle rejects \"user@host dir % cmd\" titles), and the normalizeRepoPath / trailing-slash cleanup to file-context path matching. The kage-watcher agent definition is now ingest-only. Supersedes the two nudge-surfacing packets.\nVerified by: 353 unit + 12 dogfood tests pass; end-to-end through global 2.5.4 binary (file-context and prompt-context ignore pending.jsonl, inbox left untouched); published v2.5.4",
+  "type": "decision",
+  "scope": "repo",
+  "visibility": "team",
+  "sensitivity": "internal",
+  "status": "superseded",
+  "confidence": 0.7,
+  "tags": [
+    "session-learning",
+    "nudges",
+    "removal",
+    "file-context",
+    "hooks",
+    "kage-watcher",
+    "shell-paste-guard"
+  ],
+  "paths": [
+    "mcp/cli.ts",
+    "mcp/kernel.ts"
+  ],
+  "stack": [],
+  "source_refs": [
+    {
+      "kind": "explicit_capture",
+      "captured_at": "2026-06-21T16:32:20.997Z"
+    }
+  ],
+  "context": {
+    "fact": "The watcher \"nudge\" surfacing — added in 2.5.2 (prompt-context) and 2.5.3 (edit-time file-context) — was REMOVED in v2.5.4. surfacePendingNudges and its wiring into the prompt-context and file-context CLI commands (mcp/cli.ts, mcp/kernel.ts) are deleted. Rationale: the high-value behavior (\"here's verified memory for the file you're about to touch\") is already delivered by the file-context PreToolUse(Read/Edit) hook injecting the packets that cite the file, so the nudge channel was redundant for that case; and it had no generator for the rest — nothing auto-runs the kage-watcher, so .agent_memory/nudges/pending.jsonl stayed empty in practice. What was NOT removed and is still current: recall (prompt-context), file-context citation injection, capture, the shell-paste capture guard (isSerializedDumpTitle rejects \"user@host dir % cmd\" titles), and the normalizeRepoPath / trailing-slash cleanup to file-context path matching. The kage-watcher agent definition is now ingest-only. Supersedes the two nudge-surfacing packets.\nVerified by: 353 unit + 12 dogfood tests pass; end-to-end through global 2.5.4 binary (file-context and prompt-context ignore pending.jsonl, inbox left untouched); published v2.5.4",
+    "why": "the high-value behavior (\"here's verified memory for the file you're about to touch\") is already delivered by the file-context PreToolUse(Read/Edit) hook injecting the packets that cite the file, so the nudge channel was redundant for that case; and it had no generator for the rest — nothing auto-runs the kage-watcher, so .agent_memory/nudges/pending.jsonl stayed empty in practice. What was NOT removed and is still current: recall (prompt-context), file-context citation injection, capture, the shell-paste capture guard (isSerializedDumpTitle rejects \"user@host dir % cmd\" titles), and the normalizeRepoPath / trailing-slash cleanup to file-context path matching. The kage-watcher agent definition is now ingest-only. Supersedes the two nudge-surfacing packets.",
+    "verification": "353 unit + 12 dogfood tests pass; end-to-end through global 2.5.4 binary (file-context and prompt-context ignore pending.jsonl, inbox left untouched); published v2.5.4"
+  },
+  "freshness": {
+    "ttl_days": 365,
+    "last_verified_at": "2026-06-21T16:32:20.997Z",
+    "path_fingerprints": [
+      {
+        "path": "mcp/cli.ts",
+        "sha256": "f59de4ab9b5ff49717aed99e018c0695d8a2f43a8ff9f8e0a6f0abc1b0b70aa9",
+        "size": 116118,
+        "symbols": [
+          {
+            "name": "value",
+            "kind": "constant",
+            "sha256": "c9560c65b946f6f8269de6cb5d49d3bb0dbabec6fb3119c445ad738f194d37ba"
+          },
+          {
+            "name": "pending",
+            "kind": "constant",
+            "sha256": "a5c954f82ccd521900e167411c7765f13e7112ccae3bb034e8ad0d6c8996187a"
+          },
+          {
+            "name": "here",
+            "kind": "constant",
+            "sha256": "54b76aefc80150bd6486ade4d63f1cb762c231f67f77e2dbccf9e11d6e0f0a2b"
+          },
+          {
+            "name": "current",
+            "kind": "constant",
+            "sha256": "471f3cfbffa04d6ecddb2f3d4013027b71237de766afb69ec418f1f1b8308937"
+          },
+          {
+            "name": "agent",
+            "kind": "constant",
+            "sha256": "5b9caa614311fe691d6af171b9a8985b0d49464b9df178ad28ff5b9883eb4cf2"
+          },
+          {
+            "name": "auto",
+            "kind": "constant",
+            "sha256": "b35a15a3c084f482674a7f570c7cdc322236fb24a812c3607b8a0e622927f531"
+          }
+        ]
+      },
+      {
+        "path": "mcp/kernel.ts",
+        "sha256": "2a2ca772f2f603323ab4760b0ff88a47eb0ca310f5fba0ca1082607d224627b1",
+        "size": 864355,
+        "symbols": [
+          {
+            "name": "time",
+            "kind": "constant",
+            "sha256": "36aa0a901e7fda47d7d7571d9c21879432386e4418ed56010d7e03c9a91f5482"
+          },
+          {
+            "name": "normalizerepopath",
+            "kind": "function",
+            "sha256": "88c6286f23fd09644a233308c60e59bb4bb735b42a3ce7cf5077ab4ebe896eaa"
+          },
+          {
+            "name": "verified",
+            "kind": "constant",
+            "sha256": "9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"
+          },
+          {
+            "name": "inbox",
+            "kind": "constant",
+            "sha256": "9d2097586a2527bfa63d55306c098fda29e1c3530771833e9aca5f986632d367"
+          },
+          {
+            "name": "ignore",
+            "kind": "function",
+            "sha256": "3eee15379e111fc3066636e779769471e2ba26f4ccf38736888f5c1eec25dd08"
+          },
+          {
+            "name": "isserializeddumptitle",
+            "kind": "function",
+            "sha256": "4e5cb56404e74fc9c839cb772e5c1680b103f8e724db730c2cdb0ac12220541d"
+          },
+          {
+            "name": "read",
+            "kind": "constant",
+            "sha256": "ffe49534fbcdb7c556f32fa5120c3dd4c00fce60f148c94f79d0d94d71145efd"
+          },
+          {
+            "name": "cleanup",
+            "kind": "constant",
+            "sha256": "44c2ebe266676bac0e9fb42c4a64dcbb729fc44d0bfa44910463b965b8123570"
+          },
+          {
+            "name": "capture",
+            "kind": "function",
+            "sha256": "2a277e5a90d4f326a1b5de31e1253602bc3e6c20e2960f034e458601496b56da"
+          },
+          {
+            "name": "auto",
+            "kind": "constant",
+            "sha256": "00dfd4334aa51ffac12b575a6a2c33040556f4641b8e8806bee9af6d653df46c"
+          },
+          {
+            "name": "memory",
+            "kind": "constant",
+            "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
+          },
+          {
+            "name": "removed",
+            "kind": "constant",
+            "sha256": "a0797a6325a4353640d2ec426c8c94ea9d093091c3e97fdacfd8387aec73d583"
+          }
+        ]
+      }
+    ],
+    "path_fingerprint_policy": "source_hash_staleness",
+    "verification": "repo_local_agent_capture",
+    "superseded_at": "2026-06-21T16:36:05.879Z",
+    "superseded_by": "repo:https-github-com-kage-core-kage:decision:nudge-surfacing-and-the-kage-watcher-were-removed-hooks-are-the-memory-loop-1782",
+    "superseded_reason": "The watcher is now removed entirely (not just ingest-only); replacement records the full removal + the do-not-re-add decision."
+  },
+  "edges": [
+    {
+      "relation": "supersedes",
+      "to": "repo:https-github-com-kage-core-kage:decision:edit-time-nudge-surfacing-file-context-fires-a-files-watcher-nudge-at-the-pretoo",
+      "evidence": "Edit-time nudge surfacing was removed in v2.5.4 (redundant with file-context; no generator).",
+      "created_at": "2026-06-21T16:32:46.755Z"
+    },
+    {
+      "relation": "supersedes",
+      "to": "repo:https-github-com-kage-core-kage:decision:watcher-nudges-surface-to-the-agent-via-prompt-context-shell-paste-capture-leak-",
+      "evidence": "prompt-context nudge surfacing removed in v2.5.4; shell-paste capture guard (the still-true part) is recorded in the replacement.",
+      "created_at": "2026-06-21T16:32:48.558Z"
+    },
+    {
+      "relation": "superseded_by",
+      "to": "repo:https-github-com-kage-core-kage:decision:nudge-surfacing-and-the-kage-watcher-were-removed-hooks-are-the-memory-loop-1782",
+      "evidence": "The watcher is now removed entirely (not just ingest-only); replacement records the full removal + the do-not-re-add decision.",
+      "created_at": "2026-06-21T16:36:05.879Z"
+    }
+  ],
+  "quality": {
+    "reviewer": "repo-local-agent",
+    "votes_up": 0,
+    "votes_down": 0,
+    "uses_30d": 0,
+    "reports_stale": 0,
+    "review_boundary": "git_or_pr",
+    "promotion_requires_review": true,
+    "discovery_tokens": 4000,
+    "discovery_tokens_estimated": true,
+    "score": 100,
+    "reasons": [
+      "high-value memory type",
+      "has source evidence",
+      "grounded to repo paths",
+      "tagged",
+      "concise but substantive",
+      "actionable rationale or verification"
+    ],
+    "risks": [],
+    "duplicate_candidates": [],
+    "estimated_tokens_saved": 304,
+    "superseded_by": "repo:https-github-com-kage-core-kage:decision:nudge-surfacing-and-the-kage-watcher-were-removed-hooks-are-the-memory-loop-1782",
+    "superseded_reason": "The watcher is now removed entirely (not just ingest-only); replacement records the full removal + the do-not-re-add decision.",
+    "stale": true,
+    "stale_reasons": [
+      "packet status is superseded"
+    ],
+    "suggested_action": "mark_stale"
+  },
+  "created_at": "2026-06-21T16:32:20.997Z",
+  "updated_at": "2026-06-21T16:36:17.082Z",
+  "author_branch": "master"
+}

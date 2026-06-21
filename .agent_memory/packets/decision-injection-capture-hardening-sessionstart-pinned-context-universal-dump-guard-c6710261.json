@@ -34,12 +34,12 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-20T11:25:42.941Z",
+    "last_verified_at": "2026-06-21T14:30:04.844Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "a0c17e59d3bbd7004f76fe316336ff53428839eafce1a9e7536221105df9c730",
-        "size": 860814,
+        "sha256": "50cb354d8d434d6dde4415ab57d60a93c45da913eed128ad328bb662df31f493",
+        "size": 865960,
         "symbols": [
           {
             "name": "verified",
@@ -79,7 +79,7 @@
           {
             "name": "isserializeddumptitle",
             "kind": "function",
-            "sha256": "738ef0c4713b0fc04c9616bedbf41634a9d3cd038b2a2ae0f494833b7c16c807"
+            "sha256": "4e5cb56404e74fc9c839cb772e5c1680b103f8e724db730c2cdb0ac12220541d"
           },
           {
             "name": "isserializeddumpbody",
@@ -157,11 +157,6 @@
             "sha256": "6e189541e5576d06e12aa58020ef745bc5b3fb28d4371336d421eb5bc4ab9af8"
           },
           {
-            "name": "when",
-            "kind": "constant",
-            "sha256": "48bfd58b3cdbf2d407e4443b90727d548d96eceaa4372c099dcd22c52f498452"
-          },
-          {
             "name": "capturepersonal",
             "kind": "function",
             "sha256": "3a2f544c188745c5f7f55e66a1d9b9d06fe1180c3a4ec19e6647d1d84caf4798"
@@ -200,13 +195,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 380,
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: mcp/kernel.ts"
-    ],
-    "suggested_action": "update"
+    "reverified_at": "2026-06-21T14:30:04.844Z"
   },
   "created_at": "2026-06-20T11:25:42.941Z",
-  "updated_at": "2026-06-21T14:26:28.841Z",
+  "updated_at": "2026-06-21T14:30:04.844Z",
   "author_branch": "master"
 }
