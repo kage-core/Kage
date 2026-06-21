@@ -1,5 +1,33 @@
 # Changelog
 
+## v2.5.0 — scan hardening, ambient recall, capture quality
+
+- **`kage scan` hardened for big repos and monorepos.** Removed the
+  O(files×symbols) per-file pass and the O(S²) symbol merge in the code-graph
+  build; added a file-count ceiling (`KAGE_MAX_SCAN_FILES`, default 25k) and a
+  git-history cap (`KAGE_SCAN_MAX_COMMITS`, default 8k), both with visible
+  warnings. Verified clean and fast on 60k-file repos (kubernetes,
+  DefinitelyTyped). Line counts now match `wc -l`; duplicate/ghost evidence no
+  longer double-prints the declaration keyword; generated files
+  (`zz_generated.*`, `*.pb.go`, …) and same-symbol-across-API-version-dir
+  duplicate noise are excluded; a one-off scan no longer leaves a
+  `.agent_memory/` behind in a repo that didn't have one.
+- **Coverage-aware untested detection.** "Untested hot path" reads real
+  `lcov.info` / Istanbul `coverage-final.json` when present (measured line %),
+  falling back to the import heuristic per file only when there's no coverage.
+- **Ambient top-of-task recall + visible savings.** New `kage prompt-context`
+  returns recall plus a one-line savings receipt; wired to `UserPromptSubmit`
+  on both the install path and the marketplace plugin. SessionStart now injects
+  the team's pinned, always-on memory, not just policy text.
+- **Recall precision.** The popularity prior can no longer float an off-domain
+  packet to the top; raw transcript / serialized-tool-output packets are
+  filtered from recall and blocked at capture (title and body, every path).
+- **Cleaner capture.** Observation fields are capped at ingestion so a giant
+  pasted command or tool dump can't bloat the log or the resume digest.
+- **CI dogfood gate.** `npm test` also runs the agent-trajectory replay eval
+  plus a recording-freshness check, so the agent-behavior loop fails CI on
+  regression.
+
 ## v2.3.0 - the trust axis, completed
 
 - **Memory-vs-memory contradiction detection.** A new packet that contradicts
