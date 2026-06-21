@@ -3686,6 +3686,38 @@ test("shell-prompt-paste titles are blocked; surfacePendingNudges surfaces each 
   assert.equal(second.block, "");
 });
 
+test("surfacePendingNudges path filter fires a file's nudge at edit time, prompt-context drains the rest", () => {
+  const project = tempProject();
+  const nudgeDir = join(project, ".agent_memory", "nudges");
+  mkdirSync(nudgeDir, { recursive: true });
+  writeFileSync(join(nudgeDir, "pending.jsonl"),
+    `${[
+      JSON.stringify({ message: "check recall before editing kernel", file: "mcp/kernel.ts", kind: "recall", surfaced: false }),
+      JSON.stringify({ message: "auth nudge", file: "src/auth.ts", kind: "recall", surfaced: false }),
+      JSON.stringify({ message: "general nudge with no file", kind: "duplicate", surfaced: false }),
+    ].join("\n")}\n`,
+    "utf8");
+
+  // PreToolUse on an unrelated file surfaces nothing (no nudge targets it).
+  assert.equal(surfacePendingNudges(project, { path: "README.md" }).count, 0);
+
+  // Editing mcp/kernel.ts surfaces ONLY that file's nudge; an absolute path matches too.
+  const edit = surfacePendingNudges(project, { path: join(project, "mcp/kernel.ts") });
+  assert.equal(edit.count, 1);
+  assert.match(edit.block, /check recall before editing kernel/);
+  assert.doesNotMatch(edit.block, /auth nudge/);
+  // Marked surfaced: re-touching the same file finds nothing (no double-surface).
+  assert.equal(surfacePendingNudges(project, { path: "mcp/kernel.ts" }).count, 0);
+
+  // prompt-context (no filter) then drains the remaining other-file + file-less nudges,
+  // each exactly once — nothing is lost, nothing is shown twice.
+  const prompt = surfacePendingNudges(project);
+  assert.equal(prompt.count, 2);
+  assert.match(prompt.block, /auth nudge/);
+  assert.match(prompt.block, /general nudge with no file/);
+  assert.equal(surfacePendingNudges(project).count, 0);
+});
+
 test("gc deletes serialized-dump packets that predate the capture guard", () => {
   const project = tempProject();
   execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });

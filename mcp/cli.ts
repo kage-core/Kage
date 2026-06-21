@@ -1445,10 +1445,19 @@ async function main(): Promise<void> {
   if (command === "file-context") {
     const path = takeArg(args, "--path");
     if (!path) usage();
-    const result = kageFileContext(projectArg(args), path);
-    if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
-    else if (result.context_block) console.log(result.context_block);
-    // No verified packets cite this file: print nothing so hooks can gate on empty output.
+    const project = projectArg(args);
+    const result = kageFileContext(project, path);
+    // Surface any watcher nudge targeting THIS file at the edit/read moment (marks it
+    // surfaced so it shows once) — the highest-value trigger for a nudge. prompt-context
+    // still drains file-less / not-yet-touched nudges on the next prompt.
+    const nudges = surfacePendingNudges(project, { path });
+    if (args.includes("--json")) { console.log(JSON.stringify({ ...result, nudges: nudges.items }, null, 2)); return; }
+    const parts: string[] = [];
+    if (result.context_block) parts.push(result.context_block);
+    if (nudges.block) parts.push(nudges.block.trimStart());
+    if (parts.length) console.log(parts.join("\n\n"));
+    // No verified packets cite this file and no nudge targets it: print nothing so hooks
+    // can gate on empty output.
     return;
   }
 

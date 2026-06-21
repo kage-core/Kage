@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.5.3 — nudges fire at the edit moment
+
+- **Edit-time nudge surfacing.** `surfacePendingNudges` now takes an optional
+  path filter, and the `file-context` command (the `PreToolUse` Edit/Read hook,
+  `kage file-context --path <file>`) surfaces any watcher nudge targeting *that*
+  file at the moment you touch it — the highest-value trigger. `prompt-context`
+  still drains file-less and not-yet-touched nudges on the next prompt, so each
+  nudge surfaces exactly once at the most relevant point. Before this, nudges
+  only appeared at the next user prompt, never at the edit itself; the
+  `kage-watcher`'s "UserPromptSubmit / PreToolUse" claim is now true. Path
+  matching is shared with citation lookup via a new `normalizeRepoPath` helper.
+
 ## v2.5.2 — nudges become felt; capture leak closed
 
 - **Watcher nudges surface to the agent.** `surfacePendingNudges` reads the

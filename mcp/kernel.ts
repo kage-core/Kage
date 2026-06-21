@@ -3318,6 +3318,17 @@ export interface FileContextResult {
 
 const FILE_CONTEXT_PACKET_CAP = 3;
 
+// Normalize a file path to the repo-relative form used for packet citation matching:
+// absolute paths are made relative to the project root, backslashes/leading "./" are
+// stripped. Returns "" for an empty/blank input. Shared by file-context citation lookup
+// and edit-time nudge matching so both compare paths identically.
+function normalizeRepoPath(projectDir: string, filePath: string): string {
+  let rel = (filePath ?? "").trim().replace(/\\/g, "/");
+  if (!rel) return "";
+  if (isAbsolute(rel)) rel = relative(resolve(projectDir), rel).replace(/\\/g, "/");
+  return rel.replace(/^\.\//, "").replace(/^\/+/, "").replace(/\/+$/, "");
+}
+
 // PreToolUse(Read) injection: verified memory at the moment of relevance. Returns at
 // most three currently-verified packets that cite the file an agent is about to read,
 // as a compact context block. Reuses the same staleness machinery as recall — a packet
@@ -3331,10 +3342,7 @@ export function kageFileContext(projectDir: string, filePath: string): FileConte
     packets: [],
     context_block: "",
   };
-  if (!filePath || !filePath.trim()) return result;
-  let rel = filePath.trim().replace(/\\/g, "/");
-  if (isAbsolute(rel)) rel = relative(resolve(projectDir), rel).replace(/\\/g, "/");
-  rel = rel.replace(/^\.\//, "").replace(/^\/+/, "");
+  const rel = normalizeRepoPath(projectDir, filePath);
   result.path = rel;
   // Files outside the project (or an uninitialized project) never produce context.
   if (!rel || rel.startsWith("..") || !existsSync(memoryRoot(projectDir))) return result;
@@ -10366,11 +10374,15 @@ function isSerializedDumpBody(body: string): boolean {
     || /<task-notification\b|<tool-use-id\b|"hookSpecificOutput"|"isImage"\s*:|"noOutputExpected"\s*:|"interrupted"\s*:\s*(true|false)/i.test(t.slice(0, 4000));
 }
 
-// Surface watcher nudges: read the nudge inbox the kage-watcher writes, return the
-// unsurfaced ones as a prominent block, and mark them surfaced so each shows exactly once.
-// This is what makes recall/nudges FELT — the UserPromptSubmit hook injects this block, so
-// the agent sees "act on this" memory instead of it sitting silently in a file.
-export function surfacePendingNudges(projectDir: string): { block: string; items: Array<{ message: string; file?: string; kind?: string }>; count: number } {
+// Surface watcher nudges: read the nudge inbox the kage-watcher writes (.agent_memory/
+// nudges/pending.jsonl), return the unsurfaced ones as a prominent block, and mark them
+// surfaced so each shows exactly once. This is what makes recall/nudges FELT instead of
+// sitting silently in a file. Two trigger points share this: prompt-context
+// (UserPromptSubmit) passes no filter and drains every pending nudge; file-context
+// (PreToolUse Edit/Read) passes opts.path so only a nudge targeting the file being touched
+// fires — surfacing the warning at the edit moment, the highest-value trigger. A file-less
+// nudge has no edit moment, so it waits for the next prompt-context drain.
+export function surfacePendingNudges(projectDir: string, opts: { path?: string } = {}): { block: string; items: Array<{ message: string; file?: string; kind?: string }>; count: number } {
   const path = join(projectDir, ".agent_memory", "nudges", "pending.jsonl");
   if (!existsSync(path)) return { block: "", items: [], count: 0 };
   let raw: string;
@@ -10384,7 +10396,12 @@ export function surfacePendingNudges(projectDir: string): { block: string; items
       if (parsed && typeof parsed === "object") records.push(parsed as Record<string, unknown>);
     } catch { /* drop malformed lines */ }
   }
-  const unsurfaced = records.filter((record) => record.surfaced !== true && typeof record.message === "string");
+  const wantPath = opts.path !== undefined ? normalizeRepoPath(projectDir, opts.path) : undefined;
+  const unsurfaced = records.filter((record) =>
+    record.surfaced !== true &&
+    typeof record.message === "string" &&
+    (wantPath === undefined ||
+      (typeof record.file === "string" && normalizeRepoPath(projectDir, record.file) === wantPath)));
   if (!unsurfaced.length) return { block: "", items: [], count: 0 };
   const items = unsurfaced.map((record) => ({
     message: String(record.message),
@@ -10392,7 +10409,14 @@ export function surfacePendingNudges(projectDir: string): { block: string; items
     kind: typeof record.kind === "string" ? record.kind : undefined,
   }));
   for (const record of unsurfaced) record.surfaced = true;
-  try { writeFileSync(path, `${records.map((record) => JSON.stringify(record)).join("\n")}\n`, "utf8"); } catch { /* best-effort; recall still works */ }
+  // Atomic write (tmp + rename): file-context now rewrites this inbox on every edit, so the
+  // window where prompt-context could read a half-written file is wider. rename is atomic, so
+  // a concurrent reader sees either the old or the new file, never a torn one.
+  try {
+    const tmp = `${path}.${process.pid}.tmp`;
+    writeFileSync(tmp, `${records.map((record) => JSON.stringify(record)).join("\n")}\n`, "utf8");
+    renameSync(tmp, path);
+  } catch { /* best-effort; recall still works */ }
   const block = ["", "## ⚠ Kage nudges — act on these before proceeding",
     ...items.map((item) => `- ${item.file ? `${item.file}: ` : ""}${item.message}`)].join("\n");
   return { block, items, count: items.length };
