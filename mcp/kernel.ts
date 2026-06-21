@@ -10509,14 +10509,23 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
     ...scored.flatMap((entry, index) => {
       const contradicts = ((entry.packet.quality ?? {}) as Record<string, unknown>).contradicts;
       const contested = Array.isArray(contradicts) && contradicts.length > 0;
+      // Felt format: lead with an imperative "Team memory:" claim the agent should follow,
+      // dated and cited to file — not machinery (confidence/why-matched/source read as vanity
+      // and noise). The behavior change is the value, not the metadata.
+      const when = (entry.packet.created_at || entry.packet.updated_at || "").slice(0, 10);
+      const verb = entry.packet.type === "decision" ? "decided"
+        : entry.packet.type === "bug_fix" ? "fixed"
+        : entry.packet.type === "convention" ? "convention since"
+        : "noted";
+      const cited = entry.packet.paths.slice(0, 3).join(", ");
+      const meta = `${verb}${when ? ` ${when}` : ""}${cited ? ` · ${cited}` : ""}`;
       return [
         "",
-        `${index + 1}. [${entry.packet.type} | ${entry.packet.scope} | confidence ${entry.packet.confidence.toFixed(2)}] ${entry.packet.title}`,
-        `   Summary: ${entry.packet.summary}`,
-        `   Why matched: ${entry.why_matched.join(", ") || "text relevance"}`,
-        `   Source: ${sourceLabel(entry.packet)}`,
+        `${index + 1}. Team memory: ${entry.packet.title}`,
+        `   ${entry.packet.summary}`,
+        ...(meta.trim() ? [`   (${meta})`] : []),
         ...(contested
-          ? [`   ⚠ Contested: this memory contradicts ${contradicts.length} other packet(s) (${(contradicts as string[]).join(", ")}). Resolve with kage conflicts / kage supersede before relying on it.`]
+          ? [`   ⚠ Contested: contradicts ${contradicts.length} other packet(s) (${(contradicts as string[]).join(", ")}) — resolve with kage conflicts / kage supersede before relying on it.`]
           : []),
       ];
     }),
@@ -17319,6 +17328,13 @@ function loadObservations(projectDir: string, sessionId?: string): ObservationRe
 // and echoes of Kage's own demo/receipt output. Manual `kage learn`/`kage capture`
 // and manual `kage distill` are never gated — explicit intent outranks the heuristic.
 export const AUTO_DISTILL_SIGNAL_THRESHOLD = 0.4;
+// Auto-promote gate: a distilled draft jumps straight to trusted (approved, recallable)
+// memory — instead of waiting in the pending inbox — only when it is clearly-good AND
+// code-grounded AND not a duplicate. Everything else still goes to review. This is what
+// makes the capture flywheel actually spin; KAGE_AUTO_PROMOTE=0 disables it. Grounding keeps
+// the verification wedge intact: a promoted memory is still checked against the code, just
+// not gated on a human.
+const AUTO_PROMOTE_ENABLED = process.env.KAGE_AUTO_PROMOTE !== "0";
 
 // Markers of hook/system plumbing payloads that sometimes leak into observation text
 // (e.g. a raw <task-notification> block stored as a "user prompt").
@@ -17965,16 +17981,38 @@ export function distillSession(projectDir: string, sessionId: string, options: {
         observation_count: observations.length,
       },
     ];
+    const admission = evaluateMemoryAdmission(projectDir, result.packet);
     result.packet.quality = {
       ...result.packet.quality,
       ...(sessionDiscoveryTokens > 0
         ? { discovery_tokens: sessionDiscoveryTokens, discovery_tokens_estimated: true }
         : {}),
       distillation: auto ? "auto_distill" : "automatic_observation_candidate",
-      admission: evaluateMemoryAdmission(projectDir, result.packet),
+      admission,
       suggested_review_action: suggestedAction(classifyPacket(projectDir, result.packet), result.packet.status),
     };
-    writeJson(result.path, result.packet);
+    // Auto-promote the clearly-good, code-grounded, non-duplicate drafts straight to trusted
+    // recall so the flywheel spins without manual review; borderline / ungrounded / path-less
+    // drafts stay in the pending inbox for a quick review.
+    const groundedHighSignal = AUTO_PROMOTE_ENABLED
+      && auto
+      && result.packet.status === "pending"
+      && admission.admit
+      && admission.class === "high_signal"
+      && result.packet.paths.length > 0
+      && result.packet.paths.every((path) => pathExistsInRepo(projectDir, path))
+      && duplicateCandidates(projectDir, result.packet).length === 0
+      && detectContradictions(projectDir, result.packet).length === 0;
+    if (groundedHighSignal) {
+      result.packet.status = "approved";
+      result.packet.tags = unique([...result.packet.tags, "auto-promoted"]);
+      result.packet.quality.suggested_review_action = suggestedAction(classifyPacket(projectDir, result.packet), "approved");
+      const promotedPath = writePacket(projectDir, result.packet, "packets");
+      if (result.path && result.path !== promotedPath) { try { unlinkSync(result.path); } catch {} }
+      result.path = promotedPath;
+    } else {
+      writeJson(result.path, result.packet);
+    }
     return result;
   };
   const autoTags = auto ? [AUTO_DISTILL_TAG] : [];

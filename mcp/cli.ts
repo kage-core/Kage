@@ -1461,11 +1461,12 @@ async function main(): Promise<void> {
     if (args.includes("--json")) { console.log(JSON.stringify(result, null, 2)); return; }
     if (!result.results.length) return;
     let out = result.context_block;
-    if (result.value_receipt) {
-      const r = result.value_receipt;
-      const plural = result.results.length === 1 ? "y" : "ies";
-      out += `\n\n_↳ Kage recalled ${result.results.length} verified memor${plural} · ~${formatTokenCount(r.tokens_saved)} tokens saved this recall · ${r.stale_withheld} stale withheld._`;
-    }
+    // Lead with felt behavior, not a vanity/gameable token number: tell the agent these are
+    // verified team memories to follow. (The tokens/$ ledger lives in `kage gains` for anyone
+    // who wants it.) Keep only the trust-relevant stale-withheld signal here.
+    const plural = result.results.length === 1 ? "y" : "ies";
+    const withheld = result.value_receipt?.stale_withheld ?? 0;
+    out += `\n\n_${result.results.length} verified team memor${plural} above — follow them.${withheld ? ` ${withheld} stale memor${withheld === 1 ? "y" : "ies"} withheld (code changed under them).` : ""}_`;
     console.log(out);
     return;
   }
