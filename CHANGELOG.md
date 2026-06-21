@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.5.4 — remove nudge surfacing
+
+- Removed `surfacePendingNudges` and its wiring into `prompt-context` and
+  `file-context` (added in 2.5.2/2.5.3). The high-value "here's verified memory
+  for the file you're touching" behavior is already delivered by the
+  `file-context` hook injecting the packets that cite the file — the nudge
+  channel was redundant for that case, and had no generator for the rest
+  (nothing auto-runs the `kage-watcher`). Recall, file-context, capture, and the
+  shell-paste capture guard are unchanged; the `normalizeRepoPath` /
+  trailing-slash cleanup to `file-context` path matching is kept.
+
 ## v2.5.3 — nudges fire at the edit moment
 
 - **Edit-time nudge surfacing.** `surfacePendingNudges` now takes an optional

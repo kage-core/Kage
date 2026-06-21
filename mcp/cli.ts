@@ -82,7 +82,6 @@ import {
   queryCodeGraph,
   queryGraph,
   recall,
-  surfacePendingNudges,
   recallWithEmbeddings,
   searchDocs,
   docsRecallSection,
@@ -1445,47 +1444,29 @@ async function main(): Promise<void> {
   if (command === "file-context") {
     const path = takeArg(args, "--path");
     if (!path) usage();
-    const project = projectArg(args);
-    const result = kageFileContext(project, path);
-    // Surface any watcher nudge targeting THIS file at the edit/read moment (marks it
-    // surfaced so it shows once) — the highest-value trigger for a nudge. prompt-context
-    // still drains file-less / not-yet-touched nudges on the next prompt.
-    const nudges = surfacePendingNudges(project, { path });
-    if (args.includes("--json")) { console.log(JSON.stringify({ ...result, nudges: nudges.items }, null, 2)); return; }
-    const parts: string[] = [];
-    if (result.context_block) parts.push(result.context_block);
-    if (nudges.block) parts.push(nudges.block.trimStart());
-    if (parts.length) console.log(parts.join("\n\n"));
-    // No verified packets cite this file and no nudge targets it: print nothing so hooks
-    // can gate on empty output.
+    const result = kageFileContext(projectArg(args), path);
+    if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
+    else if (result.context_block) console.log(result.context_block);
+    // No verified packets cite this file: print nothing so hooks can gate on empty output.
     return;
   }
 
   if (command === "prompt-context") {
     // Top-of-task recall for an ambient UserPromptSubmit hook: recall on the user's prompt
-    // and emit the memory PLUS a one-line savings receipt (what was recalled + tokens saved).
-    // Silent when nothing relevant is found, so hooks can gate on empty output.
+    // and emit the memory. Silent when nothing relevant is found, so hooks can gate on empty.
     const query = takeArg(args, "--query") ?? firstPositional(args);
     if (!query) usage();
     const project = projectArg(args);
     const result = recall(project, query!, 5, false, {});
-    // Surface any nudges the kage-watcher wrote (marks them surfaced so each shows once) —
-    // this is what makes recall/nudges felt instead of silently sitting in a file.
-    const nudges = surfacePendingNudges(project);
-    if (args.includes("--json")) { console.log(JSON.stringify({ ...result, nudges: nudges.items }, null, 2)); return; }
-    const parts: string[] = [];
-    if (result.results.length) {
-      // Lead with felt behavior, not a vanity/gameable token number: tell the agent these are
-      // verified team memories to follow. (The tokens/$ ledger lives in `kage gains`.) Keep
-      // only the trust-relevant stale-withheld signal here.
-      const plural = result.results.length === 1 ? "y" : "ies";
-      const withheld = result.value_receipt?.stale_withheld ?? 0;
-      parts.push(result.context_block);
-      parts.push(`_${result.results.length} verified team memor${plural} above — follow them.${withheld ? ` ${withheld} stale memor${withheld === 1 ? "y" : "ies"} withheld (code changed under them).` : ""}_`);
-    }
-    if (nudges.block) parts.push(nudges.block.trimStart());
-    if (!parts.length) return;
-    console.log(parts.join("\n\n"));
+    if (args.includes("--json")) { console.log(JSON.stringify(result, null, 2)); return; }
+    if (!result.results.length) return;
+    // Lead with felt behavior, not a vanity/gameable token number: tell the agent these are
+    // verified team memories to follow. (The tokens/$ ledger lives in `kage gains`.) Keep
+    // only the trust-relevant stale-withheld signal here.
+    const plural = result.results.length === 1 ? "y" : "ies";
+    const withheld = result.value_receipt?.stale_withheld ?? 0;
+    console.log(result.context_block);
+    console.log(`_${result.results.length} verified team memor${plural} above — follow them.${withheld ? ` ${withheld} stale memor${withheld === 1 ? "y" : "ies"} withheld (code changed under them).` : ""}_`);
     return;
   }
 
