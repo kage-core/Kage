@@ -35,12 +35,12 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-21T14:30:05.151Z",
+    "last_verified_at": "2026-06-21T17:18:05.595Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "50cb354d8d434d6dde4415ab57d60a93c45da913eed128ad328bb662df31f493",
-        "size": 865960,
+        "sha256": "e22da4096afd6f19711892a3812ec7d695d0acfde007084dd139df9d4343dd54",
+        "size": 872150,
         "symbols": [
           {
             "name": "dropped",
@@ -115,7 +115,7 @@
           {
             "name": "capture",
             "kind": "function",
-            "sha256": "2a277e5a90d4f326a1b5de31e1253602bc3e6c20e2960f034e458601496b56da"
+            "sha256": "7a3544f789dc8ce9454f602b1b82d9fd5de7039e5e72c98cad5fb5b4122016ef"
           },
           {
             "name": "reusablefileobservation",
@@ -136,11 +136,6 @@
             "name": "auto",
             "kind": "constant",
             "sha256": "00dfd4334aa51ffac12b575a6a2c33040556f4641b8e8806bee9af6d653df46c"
-          },
-          {
-            "name": "removed",
-            "kind": "constant",
-            "sha256": "a0797a6325a4353640d2ec426c8c94ea9d093091c3e97fdacfd8387aec73d583"
           },
           {
             "name": "section",
@@ -227,14 +222,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 519,
-    "reverified_at": "2026-06-21T14:30:05.151Z",
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: mcp/kernel.ts"
-    ],
-    "suggested_action": "update"
+    "reverified_at": "2026-06-21T17:18:05.595Z"
   },
   "created_at": "2026-06-20T06:42:05.161Z",
-  "updated_at": "2026-06-21T17:13:28.964Z",
+  "updated_at": "2026-06-21T17:18:05.595Z",
   "author_branch": "master"
 }

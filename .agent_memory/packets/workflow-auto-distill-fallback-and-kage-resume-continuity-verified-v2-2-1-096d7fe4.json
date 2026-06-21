@@ -28,12 +28,12 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-15T21:57:52.420Z",
+    "last_verified_at": "2026-06-21T17:16:45.555Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f",
-        "size": 844113,
+        "sha256": "e22da4096afd6f19711892a3812ec7d695d0acfde007084dd139df9d4343dd54",
+        "size": 872150,
         "symbols": [
           {
             "name": "verified",
@@ -58,7 +58,7 @@
           {
             "name": "observationsignalscore",
             "kind": "function",
-            "sha256": "4d465725ea72dc569f843bc74e51dec2a4a805876f716f50d3ede7e66d36b968"
+            "sha256": "0ab9242c3a49a11a4db9183e2046bb1747fe0479d7c5cc3a24cefb29b78ea31b"
           },
           {
             "name": "auto",
@@ -111,14 +111,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 99,
-    "reverified_at": "2026-06-15T21:57:52.420Z",
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: mcp/kernel.ts"
-    ],
-    "suggested_action": "update"
+    "reverified_at": "2026-06-21T17:16:45.555Z"
   },
   "created_at": "2026-06-12T12:48:49.282Z",
-  "updated_at": "2026-06-21T17:13:29.133Z",
+  "updated_at": "2026-06-21T17:16:45.555Z",
   "author_branch": "master"
 }

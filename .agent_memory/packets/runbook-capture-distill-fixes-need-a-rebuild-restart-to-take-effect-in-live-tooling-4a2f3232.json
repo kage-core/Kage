@@ -34,12 +34,12 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-20T12:06:04.848Z",
+    "last_verified_at": "2026-06-21T17:16:46.122Z",
     "path_fingerprints": [
       {
         "path": "mcp/dist/cli.js",
-        "sha256": "1104c48bba047cb192931148eb1f3baa60361b05125ecc85623ec90c8b2e573a",
-        "size": 128440,
+        "sha256": "483422c4cb43b7b097a7f0c0a7c544abc8156c887a9b076c5083a9e6fe6cb77e",
+        "size": 129511,
         "symbols": [
           {
             "name": "command",
@@ -65,8 +65,8 @@
       },
       {
         "path": "mcp/kernel.ts",
-        "sha256": "d312499b5646e0a66e9ef329b56515626d0262a14bc33c3afd51e6c482a642ec",
-        "size": 861489,
+        "sha256": "e22da4096afd6f19711892a3812ec7d695d0acfde007084dd139df9d4343dd54",
+        "size": 872150,
         "symbols": [
           {
             "name": "summarize",
@@ -116,7 +116,7 @@
           {
             "name": "capture",
             "kind": "function",
-            "sha256": "2a277e5a90d4f326a1b5de31e1253602bc3e6c20e2960f034e458601496b56da"
+            "sha256": "7a3544f789dc8ce9454f602b1b82d9fd5de7039e5e72c98cad5fb5b4122016ef"
           },
           {
             "name": "server",
@@ -172,14 +172,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 361,
-    "reverified_at": "2026-06-20T12:06:04.848Z",
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: mcp/kernel.ts"
-    ],
-    "suggested_action": "update"
+    "reverified_at": "2026-06-21T17:16:46.122Z"
   },
   "created_at": "2026-06-20T06:50:40.519Z",
-  "updated_at": "2026-06-21T17:13:29.131Z",
+  "updated_at": "2026-06-21T17:16:46.122Z",
   "author_branch": "master"
 }

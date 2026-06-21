@@ -37,12 +37,12 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-21T16:35:49.438Z",
+    "last_verified_at": "2026-06-21T17:18:06.153Z",
     "path_fingerprints": [
       {
         "path": "mcp/cli.ts",
-        "sha256": "f59de4ab9b5ff49717aed99e018c0695d8a2f43a8ff9f8e0a6f0abc1b0b70aa9",
-        "size": 116118,
+        "sha256": "21dd2f3877fa4d5cd0dc97c624b1201112e727a16dfe4baf767b24e96606c203",
+        "size": 116921,
         "symbols": [
           {
             "name": "index",
@@ -83,8 +83,8 @@
       },
       {
         "path": "mcp/kernel.ts",
-        "sha256": "2a2ca772f2f603323ab4760b0ff88a47eb0ca310f5fba0ca1082607d224627b1",
-        "size": 864355,
+        "sha256": "e22da4096afd6f19711892a3812ec7d695d0acfde007084dd139df9d4343dd54",
+        "size": 872150,
         "symbols": [
           {
             "name": "normalizerepopath",
@@ -124,7 +124,7 @@
           {
             "name": "capture",
             "kind": "function",
-            "sha256": "2a277e5a90d4f326a1b5de31e1253602bc3e6c20e2960f034e458601496b56da"
+            "sha256": "7a3544f789dc8ce9454f602b1b82d9fd5de7039e5e72c98cad5fb5b4122016ef"
           },
           {
             "name": "hooks",
@@ -140,11 +140,6 @@
             "name": "memory",
             "kind": "constant",
             "sha256": "952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"
-          },
-          {
-            "name": "removed",
-            "kind": "constant",
-            "sha256": "a0797a6325a4353640d2ec426c8c94ea9d093091c3e97fdacfd8387aec73d583"
           }
         ]
       }
@@ -182,13 +177,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 347,
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: mcp/kernel.ts"
-    ],
-    "suggested_action": "update"
+    "reverified_at": "2026-06-21T17:18:06.153Z"
   },
   "created_at": "2026-06-21T16:35:49.438Z",
-  "updated_at": "2026-06-21T17:13:29.090Z",
+  "updated_at": "2026-06-21T17:18:06.153Z",
   "author_branch": "master"
 }
