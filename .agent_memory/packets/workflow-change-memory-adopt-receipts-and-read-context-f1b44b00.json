@@ -325,10 +325,10 @@
     "stale": true,
     "stale_reasons": [
       "packet status is deprecated",
-      "linked path changed since memory was verified: plugin/hooks/hooks.json"
+      "linked path changed since memory was verified: plugin/hooks/hooks.json, plugin/hooks/kage-read-context.sh"
     ],
     "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-12T07:39:57.819Z",
-  "updated_at": "2026-06-19T13:57:42.731Z"
+  "updated_at": "2026-06-21T17:13:29.133Z"
 }

@@ -330,10 +330,10 @@
     "stale": true,
     "stale_reasons": [
       "packet status is deprecated",
-      "linked path changed since memory was verified: mcp/kernel.ts"
+      "linked path changed since memory was verified: mcp/kernel.ts, plugin/hooks/session-start.sh, plugin/hooks/stop.sh"
     ],
     "suggested_action": "mark_stale"
   },
   "created_at": "2026-06-12T06:06:29.440Z",
-  "updated_at": "2026-06-19T13:57:42.732Z"
+  "updated_at": "2026-06-21T17:13:29.134Z"
 }

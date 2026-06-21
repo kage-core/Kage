@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
-  "summary": "Repo-local context for 17 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/bug_fix-kage-context-bloat-dump-packet-capture-cause-and-fix-e5060da1.json\n- .agent_memory/packets/bug_fix-kushaljain-kushals-macbook-air-kage-mcp-publisher-publish-publishing-to-https-re-1c91608f.json\n- .agent_memory/packets/decision-capture-flywheel-tiered-auto-promote-felt-recall-format-df80467e.json\n- .agent_memory/packets/decision-edit-time-nudge-surfacing-file-context-fires-a-files-watcher-nudge-at-the-pretoo-ef50382e.json\n- .agent_memory/packets/decision-graph-nodes-at-capture-opt-in-recall-token-budget-verified-v2-2-1-6c65628a.json\n- .agent_memory/packets/decision-injection-capture-hardening-sessionstart-pinned-context-universal-dump-guard-c6710261.json\n- .agent_memory/packets/decision-nudge-surfacing-and-the-kage-watcher-were-removed-hooks-are-the-memory-loop-563f61c9.json\n- .agent_memory/packets/decision-nudge-surfacing-removed-in-v2-5-4-file-context-already-covered-the-high-value-ca-07a09b00.json\n- .agent_memory/packets/decision-recall-withholds-content-changed-memory-too-task-39-shipped-f528d35e.json\n- .agent_memory/packets/decision-watcher-nudges-surface-to-the-agent-via-prompt-context-shell-paste-capture-leak--521f0b28.json\n- .agent_memory/packets/runbook-freshness-fingerprints-anchor-to-named-symbols-not-just-whole-file-hash-a20a3a22.json\n- .agent_memory/packets/runbook-truth-report-detectors-lead-with-reliably-firing-signal-f9853daf.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n- AGENTS.md\n- CLAUDE.md\n- card.svg\n- docs/index.html\n\nDiff summary:\n```text\n...dump-packet-capture-cause-and-fix-e5060da1.json |  21 +-\n ...er-publish-publishing-to-https-re-1c91608f.json | 719 ---------------------\n ...call-token-budget-verified-v2-2-1-6c65628a.json |  15 +-\n ...nned-context-universal-dump-guard-c6710261.json |  21 +-\n ...hanged-memory-too-task-39-shipped-f528d35e.json |  22 +-\n ...-symbols-not-just-whole-file-hash-a20a3a22.json |  15 +-\n ...-lead-with-reliably-firing-signal-f9853daf.json |  19 +-\n .../workflow-change-memory-master-23634276.json    | 166 ++++-\n AGENTS.md                                          |  27 +-\n CLAUDE.md                                          |  27 +-\n docs/index.html                                    |   8 +-\n 11 files changed, 234 insertions(+), 826 deletions(-)\n.agent_memory/packets/decision-capture-flywheel-tiered-auto-promote-felt-recall-format-df80467e.json | untracked\n.agent_memory/packets/decision-edit-time-nudge-surfacing-file-context-fires-a-files-watcher-nudge-at-the-pretoo-ef50382e.json | untracked\n.agent_memory/packets/decision-nudge-surfacing-and-the-kage-watcher-were-removed-hooks-are-the-memory-loop-563f61c9.json | untracked\n.agent_memory/packets/decision-nudge-surfacing-removed-in-v2-5-4-file-context-already-covered-the-high-value-ca-07a09b00.json | untracked\n.agent_memory/packets/decision-watcher-nudges-surface-to-the-agent-via-prompt-context-shell-paste-capture-leak--521f0b28.json | untracked\ncard.svg | untracked\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "summary": "Repo-local context for 18 changed repo paths on master.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/bug_fix-kage-context-bloat-dump-packet-capture-cause-and-fix-e5060da1.json\n- .agent_memory/packets/decision-capture-flywheel-tiered-auto-promote-felt-recall-format-df80467e.json\n- .agent_memory/packets/decision-graph-nodes-at-capture-opt-in-recall-token-budget-verified-v2-2-1-6c65628a.json\n- .agent_memory/packets/decision-injection-capture-hardening-sessionstart-pinned-context-universal-dump-guard-c6710261.json\n- .agent_memory/packets/decision-nudge-surfacing-and-the-kage-watcher-were-removed-hooks-are-the-memory-loop-563f61c9.json\n- .agent_memory/packets/decision-nudge-surfacing-removed-in-v2-5-4-file-context-already-covered-the-high-value-ca-07a09b00.json\n- .agent_memory/packets/decision-recall-withholds-content-changed-memory-too-task-39-shipped-f528d35e.json\n- .agent_memory/packets/gotcha-claude-code-plugin-schema-no-displayname-hooks-commands-ship-via-plugin-dir-d1a36c11.json\n- .agent_memory/packets/runbook-capture-distill-fixes-need-a-rebuild-restart-to-take-effect-in-live-tooling-4a2f3232.json\n- .agent_memory/packets/runbook-freshness-fingerprints-anchor-to-named-symbols-not-just-whole-file-hash-a20a3a22.json\n- .agent_memory/packets/runbook-releasing-kage-release-js-publishes-from-any-named-branch-ae2e694c.json\n- .agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-88de2220.json\n- .agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-verified-v2-2-1-096d7fe4.json\n- .agent_memory/packets/workflow-change-memory-adopt-receipts-and-read-context-f1b44b00.json\n- .agent_memory/packets/workflow-change-memory-gap-auto-capture-continuity-d1c2536b.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n- .agent_memory/packets/workflow-change-memory-release-v2-0-1-d6e19752.json\n- .agent_memory/packets/workflow-discovery-tokens-and-file-context-where-the-receipts-math-and-pretooluse-read-in-f1a4d4a3.json\n\nDiff summary:\n```text\n...context-bloat-dump-packet-capture-cause-and-fix-e5060da1.json | 9 +++++++--\n ...flywheel-tiered-auto-promote-felt-recall-format-df80467e.json | 9 +++++++--\n ...ture-opt-in-recall-token-budget-verified-v2-2-1-6c65628a.json | 9 +++++++--\n ...essionstart-pinned-context-universal-dump-guard-c6710261.json | 9 +++++++--\n ...-watcher-were-removed-hooks-are-the-memory-loop-563f61c9.json | 9 +++++++--\n ...-file-context-already-covered-the-high-value-ca-07a09b00.json | 5 +++--\n ...olds-content-changed-memory-too-task-39-shipped-f528d35e.json | 9 +++++++--\n ...-displayname-hooks-commands-ship-via-plugin-dir-d1a36c11.json | 9 +++++++--\n ...-rebuild-restart-to-take-effect-in-live-tooling-4a2f3232.json | 9 +++++++--\n ...nchor-to-named-symbols-not-just-whole-file-hash-a20a3a22.json | 9 +++++++--\n ...kage-release-js-publishes-from-any-named-branch-ae2e694c.json | 4 ++--\n ...uto-distill-fallback-and-kage-resume-continuity-88de2220.json | 4 ++--\n ...back-and-kage-resume-continuity-verified-v2-2-1-096d7fe4.json | 9 +++++++--\n ...w-change-memory-adopt-receipts-and-read-context-f1b44b00.json | 4 ++--\n ...kflow-change-memory-gap-auto-capture-continuity-d1c2536b.json | 4 ++--\n .../packets/workflow-change-memory-master-23634276.json          | 5 +++--\n .../packets/workflow-change-memory-release-v2-0-1-d6e19752.json  | 4 ++--\n ...-where-the-receipts-math-and-pretooluse-read-in-f1a4d4a3.json | 4 ++--\n 18 files changed, 88 insertions(+), 36 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -18,54 +18,56 @@
   ],
   "paths": [
     ".agent_memory/packets/bug_fix-kage-context-bloat-dump-packet-capture-cause-and-fix-e5060da1.json",
-    ".agent_memory/packets/bug_fix-kushaljain-kushals-macbook-air-kage-mcp-publisher-publish-publishing-to-https-re-1c91608f.json",
     ".agent_memory/packets/decision-capture-flywheel-tiered-auto-promote-felt-recall-format-df80467e.json",
-    ".agent_memory/packets/decision-edit-time-nudge-surfacing-file-context-fires-a-files-watcher-nudge-at-the-pretoo-ef50382e.json",
     ".agent_memory/packets/decision-graph-nodes-at-capture-opt-in-recall-token-budget-verified-v2-2-1-6c65628a.json",
     ".agent_memory/packets/decision-injection-capture-hardening-sessionstart-pinned-context-universal-dump-guard-c6710261.json",
     ".agent_memory/packets/decision-nudge-surfacing-and-the-kage-watcher-were-removed-hooks-are-the-memory-loop-563f61c9.json",
     ".agent_memory/packets/decision-nudge-surfacing-removed-in-v2-5-4-file-context-already-covered-the-high-value-ca-07a09b00.json",
     ".agent_memory/packets/decision-recall-withholds-content-changed-memory-too-task-39-shipped-f528d35e.json",
-    ".agent_memory/packets/decision-watcher-nudges-surface-to-the-agent-via-prompt-context-shell-paste-capture-leak--521f0b28.json",
+    ".agent_memory/packets/gotcha-claude-code-plugin-schema-no-displayname-hooks-commands-ship-via-plugin-dir-d1a36c11.json",
+    ".agent_memory/packets/runbook-capture-distill-fixes-need-a-rebuild-restart-to-take-effect-in-live-tooling-4a2f3232.json",
     ".agent_memory/packets/runbook-freshness-fingerprints-anchor-to-named-symbols-not-just-whole-file-hash-a20a3a22.json",
-    ".agent_memory/packets/runbook-truth-report-detectors-lead-with-reliably-firing-signal-f9853daf.json",
+    ".agent_memory/packets/runbook-releasing-kage-release-js-publishes-from-any-named-branch-ae2e694c.json",
+    ".agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-88de2220.json",
+    ".agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-verified-v2-2-1-096d7fe4.json",
+    ".agent_memory/packets/workflow-change-memory-adopt-receipts-and-read-context-f1b44b00.json",
+    ".agent_memory/packets/workflow-change-memory-gap-auto-capture-continuity-d1c2536b.json",
     ".agent_memory/packets/workflow-change-memory-master-23634276.json",
-    "AGENTS.md",
-    "CLAUDE.md",
-    "card.svg",
-    "docs/index.html"
+    ".agent_memory/packets/workflow-change-memory-release-v2-0-1-d6e19752.json",
+    ".agent_memory/packets/workflow-discovery-tokens-and-file-context-where-the-receipts-math-and-pretooluse-read-in-f1a4d4a3.json"
   ],
   "stack": [],
   "source_refs": [
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "0f6b1789b01498e315c7367aa3910a785d29de2b",
-      "merge_base": "0f6b1789b01498e315c7367aa3910a785d29de2b",
+      "head": "ee07f541af581f5f9f7fe4945cd7e7c41f7cc8db",
+      "merge_base": "ee07f541af581f5f9f7fe4945cd7e7c41f7cc8db",
       "changed_files": [
         ".agent_memory/packets/bug_fix-kage-context-bloat-dump-packet-capture-cause-and-fix-e5060da1.json",
-        ".agent_memory/packets/bug_fix-kushaljain-kushals-macbook-air-kage-mcp-publisher-publish-publishing-to-https-re-1c91608f.json",
         ".agent_memory/packets/decision-capture-flywheel-tiered-auto-promote-felt-recall-format-df80467e.json",
-        ".agent_memory/packets/decision-edit-time-nudge-surfacing-file-context-fires-a-files-watcher-nudge-at-the-pretoo-ef50382e.json",
         ".agent_memory/packets/decision-graph-nodes-at-capture-opt-in-recall-token-budget-verified-v2-2-1-6c65628a.json",
         ".agent_memory/packets/decision-injection-capture-hardening-sessionstart-pinned-context-universal-dump-guard-c6710261.json",
         ".agent_memory/packets/decision-nudge-surfacing-and-the-kage-watcher-were-removed-hooks-are-the-memory-loop-563f61c9.json",
         ".agent_memory/packets/decision-nudge-surfacing-removed-in-v2-5-4-file-context-already-covered-the-high-value-ca-07a09b00.json",
         ".agent_memory/packets/decision-recall-withholds-content-changed-memory-too-task-39-shipped-f528d35e.json",
-        ".agent_memory/packets/decision-watcher-nudges-surface-to-the-agent-via-prompt-context-shell-paste-capture-leak--521f0b28.json",
+        ".agent_memory/packets/gotcha-claude-code-plugin-schema-no-displayname-hooks-commands-ship-via-plugin-dir-d1a36c11.json",
+        ".agent_memory/packets/runbook-capture-distill-fixes-need-a-rebuild-restart-to-take-effect-in-live-tooling-4a2f3232.json",
         ".agent_memory/packets/runbook-freshness-fingerprints-anchor-to-named-symbols-not-just-whole-file-hash-a20a3a22.json",
-        ".agent_memory/packets/runbook-truth-report-detectors-lead-with-reliably-firing-signal-f9853daf.json",
+        ".agent_memory/packets/runbook-releasing-kage-release-js-publishes-from-any-named-branch-ae2e694c.json",
+        ".agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-88de2220.json",
+        ".agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-verified-v2-2-1-096d7fe4.json",
+        ".agent_memory/packets/workflow-change-memory-adopt-receipts-and-read-context-f1b44b00.json",
+        ".agent_memory/packets/workflow-change-memory-gap-auto-capture-continuity-d1c2536b.json",
         ".agent_memory/packets/workflow-change-memory-master-23634276.json",
-        "AGENTS.md",
-        "CLAUDE.md",
-        "card.svg",
-        "docs/index.html"
+        ".agent_memory/packets/workflow-change-memory-release-v2-0-1-d6e19752.json",
+        ".agent_memory/packets/workflow-discovery-tokens-and-file-context-where-the-receipts-math-and-pretooluse-read-in-f1a4d4a3.json"
       ],
-      "summary_path": "/Users/kushaljain/code/Kage/.agent_memory/review/branch-summary-master.json"
+      "summary_path": ".agent_memory/review/branch-summary-master.json"
     }
   ],
   "context": {
-    "fact": "Current branch master changes 17 repo paths.",
+    "fact": "Current branch master changes 18 repo paths.",
     "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
     "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
     "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
@@ -74,30 +76,9 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-21T16:36:36.760Z",
+    "last_verified_at": "2026-06-21T17:13:36.162Z",
     "ttl_days": 180,
-    "path_fingerprints": [
-      {
-        "path": "AGENTS.md",
-        "sha256": "864f8c3fab570becc84b6988a18df1911da5b92d9f67ee05dae2c149c3347ad0",
-        "size": 4579
-      },
-      {
-        "path": "CLAUDE.md",
-        "sha256": "864f8c3fab570becc84b6988a18df1911da5b92d9f67ee05dae2c149c3347ad0",
-        "size": 4579
-      },
-      {
-        "path": "card.svg",
-        "sha256": "529efa20b494ac970b4ff2406abf3cecbb6f7311e75ee9c287942befe30f70ff",
-        "size": 3885
-      },
-      {
-        "path": "docs/index.html",
-        "sha256": "01428b103186cf0b25db4b8736aa466ab4f4eb3bc06b5ebd831f90f203a23564",
-        "size": 35079
-      }
-    ],
+    "path_fingerprints": [],
     "path_fingerprint_policy": "source_hash_staleness",
     "verification": "git_diff"
   },
@@ -109,17 +90,7 @@
     },
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-kushaljain-kushals-macbook-air-kage-mcp-publisher-publish-publishing-to-https-re-1c91608f.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
       "to": "path:.agent_memory/packets/decision-capture-flywheel-tiered-auto-promote-felt-recall-format-df80467e.json",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-edit-time-nudge-surfacing-file-context-fires-a-files-watcher-nudge-at-the-pretoo-ef50382e.json",
       "evidence": "git_diff"
     },
     {
@@ -149,7 +120,12 @@
     },
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-watcher-nudges-surface-to-the-agent-via-prompt-context-shell-paste-capture-leak--521f0b28.json",
+      "to": "path:.agent_memory/packets/gotcha-claude-code-plugin-schema-no-displayname-hooks-commands-ship-via-plugin-dir-d1a36c11.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/runbook-capture-distill-fixes-need-a-rebuild-restart-to-take-effect-in-live-tooling-4a2f3232.json",
       "evidence": "git_diff"
     },
     {
@@ -159,7 +135,27 @@
     },
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/runbook-truth-report-detectors-lead-with-reliably-firing-signal-f9853daf.json",
+      "to": "path:.agent_memory/packets/runbook-releasing-kage-release-js-publishes-from-any-named-branch-ae2e694c.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-88de2220.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-verified-v2-2-1-096d7fe4.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/workflow-change-memory-adopt-receipts-and-read-context-f1b44b00.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/workflow-change-memory-gap-auto-capture-continuity-d1c2536b.json",
       "evidence": "git_diff"
     },
     {
@@ -169,27 +165,17 @@
     },
     {
       "relation": "changes_path",
-      "to": "path:AGENTS.md",
+      "to": "path:.agent_memory/packets/workflow-change-memory-release-v2-0-1-d6e19752.json",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
-      "to": "path:CLAUDE.md",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:card.svg",
-      "evidence": "git_diff"
-    },
-    {
-      "relation": "changes_path",
-      "to": "path:docs/index.html",
+      "to": "path:.agent_memory/packets/workflow-discovery-tokens-and-file-context-where-the-receipts-math-and-pretooluse-read-in-f1a4d4a3.json",
       "evidence": "git_diff"
     }
   ],
   "quality": {
-    "score": 82,
+    "score": 100,
     "reasons": [
       "high-value memory type",
       "has source evidence",
@@ -198,14 +184,10 @@
       "concise but substantive",
       "actionable rationale or verification"
     ],
-    "risks": [
-      "some referenced paths are missing: .agent_memory/packets/bug_fix-kushaljain-kushals-macbook-air-kage-mcp-publisher-publish-publishing-to-https-re-1c91608f.json"
-    ],
+    "risks": [],
     "duplicate_candidates": [],
-    "stale_reasons": [
-      "some referenced paths are missing: .agent_memory/packets/bug_fix-kushaljain-kushals-macbook-air-kage-mcp-publisher-publish-publishing-to-https-re-1c91608f.json"
-    ],
-    "estimated_tokens_saved": 921,
+    "stale_reasons": [],
+    "estimated_tokens_saved": 1028,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -221,10 +203,8 @@
     },
     "candidate_kind": "change_memory",
     "review_boundary": "git_or_pr",
-    "promotion_requires_review": true,
-    "stale": true,
-    "suggested_action": "update"
+    "promotion_requires_review": true
   },
-  "created_at": "2026-06-21T16:36:36.760Z",
-  "updated_at": "2026-06-21T16:52:38.195Z"
+  "created_at": "2026-06-21T17:13:36.162Z",
+  "updated_at": "2026-06-21T17:13:36.162Z"
 }

@@ -227,9 +227,14 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 519,
-    "reverified_at": "2026-06-21T14:30:05.151Z"
+    "reverified_at": "2026-06-21T14:30:05.151Z",
+    "stale": true,
+    "stale_reasons": [
+      "linked path changed since memory was verified: mcp/kernel.ts"
+    ],
+    "suggested_action": "update"
   },
   "created_at": "2026-06-20T06:42:05.161Z",
-  "updated_at": "2026-06-21T14:30:05.151Z",
+  "updated_at": "2026-06-21T17:13:28.964Z",
   "author_branch": "master"
 }
