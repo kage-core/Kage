@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.5.7 — honest dollar estimate (no more 5x overstatement)
+
+- **The savings $ estimate used $15/1M input tokens — Opus pricing — but the
+  comment called it "Sonnet-class."** That overstated dollar savings ~5x for the
+  typical user (Sonnet is ~$3/1M; Haiku ~$0.80; GPT-4o ~$2.50). The default is now
+  a conservative **$3/1M (Sonnet-class)**, overridable per model via
+  `KAGE_USD_PER_MTOK` (e.g. `15` for Opus). `kage gains` now prints the rate it
+  used and how to change it, so the assumption is never hidden. Site receipt
+  corrected accordingly ($6.18 → $1.24 at $3/1M, labeled configurable).
+- Also in this release: `kage demo` demoted from the core-commands banner in favor
+  of `kage scan` as the try-it command (still in `kage help --all`).
+
 ## v2.5.6 — warm start de-noised; ungrounded-capture guard hardened
 
 - **Warm start is task-driven, not a session replay.** SessionStart (`kage resume`)

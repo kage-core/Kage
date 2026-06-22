@@ -126,6 +126,7 @@ import {
   scanSensitiveText,
   setupAgent,
   generatePluginHooks,
+  VALUE_DOLLARS_PER_MILLION_TOKENS,
   setupDoctor,
   setContextSlot,
   supersedeMemory,
@@ -4882,7 +4883,7 @@ test("value ledger accumulates events and valueSummary computes window math", ()
     assert.equal(window.recalls, 2);
     assert.equal(window.stale_withheld, 1);
     assert.equal(window.caller_answers, 1);
-    assert.equal(window.estimated_dollars, Number(((5000 / 1_000_000) * 15).toFixed(2)));
+    assert.equal(window.estimated_dollars, Number(((5000 / 1_000_000) * VALUE_DOLLARS_PER_MILLION_TOKENS).toFixed(2)));
   }
 
   // Events outside the window drop out of today/last_7d but stay in all-time totals.

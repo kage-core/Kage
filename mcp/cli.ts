@@ -100,6 +100,7 @@ import {
   registryRecommendations,
   setupAgent,
   generatePluginHooks,
+  VALUE_DOLLARS_PER_MILLION_TOKENS,
   setupDoctor,
   setContextSlot,
   staleCatch,
@@ -1451,6 +1452,12 @@ async function main(): Promise<void> {
         `(discovery cost of served memories vs their compressed read cost)`
       );
     }
+    const usdOverridden = Number.isFinite(Number(process.env.KAGE_USD_PER_MTOK)) && Number(process.env.KAGE_USD_PER_MTOK) > 0;
+    console.log(
+      `\nDollars estimated at $${VALUE_DOLLARS_PER_MILLION_TOKENS}/1M input tokens ` +
+      `(${usdOverridden ? "via KAGE_USD_PER_MTOK" : "Sonnet-class default — set KAGE_USD_PER_MTOK for your model"}). ` +
+      `Ledger: .agent_memory/reports/value.json`
+    );
     return;
   }
 

@@ -3082,8 +3082,14 @@ function recordRecallAccess(projectDir: string, results: RecallResult["results"]
 
 const VALUE_LEDGER_SCHEMA_VERSION = 1;
 const VALUE_LEDGER_EVENT_CAP = 5000;
-// Rough Sonnet-class input price used for the dollar estimate: $15 per 1M tokens.
-const VALUE_DOLLARS_PER_MILLION_TOKENS = 15;
+// Input price used for the dollar estimate. Default: Sonnet-class ~$3 per 1M input tokens (the
+// typical coding-agent tier) — deliberately conservative so the savings figure never overstates.
+// Override with KAGE_USD_PER_MTOK to match your model (e.g. 15 for Opus, 2.5 for GPT-4o, 0.8 for
+// Haiku). The old default ($15, Opus pricing) overstated savings ~5x for most users.
+export const VALUE_DOLLARS_PER_MILLION_TOKENS = (() => {
+  const raw = Number(process.env.KAGE_USD_PER_MTOK);
+  return Number.isFinite(raw) && raw > 0 ? raw : 3;
+})();
 
 export type ValueEvent =
   | { kind: "recall_served"; tokens_saved: number; replay_tokens?: number }
