@@ -1,5 +1,25 @@
 # Changelog
 
+## v2.5.6 — warm start de-noised; ungrounded-capture guard hardened
+
+- **Warm start is task-driven, not a session replay.** SessionStart (`kage resume`)
+  no longer dumps last session's files, commands, or a recency-ranked memory list.
+  That digest fired *before the task was known*, so it could never be targeted — and
+  it was the surface that injected raw command dumps and junk packets at the top of
+  every session. `kage resume` now carries only always-on pinned repo facts plus
+  actionable open-threads (drafts to review, memory to reconcile). Task-relevant
+  memory is pulled on the first prompt via `prompt-context`; file-linked memory via
+  `file-context` on read.
+- **Ungrounded-capture guard hardened.** `isUngroundedConversationalCapture` was
+  letting frustrated user rants through whenever they name-dropped a platform word
+  (github, pr, x, linkedin) — the loose grounding check false-positived and waved
+  them past, so junk kept getting captured as *approved* memory. Now a message that
+  rants at the assistant ("why are you…", "don't stop", "it's your job") is chatter
+  regardless of incidental nouns.
+- **gc reclaims ungrounded chatter.** `kage gc` now deletes ungrounded-conversational
+  packets on sight (like serialized dumps), reclaiming legacy junk captured before
+  the guard existed.
+
 ## v2.5.5 — one source of truth for hooks
 
 - **Plugin hooks are now generated from `setupAgent`.** The Claude Code plugin's

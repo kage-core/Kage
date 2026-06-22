@@ -9316,10 +9316,11 @@ export function gcProject(projectDir: string, options: { dryRun?: boolean; force
       skipped.push({ id: packet.id, title: packet.title, reason: "already deprecated" });
       continue;
     }
-    // Serialized transcript / tool-output / file-content dumps carry no durable knowledge
-    // and bloat recall + the graph. Always delete them (deprecating would leave the blob on
-    // disk) — this also reclaims legacy dumps written before the capture-time guard existed.
-    if (isSerializedDumpTitle(packet.title) || isSerializedDumpBody(packet.body)) {
+    // Serialized transcript / tool-output / file-content dumps and ungrounded conversational
+    // chatter (a path-less rant at the assistant) carry no durable knowledge and bloat recall +
+    // the digest. Always delete them (deprecating would leave the blob on disk) — this also
+    // reclaims legacy junk written before the capture-time guards existed.
+    if (isSerializedDumpTitle(packet.title) || isSerializedDumpBody(packet.body) || isUngroundedConversationalCapture(packet)) {
       if (!options.dryRun) unlinkSync(path);
       deleted.push({ id: packet.id, title: packet.title });
       continue;
@@ -10413,6 +10414,15 @@ function hasRepoGroundingSignal(text: string): boolean {
 // punctuation, or one of a curated set of rhetorical / second-person-at-the-assistant
 // phrases — so it stays clear of normal declarative learnings (which read as statements, not
 // outbursts addressed to "you").
+// Phrases that rant AT the assistant ("why are you...", "it's your job", "don't stop"). These
+// never appear in a curated learning, so they mark chatter even when the outburst name-drops a
+// platform word (github, pr, x, linkedin) that the loose grounding matcher would otherwise
+// treat as a repo reference. This is the override that closes the leak where a frustrated
+// message peppered with nouns slipped through and was captured as approved memory.
+function looksFrustratedAtAssistant(text: string): boolean {
+  return /\b(why are you|why did you|why would you|why aren'?t you|are you (kidding|serious|even|really)|it'?s your job|that'?s your job|do your job|don'?t stop|stop asking|stop before you|keep going|hurry up|just do it|figure it out yourself|i (already )?told you)\b/i.test(text ?? "");
+}
+
 function looksLikeRawUserUtterance(text: string): boolean {
   const t = (text ?? "").trim();
   if (!t) return false;
@@ -10420,18 +10430,20 @@ function looksLikeRawUserUtterance(text: string): boolean {
   // essentially absent from curated memory prose.
   if (/[!?]{2,}/.test(t)) return true;
   // Rhetorical questions / second-person-imperative frustration directed at the assistant.
-  return /\b(why are you|why did you|why would you|why aren'?t you|are you (kidding|serious|even|really)|it'?s your job|that'?s your job|do your job|don'?t stop|stop asking|stop before you|keep going|hurry up|just do it|figure it out yourself|i (already )?told you)\b/i.test(t);
+  return looksFrustratedAtAssistant(t);
 }
 
-// Capture-noise guard for ungrounded chat. A packet trips it only when ALL hold: it cites zero
-// repo paths, its text carries no repo grounding signal (no path/file/identifier/command), and
-// it reads as a raw conversational user utterance. The conjunction is what keeps it safe — a
-// real ungrounded decision or convention names a symbol, file, command, or rule and so is never
-// caught. Such packets are routed to pending (not auto-approved) at capture time and withheld
-// from recall, mirroring how serialized dumps are gated.
+// Capture-noise guard for ungrounded chat. A packet trips it when it cites zero repo paths and
+// either (a) it rants at the assistant — which overrides incidental repo-ish words, since the
+// grounding matcher false-positives on bare platform names — or (b) it reads as a raw outburst
+// and carries no repo grounding signal at all. The override + conjunction keep it safe: a real
+// ungrounded decision or convention is declarative (no "why are you.../don't stop") and usually
+// names a symbol, file, command, or rule, so it is never caught. Such packets route to pending
+// (not auto-approved) at capture time and are withheld from recall, like serialized dumps.
 export function isUngroundedConversationalCapture(packet: Pick<MemoryPacket, "title" | "body" | "paths">): boolean {
   if (packet.paths && packet.paths.length > 0) return false;
   const text = `${packet.title ?? ""}\n${packet.body ?? ""}`;
+  if (looksFrustratedAtAssistant(text)) return true;
   if (hasRepoGroundingSignal(text)) return false;
   return looksLikeRawUserUtterance(text);
 }
@@ -18310,17 +18322,17 @@ export function kageResume(projectDir: string): ResumeReport {
     age: humanPacketAge(packetRecency(packet)),
   }));
 
-  const hasSessionContent = Boolean(lastSession || lastChangeMemory || pendingAutoDistilled || reconciliation.unresolved_count);
-  const hasContent = hasSessionContent || recentMemory.length > 0;
+  // A new session starts on a fresh task, so SessionStart does NOT replay last session's files,
+  // commands, or a recency-ranked memory list — that was pre-task noise (it fires before the
+  // first prompt, so it can't be task-targeted) and the surface that leaked raw command dumps and
+  // junk packets. Task-relevant memory is pulled on the first prompt via prompt-context; recall
+  // at the moment a file is read via file-context. SessionStart carries only always-on curated
+  // repo facts (the pinned block, below) plus a few actionable open-thread pointers.
+  const hasSessionContent = Boolean(lastChangeMemory || pendingAutoDistilled || reconciliation.unresolved_count);
+  const hasContent = hasSessionContent;
   const lines: string[] = [];
-  if (hasContent) {
-    lines.push("# Previously (Kage)");
-    if (lastSession) {
-      lines.push(`Last session ${lastSession.session_id} (${lastSession.observations} observation${lastSession.observations === 1 ? "" : "s"}, ended ${lastSession.last_at}).`);
-      if (lastSession.paths.length) lines.push(`Worked on: ${lastSession.paths.join(", ")}`);
-      if (lastSession.commands.length) lines.push(`Commands: ${lastSession.commands.join("; ")}`);
-      if (lastSession.distilled_titles.length) lines.push(`Learned: ${lastSession.distilled_titles.join("; ")}`);
-    }
+  if (hasSessionContent) {
+    lines.push("# Open threads (Kage)");
     if (lastChangeMemory) {
       lines.push(`Change memory: ${lastChangeMemory.title} — ${lastChangeMemory.summary}`);
     }
@@ -18332,22 +18344,7 @@ export function kageResume(projectDir: string): ResumeReport {
       for (const item of reconciliationItems.slice(0, 3)) lines.push(`  - ${item.packet_id}: ${item.title}`);
     }
   }
-
-  // Compact timeline index: one line per recent packet, full detail (summary)
-  // only for the newest few, hard-capped to the resume token budget.
-  const block = lines.slice(0, 15);
-  if (recentPackets.length) {
-    block.push("", "## Recent memory");
-    recentPackets.forEach((packet, position) => {
-      const entry = `[${packet.id.slice(0, 12)}] ${packet.type} ${packet.title} (${humanPacketAge(packetRecency(packet))})`;
-      const candidate = [entry];
-      if (position < RESUME_TIMELINE_DETAILED && packet.summary) {
-        const summary = packet.summary.replace(/\s+/g, " ").trim();
-        candidate.push(`    ${summary.length > 160 ? `${summary.slice(0, 157)}...` : summary}`);
-      }
-      if (estimateTokens([...block, ...candidate].join("\n")) <= RESUME_CONTEXT_TOKEN_BUDGET) block.push(...candidate);
-    });
-  }
+  const block = lines.slice(0, 12);
 
   // Lead the SessionStart injection with the team's pinned, always-on repo memory (the
   // curated high-signal facts), not just the recent-timeline digest — parity with recall's

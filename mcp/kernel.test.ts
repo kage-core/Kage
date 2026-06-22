@@ -2617,7 +2617,7 @@ test("auto distill skips low-signal observations and counts them instead of draf
   assert.equal(real.candidates[0]?.packet?.status, "pending");
 });
 
-test("resume prints a previously block with prior session data and stays silent without it", () => {
+test("resume surfaces open threads, not a session replay, and stays silent without it", () => {
   const project = tempProject();
   const empty = kageResume(project);
   assert.equal(empty.has_content, false);
@@ -2645,21 +2645,25 @@ test("resume prints a previously block with prior session data and stays silent 
 
   const result = kageResume(project);
   assert.equal(result.has_content, true);
+  // last_session stays in the STRUCTURED report (for the API/viewer)...
   assert.equal(result.last_session?.session_id, "resume-session");
   assert.equal(result.last_session?.observations, 2);
   assert.equal(result.last_session?.paths.includes("src/server.ts"), true);
-  assert.equal((result.last_session?.distilled_titles.length ?? 0) > 0, true);
   assert.equal(result.pending_auto_distilled, loadPendingPackets(project).length);
   assert.equal(result.pending_auto_distilled > 0, true);
   assert.match(result.review_command ?? "", /kage review --project/);
-  assert.match(result.context_block, /^# Previously \(Kage\)/);
-  assert.match(result.context_block, /Last session resume-session/);
+  // ...but the INJECTED context_block no longer replays the session: a new session is a fresh
+  // task, so SessionStart carries only actionable open-threads (task-relevant memory is pulled
+  // on the first prompt via prompt-context). No "Previously" replay, no worked-on files, no
+  // commands, no recency-ranked timeline — the surfaces that leaked dumps and junk packets.
+  assert.match(result.context_block, /^# Open threads \(Kage\)/);
   assert.match(result.context_block, /auto-distilled draft/);
   assert.match(result.context_block, /kage review --project/);
-  // Session section stays capped at 15 lines; the recent-memory timeline follows it.
-  const sessionSection = result.context_block.split("## Recent memory")[0];
-  assert.equal(sessionSection.trimEnd().split("\n").length <= 15, true);
-  assert.match(result.context_block, /## Recent memory/);
+  assert.doesNotMatch(result.context_block, /# Previously/);
+  assert.doesNotMatch(result.context_block, /Last session/);
+  assert.doesNotMatch(result.context_block, /## Recent memory/);
+  assert.doesNotMatch(result.context_block, /Worked on:/);
+  assert.doesNotMatch(result.context_block, /Commands:/);
 });
 
 test("session capture report shows distillable observations without raw replay", () => {
@@ -5386,7 +5390,7 @@ test("packet merge gitattributes entry is idempotent and preserves existing cont
   assert.deepEqual(packetLines, [PACKET_MERGE_ATTRIBUTE_LINE]);
 });
 
-test("resume timeline indexes at most 15 recent packets within the token budget", () => {
+test("resume keeps recent_memory in the report but never injects a recency timeline", () => {
   const project = tempProject();
   mkdirSync(join(project, "src"), { recursive: true });
   writeFileSync(join(project, "src", "app.ts"), "export const app = 1;\n", "utf8");
@@ -5411,19 +5415,15 @@ test("resume timeline indexes at most 15 recent packets within the token budget"
   }
 
   const result = kageResume(project);
-  assert.equal(result.has_content, true);
-  // 20 packets exist; the timeline indexes only the newest 15.
+  // The structured report still indexes the newest 15 (for the API / viewer feed)...
   assert.equal(result.recent_memory.length, 15);
   assert.equal(result.recent_memory[0].id, template.id);
-  assert.match(result.context_block, /## Recent memory/);
-  const entryLines = result.context_block.split("\n").filter((line) => /^\[[^\]]+\] /.test(line));
-  assert.equal(entryLines.length <= 15, true);
-  // Entry format: [id-prefix] type title (age)
-  assert.match(entryLines[0], /^\[[^\]]{1,12}\] reference Timeline seed packet \(.+\)$/);
-  // Full detail (summary line) only for the newest entries.
-  assert.match(result.context_block, /App entry lives in src\/app\.ts|Summary for timeline packet/);
-  // Token budget: ~4 chars per estimated token, capped at 800.
-  assert.equal(Math.ceil(result.context_block.length / 4) <= 800, true);
+  // ...but 20 ordinary packets with no open-threads and nothing pinned means SessionStart stays
+  // silent — a fresh session does NOT get a recency-ranked dump injected. Task-relevant memory is
+  // pulled on the first prompt via prompt-context, not dumped by recency at session start.
+  assert.equal(result.has_content, false);
+  assert.equal(result.context_block, "");
+  assert.doesNotMatch(result.context_block, /## Recent memory/);
 });
 
 // ---------------------------------------------------------------------------
