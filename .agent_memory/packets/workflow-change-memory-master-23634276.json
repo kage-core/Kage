@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
-  "summary": "Repo-local context for 2 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/decision-readme-hero-uses-animated-demo-gif-ff1b3db1.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n.../decision-readme-hero-uses-animated-demo-gif-ff1b3db1.json    | 9 +++++++--\n .../packets/workflow-change-memory-master-23634276.json          | 3 +--\n 2 files changed, 8 insertions(+), 4 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "summary": "Repo-local context for 1 changed repo path on master.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n.agent_memory/packets/workflow-change-memory-master-23634276.json | 3 +--\n 1 file changed, 1 insertion(+), 2 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -17,7 +17,6 @@
     "branch:master"
   ],
   "paths": [
-    ".agent_memory/packets/decision-readme-hero-uses-animated-demo-gif-ff1b3db1.json",
     ".agent_memory/packets/workflow-change-memory-master-23634276.json"
   ],
   "stack": [],
@@ -25,17 +24,16 @@
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "e9bf661480c715cbc748c037176fa8435c19707f",
-      "merge_base": "e9bf661480c715cbc748c037176fa8435c19707f",
+      "head": "5d2e3536c24fbdd2bfdd7ae3e3e6a133e2fdb661",
+      "merge_base": "5d2e3536c24fbdd2bfdd7ae3e3e6a133e2fdb661",
       "changed_files": [
-        ".agent_memory/packets/decision-readme-hero-uses-animated-demo-gif-ff1b3db1.json",
         ".agent_memory/packets/workflow-change-memory-master-23634276.json"
       ],
       "summary_path": ".agent_memory/review/branch-summary-master.json"
     }
   ],
   "context": {
-    "fact": "Current branch master changes 2 repo paths.",
+    "fact": "Current branch master changes 1 repo path.",
     "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
     "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
     "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
@@ -44,18 +42,13 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-22T11:06:03.683Z",
+    "last_verified_at": "2026-06-22T12:20:14.620Z",
     "ttl_days": 180,
     "path_fingerprints": [],
     "path_fingerprint_policy": "source_hash_staleness",
     "verification": "git_diff"
   },
   "edges": [
-    {
-      "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-readme-hero-uses-animated-demo-gif-ff1b3db1.json",
-      "evidence": "git_diff"
-    },
     {
       "relation": "changes_path",
       "to": "path:.agent_memory/packets/workflow-change-memory-master-23634276.json",
@@ -75,7 +68,7 @@
     "risks": [],
     "duplicate_candidates": [],
     "stale_reasons": [],
-    "estimated_tokens_saved": 272,
+    "estimated_tokens_saved": 231,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -93,6 +86,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-06-22T11:06:03.683Z",
-  "updated_at": "2026-06-22T11:06:03.683Z"
+  "created_at": "2026-06-22T12:20:14.620Z",
+  "updated_at": "2026-06-22T12:20:14.620Z"
 }
