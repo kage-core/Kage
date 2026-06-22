@@ -3,7 +3,7 @@
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
   "summary": "Repo-local context for 4 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- AGENTS.md\n- CLAUDE.md\n- card.svg\n- docs/index.html\n\nDiff summary:\n```text\nAGENTS.md       | 27 +++++++++++++++++++++++----\n CLAUDE.md       | 27 +++++++++++++++++++++++----\n docs/index.html |  8 ++++----\n 3 files changed, 50 insertions(+), 12 deletions(-)\ncard.svg | untracked\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/bug_fix-kage-context-bloat-dump-packet-capture-cause-and-fix-e5060da1.json\n- .agent_memory/packets/decision-capture-guard-ungrounded-conversational-user-utterances-routed-to-pending-withhe-ccf53f40.json\n- .agent_memory/packets/decision-injection-capture-hardening-sessionstart-pinned-context-universal-dump-guard-c6710261.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n...ntext-bloat-dump-packet-capture-cause-and-fix-e5060da1.json |  9 +++++++--\n ...onal-user-utterances-routed-to-pending-withhe-ccf53f40.json |  9 +++++++--\n ...sionstart-pinned-context-universal-dump-guard-c6710261.json |  9 +++++++--\n .../packets/workflow-change-memory-master-23634276.json        | 10 ++++++++--\n 4 files changed, 29 insertions(+), 8 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -17,25 +17,25 @@
     "branch:master"
   ],
   "paths": [
-    "AGENTS.md",
-    "CLAUDE.md",
-    "card.svg",
-    "docs/index.html"
+    ".agent_memory/packets/bug_fix-kage-context-bloat-dump-packet-capture-cause-and-fix-e5060da1.json",
+    ".agent_memory/packets/decision-capture-guard-ungrounded-conversational-user-utterances-routed-to-pending-withhe-ccf53f40.json",
+    ".agent_memory/packets/decision-injection-capture-hardening-sessionstart-pinned-context-universal-dump-guard-c6710261.json",
+    ".agent_memory/packets/workflow-change-memory-master-23634276.json"
   ],
   "stack": [],
   "source_refs": [
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "603172eff9b79e36951b10d21b566b96e8047845",
-      "merge_base": "603172eff9b79e36951b10d21b566b96e8047845",
+      "head": "3d518ee3da6332cd344132e9e3640d3b3597834f",
+      "merge_base": "3d518ee3da6332cd344132e9e3640d3b3597834f",
       "changed_files": [
-        "AGENTS.md",
-        "CLAUDE.md",
-        "card.svg",
-        "docs/index.html"
+        ".agent_memory/packets/bug_fix-kage-context-bloat-dump-packet-capture-cause-and-fix-e5060da1.json",
+        ".agent_memory/packets/decision-capture-guard-ungrounded-conversational-user-utterances-routed-to-pending-withhe-ccf53f40.json",
+        ".agent_memory/packets/decision-injection-capture-hardening-sessionstart-pinned-context-universal-dump-guard-c6710261.json",
+        ".agent_memory/packets/workflow-change-memory-master-23634276.json"
       ],
-      "summary_path": "/Users/kushaljain/code/Kage/.agent_memory/review/branch-summary-master.json"
+      "summary_path": ".agent_memory/review/branch-summary-master.json"
     }
   ],
   "context": {
@@ -48,52 +48,31 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-21T17:15:35.303Z",
+    "last_verified_at": "2026-06-22T07:58:14.585Z",
     "ttl_days": 180,
-    "path_fingerprints": [
-      {
-        "path": "AGENTS.md",
-        "sha256": "864f8c3fab570becc84b6988a18df1911da5b92d9f67ee05dae2c149c3347ad0",
-        "size": 4579
-      },
-      {
-        "path": "CLAUDE.md",
-        "sha256": "864f8c3fab570becc84b6988a18df1911da5b92d9f67ee05dae2c149c3347ad0",
-        "size": 4579
-      },
-      {
-        "path": "card.svg",
-        "sha256": "529efa20b494ac970b4ff2406abf3cecbb6f7311e75ee9c287942befe30f70ff",
-        "size": 3885
-      },
-      {
-        "path": "docs/index.html",
-        "sha256": "01428b103186cf0b25db4b8736aa466ab4f4eb3bc06b5ebd831f90f203a23564",
-        "size": 35079
-      }
-    ],
+    "path_fingerprints": [],
     "path_fingerprint_policy": "source_hash_staleness",
     "verification": "git_diff"
   },
   "edges": [
     {
       "relation": "changes_path",
-      "to": "path:AGENTS.md",
+      "to": "path:.agent_memory/packets/bug_fix-kage-context-bloat-dump-packet-capture-cause-and-fix-e5060da1.json",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
-      "to": "path:CLAUDE.md",
+      "to": "path:.agent_memory/packets/decision-capture-guard-ungrounded-conversational-user-utterances-routed-to-pending-withhe-ccf53f40.json",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
-      "to": "path:card.svg",
+      "to": "path:.agent_memory/packets/decision-injection-capture-hardening-sessionstart-pinned-context-universal-dump-guard-c6710261.json",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
-      "to": "path:docs/index.html",
+      "to": "path:.agent_memory/packets/workflow-change-memory-master-23634276.json",
       "evidence": "git_diff"
     }
   ],
@@ -109,7 +88,8 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "estimated_tokens_saved": 248,
+    "stale_reasons": [],
+    "estimated_tokens_saved": 380,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -127,6 +107,6 @@
     "review_boundary": "git_or_pr",
     "promotion_requires_review": true
   },
-  "created_at": "2026-06-21T17:15:35.303Z",
-  "updated_at": "2026-06-21T17:16:48.063Z"
+  "created_at": "2026-06-22T07:58:14.585Z",
+  "updated_at": "2026-06-22T07:58:14.585Z"
 }
