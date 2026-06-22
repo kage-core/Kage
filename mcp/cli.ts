@@ -130,7 +130,6 @@ const CORE_USAGE = `Kage — code-grounded memory for coding agents
 Core commands:
   kage install [--project <dir>]             one-shot: init + index + auto-wire detected agents
   kage scan --project <dir>                  60-second truth report on any repo (zero setup)
-  kage demo                                  watch the reject/withhold loop run in a sandbox
   kage init --project <dir>                  create repo memory (.agent_memory only)
   kage index --project <dir> [--full]        build/refresh code graph + indexes
   kage recall "<query>" --project <dir>      grounded recall from repo memory
