@@ -34,12 +34,12 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-21T17:18:05.880Z",
+    "last_verified_at": "2026-06-22T07:59:23.180Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "e22da4096afd6f19711892a3812ec7d695d0acfde007084dd139df9d4343dd54",
-        "size": 872150,
+        "sha256": "950a3b6bd41e46a84cb252ef8cec9d515a83b5b1d64d590183c04b032ba09468",
+        "size": 872260,
         "symbols": [
           {
             "name": "verified",
@@ -134,7 +134,7 @@
           {
             "name": "kageresume",
             "kind": "function",
-            "sha256": "7f51232c04b2891684b6da469f8898aba34a0c5ef0f7baed6d440a4042457cd6"
+            "sha256": "264f3f40cfade4ea8d6f1e315ff2994b0dfc8371d64aa065c07d47ee7b9b2e65"
           },
           {
             "name": "memory",
@@ -195,14 +195,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 380,
-    "reverified_at": "2026-06-21T17:18:05.880Z",
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: mcp/kernel.ts"
-    ],
-    "suggested_action": "update"
+    "reverified_at": "2026-06-22T07:59:23.180Z"
   },
   "created_at": "2026-06-20T11:25:42.941Z",
-  "updated_at": "2026-06-22T07:58:07.462Z",
+  "updated_at": "2026-06-22T07:59:23.180Z",
   "author_branch": "master"
 }

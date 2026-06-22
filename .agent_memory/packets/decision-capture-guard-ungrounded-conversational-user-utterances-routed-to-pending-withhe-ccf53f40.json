@@ -8,7 +8,7 @@
   "scope": "repo",
   "visibility": "team",
   "sensitivity": "internal",
-  "status": "deprecated",
+  "status": "approved",
   "confidence": 0.7,
   "tags": [
     "session-learning",
@@ -33,12 +33,12 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-21T17:03:17.773Z",
+    "last_verified_at": "2026-06-22T07:59:22.867Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
-        "sha256": "28ad979e5ebd754337645f0e9f572d884ac69e91956d040874007eaf0780c089",
-        "size": 868992,
+        "sha256": "950a3b6bd41e46a84cb252ef8cec9d515a83b5b1d64d590183c04b032ba09468",
+        "size": 872260,
         "symbols": [
           {
             "name": "verified",
@@ -78,12 +78,12 @@
           {
             "name": "lookslikerawuserutterance",
             "kind": "function",
-            "sha256": "8ca265d05e04bbd390a8a079e3f072448f4ca36f9aa19d6261a57b14acc5da87"
+            "sha256": "1f63be8e35ac9ea2735e54734670c26cbc23acb7aaef1b66f8ed99fc14bb7e5d"
           },
           {
             "name": "isungroundedconversationalcapture",
             "kind": "function",
-            "sha256": "168b56d88f1aa5fdead9ab86f8f0e2a88b12c14741a1c156c035520b3befa968"
+            "sha256": "ccbedd29a4bbbc8c6a748d462c088a5a90a3b6a1df4abd90450f668924814f76"
           },
           {
             "name": "code",
@@ -134,8 +134,8 @@
       },
       {
         "path": "mcp/kernel.test.ts",
-        "sha256": "2e5e178b2cf6cc4de628ca55dcf15803466ec3dc123eb2c684223541e9eb16df",
-        "size": 300374,
+        "sha256": "4d94b5a0222fc72b7819b266b9d11503cded6293cd307dde8c43554cacaca2f9",
+        "size": 301610,
         "symbols": [
           {
             "name": "packets",
@@ -216,13 +216,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 308,
-    "stale": true,
-    "stale_reasons": [
-      "linked path changed since memory was verified: mcp/kernel.ts"
-    ],
-    "suggested_action": "update"
+    "reverified_at": "2026-06-22T07:59:22.867Z"
   },
   "created_at": "2026-06-21T17:03:17.773Z",
-  "updated_at": "2026-06-22T07:58:15.825Z",
+  "updated_at": "2026-06-22T07:59:22.867Z",
   "author_branch": "master"
 }

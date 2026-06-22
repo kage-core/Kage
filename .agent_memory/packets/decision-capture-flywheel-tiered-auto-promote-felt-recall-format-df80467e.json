@@ -36,7 +36,7 @@
   },
   "freshness": {
     "ttl_days": 365,
-    "last_verified_at": "2026-06-21T17:16:45.833Z",
+    "last_verified_at": "2026-06-22T05:48:09.960Z",
     "path_fingerprints": [
       {
         "path": "mcp/kernel.ts",
@@ -258,9 +258,9 @@
     "risks": [],
     "duplicate_candidates": [],
     "estimated_tokens_saved": 525,
-    "reverified_at": "2026-06-21T17:16:45.833Z"
+    "reverified_at": "2026-06-22T05:48:09.960Z"
   },
   "created_at": "2026-06-21T13:22:46.482Z",
-  "updated_at": "2026-06-21T17:16:45.833Z",
+  "updated_at": "2026-06-22T05:48:09.960Z",
   "author_branch": "master"
 }

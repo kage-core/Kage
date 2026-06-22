@@ -2,8 +2,8 @@
   "schema_version": 2,
   "id": "repo:https-github-com-kage-core-kage:workflow:change-memory-master",
   "title": "Change memory: master",
-  "summary": "Repo-local context for 4 changed repo paths on master.",
-  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/bug_fix-kage-context-bloat-dump-packet-capture-cause-and-fix-e5060da1.json\n- .agent_memory/packets/decision-capture-guard-ungrounded-conversational-user-utterances-routed-to-pending-withhe-ccf53f40.json\n- .agent_memory/packets/decision-injection-capture-hardening-sessionstart-pinned-context-universal-dump-guard-c6710261.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n\nDiff summary:\n```text\n...ntext-bloat-dump-packet-capture-cause-and-fix-e5060da1.json |  9 +++++++--\n ...onal-user-utterances-routed-to-pending-withhe-ccf53f40.json |  9 +++++++--\n ...sionstart-pinned-context-universal-dump-guard-c6710261.json |  9 +++++++--\n .../packets/workflow-change-memory-master-23634276.json        | 10 ++++++++--\n 4 files changed, 29 insertions(+), 8 deletions(-)\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
+  "summary": "Repo-local context for 22 changed repo paths on master.",
+  "body": "Repo-local change memory generated from the current git diff.\n\nGoal: preserve the durable context another agent should receive when it works in this repo later.\n\nWhat changed:\n- .agent_memory/packets/decision-capture-flywheel-tiered-auto-promote-felt-recall-format-df80467e.json\n- .agent_memory/packets/decision-graph-nodes-at-capture-opt-in-recall-token-budget-verified-v2-2-1-6c65628a.json\n- .agent_memory/packets/issue_context-kage-keeps-auto-capturing-raw-user-chat-utterances-as-memory-packets-344823be.json\n- .agent_memory/packets/issue_context-why-are-you-asking-me-09802163.json\n- .agent_memory/packets/issue_context-why-are-you-asking-me-0d072c49.json\n- .agent_memory/packets/issue_context-why-are-you-asking-me-130ddad8.json\n- .agent_memory/packets/issue_context-why-are-you-asking-me-2460505f.json\n- .agent_memory/packets/issue_context-why-are-you-asking-me-8f002db0.json\n- .agent_memory/packets/issue_context-why-are-you-asking-me-bc78cd61.json\n- .agent_memory/packets/issue_context-why-are-you-asking-me-c4a11b40.json\n- .agent_memory/packets/issue_context-why-are-you-asking-me-c870a1d8.json\n- .agent_memory/packets/issue_context-why-are-you-asking-me-f327a435.json\n- .agent_memory/packets/issue_context-why-are-you-asking-me-f6f93256.json\n- .agent_memory/packets/issue_context-why-are-you-asking-me-fc557c59.json\n- .agent_memory/packets/runbook-capture-distill-fixes-need-a-rebuild-restart-to-take-effect-in-live-tooling-4a2f3232.json\n- .agent_memory/packets/runbook-freshness-fingerprints-anchor-to-named-symbols-not-just-whole-file-hash-a20a3a22.json\n- .agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-verified-v2-2-1-096d7fe4.json\n- .agent_memory/packets/workflow-change-memory-master-23634276.json\n- AGENTS.md\n- CLAUDE.md\n- card.svg\n- docs/index.html\n\nDiff summary:\n```text\n...d-auto-promote-felt-recall-format-df80467e.json |   6 +-\n ...call-token-budget-verified-v2-2-1-6c65628a.json |   6 +-\n ...rt-to-take-effect-in-live-tooling-4a2f3232.json |   6 +-\n ...-symbols-not-just-whole-file-hash-a20a3a22.json |   6 +-\n ...resume-continuity-verified-v2-2-1-096d7fe4.json |   6 +-\n .../workflow-change-memory-master-23634276.json    | 142 +++++++++++++++++++--\n AGENTS.md                                          |  27 +++-\n CLAUDE.md                                          |  27 +++-\n docs/index.html                                    |   8 +-\n 9 files changed, 194 insertions(+), 40 deletions(-)\n.agent_memory/packets/issue_context-kage-keeps-auto-capturing-raw-user-chat-utterances-as-memory-packets-344823be.json | untracked\n.agent_memory/packets/issue_context-why-are-you-asking-me-09802163.json | untracked\n.agent_memory/packets/issue_context-why-are-you-asking-me-0d072c49.json | untracked\n.agent_memory/packets/issue_context-why-are-you-asking-me-130ddad8.json | untracked\n.agent_memory/packets/issue_context-why-are-you-asking-me-2460505f.json | untracked\n.agent_memory/packets/issue_context-why-are-you-asking-me-8f002db0.json | untracked\n.agent_memory/packets/issue_context-why-are-you-asking-me-bc78cd61.json | untracked\n.agent_memory/packets/issue_context-why-are-you-asking-me-c4a11b40.json | untracked\n.agent_memory/packets/issue_context-why-are-you-asking-me-c870a1d8.json | untracked\n.agent_memory/packets/issue_context-why-are-you-asking-me-f327a435.json | untracked\n.agent_memory/packets/issue_context-why-are-you-asking-me-f6f93256.json | untracked\n.agent_memory/packets/issue_context-why-are-you-asking-me-fc557c59.json | untracked\ncard.svg | untracked\n```\n\nHow to verify:\n- Add the exact test, build, or manual verification command when you refine this memory.\n\nImprove this packet when more context is known:\n- The actual feature, fix, or refactor rationale.\n- Why the change was made, including relevant bugs, issues, decisions, and code explanations.\n- The package, API, command, or architectural pattern future agents should understand, verify, or reuse.\n- Any gotchas, follow-up risks, or branch-specific assumptions.\n\nPromote beyond this repo only after explicit org/global review.",
   "type": "workflow",
   "scope": "repo",
   "visibility": "team",
@@ -17,29 +17,65 @@
     "branch:master"
   ],
   "paths": [
-    ".agent_memory/packets/bug_fix-kage-context-bloat-dump-packet-capture-cause-and-fix-e5060da1.json",
-    ".agent_memory/packets/decision-capture-guard-ungrounded-conversational-user-utterances-routed-to-pending-withhe-ccf53f40.json",
-    ".agent_memory/packets/decision-injection-capture-hardening-sessionstart-pinned-context-universal-dump-guard-c6710261.json",
-    ".agent_memory/packets/workflow-change-memory-master-23634276.json"
+    ".agent_memory/packets/decision-capture-flywheel-tiered-auto-promote-felt-recall-format-df80467e.json",
+    ".agent_memory/packets/decision-graph-nodes-at-capture-opt-in-recall-token-budget-verified-v2-2-1-6c65628a.json",
+    ".agent_memory/packets/issue_context-kage-keeps-auto-capturing-raw-user-chat-utterances-as-memory-packets-344823be.json",
+    ".agent_memory/packets/issue_context-why-are-you-asking-me-09802163.json",
+    ".agent_memory/packets/issue_context-why-are-you-asking-me-0d072c49.json",
+    ".agent_memory/packets/issue_context-why-are-you-asking-me-130ddad8.json",
+    ".agent_memory/packets/issue_context-why-are-you-asking-me-2460505f.json",
+    ".agent_memory/packets/issue_context-why-are-you-asking-me-8f002db0.json",
+    ".agent_memory/packets/issue_context-why-are-you-asking-me-bc78cd61.json",
+    ".agent_memory/packets/issue_context-why-are-you-asking-me-c4a11b40.json",
+    ".agent_memory/packets/issue_context-why-are-you-asking-me-c870a1d8.json",
+    ".agent_memory/packets/issue_context-why-are-you-asking-me-f327a435.json",
+    ".agent_memory/packets/issue_context-why-are-you-asking-me-f6f93256.json",
+    ".agent_memory/packets/issue_context-why-are-you-asking-me-fc557c59.json",
+    ".agent_memory/packets/runbook-capture-distill-fixes-need-a-rebuild-restart-to-take-effect-in-live-tooling-4a2f3232.json",
+    ".agent_memory/packets/runbook-freshness-fingerprints-anchor-to-named-symbols-not-just-whole-file-hash-a20a3a22.json",
+    ".agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-verified-v2-2-1-096d7fe4.json",
+    ".agent_memory/packets/workflow-change-memory-master-23634276.json",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "card.svg",
+    "docs/index.html"
   ],
   "stack": [],
   "source_refs": [
     {
       "kind": "git_diff",
       "branch": "master",
-      "head": "3d518ee3da6332cd344132e9e3640d3b3597834f",
-      "merge_base": "3d518ee3da6332cd344132e9e3640d3b3597834f",
+      "head": "c8ff23a696ead4d0a085309c64627c963d662253",
+      "merge_base": "c8ff23a696ead4d0a085309c64627c963d662253",
       "changed_files": [
-        ".agent_memory/packets/bug_fix-kage-context-bloat-dump-packet-capture-cause-and-fix-e5060da1.json",
-        ".agent_memory/packets/decision-capture-guard-ungrounded-conversational-user-utterances-routed-to-pending-withhe-ccf53f40.json",
-        ".agent_memory/packets/decision-injection-capture-hardening-sessionstart-pinned-context-universal-dump-guard-c6710261.json",
-        ".agent_memory/packets/workflow-change-memory-master-23634276.json"
+        ".agent_memory/packets/decision-capture-flywheel-tiered-auto-promote-felt-recall-format-df80467e.json",
+        ".agent_memory/packets/decision-graph-nodes-at-capture-opt-in-recall-token-budget-verified-v2-2-1-6c65628a.json",
+        ".agent_memory/packets/issue_context-kage-keeps-auto-capturing-raw-user-chat-utterances-as-memory-packets-344823be.json",
+        ".agent_memory/packets/issue_context-why-are-you-asking-me-09802163.json",
+        ".agent_memory/packets/issue_context-why-are-you-asking-me-0d072c49.json",
+        ".agent_memory/packets/issue_context-why-are-you-asking-me-130ddad8.json",
+        ".agent_memory/packets/issue_context-why-are-you-asking-me-2460505f.json",
+        ".agent_memory/packets/issue_context-why-are-you-asking-me-8f002db0.json",
+        ".agent_memory/packets/issue_context-why-are-you-asking-me-bc78cd61.json",
+        ".agent_memory/packets/issue_context-why-are-you-asking-me-c4a11b40.json",
+        ".agent_memory/packets/issue_context-why-are-you-asking-me-c870a1d8.json",
+        ".agent_memory/packets/issue_context-why-are-you-asking-me-f327a435.json",
+        ".agent_memory/packets/issue_context-why-are-you-asking-me-f6f93256.json",
+        ".agent_memory/packets/issue_context-why-are-you-asking-me-fc557c59.json",
+        ".agent_memory/packets/runbook-capture-distill-fixes-need-a-rebuild-restart-to-take-effect-in-live-tooling-4a2f3232.json",
+        ".agent_memory/packets/runbook-freshness-fingerprints-anchor-to-named-symbols-not-just-whole-file-hash-a20a3a22.json",
+        ".agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-verified-v2-2-1-096d7fe4.json",
+        ".agent_memory/packets/workflow-change-memory-master-23634276.json",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "card.svg",
+        "docs/index.html"
       ],
-      "summary_path": ".agent_memory/review/branch-summary-master.json"
+      "summary_path": "/Users/kushaljain/code/Kage/.agent_memory/review/branch-summary-master.json"
     }
   ],
   "context": {
-    "fact": "Current branch master changes 4 repo paths.",
+    "fact": "Current branch master changes 22 repo paths.",
     "why": "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
     "trigger": "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
     "action": "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",
@@ -48,31 +84,132 @@
     "stale_when": "The branch diff changes substantially, the branch is merged, or a newer change-memory packet supersedes it."
   },
   "freshness": {
-    "last_verified_at": "2026-06-22T07:58:14.585Z",
+    "last_verified_at": "2026-06-22T07:31:50.820Z",
     "ttl_days": 180,
-    "path_fingerprints": [],
+    "path_fingerprints": [
+      {
+        "path": "AGENTS.md",
+        "sha256": "864f8c3fab570becc84b6988a18df1911da5b92d9f67ee05dae2c149c3347ad0",
+        "size": 4579
+      },
+      {
+        "path": "CLAUDE.md",
+        "sha256": "864f8c3fab570becc84b6988a18df1911da5b92d9f67ee05dae2c149c3347ad0",
+        "size": 4579
+      },
+      {
+        "path": "card.svg",
+        "sha256": "529efa20b494ac970b4ff2406abf3cecbb6f7311e75ee9c287942befe30f70ff",
+        "size": 3885
+      },
+      {
+        "path": "docs/index.html",
+        "sha256": "01428b103186cf0b25db4b8736aa466ab4f4eb3bc06b5ebd831f90f203a23564",
+        "size": 35079
+      }
+    ],
     "path_fingerprint_policy": "source_hash_staleness",
     "verification": "git_diff"
   },
   "edges": [
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/bug_fix-kage-context-bloat-dump-packet-capture-cause-and-fix-e5060da1.json",
+      "to": "path:.agent_memory/packets/decision-capture-flywheel-tiered-auto-promote-felt-recall-format-df80467e.json",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-capture-guard-ungrounded-conversational-user-utterances-routed-to-pending-withhe-ccf53f40.json",
+      "to": "path:.agent_memory/packets/decision-graph-nodes-at-capture-opt-in-recall-token-budget-verified-v2-2-1-6c65628a.json",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
-      "to": "path:.agent_memory/packets/decision-injection-capture-hardening-sessionstart-pinned-context-universal-dump-guard-c6710261.json",
+      "to": "path:.agent_memory/packets/issue_context-kage-keeps-auto-capturing-raw-user-chat-utterances-as-memory-packets-344823be.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/issue_context-why-are-you-asking-me-09802163.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/issue_context-why-are-you-asking-me-0d072c49.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/issue_context-why-are-you-asking-me-130ddad8.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/issue_context-why-are-you-asking-me-2460505f.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/issue_context-why-are-you-asking-me-8f002db0.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/issue_context-why-are-you-asking-me-bc78cd61.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/issue_context-why-are-you-asking-me-c4a11b40.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/issue_context-why-are-you-asking-me-c870a1d8.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/issue_context-why-are-you-asking-me-f327a435.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/issue_context-why-are-you-asking-me-f6f93256.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/issue_context-why-are-you-asking-me-fc557c59.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/runbook-capture-distill-fixes-need-a-rebuild-restart-to-take-effect-in-live-tooling-4a2f3232.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/runbook-freshness-fingerprints-anchor-to-named-symbols-not-just-whole-file-hash-a20a3a22.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:.agent_memory/packets/workflow-auto-distill-fallback-and-kage-resume-continuity-verified-v2-2-1-096d7fe4.json",
       "evidence": "git_diff"
     },
     {
       "relation": "changes_path",
       "to": "path:.agent_memory/packets/workflow-change-memory-master-23634276.json",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:AGENTS.md",
+      "evidence": "git_diff"
+    },
+    {
+      "relation": "changes_path",
+      "to": "path:CLAUDE.md",
       "evidence": "git_diff"
     }
   ],
@@ -88,8 +225,10 @@
     ],
     "risks": [],
     "duplicate_candidates": [],
-    "stale_reasons": [],
-    "estimated_tokens_saved": 380,
+    "stale_reasons": [
+      "some referenced paths are missing: .agent_memory/packets/issue_context-kage-keeps-auto-capturing-raw-user-chat-utterances-as-memory-packets-344823be.json, .agent_memory/packets/issue_context-why-are-you-asking-me-09802163.json, .agent_memory/packets/issue_context-why-are-you-asking-me-0d072c49.json, .agent_memory/packets/issue_context-why-are-you-asking-me-130ddad8.json"
+    ],
+    "estimated_tokens_saved": 1015,
     "admission": {
       "admit": true,
       "class": "candidate",
@@ -105,8 +244,10 @@
     },
     "candidate_kind": "change_memory",
     "review_boundary": "git_or_pr",
-    "promotion_requires_review": true
+    "promotion_requires_review": true,
+    "stale": true,
+    "suggested_action": "update"
   },
-  "created_at": "2026-06-22T07:58:14.585Z",
-  "updated_at": "2026-06-22T07:58:14.585Z"
+  "created_at": "2026-06-22T07:31:50.820Z",
+  "updated_at": "2026-06-22T07:59:00.506Z"
 }
