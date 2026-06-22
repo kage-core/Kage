@@ -5,21 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="A framework for collaborative agent memory. Open, git-native memory your team's coding agents read and write together: every lesson becomes a file in your repo, versioned in git, reviewed in PRs, checked against your code. One command to install, no account, no API key."
+      content="Git-native memory for coding agents, verified against your code. Open memory your team's agents read and write together: every lesson becomes a file in your repo, versioned in git, reviewed in PRs, checked against your code so stale claims get caught before they mislead anyone. One command to install, no account, no API key."
     />
-    <title>Kage — a framework for collaborative agent memory</title>
+    <title>Kage — git-native memory for coding agents, verified against your code</title>
     <link rel="icon" type="image/svg+xml" href="assets/kage-eye.svg" />
     <link rel="canonical" href="https://kage-core.com/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Kage" />
     <meta property="og:url" content="https://kage-core.com/" />
-    <meta property="og:title" content="Kage — a framework for collaborative agent memory" />
+    <meta property="og:title" content="Kage — git-native memory for coding agents, verified against your code" />
     <meta property="og:description" content="Open, git-native memory your team's coding agents read and write together. Every lesson becomes a file in your repo: versioned in git, reviewed in PRs, checked against your code. No account, no API key." />
     <meta property="og:image" content="https://kage-core.com/assets/kage-cover.png" />
     <meta property="og:image:width" content="1000" />
     <meta property="og:image:height" content="420" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Kage — a framework for collaborative agent memory" />
+    <meta name="twitter:title" content="Kage — git-native memory for coding agents, verified against your code" />
     <meta name="twitter:description" content="Open, git-native memory your team's coding agents read and write together. Versioned in git, reviewed in PRs, checked against your code. No account, no API key." />
     <meta name="twitter:image" content="https://kage-core.com/assets/kage-cover.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -215,8 +215,8 @@
               <a class="button" href="guide.html">Read the docs</a>
             </div>
             <p style="margin:14px 0 0;color:var(--muted);font:400 13px/1.6 var(--sans)">
-              <strong style="color:var(--ink)">100/100</strong> trust benchmark ·
-              <strong style="color:var(--ink)">0</strong> dependencies ·
+              <strong style="color:var(--ink)">99/100</strong> trust benchmark ·
+              <strong style="color:var(--ink)">zero-config</strong> install ·
               no account, no API key ·
               free &amp; open source —
               or try it before installing anything: <code>npx -y @kage-core/kage-graph-mcp scan&nbsp;--project&nbsp;.</code>
@@ -231,7 +231,6 @@
             <div class="r-lines">
               <div class="r-line"><span>Recalls served from memory</span><span class="dots"></span><b class="gain">38</b></div>
               <div class="r-line"><span>Stale memories caught &amp; withheld</span><span class="dots"></span><b class="warn">4</b></div>
-              <div class="r-line"><span>Hallucinated citations rejected</span><span class="dots"></span><b class="warn">2</b></div>
               <div class="r-line"><span>Caller questions answered from the graph</span><span class="dots"></span><b>11</b></div>
             </div>
             <div class="r-foot">your numbers, from your repo · <span style="color:var(--ink)">kage gains</span> or the viewer's live feed</div>
@@ -248,9 +247,9 @@
             <h2>Install once. It runs itself.</h2>
           </div>
           <div class="cards cards-4">
-            <div class="card"><h3>1 · Install</h3><p>One command creates repo memory, builds the code graph, and auto-wires every agent on your machine.</p></div>
+            <div class="card"><h3>1 · Install</h3><p>One command creates repo memory, builds the code graph, and auto-wires Claude Code and Codex — with a paste-in snippet for every other agent.</p></div>
             <div class="card"><h3>2 · It takes notes</h3><p>Learnings become packets — explicit or auto-distilled — and every citation is verified against your repo before it's written.</p></div>
-            <div class="card"><h3>3 · Sessions start warm</h3><p>A "previously…" digest opens each session; verified memory is injected the moment the agent reads a cited file.</p></div>
+            <div class="card"><h3>3 · Recall, right when it's needed</h3><p>On Claude Code, verified memory for your task is injected as you work — recalled on each prompt and the moment the agent reads a cited file. Other agents pull the same memory through the MCP tools.</p></div>
             <div class="card"><h3>4 · Diffs get checked</h3><p><code>kage pr check</code> warns when your change invalidates team memory — before the PR lands.</p></div>
           </div>
         </div>
@@ -295,22 +294,19 @@
           <div class="feature-copy">
             <span class="eyebrow">Recall — already warm</span>
             <h2>Every session starts knowing.</h2>
-            <p class="lede">A "previously…" digest and a timeline of recent memory open each session automatically — and when the agent reads a file, verified packets citing <em>that file</em> are injected right then. Each recall prints the receipt.</p>
+            <p class="lede">On Claude Code, each session opens with your team's pinned repo facts and any open threads — and when the agent reads a file, the verified packets citing <em>that file</em> are injected right then, each recall with a token receipt. Other agents pull the same memory through the MCP tools.</p>
             <a class="more" href="viewer/">Watch memory stream in, live →</a>
           </div>
           <div class="sysmsg" aria-label="What Kage injects at session start">
-            <div class="head"><span>SessionStart · injected</span><span>~800 tokens</span></div>
-            <div class="body"><span class="g"># Previously (Kage)</span>
-Working on: payment retry consolidation
-Learned: retry paths must stay separate <span class="dim">(gotcha, 2d)</span>
+            <div class="head"><span>SessionStart · injected</span><span>~600 tokens</span></div>
+            <div class="body"><span class="g"># Open threads (Kage)</span>
+Change memory: payment retry consolidation <span class="dim">(master)</span>
 Drafts awaiting review: 1 · <span class="dim">kage inbox</span>
 
-<span class="g"># Recent memory</span>
-<span class="dim">[a3f9c2e1]</span> gotcha    retry paths — idempotency keys <span class="dim">(2d)</span>
-<span class="dim">[7b21d4f8]</span> decision  auth uses jose, not jsonwebtoken <span class="dim">(5d)</span>
-<span class="dim">[e8c50a93]</span> runbook   npm test --prefix mcp before release <span class="dim">(1w)</span>
-
-<span class="g">↳ saved ~12K tokens vs re-reading source</span></div>
+<span class="g"># Always-on repo facts (pinned)</span>
+<span class="dim">·</span> retry paths must stay separate — idempotency keys
+<span class="dim">·</span> auth uses jose, not jsonwebtoken — CVE in a transitive dep
+<span class="dim">·</span> npm test --prefix mcp before release</div>
           </div>
         </div>
       </section>
@@ -328,7 +324,7 @@ Drafts awaiting review: 1 · <span class="dim">kage inbox</span>
             <div class="row">
               <b>Auth uses jose, not jsonwebtoken</b>
               <span>cites src/auth/session.ts — file changed in this diff</span>
-              <span class="fix">fix: kage reverify --packet auth-jose · or kage supersede</span>
+              <span class="fix">fix: kage reverify --packet auth-jose · or kage supersede --packet &lt;old&gt; --replacement &lt;new&gt;</span>
             </div>
             <div class="row">
               <b>Webhook retries are capped at 3</b>
@@ -354,7 +350,7 @@ Drafts awaiting review: 1 · <span class="dim">kage inbox</span>
               <pre>$ kage sync
 pushed 2, pulled 1, resolved 0
 $ kage learn --personal --learning "Always run the full suite before releasing"
-✓ captured · personal · re-verified on every machine</pre>
+✓ captured · personal · synced across machines</pre>
             </div>
           </div>
         </div>
@@ -411,7 +407,7 @@ $ kage learn --personal --learning "Always run the full suite before releasing"
                 </tr>
                 <tr>
                   <th scope="row">Savings receipts (tokens + $ per recall)</th>
-                  <td class="is-kage"><span class="yes">✓</span> per-packet</td>
+                  <td class="is-kage"><span class="yes">✓</span> per-recall</td>
                   <td>token index</td>
                   <td><span class="no">—</span></td>
                 </tr>
@@ -430,7 +426,7 @@ $ kage learn --personal --learning "Always run the full suite before releasing"
               </tbody>
             </table>
           </div>
-          <p class="lede" style="margin-top:18px; font-size:15px;">Already running claude-mem? Audit your existing store — read-only, no account: <code>npx -y @kage-core/kage-graph-mcp audit-claude-mem</code> classifies every observation as verified, drifted, gone, or unciteable.</p>
+          <p class="lede" style="margin-top:18px; font-size:15px;">Already running claude-mem? Audit your existing store — read-only, no account: <code>npx -y @kage-core/kage-graph-mcp audit-claude-mem</code> classifies every observation as verified, drifted, gone, or uncited.</p>
         </div>
       </section>
 
@@ -440,17 +436,17 @@ $ kage learn --personal --learning "Always run the full suite before releasing"
           <div class="section-head">
             <span class="eyebrow">Proof</span>
             <h2>Trust you can measure — on your own repo.</h2>
-            <p class="lede">Most memory tools benchmark recall. Kage benchmarks the thing that matters when an agent acts: whether the memory can be trusted. Run it yourself; every number traces to a logged event.</p>
+            <p class="lede">Most memory tools benchmark recall. Kage benchmarks the thing that matters when an agent acts: whether the memory can be trusted. Run it yourself; every gate executes in front of you.</p>
           </div>
           <div class="terminal">
             <div class="terminal-head">
               <span>kage benchmark --trust</span>
-              <span>0 deps · no API key</span>
+              <span>no API key · runs locally</span>
             </div>
-            <pre>Trust score: 100/100  (PASS)
+            <pre>Trust score: 99/100  (PASS)   · example, depends on your repo
   Hallucinated-citation rejection: 100%
   Stale-memory exclusion:          100%
-  Live grounding rate:              99%</pre>
+  Live grounding rate:              98%</pre>
           </div>
           <div class="demo-frame">
             <img src="assets/kage-demo.gif" alt="the trust loop running live — a hallucinated citation rejected on write, a stale memory withheld from recall, and only grounded memory returned" loading="lazy" />
@@ -481,7 +477,7 @@ $ kage learn --personal --learning "Always run the full suite before releasing"
           <div class="section-head">
             <span class="eyebrow">Used everywhere</span>
             <h2>Every MCP agent. Built in the open.</h2>
-            <p class="lede"><code>kage install</code> auto-detects and wires everything on your machine. Claude Code users can also <code>/plugin marketplace add kage-core/Kage</code>.</p>
+            <p class="lede"><code>kage install</code> auto-detects your agents — wiring Claude Code and Codex directly, and printing a paste-in MCP snippet for the rest. Claude Code users can also <code>/plugin marketplace add kage-core/Kage</code>.</p>
           </div>
           <div class="agents">
             <span class="agent">Claude Code</span>
@@ -502,9 +498,9 @@ $ kage learn --personal --learning "Always run the full suite before releasing"
             <span class="agent">any MCP client</span>
           </div>
           <div class="stat-strip" aria-label="Kage signals">
-            <div class="stat-chip"><strong>100/100</strong><span>trust benchmark — hallucination &amp; staleness</span></div>
-            <div class="stat-chip"><strong>0 deps</strong><span>no API key, no database, no daemon</span></div>
-            <div class="stat-chip"><strong>348</strong><span>tests passing on every release</span></div>
+            <div class="stat-chip"><strong>100%</strong><span>hallucination &amp; stale rejection</span></div>
+            <div class="stat-chip"><strong>no account</strong><span>no API key, no database — just files in git</span></div>
+            <div class="stat-chip"><strong>360+</strong><span>tests passing on every release</span></div>
             <div class="stat-chip"><strong>Git-native</strong><span>memory reviewed in the same PR as code</span></div>
           </div>
           <div style="display:flex; gap:8px; margin-top:18px; flex-wrap:wrap;">
