@@ -42,6 +42,39 @@
       .hero h1 .accent { color: var(--green); font-style: italic; }
       .hero-copy { margin-top: 18px; max-width: 520px; color: var(--muted); font: 400 18px/1.6 var(--sans); }
 
+      /* ——— OKF: front and center ——— */
+      .okf-badge {
+        display: inline-flex; align-items: center; gap: 9px;
+        padding: 7px 14px 7px 9px; margin-bottom: 20px;
+        border: 1px solid var(--hairline-green); border-radius: 999px;
+        background: var(--paper); box-shadow: var(--shadow-card);
+        color: var(--ink); font: 600 13px/1 var(--sans); text-decoration: none;
+      }
+      .okf-badge:hover { border-color: var(--green); }
+      .okf-badge .by { color: var(--faint); font-weight: 500; }
+      .okf-badge .arr { color: var(--green); }
+      .okf-band { background: var(--code-bg); padding: 84px 0; }
+      .okf-band .eyebrow { color: var(--green-strong); }
+      .okf-band h2 { color: #f3f6f2; max-width: 760px; }
+      .okf-band h2 .accent { color: var(--green); font-style: italic; }
+      .okf-band code { color: var(--green-strong); }
+      .okf-band a { color: var(--green); }
+      .okf-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(320px,0.82fr); gap: clamp(32px,5vw,60px); align-items: center; margin-top: 38px; }
+      .okf-lede { color: #aeb6ac; max-width: 600px; font: 400 17px/1.65 var(--sans); }
+      .okf-brings { display: grid; gap: 16px; margin-top: 28px; }
+      .okf-bring { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
+      .okf-bring .n { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); font: 700 13px/1 var(--mono); flex: 0 0 auto; }
+      .okf-bring b { display: block; color: #f3f6f2; font: 600 15px/1.4 var(--sans); }
+      .okf-bring p { margin: 3px 0 0; color: #9aa49c; font: 400 14px/1.55 var(--sans); }
+      .okf-closer { margin-top: 30px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.1); color: #cdd4ca; font: 500 16px/1.6 var(--sans); max-width: 680px; }
+      .okf-closer b { color: var(--green); }
+      .okf-concept { border: 1px solid rgba(255,255,255,0.12); border-radius: var(--r-card); background: #0c110d; overflow: hidden; box-shadow: var(--shadow-pop); }
+      .okf-concept .h { display: flex; justify-content: space-between; padding: 11px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); color: #8d968e; font: 500 11.5px/1 var(--mono); }
+      .okf-concept .h .ok { color: var(--green); }
+      .okf-concept pre { margin: 0; padding: 16px 18px; font: 400 12.5px/1.7 var(--mono); color: #c7cfc4; overflow-x: auto; }
+      .okf-concept .kx { color: var(--green-strong); }
+      .okf-concept .cm { color: #6f786e; }
+
       /* ——— Feature rows: text + product artifact ——— */
       .feature {
         display: grid;
@@ -151,6 +184,8 @@
         .hero-grid { grid-template-columns: minmax(0, 1fr); }
         .feature, .feature.flip { grid-template-columns: minmax(0, 1fr); }
         .feature.flip > .feature-copy { order: 0; }
+        .okf-grid { grid-template-columns: minmax(0, 1fr); }
+        .okf-lede { max-width: 100%; }
         /* never let hero blocks exceed the screen */
         .hero h1, .hero-copy, .cmd { max-width: 100%; }
         /* let command boxes wrap and break the long URL instead of overflowing */
@@ -190,7 +225,14 @@
       <section class="hero">
         <div class="wrap hero-grid">
           <div>
-            <span class="eyebrow">Git-native memory for coding agents · built on Google OKF</span>
+            <a class="okf-badge" href="https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf" target="_blank" rel="noopener">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="1.5" y="1.5" width="21" height="21" rx="6" stroke="var(--green)" stroke-width="1.5"/>
+                <path d="M7.6 7.5 L16.4 8.6 M7.6 7.5 L11 16.2 M16.4 8.6 L11 16.2" stroke="var(--green)" stroke-width="1.1" opacity="0.55"/>
+                <circle cx="7.6" cy="7.5" r="2.1" fill="var(--green)"/><circle cx="16.4" cy="8.6" r="2.1" fill="var(--green)"/><circle cx="11" cy="16.2" r="2.1" fill="var(--green)"/>
+              </svg>
+              Built on Open Knowledge Format <span class="by">· Google Cloud</span> <span class="arr">↗</span>
+            </a>
             <h1>Your coding agent forgets everything. Kage gives it memory that's <span class="accent">verified</span> against your code.</h1>
             <p class="hero-copy">
               Open, git-native memory your team's coding agents read and write together.
@@ -239,6 +281,48 @@
         </div>
 
         </section>
+
+      <!-- ——————————————— OPEN KNOWLEDGE FORMAT ——————————————— -->
+      <section class="okf-band">
+        <div class="wrap">
+          <div class="section-head">
+            <span class="eyebrow">Open Knowledge Format · by Google Cloud</span>
+            <h2>Kage called it. Google made it the <span class="accent">standard</span>.</h2>
+          </div>
+          <div class="okf-grid">
+            <div>
+              <p class="okf-lede">
+                From day one, Kage kept your agents' memory as <strong style="color:#e6ebe3">plain files in your repo</strong> —
+                versioned in git, reviewed in PRs. No cloud, no database, no lock-in, while everyone else
+                was building memory clouds. In June 2026, Google Cloud shipped the
+                <a href="https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf" target="_blank" rel="noopener">Open Knowledge Format</a>:
+                knowledge as Markdown in git, vendor-neutral, no account. The exact thesis Kage already ran on.
+                <strong style="color:#e6ebe3">So we adopted it on day one — and we supercharge it.</strong>
+              </p>
+              <div class="okf-brings">
+                <div class="okf-bring"><span class="n">1</span><div><b>Verification</b><p>OKF stores what you wrote down. Kage checks every concept against your real code and refuses hallucinated citations at write time.</p></div></div>
+                <div class="okf-bring"><span class="n">2</span><div><b>Freshness</b><p>OKF has no notion of staleness. Kage catches drift the moment your code changes and withholds memory that's no longer true.</p></div></div>
+                <div class="okf-bring"><span class="n">3</span><div><b>Code-grounding</b><p>A deterministic code graph anchors each concept to the exact symbols it describes — the layer OKF deliberately leaves to tooling.</p></div></div>
+              </div>
+              <p class="okf-closer">OKF standardizes the store. <b>Kage is the verification and freshness layer Google left out</b> — carried in OKF-legal <code>x-kage-*</code> fields, so a Kage bundle stays 100% conformant and opens in any OKF tool, including Google's own visualizer.</p>
+            </div>
+            <div class="okf-concept" aria-label="A Kage memory is a conformant OKF concept">
+              <div class="h"><span>orders.md — a Kage memory, as an OKF concept</span><span class="ok">verified ✓</span></div>
+<pre><span class="cm"># OKF fields — readable by any OKF consumer</span>
+type: Decision
+title: Auth uses jose, not jsonwebtoken
+resource: src/auth/session.ts
+tags: [auth, security]
+<span class="cm"># Kage's verification layer (OKF-legal extension)</span>
+<span class="kx">x-kage-verified</span>: fresh
+<span class="kx">x-kage-anchors</span>: [src/auth/session.ts@9f3c1a…]
+<span class="kx">x-kage-freshness</span>: { ttl_days: 365, policy: source_hash }
+---
+<span class="cm"># … prose + # Citations, kept true to the code.</span></pre>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <!-- ——————————————— HOW IT WORKS ——————————————— -->
       <section class="section" id="how">

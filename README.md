@@ -29,6 +29,7 @@ npx -y @kage-core/kage-graph-mcp install
   <img src="https://img.shields.io/npm/l/@kage-core/kage-graph-mcp?color=41ff8f" alt="license">
   <img src="https://img.shields.io/badge/deps-0-41ff8f" alt="zero dependencies">
   <img src="https://img.shields.io/badge/account-not%20required-41ff8f" alt="no account">
+  <a href="https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf"><img src="https://img.shields.io/badge/built%20on-Open%20Knowledge%20Format-41ff8f" alt="Built on Google Open Knowledge Format"></a>
 </p>
 
 <img src="docs/kage-stats.svg" alt="Kage in numbers: 96% R@5 recall, 0% stale served, 18% faster than grep, 0 dependencies, 340+ tests passing, 15 agents supported" width="820">
@@ -87,20 +88,41 @@ kage setup verify-agent --agent claude-code --project .
 ## What is Kage
 
 Kage is a memory layer for coding agents. As your agent works, it captures what it learns
-(decisions, bug fixes, conventions, how the code fits together) as small JSON **packets**
-committed in your repo under `.agent_memory/`. The next session (yours or a teammate's)
-starts already knowing it, instead of re-reading or re-asking.
+(decisions, bug fixes, conventions, how the code fits together) as
+[**Open Knowledge Format (OKF)**](https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf)
+concept files committed in your repo under `.agent_memory/`. The next session (yours or a
+teammate's) starts already knowing it, instead of re-reading or re-asking.
 
 Three things make it different from other memory tools:
 
 - **It's collaborative.** The knowledge one person (or their agent) figures out becomes the
   whole team's. Memory is shared through git, so a teammate's next session starts with what
   you just learned, not a blank slate.
-- **It's git-native.** Memory is plain files in your repo, reviewed in the same PR as the
-  code, not locked in one machine or a vendor's cloud. Your knowledge stays yours.
+- **It's standard & git-native.** Memory is a conformant OKF bundle — plain Markdown in your
+  repo, reviewed in the same PR as the code, readable by any OKF tool — not locked in one
+  machine or a vendor's cloud. Your knowledge stays yours.
 - **It's verified.** Every memory cites the code it's about, and Kage checks those citations
   against your actual files at write time, at recall time, and when a diff changes the code.
   Memory that no longer matches the code is withheld, so the agent never acts on a stale claim.
+
+## Kage called it. Google standardized it.
+
+From day one, Kage kept agent memory as plain files in your repo — no cloud, no database, no
+lock-in, while everyone else was building memory clouds. In June 2026, Google Cloud shipped
+the **Open Knowledge Format**: knowledge as Markdown in git, vendor-neutral, no account — the
+exact thesis Kage already ran on. So Kage **adopted OKF as its standard, and supercharges it**
+with the layer OKF deliberately leaves out:
+
+- **Verification** — OKF stores what you wrote down; Kage checks every concept against your
+  real code and refuses hallucinated citations at write time.
+- **Freshness** — OKF has no notion of staleness; Kage catches drift the moment your code
+  changes and withholds memory that's no longer true.
+- **Code-grounding** — a deterministic code graph anchors each concept to the exact symbols it
+  describes — the layer OKF leaves to tooling.
+
+The trust metadata rides in OKF-legal `x-kage-*` fields, so a Kage bundle stays 100%
+conformant and opens in any OKF consumer, including Google's own visualizer.
+**OKF standardizes the store; Kage is the verification and freshness layer Google left out.**
 
 ## How it works
 
