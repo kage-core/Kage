@@ -183,6 +183,14 @@ Everything lives in `.agent_memory/`: `packets/` is durable repo memory (git-tra
 `reports/` holds the value ledger and health reports. Capture scans for secrets and PII
 before writing.
 
+**Standard format — Open Knowledge Format (OKF).** Kage's memory is an
+[OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf) bundle:
+plain Markdown concept files with YAML frontmatter, readable by any OKF consumer
+(including Google's visualizer). Run `kage okf migrate` to render the store as an OKF
+bundle under `.agent_memory/okf/`. Kage adds the lifecycle OKF leaves out — grounding,
+verification, and freshness — carried in OKF-legal `x-kage-*` fields, and can `import`
+any third-party OKF bundle. The round-trip is lossless. See [OKF_STANDARD.md](OKF_STANDARD.md).
+
 ## Development
 
 ```bash

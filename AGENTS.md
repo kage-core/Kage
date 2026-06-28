@@ -19,6 +19,13 @@ If Kage appears installed but no Kage tools are available, report that the activ
 agent session has not loaded the MCP server and ask the user to restart the
 agent. After restart, call `kage_verify_agent` to prove the harness is live.
 
+## Show the Value
+
+`kage_context` and `kage_recall` return a one-line gains receipt (tokens/$ saved
+this session, stale memories withheld). When it is non-trivial, relay it to the
+user in your own words — Kage's value is otherwise invisible, and a user who never
+sees it churns. Repeat only what the tool actually reported; never fabricate numbers.
+
 ## Automatic Capture
 
 When you learn something reusable, create repo-local memory with `kage_learn`.
@@ -29,18 +36,30 @@ Capture examples:
 - A bug cause and verified fix.
 - A convention future agents should follow.
 - A decision and its rationale.
+- Why code, architecture, product, or release behavior ended up this way.
+- A non-obvious issue state, failed approach, or code explanation.
 - A gotcha that caused rediscovery or wasted time.
 - A path-specific workflow or dependency relationship.
 
-Keep captures concise and future-facing. Do not store raw transcripts.
+Keep captures concise, source-backed, and useful for future understanding,
+decisions, debugging, explanation, or action. Do not store raw transcripts.
 
 ## End-Of-Task Proposal
 
-After meaningful file changes, call `kage_refresh` so indexes, code graph,
-memory graph, metrics, and stale-memory checks are current.
+After meaningful file/content changes, call `kage_refresh` so indexes, code
+graph, memory graph, metrics, and stale-memory checks are current. Do not
+refresh solely because a branch was pushed, an empty commit was created, or the
+git commit changed without graph inputs changing.
 
 Before finishing a task that changed files, call `kage_pr_summarize` or
 `kage_propose_from_diff`, then call `kage_pr_check`.
+
+`kage_context`, Stop hooks, and `kage_pr_check` may report memory
+reconciliation items when files linked to existing memory changed. Resolve these
+as agent work before the final response: write updated memory with
+`kage_learn`, supersede replaced packets with `kage_supersede`, or mark stale
+only when the memory can no longer be trusted. Do not hand this off as a user
+inbox chore.
 
 `kage_pr_summarize` writes a branch review summary and a repo-local
 change-memory packet. `kage_pr_check` verifies validation, graph freshness,
@@ -75,7 +94,7 @@ For normal coding tasks:
 1. `kage_context` — validate + recall + code graph + knowledge graph in one call
 2. Work on the task
 3. `kage_learn` for concrete learnings
-4. `kage_refresh` after meaningful file changes
+4. `kage_refresh` after meaningful file/content changes, not after push-only or same-tree commits
 5. `kage_propose_from_diff` before the final response to create repo-local change memory
 
 For quick factual questions, `kage_context` alone is enough. For status or demo requests, call `kage_metrics`.
