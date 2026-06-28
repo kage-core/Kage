@@ -1,0 +1,35 @@
+---
+type: "Workflow"
+title: "Auto-distill fallback and kage resume continuity (verified v2.2.1)"
+description: "Stop hook runs kage distill auto: drafts to pending inbox tagged auto distill, excluded from recall until kage review; signal gated by observationSignalScore = 0.4 junk payloads score 0 . kage resume opens sessions with"
+resource: "mcp/kernel.ts"
+tags: ["session-learning"]
+timestamp: "2026-06-22T05:48:09.637Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:workflow:auto-distill-fallback-and-kage-resume-continuity-verified-v2-2-1-1781268529282"
+x-kage-type: "workflow"
+x-kage-status: "approved"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "verified"
+x-kage-paths: ["mcp/kernel.ts"]
+---
+
+# Auto-distill fallback and kage resume continuity (verified v2.2.1)
+
+> Stop hook runs kage distill auto: drafts to pending inbox tagged auto distill, excluded from recall until kage review…
+
+Stop hook runs kage distill --auto: drafts to pending inbox tagged auto-distill, excluded from recall until kage review; signal-gated by observationSignalScore >= 0.4 (junk payloads score 0). kage resume opens sessions with the previously digest + Recent memory timeline (newest 15, ~800 token cap). SessionStart hook appends resume output to injected policy. Unchanged by the 2.2.1 sync fixes.
+
+# Citations
+
+[1] explicit_capture (2026-06-12T12:48:49.282Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:workflow:auto-distill-fallback-and-kage-resume-continuity-verified-v2-2-1-1781268529282","title":"Auto-distill fallback and kage resume continuity (verified v2.2.1)","summary":"Stop hook runs kage distill auto: drafts to pending inbox tagged auto distill, excluded from recall until kage review; signal gated by observationSignalScore = 0.4 junk payloads score 0 . kage resume opens sessions with","body":"Stop hook runs kage distill --auto: drafts to pending inbox tagged auto-distill, excluded from recall until kage review; signal-gated by observationSignalScore >= 0.4 (junk payloads score 0). kage resume opens sessions with the previously digest + Recent memory timeline (newest 15, ~800 token cap). SessionStart hook appends resume output to injected policy. Unchanged by the 2.2.1 sync fixes.","type":"workflow","scope":"repo","visibility":"team","sensitivity":"internal","status":"approved","confidence":0.7,"tags":["session-learning"],"paths":["mcp/kernel.ts"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-06-12T12:48:49.282Z"}],"context":{"fact":"Stop hook runs kage distill --auto: drafts to pending inbox tagged auto-distill, excluded from recall until kage review; signal-gated by observationSignalScore >= 0.4 (junk payloads score 0). kage resume opens sessions with the previously digest + Recent memory timeline (newest 15, ~800 token cap). SessionStart hook appends resume output to injected policy. Unchanged by the 2.2.1 sync fixes."},"freshness":{"ttl_days":365,"last_verified_at":"2026-06-22T05:48:09.637Z","path_fingerprints":[{"path":"mcp/kernel.ts","sha256":"e22da4096afd6f19711892a3812ec7d695d0acfde007084dd139df9d4343dd54","size":872150,"symbols":[{"name":"verified","kind":"constant","sha256":"9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"},{"name":"inbox","kind":"constant","sha256":"9d2097586a2527bfa63d55306c098fda29e1c3530771833e9aca5f986632d367"},{"name":"timeline","kind":"constant","sha256":"f5715eff3d98cf9f3772e6b7738b8c131d36281f0b0a72b13859f4780c014557"},{"name":"token","kind":"constant","sha256":"9289e531e150dbf4533b30373feed670db17040de86f0a87bae921c5fb3ce702"},{"name":"observationsignalscore","kind":"function","sha256":"0ab9242c3a49a11a4db9183e2046bb1747fe0479d7c5cc3a24cefb29b78ea31b"},{"name":"auto","kind":"constant","sha256":"00dfd4334aa51ffac12b575a6a2c33040556f4641b8e8806bee9af6d653df46c"},{"name":"memory","kind":"constant","sha256":"952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"},{"name":"digest","kind":"constant","sha256":"bf80848b147fafe4061b39b31d12fa39391f5652128d2041ade2a545b4de91ce"}]}],"path_fingerprint_policy":"source_hash_staleness","verification":"repo_local_agent_capture"},"edges":[{"relation":"supersedes","to":"repo:https-github-com-kage-core-kage:workflow:auto-distill-fallback-and-kage-resume-continuity-v2-2-0-behavior-1781265030797","evidence":"Newer repo memory supersedes this packet.","created_at":"2026-06-12T12:48:49.482Z"}],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"discovery_tokens":2000,"discovery_tokens_estimated":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":99,"reverified_at":"2026-06-22T05:48:09.637Z"},"created_at":"2026-06-12T12:48:49.282Z","updated_at":"2026-06-22T05:48:09.637Z","author_branch":"master"}
+```
+

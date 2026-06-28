@@ -1,0 +1,40 @@
+---
+type: "Bug Fix"
+title: "Bug fix: viewer memory-code graphs looked disconnected because knowledge graph generation"
+description: "Bug fix: viewer memory code graphs looked disconnected because knowledge graph generation created broad symbol/test edges from packet paths and viewer canonicalization let stale symbol/test path aliases fall back to file"
+resource: "mcp/kernel.ts"
+tags: ["session-learning", "viewer", "memory-code", "knowledge-graph"]
+timestamp: "2026-06-15T21:58:16.734Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:bug_fix:bug-fix-viewer-memory-code-graphs-looked-disconnected-because-knowledge-graph-ge"
+x-kage-type: "bug_fix"
+x-kage-status: "deprecated"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "deprecated"
+x-kage-paths: ["mcp/kernel.ts", "mcp/kernel.test.ts"]
+---
+
+# Bug fix: viewer memory-code graphs looked disconnected because knowledge graph generation
+
+> Bug fix: viewer memory code graphs looked disconnected because knowledge graph generation created broad symbol/test e…
+
+Bug fix: viewer memory-code graphs looked disconnected because knowledge graph generation created broad symbol/test edges from packet paths and viewer canonicalization let stale symbol/test path aliases fall back to file nodes. Fix by requiring explicit non-generic symbol/test mentions for precise memory-code edges, capping per-packet precise links, removing file path aliases from generated symbol/route/test memory entities, and only treating relation-filter links as memory-code when endpoints cross memory/code. Verified graph stats: Memory <-> Code only shows 207/207 memory-code edges and 0 code-code edges.
+Verified by: npm --prefix mcp test
+
+## Verification
+
+npm --prefix mcp test
+
+# Citations
+
+[1] explicit_capture (2026-05-09T07:57:42.238Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:bug_fix:bug-fix-viewer-memory-code-graphs-looked-disconnected-because-knowledge-graph-ge","title":"Bug fix: viewer memory-code graphs looked disconnected because knowledge graph generation","summary":"Bug fix: viewer memory code graphs looked disconnected because knowledge graph generation created broad symbol/test edges from packet paths and viewer canonicalization let stale symbol/test path aliases fall back to file","body":"Bug fix: viewer memory-code graphs looked disconnected because knowledge graph generation created broad symbol/test edges from packet paths and viewer canonicalization let stale symbol/test path aliases fall back to file nodes. Fix by requiring explicit non-generic symbol/test mentions for precise memory-code edges, capping per-packet precise links, removing file path aliases from generated symbol/route/test memory entities, and only treating relation-filter links as memory-code when endpoints cross memory/code. Verified graph stats: Memory <-> Code only shows 207/207 memory-code edges and 0 code-code edges.\nVerified by: npm --prefix mcp test","type":"bug_fix","scope":"repo","visibility":"team","sensitivity":"internal","status":"deprecated","confidence":0.7,"tags":["session-learning","viewer","memory-code","knowledge-graph"],"paths":["mcp/kernel.ts","mcp/kernel.test.ts"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-05-09T07:57:42.238Z"}],"context":{"fact":"Bug fix: viewer memory-code graphs looked disconnected because knowledge graph generation created broad symbol/test edges from packet paths and viewer canonicalization let stale symbol/test path aliases fall back to file nodes. Fix by requiring explicit non-generic symbol/test mentions for precise memory-code edges, capping per-packet precise links, removing file path aliases from generated symbol/route/test memory entities, and only treating relation-filter links as memory-code when endpoints cross memory/code. Verified graph stats: Memory <-> Code only shows 207/207 memory-code edges and 0 code-code edges.\nVerified by: npm --prefix mcp test","verification":"npm --prefix mcp test"},"freshness":{"ttl_days":365,"last_verified_at":"2026-06-15T21:58:16.734Z","verification":"repo_local_agent_capture","path_fingerprints":[{"path":"mcp/kernel.ts","sha256":"c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f","size":844113,"symbols":[{"name":"verified","kind":"constant","sha256":"9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"},{"name":"explicit","kind":"constant","sha256":"3c7dc76a866b9617850dd05c43ef877cc5208ade5be761331cf32181ace414ff"},{"name":"code","kind":"constant","sha256":"64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"},{"name":"precise","kind":"constant","sha256":"fbc0f5272a936e5eef187431a6b4aad5f3786820696b4e9057fc1f8750027542"},{"name":"graphs","kind":"constant","sha256":"5483925183f5f71c1681f32dbf4b745a68dc9fc52cb81abcc8410e5ad02b3dac"},{"name":"memory","kind":"constant","sha256":"952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"},{"name":"when","kind":"constant","sha256":"48bfd58b3cdbf2d407e4443b90727d548d96eceaa4372c099dcd22c52f498452"}]},{"path":"mcp/kernel.test.ts","sha256":"f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec","size":290526,"symbols":[{"name":"created","kind":"constant","sha256":"2b38c32a22801ef96565e462218f3f9ac64a1ef94a7562ac306eeb5988d14192"},{"name":"edges","kind":"constant","sha256":"8c37bcd95245ff6d66b6f8b413ce98901f9c5e8bad1c2b4dc47e75e3b2815f73"},{"name":"filter","kind":"constant","sha256":"f9235dbf87bd46a2346156a8d2fb71b581cb2a4e68085cbe25e3db0e2f04ed4a"}]}]},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":163,"reverified_at":"2026-06-15T21:58:16.734Z","stale":true,"stale_reasons":["packet status is deprecated"],"suggested_action":"mark_stale"},"created_at":"2026-05-09T07:57:42.238Z","updated_at":"2026-06-15T21:58:43.081Z"}
+```
+

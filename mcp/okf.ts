@@ -215,6 +215,10 @@ export function okfConceptToPacket(
   content: string,
   opts: { projectDir?: string; sourcePath?: string } = {},
 ): MemoryPacket | null {
+  // A file carrying git conflict markers is not a valid concept — surface it as
+  // unparseable so validation flags it and the repair / merge-driver path (which
+  // parses each side separately) resolves it, rather than silently picking a side.
+  if (/^(?:<{7} |={7}\s*$|>{7} )/m.test(content)) return null;
   // Lossless path: a Kage-authored concept carries its exact packet.
   const state = extractKageState(content);
   if (state) return state;

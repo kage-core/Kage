@@ -1,0 +1,38 @@
+---
+type: "Bug Fix"
+title: "Viewer selection should not imply page navigation"
+description: "Selecting an entity or edge in the viewer should update selection/Inspector state without changing the active page. Page changes must be explicit. Memory packet rows stay on the Memory page; path focus actions from Owner"
+tags: ["session-learning"]
+timestamp: "2026-05-15T11:16:07.763Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:bug_fix:viewer-selection-should-not-imply-page-navigation-1778843767763"
+x-kage-type: "bug_fix"
+x-kage-status: "deprecated"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "deprecated"
+---
+
+# Viewer selection should not imply page navigation
+
+> Selecting an entity or edge in the viewer should update selection/Inspector state without changing the active page. P…
+
+Selecting an entity or edge in the viewer should update selection/Inspector state without changing the active page. Page changes must be explicit. Memory packet rows stay on the Memory page; path-focus actions from Owners/Intel intentionally switch to Graph and update the browser URL so URL, nav, and visible panel agree.
+Verified by: Playwright desktop/mobile route checks for Overview, Graph, Memory, Owners, Intel, Review, and Debug; npm test --prefix mcp
+
+## Verification
+
+Playwright desktop/mobile route checks for Overview, Graph, Memory, Owners, Intel, Review, and Debug; npm test --prefix mcp
+
+# Citations
+
+[1] explicit_capture (2026-05-15T11:16:07.763Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:bug_fix:viewer-selection-should-not-imply-page-navigation-1778843767763","title":"Viewer selection should not imply page navigation","summary":"Selecting an entity or edge in the viewer should update selection/Inspector state without changing the active page. Page changes must be explicit. Memory packet rows stay on the Memory page; path focus actions from Owner","body":"Selecting an entity or edge in the viewer should update selection/Inspector state without changing the active page. Page changes must be explicit. Memory packet rows stay on the Memory page; path-focus actions from Owners/Intel intentionally switch to Graph and update the browser URL so URL, nav, and visible panel agree.\nVerified by: Playwright desktop/mobile route checks for Overview, Graph, Memory, Owners, Intel, Review, and Debug; npm test --prefix mcp","type":"bug_fix","scope":"repo","visibility":"team","sensitivity":"internal","status":"deprecated","confidence":0.7,"tags":["session-learning"],"paths":[],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-05-15T11:16:07.763Z"}],"context":{"fact":"Selecting an entity or edge in the viewer should update selection/Inspector state without changing the active page. Page changes must be explicit. Memory packet rows stay on the Memory page; path-focus actions from Owners/Intel intentionally switch to Graph and update the browser URL so URL, nav, and visible panel agree.\nVerified by: Playwright desktop/mobile route checks for Overview, Graph, Memory, Owners, Intel, Review, and Debug; npm test --prefix mcp","verification":"Playwright desktop/mobile route checks for Overview, Graph, Memory, Owners, Intel, Review, and Debug; npm test --prefix mcp"},"freshness":{"ttl_days":365,"last_verified_at":"2026-05-15T11:16:07.763Z","verification":"repo_local_agent_capture"},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":115,"stale":true,"stale_reasons":["packet status is deprecated"],"suggested_action":"mark_stale"},"created_at":"2026-05-15T11:16:07.763Z","updated_at":"2026-06-05T14:45:40.999Z"}
+```
+

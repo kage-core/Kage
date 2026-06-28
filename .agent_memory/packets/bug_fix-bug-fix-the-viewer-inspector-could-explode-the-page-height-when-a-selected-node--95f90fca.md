@@ -1,0 +1,38 @@
+---
+type: "Bug Fix"
+title: "Bug fix: the viewer inspector could explode the page height when a selected node had long"
+description: "Bug fix: the viewer inspector could explode the page height when a selected node had long detail rows or many connected relation summaries, which made the canvas appear to jump or disappear. Keep the details panel as a b"
+tags: ["session-learning", "viewer", "ui", "canvas", "inspector"]
+timestamp: "2026-05-09T09:52:17.555Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:bug_fix:bug-fix-the-viewer-inspector-could-explode-the-page-height-when-a-selected-node-"
+x-kage-type: "bug_fix"
+x-kage-status: "deprecated"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "deprecated"
+---
+
+# Bug fix: the viewer inspector could explode the page height when a selected node had long
+
+> Bug fix: the viewer inspector could explode the page height when a selected node had long detail rows or many connect…
+
+Bug fix: the viewer inspector could explode the page height when a selected node had long detail rows or many connected relation summaries, which made the canvas appear to jump or disappear. Keep the details panel as a bounded flex container, make #selectionDetails the internal scroll region, cap long detail rows/link bodies, and bump viewer asset versions after CSS changes. Verified with Playwright layout measurement: body height stayed constant after selection and npm --prefix mcp test passed.
+Verified by: Playwright layout check; npm --prefix mcp test
+
+## Verification
+
+Playwright layout check; npm --prefix mcp test
+
+# Citations
+
+[1] explicit_capture (2026-05-09T09:52:17.555Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:bug_fix:bug-fix-the-viewer-inspector-could-explode-the-page-height-when-a-selected-node-","title":"Bug fix: the viewer inspector could explode the page height when a selected node had long","summary":"Bug fix: the viewer inspector could explode the page height when a selected node had long detail rows or many connected relation summaries, which made the canvas appear to jump or disappear. Keep the details panel as a b","body":"Bug fix: the viewer inspector could explode the page height when a selected node had long detail rows or many connected relation summaries, which made the canvas appear to jump or disappear. Keep the details panel as a bounded flex container, make #selectionDetails the internal scroll region, cap long detail rows/link bodies, and bump viewer asset versions after CSS changes. Verified with Playwright layout measurement: body height stayed constant after selection and npm --prefix mcp test passed.\nVerified by: Playwright layout check; npm --prefix mcp test","type":"bug_fix","scope":"repo","visibility":"team","sensitivity":"internal","status":"deprecated","confidence":0.7,"tags":["session-learning","viewer","ui","canvas","inspector"],"paths":[],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-05-09T09:52:17.555Z"}],"context":{"fact":"Bug fix: the viewer inspector could explode the page height when a selected node had long detail rows or many connected relation summaries, which made the canvas appear to jump or disappear. Keep the details panel as a bounded flex container, make #selectionDetails the internal scroll region, cap long detail rows/link bodies, and bump viewer asset versions after CSS changes. Verified with Playwright layout measurement: body height stayed constant after selection and npm --prefix mcp test passed.\nVerified by: Playwright layout check; npm --prefix mcp test","verification":"Playwright layout check; npm --prefix mcp test"},"freshness":{"ttl_days":365,"last_verified_at":"2026-05-09T09:52:17.555Z","verification":"repo_local_agent_capture"},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":2,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":140,"stale":true,"stale_reasons":["packet status is deprecated"],"suggested_action":"mark_stale"},"created_at":"2026-05-09T09:52:17.555Z","updated_at":"2026-06-05T14:45:40.997Z"}
+```
+

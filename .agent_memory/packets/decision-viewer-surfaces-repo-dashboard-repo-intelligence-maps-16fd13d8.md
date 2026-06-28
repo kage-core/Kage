@@ -1,0 +1,39 @@
+---
+type: "Decision"
+title: "Viewer surfaces repo-dashboard-style repo intelligence maps"
+description: "Kage viewer should not stop at graph visualization and summary cards. Repo intelligence reports should render as navigable operational maps for ownership/silos, module health, onboarding targets, architecture communities"
+tags: ["session-learning", "viewer", "repo-intelligence", "memory-code"]
+timestamp: "2026-05-15T04:22:57.816Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:decision:viewer-surfaces-repo-dashboard-style-repo-intelligence-maps-1778818977816"
+x-kage-type: "decision"
+x-kage-status: "deprecated"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "deprecated"
+---
+
+# Viewer surfaces repo-dashboard-style repo intelligence maps
+
+> Kage viewer should not stop at graph visualization and summary cards. Repo intelligence reports should render as navi…
+
+Kage viewer should not stop at graph visualization and summary cards. Repo intelligence reports should render as navigable operational maps for ownership/silos, module health, onboarding targets, architecture communities, execution flows, and blast radius; path rows should focus the graph/inspector when the file node exists. This adopts repo-intelligence tool dashboard pattern while keeping Kage centered on memory-code context.
+Evidence: Implemented in mcp/viewer/app.js, mcp/viewer/styles.css, docs/viewer/app.js, docs/viewer/styles.css. Verified by Playwright on local viewer showing six intel sections and path click focusing mcp/viewer/app.js.
+Verified by: node --check mcp/viewer/app.js && node --check docs/viewer/app.js && git diff --check; npm test --prefix mcp; Playwright local viewer check
+
+## Verification
+
+Implemented in mcp/viewer/app.js, mcp/viewer/styles.css, docs/viewer/app.js, docs/viewer/styles.css. Verified by Playwright on local viewer showing six intel sections and path click focusing mcp/viewer/app.js.
+
+# Citations
+
+[1] explicit_capture (2026-05-15T04:22:57.816Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:decision:viewer-surfaces-repo-dashboard-style-repo-intelligence-maps-1778818977816","title":"Viewer surfaces repo-dashboard-style repo intelligence maps","summary":"Kage viewer should not stop at graph visualization and summary cards. Repo intelligence reports should render as navigable operational maps for ownership/silos, module health, onboarding targets, architecture communities","body":"Kage viewer should not stop at graph visualization and summary cards. Repo intelligence reports should render as navigable operational maps for ownership/silos, module health, onboarding targets, architecture communities, execution flows, and blast radius; path rows should focus the graph/inspector when the file node exists. This adopts repo-intelligence tool dashboard pattern while keeping Kage centered on memory-code context.\nEvidence: Implemented in mcp/viewer/app.js, mcp/viewer/styles.css, docs/viewer/app.js, docs/viewer/styles.css. Verified by Playwright on local viewer showing six intel sections and path click focusing mcp/viewer/app.js.\nVerified by: node --check mcp/viewer/app.js && node --check docs/viewer/app.js && git diff --check; npm test --prefix mcp; Playwright local viewer check","type":"decision","scope":"repo","visibility":"team","sensitivity":"internal","status":"deprecated","confidence":0.7,"tags":["session-learning","viewer","repo-intelligence","memory-code"],"paths":[],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-05-15T04:22:57.816Z"}],"context":{"fact":"Kage viewer should not stop at graph visualization and summary cards. Repo intelligence reports should render as navigable operational maps for ownership/silos, module health, onboarding targets, architecture communities, execution flows, and blast radius; path rows should focus the graph/inspector when the file node exists. This adopts repo-intelligence tool dashboard pattern while keeping Kage centered on memory-code context.\nEvidence: Implemented in mcp/viewer/app.js, mcp/viewer/styles.css, docs/viewer/app.js, docs/viewer/styles.css. Verified by Playwright on local viewer showing six intel sections and path click focusing mcp/viewer/app.js.\nVerified by: node --check mcp/viewer/app.js && node --check docs/viewer/app.js && git diff --check; npm test --prefix mcp; Playwright local viewer check","verification":"Implemented in mcp/viewer/app.js, mcp/viewer/styles.css, docs/viewer/app.js, docs/viewer/styles.css. Verified by Playwright on local viewer showing six intel sections and path click focusing mcp/viewer/app.js."},"freshness":{"ttl_days":365,"last_verified_at":"2026-05-15T04:22:57.816Z","verification":"repo_local_agent_capture"},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":201,"stale":true,"stale_reasons":["packet status is deprecated"],"suggested_action":"mark_stale"},"created_at":"2026-05-15T04:22:57.816Z","updated_at":"2026-06-05T14:45:41.007Z"}
+```
+

@@ -1,0 +1,35 @@
+---
+type: "Decision"
+title: "graph_nodes at capture + opt-in recall token budget (verified v2.2.1)"
+description: "Capture links packets to code graph nodes at write time; recall token budget stays opt in/bounded. Personal Memory section trims first when over budget ranks last ; kage resume has its own ~800 token timeline cap; receip"
+resource: "mcp/kernel.ts"
+tags: ["session-learning"]
+timestamp: "2026-06-22T05:48:10.988Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:decision:graph-nodes-at-capture-opt-in-recall-token-budget-verified-v2-2-1-1781268531115"
+x-kage-type: "decision"
+x-kage-status: "approved"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "verified"
+x-kage-paths: ["mcp/kernel.ts"]
+---
+
+# graph_nodes at capture + opt-in recall token budget (verified v2.2.1)
+
+> Capture links packets to code graph nodes at write time; recall token budget stays opt in/bounded. Personal Memory se…
+
+Capture links packets to code-graph nodes at write time; recall token budget stays opt-in/bounded. Personal Memory section trims first when over budget (ranks last); kage resume has its own ~800-token timeline cap; receipts use max(read-vs-source, replay discovery_tokens). Unchanged by 2.2.1.
+
+# Citations
+
+[1] explicit_capture (2026-06-12T12:48:51.115Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:decision:graph-nodes-at-capture-opt-in-recall-token-budget-verified-v2-2-1-1781268531115","title":"graph_nodes at capture + opt-in recall token budget (verified v2.2.1)","summary":"Capture links packets to code graph nodes at write time; recall token budget stays opt in/bounded. Personal Memory section trims first when over budget ranks last ; kage resume has its own ~800 token timeline cap; receip","body":"Capture links packets to code-graph nodes at write time; recall token budget stays opt-in/bounded. Personal Memory section trims first when over budget (ranks last); kage resume has its own ~800-token timeline cap; receipts use max(read-vs-source, replay discovery_tokens). Unchanged by 2.2.1.","type":"decision","scope":"repo","visibility":"team","sensitivity":"internal","status":"approved","confidence":0.7,"tags":["session-learning"],"paths":["mcp/kernel.ts"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-06-12T12:48:51.115Z"}],"context":{"fact":"Capture links packets to code-graph nodes at write time; recall token budget stays opt-in/bounded. Personal Memory section trims first when over budget (ranks last); kage resume has its own ~800-token timeline cap; receipts use max(read-vs-source, replay discovery_tokens). Unchanged by 2.2.1."},"freshness":{"ttl_days":365,"last_verified_at":"2026-06-22T05:48:10.988Z","path_fingerprints":[{"path":"mcp/kernel.ts","sha256":"e22da4096afd6f19711892a3812ec7d695d0acfde007084dd139df9d4343dd54","size":872150,"symbols":[{"name":"time","kind":"constant","sha256":"36aa0a901e7fda47d7d7571d9c21879432386e4418ed56010d7e03c9a91f5482"},{"name":"verified","kind":"constant","sha256":"9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"},{"name":"bounded","kind":"constant","sha256":"c3fc17594c058db2e1a1b9e8f33161d89ca175cd31aebed17389c75ac6709d43"},{"name":"timeline","kind":"constant","sha256":"f5715eff3d98cf9f3772e6b7738b8c131d36281f0b0a72b13859f4780c014557"},{"name":"code","kind":"constant","sha256":"64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"},{"name":"token","kind":"constant","sha256":"9289e531e150dbf4533b30373feed670db17040de86f0a87bae921c5fb3ce702"},{"name":"read","kind":"constant","sha256":"ffe49534fbcdb7c556f32fa5120c3dd4c00fce60f148c94f79d0d94d71145efd"},{"name":"capture","kind":"function","sha256":"7a3544f789dc8ce9454f602b1b82d9fd5de7039e5e72c98cad5fb5b4122016ef"},{"name":"memory","kind":"constant","sha256":"952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"},{"name":"section","kind":"constant","sha256":"94139d33e03721319bcd2ffe4b54948b3d0a4bb19839ff90b5383343a1eb4a41"}]}],"path_fingerprint_policy":"source_hash_staleness","verification":"repo_local_agent_capture"},"edges":[{"relation":"supersedes","to":"repo:https-github-com-kage-core-kage:decision:graph-nodes-at-capture-opt-in-recall-token-budget-still-true-in-v2-2-0-178126514","evidence":"Newer repo memory supersedes this packet.","created_at":"2026-06-12T12:48:51.295Z"}],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"discovery_tokens":4000,"discovery_tokens_estimated":true,"score":78,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive"],"risks":["possible duplicate memory"],"duplicate_candidates":[{"id":"repo:https-github-com-kage-core-kage:decision:graph-nodes-at-capture-opt-in-recall-token-budget-still-true-in-v2-2-0-178126514","title":"graph_nodes at capture + opt-in recall token budget (still true in v2.2.0)","score":0.59,"status":"approved"}],"estimated_tokens_saved":74,"reverified_at":"2026-06-22T05:48:10.988Z"},"created_at":"2026-06-12T12:48:51.115Z","updated_at":"2026-06-22T05:48:10.988Z","author_branch":"master"}
+```
+

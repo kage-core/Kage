@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, unlinkSync, readFileSync, readdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { okfConceptToPacket } from "./okf.js";
 import {
   capture,
   recall,
@@ -79,10 +80,12 @@ function diskStatus(project: string, id: string): string | null {
   const dir = join(project, ".agent_memory", "packets");
   if (!existsSync(dir)) return null;
   for (const f of readdirSync(dir)) {
-    if (!f.endsWith(".json")) continue;
+    if (!f.endsWith(".md") && !f.endsWith(".json")) continue;
     try {
-      const p = JSON.parse(readFileSync(join(dir, f), "utf8"));
-      if (p.id === id) return p.status;
+      const p = f.endsWith(".md")
+        ? okfConceptToPacket(readFileSync(join(dir, f), "utf8"))
+        : JSON.parse(readFileSync(join(dir, f), "utf8"));
+      if (p && p.id === id) return p.status;
     } catch { /* skip unreadable */ }
   }
   return null;

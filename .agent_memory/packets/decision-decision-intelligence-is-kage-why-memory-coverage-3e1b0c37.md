@@ -1,0 +1,35 @@
+---
+type: "Decision"
+title: "Decision intelligence is Kage why-memory coverage"
+description: "Kage decisions should expose the memory native part repo-dashboard-style static maps do not cover: which decisions, gotchas, runbooks, conventions, constraints, and code explanations are grounded to code paths; which important"
+resource: "mcp/kernel.ts"
+tags: ["session-learning", "decisions", "why-memory", "viewer", "repo-intelligence"]
+timestamp: "2026-06-15T21:58:32.171Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:decision:decision-intelligence-is-kage-why-memory-coverage-1778817489957"
+x-kage-type: "decision"
+x-kage-status: "approved"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "verified"
+x-kage-paths: ["mcp/kernel.ts", "mcp/cli.ts", "mcp/index.ts", "mcp/daemon.ts", "mcp/kernel.test.ts", "mcp/mcp.test.ts", "README.md", "mcp/README.md", "docs/guide.html"]
+---
+
+# Decision intelligence is Kage why-memory coverage
+
+> Kage decisions should expose the memory native part repo-dashboard-style static maps do not cover: which decisions, g…
+
+Kage decisions should expose the memory-native part repo-dashboard-style static maps do not cover: which decisions, gotchas, runbooks, conventions, constraints, and code explanations are grounded to code paths; which important files still lack why-memory; and which decision packets are weak or stale. Expose it through CLI, MCP, viewer reports, and docs as .agent_memory/reports/decisions.json.
+
+# Citations
+
+[1] explicit_capture (2026-05-15T03:58:09.957Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:decision:decision-intelligence-is-kage-why-memory-coverage-1778817489957","title":"Decision intelligence is Kage why-memory coverage","summary":"Kage decisions should expose the memory native part repo-dashboard-style static maps do not cover: which decisions, gotchas, runbooks, conventions, constraints, and code explanations are grounded to code paths; which important","body":"Kage decisions should expose the memory-native part repo-dashboard-style static maps do not cover: which decisions, gotchas, runbooks, conventions, constraints, and code explanations are grounded to code paths; which important files still lack why-memory; and which decision packets are weak or stale. Expose it through CLI, MCP, viewer reports, and docs as .agent_memory/reports/decisions.json.","type":"decision","scope":"repo","visibility":"team","sensitivity":"internal","status":"approved","confidence":0.7,"tags":["session-learning","decisions","why-memory","viewer","repo-intelligence"],"paths":["mcp/kernel.ts","mcp/cli.ts","mcp/index.ts","mcp/daemon.ts","mcp/kernel.test.ts","mcp/mcp.test.ts","README.md","mcp/README.md","docs/guide.html"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-05-15T03:58:09.957Z"}],"context":{"fact":"Kage decisions should expose the memory-native part repo-dashboard-style static maps do not cover: which decisions, gotchas, runbooks, conventions, constraints, and code explanations are grounded to code paths; which important files still lack why-memory; and which decision packets are weak or stale. Expose it through CLI, MCP, viewer reports, and docs as .agent_memory/reports/decisions.json."},"freshness":{"ttl_days":365,"last_verified_at":"2026-06-15T21:58:32.171Z","verification":"repo_local_agent_capture","path_fingerprints":[{"path":"mcp/kernel.ts","sha256":"c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f","size":844113,"symbols":[{"name":"code","kind":"constant","sha256":"64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"},{"name":"memory","kind":"constant","sha256":"952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"}]},{"path":"mcp/cli.ts","sha256":"a670bc601e227372c9ab3e862f4e25fa87ae4bfa90b63c3bbc61032d332da0d7","size":114201,"symbols":[{"name":"json","kind":"constant","sha256":"9115381310c6d4c5ecb25a7e67e4fd0bb4b20a9b328adb25b606065454f79370"}]},{"path":"mcp/index.ts","sha256":"d5abac0cb8d92d9074ae37a32ee515da8b03c43fe2d1a03d44447ee7b3493861","size":69453},{"path":"mcp/daemon.ts","sha256":"4d558ba09071b09ab3d1a62d40af04edf17609c9ea98a571405883424cc1bf2f","size":38423,"symbols":[{"name":"json","kind":"function","sha256":"c6cfd13a6f9203c85fedf4efd643fcb209309a376a34ce77909c444a05e9b0e5"},{"name":"reports","kind":"constant","sha256":"519ba3efc1950f2775b99f1d94f37e91b5caf269d027aedf80130fb06e9737ce"},{"name":"files","kind":"constant","sha256":"69140299050f3544f2a8f5cdcfa3672dd7f2a78cf8960d3197b23624253b5b9e"}]},{"path":"mcp/kernel.test.ts","sha256":"f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec","size":290526,"symbols":[{"name":"packets","kind":"constant","sha256":"f28a69afbf5d7a988e351fc5446a3b291a2451f97b8220c4e1a7629b3a50ffa3"},{"name":"grounded","kind":"constant","sha256":"390d7b1397bf40e02d5629ee431eab89184212ea30adce1e4561137413208e0e"}]},{"path":"mcp/mcp.test.ts","sha256":"3f5e52ad72a2a4b4db9e8de8bdad60cfb622ec132c2a278523ca6aad79538ec0","size":37910,"symbols":[{"name":"packets","kind":"constant","sha256":"8e24ebb99173a9fd5301b27e9ac55682bbb2605c03f9db6118e86695ee44a56d"}]},{"path":"README.md","sha256":"9a533eee7962e84cdceef1bd8c9463233a575138fa143acafc8abd42f723944a","size":10477},{"path":"mcp/README.md","sha256":"5c852f608754e299c2cff74495862f1ce4775d0bda5776d7ce4f070f4e4a6494","size":10129},{"path":"docs/guide.html","sha256":"33b57e522b1a49e48631042940e2ca7d281084371c3feb3210604e213e0e7f28","size":51769}]},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":98,"reverified_at":"2026-06-15T21:58:32.171Z"},"created_at":"2026-05-15T03:58:09.957Z","updated_at":"2026-06-15T21:58:32.171Z"}
+```
+

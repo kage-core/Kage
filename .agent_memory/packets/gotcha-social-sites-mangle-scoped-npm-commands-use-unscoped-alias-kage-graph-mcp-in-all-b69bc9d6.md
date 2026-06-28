@@ -1,0 +1,35 @@
+---
+type: "Gotcha"
+title: "Social sites mangle scoped npm commands: use unscoped alias kage-graph-mcp in all posts"
+description: "X and Reddit auto convert @kage core in 'npx y @kage core/kage graph mcp' into a user mention u/kage core on Reddit , breaking the command. Permanent fix shipped 2026 06 13: published unscoped alias package 'kage graph m"
+resource: "alias/kage-graph-mcp/package.json"
+tags: ["session-learning", "npm"]
+timestamp: "2026-06-12T19:44:18.054Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:gotcha:social-sites-mangle-scoped-npm-commands-use-unscoped-alias-kage-graph-mcp-in-all"
+x-kage-type: "gotcha"
+x-kage-status: "deprecated"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "deprecated"
+x-kage-paths: ["alias/kage-graph-mcp/package.json"]
+---
+
+# Social sites mangle scoped npm commands: use unscoped alias kage-graph-mcp in all posts
+
+> X and Reddit auto convert @kage core in 'npx y @kage core/kage graph mcp' into a user mention u/kage core on Reddit ,…
+
+X and Reddit auto-convert @kage-core in 'npx -y @kage-core/kage-graph-mcp' into a user mention (u/kage-core on Reddit), breaking the command. Permanent fix shipped 2026-06-13: published unscoped alias package 'kage-graph-mcp' (alias/kage-graph-mcp in repo) that depends on @kage-core/kage-graph-mcp ^2.2.3 and forwards bins via 2-line shims. Verified clean-room: npm install kage-graph-mcp -> dep 2.2.3, bin works. ALWAYS use 'npx -y kage-graph-mcp ...' in social copy; scoped stays canonical in README/site/registry. Gotcha hit while debugging: npx prefers an existing PATH binary over the registry — a stale global install (was 2.0.0 here) silently serves old behavior; fix with npm install -g @kage-core/kage-graph-mcp@latest. Keep alias version bumped at each release (publish from alias/kage-graph-mcp).
+
+# Citations
+
+[1] explicit_capture (2026-06-12T19:44:18.054Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:gotcha:social-sites-mangle-scoped-npm-commands-use-unscoped-alias-kage-graph-mcp-in-all","title":"Social sites mangle scoped npm commands: use unscoped alias kage-graph-mcp in all posts","summary":"X and Reddit auto convert @kage core in 'npx y @kage core/kage graph mcp' into a user mention u/kage core on Reddit , breaking the command. Permanent fix shipped 2026 06 13: published unscoped alias package 'kage graph m","body":"X and Reddit auto-convert @kage-core in 'npx -y @kage-core/kage-graph-mcp' into a user mention (u/kage-core on Reddit), breaking the command. Permanent fix shipped 2026-06-13: published unscoped alias package 'kage-graph-mcp' (alias/kage-graph-mcp in repo) that depends on @kage-core/kage-graph-mcp ^2.2.3 and forwards bins via 2-line shims. Verified clean-room: npm install kage-graph-mcp -> dep 2.2.3, bin works. ALWAYS use 'npx -y kage-graph-mcp ...' in social copy; scoped stays canonical in README/site/registry. Gotcha hit while debugging: npx prefers an existing PATH binary over the registry — a stale global install (was 2.0.0 here) silently serves old behavior; fix with npm install -g @kage-core/kage-graph-mcp@latest. Keep alias version bumped at each release (publish from alias/kage-graph-mcp).","type":"gotcha","scope":"repo","visibility":"team","sensitivity":"internal","status":"deprecated","confidence":0.7,"tags":["session-learning","npm"],"paths":["alias/kage-graph-mcp/package.json"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-06-12T19:44:18.054Z"}],"context":{"fact":"X and Reddit auto-convert @kage-core in 'npx -y @kage-core/kage-graph-mcp' into a user mention (u/kage-core on Reddit), breaking the command. Permanent fix shipped 2026-06-13: published unscoped alias package 'kage-graph-mcp' (alias/kage-graph-mcp in repo) that depends on @kage-core/kage-graph-mcp ^2.2.3 and forwards bins via 2-line shims. Verified clean-room: npm install kage-graph-mcp -> dep 2.2.3, bin works. ALWAYS use 'npx -y kage-graph-mcp ...' in social copy; scoped stays canonical in README/site/registry. Gotcha hit while debugging: npx prefers an existing PATH binary over the registry — a stale global install (was 2.0.0 here) silently serves old behavior; fix with npm install -g @kage-core/kage-graph-mcp@latest. Keep alias version bumped at each release (publish from alias/kage-graph-mcp)."},"freshness":{"ttl_days":365,"last_verified_at":"2026-06-12T19:44:18.054Z","path_fingerprints":[{"path":"alias/kage-graph-mcp/package.json","sha256":"4e024e73dd858d9e06a639f5c1d1ae12f181e0db9972968d559fb78b1cd9432d","size":547}],"path_fingerprint_policy":"source_hash_staleness","verification":"repo_local_agent_capture"},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"discovery_tokens":8000,"discovery_tokens_estimated":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":202,"stale":true,"stale_reasons":["packet status is deprecated","linked path changed since memory was verified: alias/kage-graph-mcp/package.json"],"suggested_action":"mark_stale"},"created_at":"2026-06-12T19:44:18.054Z","updated_at":"2026-06-12T21:54:57.222Z","author_branch":"master"}
+```
+

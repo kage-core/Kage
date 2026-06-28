@@ -1,0 +1,40 @@
+---
+type: "Decision"
+title: "Never compare Kage benchmarks to competitors' published numbers"
+description: "A score is only valid relative to its harness. Comparing Kage's number to a competitor published number is invalid different protocol/dataset . Run both through one harness or publish only our own numbers; lead with the"
+resource: "docs/BENCHMARKS.md"
+tags: ["session-learning"]
+timestamp: "2026-06-05T11:54:06.702Z"
+x-kage-id: "repo:memory:decision:never-compare-kage-benchmarks-to-competitors-published-numbers-1780660446702"
+x-kage-type: "decision"
+x-kage-status: "approved"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "verified"
+x-kage-paths: ["docs/BENCHMARKS.md", "benchmarks/LONGMEMEVAL.md"]
+---
+
+# Never compare Kage benchmarks to competitors' published numbers
+
+> A score is only valid relative to its harness. Comparing Kage's number to a competitor published number is invalid di…
+
+A score is only valid relative to its harness. Comparing Kage's number to a competitor published number is invalid (different protocol/dataset). Run both through one harness or publish only our own numbers; lead with the Trust Benchmark.
+Verified by: docs/BENCHMARKS.md principle
+
+## Verification
+
+docs/BENCHMARKS.md principle
+
+# Citations
+
+[1] explicit_capture (2026-06-05T11:54:06.702Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:memory:decision:never-compare-kage-benchmarks-to-competitors-published-numbers-1780660446702","title":"Never compare Kage benchmarks to competitors' published numbers","summary":"A score is only valid relative to its harness. Comparing Kage's number to a competitor published number is invalid different protocol/dataset . Run both through one harness or publish only our own numbers; lead with the","body":"A score is only valid relative to its harness. Comparing Kage's number to a competitor published number is invalid (different protocol/dataset). Run both through one harness or publish only our own numbers; lead with the Trust Benchmark.\nVerified by: docs/BENCHMARKS.md principle","type":"decision","scope":"repo","visibility":"team","sensitivity":"internal","status":"approved","confidence":0.7,"tags":["session-learning"],"paths":["docs/BENCHMARKS.md","benchmarks/LONGMEMEVAL.md"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-06-05T11:54:06.702Z"}],"context":{"fact":"A score is only valid relative to its harness. Comparing Kage's number to a competitor published number is invalid (different protocol/dataset). Run both through one harness or publish only our own numbers; lead with the Trust Benchmark.\nVerified by: docs/BENCHMARKS.md principle","verification":"docs/BENCHMARKS.md principle"},"freshness":{"ttl_days":365,"last_verified_at":"2026-06-05T11:54:06.702Z","path_fingerprints":[{"path":"docs/BENCHMARKS.md","sha256":"b111e6d11754726d83e9ca4d2cd52ff8c4773ff223597c8bb8c16875ec246b82","size":2743},{"path":"benchmarks/LONGMEMEVAL.md","sha256":"5df10a3e759e49d4a1f48d158d4178ac75fcada36ec0efa45012a679359a3e40","size":5319}],"path_fingerprint_policy":"source_hash_staleness","verification":"repo_local_agent_capture"},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":70},"created_at":"2026-06-05T11:54:06.702Z","updated_at":"2026-06-05T11:54:23.341Z","author_branch":"chore/dogfood"}
+```
+

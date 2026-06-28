@@ -1,0 +1,35 @@
+---
+type: "Convention"
+title: "Privacy: [private]"
+description: "stripPrivateSpans kernel.ts, exported replaces private spans case insensitive, multiline, unclosed to EOF with private before ANY write: capture, learn repo and personal , observe events, and the distill pipeline includi"
+resource: "mcp/kernel.ts"
+tags: ["session-learning", "privacy"]
+timestamp: "2026-06-15T21:58:13.006Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:convention:privacy-private-1781265149442"
+x-kage-type: "convention"
+x-kage-status: "superseded"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "superseded"
+x-kage-paths: ["mcp/kernel.ts"]
+---
+
+# Privacy: [private]
+
+> stripPrivateSpans kernel.ts, exported replaces private spans case insensitive, multiline, unclosed to EOF with privat…
+
+stripPrivateSpans (kernel.ts, exported) replaces [private] spans (case-insensitive, multiline, unclosed-to-EOF) with [private] before ANY write: capture, learn (repo and --personal), observe events, and the distill pipeline including auto-distill drafts. Personal packets get the same secret-scan + redaction as repo capture. Route any new write path through the same sanitizer.
+
+# Citations
+
+[1] explicit_capture (2026-06-12T11:52:29.442Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:convention:privacy-private-1781265149442","title":"Privacy: [private]","summary":"stripPrivateSpans kernel.ts, exported replaces private spans case insensitive, multiline, unclosed to EOF with private before ANY write: capture, learn repo and personal , observe events, and the distill pipeline includi","body":"stripPrivateSpans (kernel.ts, exported) replaces [private] spans (case-insensitive, multiline, unclosed-to-EOF) with [private] before ANY write: capture, learn (repo and --personal), observe events, and the distill pipeline including auto-distill drafts. Personal packets get the same secret-scan + redaction as repo capture. Route any new write path through the same sanitizer.","type":"convention","scope":"repo","visibility":"team","sensitivity":"internal","status":"superseded","confidence":0.7,"tags":["session-learning","privacy"],"paths":["mcp/kernel.ts"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-06-12T11:52:29.442Z"}],"context":{"fact":"stripPrivateSpans (kernel.ts, exported) replaces [private] spans (case-insensitive, multiline, unclosed-to-EOF) with [private] before ANY write: capture, learn (repo and --personal), observe events, and the distill pipeline including auto-distill drafts. Personal packets get the same secret-scan + redaction as repo capture. Route any new write path through the same sanitizer."},"freshness":{"ttl_days":365,"last_verified_at":"2026-06-15T21:58:13.006Z","path_fingerprints":[{"path":"mcp/kernel.ts","sha256":"c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f","size":844113,"symbols":[{"name":"stripprivatespans","kind":"function","sha256":"ba84a8fc3e6d28cb1b5961254b38ec923e69f24b0a89936bf5606ff7cbde5c30"},{"name":"same","kind":"constant","sha256":"b150fada949a5c6d4babe0a0bc108765c6e7e1819d0ddbee55112b9c9a708447"},{"name":"before","kind":"constant","sha256":"70c005bc3586ccb93799dfa1989dccca69b847916fd3fde1583578730922c50c"},{"name":"learn","kind":"function","sha256":"93c4e74f4a7d140c065b4eaa12b6ef14ffa68bfaee0cfc0a3e3773881af468d3"},{"name":"capture","kind":"function","sha256":"d6ab6995f6712c0c94fc325e5aaaf3f495bdd81ba660e115f3d467f89f93ef29"},{"name":"observe","kind":"function","sha256":"ed8233b4571379b1176099bf36cd241bc60cb0e62a835060c6661bddf5d3c76b"},{"name":"auto","kind":"constant","sha256":"00dfd4334aa51ffac12b575a6a2c33040556f4641b8e8806bee9af6d653df46c"}]}],"path_fingerprint_policy":"source_hash_staleness","verification":"repo_local_agent_capture","superseded_at":"2026-06-12T12:48:51.897Z","superseded_by":"repo:https-github-com-kage-core-kage:convention:privacy-private-span-tags-redacted-by-stripprivatespans-before-any-write-verifie","superseded_reason":"Newer repo memory supersedes this packet."},"edges":[{"relation":"supersedes","to":"repo:agent-a42c797e11994217c:convention:privacy-private-tags-are-redacted-by-stripprivatespans-before-any-memory-write-1","evidence":"Newer repo memory supersedes this packet.","created_at":"2026-06-12T11:52:47.975Z"},{"relation":"superseded_by","to":"repo:https-github-com-kage-core-kage:convention:privacy-private-span-tags-redacted-by-stripprivatespans-before-any-write-verifie","evidence":"Newer repo memory supersedes this packet.","created_at":"2026-06-12T12:48:51.897Z"}],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"discovery_tokens":2000,"discovery_tokens_estimated":true,"score":96,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":95,"superseded_by":"repo:https-github-com-kage-core-kage:convention:privacy-private-span-tags-redacted-by-stripprivatespans-before-any-write-verifie","superseded_reason":"Newer repo memory supersedes this packet.","reverified_at":"2026-06-15T21:58:13.006Z","stale":true,"stale_reasons":["packet status is superseded","linked path changed since memory was verified: mcp/kernel.ts"],"suggested_action":"mark_stale"},"created_at":"2026-06-12T11:52:29.442Z","updated_at":"2026-06-19T13:57:42.711Z","author_branch":"master"}
+```
+

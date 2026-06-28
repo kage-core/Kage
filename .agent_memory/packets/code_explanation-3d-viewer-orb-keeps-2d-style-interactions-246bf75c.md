@@ -1,0 +1,39 @@
+---
+type: "Code Explanation"
+title: "3D viewer orb keeps 2D-style interactions"
+description: "The 3D viewer should read as an orb, not a tilted copy of the 2D force layout. It uses deterministic spherical positions and circular sprite nodes styled with the same nodeThemeColor/nodeFillColor rules as the 2D canvas."
+tags: ["session-learning", "viewer", "threejs", "orb", "ux"]
+timestamp: "2026-05-11T08:55:09.330Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:code_explanation:3d-viewer-orb-keeps-2d-style-interactions-1778489709330"
+x-kage-type: "code_explanation"
+x-kage-status: "deprecated"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "deprecated"
+---
+
+# 3D viewer orb keeps 2D-style interactions
+
+> The 3D viewer should read as an orb, not a tilted copy of the 2D force layout. It uses deterministic spherical positi…
+
+The 3D viewer should read as an orb, not a tilted copy of the 2D force layout. It uses deterministic spherical positions and circular sprite nodes styled with the same nodeThemeColor/nodeFillColor rules as the 2D canvas. The interaction model remains graph-tool-like: drag the orb, drag nodes, wheel zoom, hover tooltip, and click/double-click selection update the inspector.
+Evidence: Updated mcp/viewer/app.js after user feedback that 3D should look more like an orb while keeping the same interaction feel as 2D.
+Verified by: node --check mcp/viewer/app.js; npm test --prefix mcp; Playwright desktop/mobile WebGL screenshot checks
+
+## Verification
+
+Updated mcp/viewer/app.js after user feedback that 3D should look more like an orb while keeping the same interaction feel as 2D.
+
+# Citations
+
+[1] explicit_capture (2026-05-11T08:55:09.330Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:code_explanation:3d-viewer-orb-keeps-2d-style-interactions-1778489709330","title":"3D viewer orb keeps 2D-style interactions","summary":"The 3D viewer should read as an orb, not a tilted copy of the 2D force layout. It uses deterministic spherical positions and circular sprite nodes styled with the same nodeThemeColor/nodeFillColor rules as the 2D canvas.","body":"The 3D viewer should read as an orb, not a tilted copy of the 2D force layout. It uses deterministic spherical positions and circular sprite nodes styled with the same nodeThemeColor/nodeFillColor rules as the 2D canvas. The interaction model remains graph-tool-like: drag the orb, drag nodes, wheel zoom, hover tooltip, and click/double-click selection update the inspector.\nEvidence: Updated mcp/viewer/app.js after user feedback that 3D should look more like an orb while keeping the same interaction feel as 2D.\nVerified by: node --check mcp/viewer/app.js; npm test --prefix mcp; Playwright desktop/mobile WebGL screenshot checks","type":"code_explanation","scope":"repo","visibility":"team","sensitivity":"internal","status":"deprecated","confidence":0.7,"tags":["session-learning","viewer","threejs","orb","ux"],"paths":[],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-05-11T08:55:09.330Z"}],"context":{"fact":"The 3D viewer should read as an orb, not a tilted copy of the 2D force layout. It uses deterministic spherical positions and circular sprite nodes styled with the same nodeThemeColor/nodeFillColor rules as the 2D canvas. The interaction model remains graph-tool-like: drag the orb, drag nodes, wheel zoom, hover tooltip, and click/double-click selection update the inspector.\nEvidence: Updated mcp/viewer/app.js after user feedback that 3D should look more like an orb while keeping the same interaction feel as 2D.\nVerified by: node --check mcp/viewer/app.js; npm test --prefix mcp; Playwright desktop/mobile WebGL screenshot checks","verification":"Updated mcp/viewer/app.js after user feedback that 3D should look more like an orb while keeping the same interaction feel as 2D."},"freshness":{"ttl_days":365,"last_verified_at":"2026-05-11T08:55:09.330Z","verification":"repo_local_agent_capture"},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":159,"stale":true,"stale_reasons":["packet status is deprecated"],"suggested_action":"mark_stale"},"created_at":"2026-05-11T08:55:09.330Z","updated_at":"2026-06-05T14:45:40.999Z"}
+```
+

@@ -1,0 +1,40 @@
+---
+type: "Decision"
+title: "Citation validation enforced at agent boundary; stale exclusion is fingerprint-based"
+description: "Added the PRD's missing memory quality mechanisms. Citation validation lives at the agent boundary kage capture/kage learn tools + CLI set strictCitations:true , not in core capture , so programmatic callers and migratio"
+resource: "mcp/kernel.ts"
+tags: ["session-learning", "memory-quality", "prd", "citations", "staleness"]
+timestamp: "2026-06-15T21:58:03.331Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:decision:citation-validation-enforced-at-agent-boundary-stale-exclusion-is-fingerprint-ba"
+x-kage-type: "decision"
+x-kage-status: "deprecated"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "deprecated"
+x-kage-paths: ["mcp/kernel.ts", "mcp/index.ts", "mcp/cli.ts"]
+---
+
+# Citation validation enforced at agent boundary; stale exclusion is fingerprint-based
+
+> Added the PRD's missing memory quality mechanisms. Citation validation lives at the agent boundary kage capture/kage …
+
+Added the PRD's missing memory-quality mechanisms. Citation validation lives at the agent boundary (kage_capture/kage_learn tools + CLI set strictCitations:true), not in core capture(), so programmatic callers and migrations stay permissive; allow_missing_paths is the escape hatch. Recall-time stale exclusion uses recallHardStaleReason() which only excludes when stored path_fingerprints (paths that existed at capture) are now deleted, ttl expired, or reports_stale>0 — a citation that NEVER existed is an ungrounded write (guarded at capture), not recall staleness. Packets carry author_branch. New kage_verify_citations and kage_compact tools/CLI commands. Packet loaders (loadPacketsFromDir/loadPacketEntriesFromDir) now skip unparseable/merge-conflicted packets instead of crashing all of recall.
+Verified by: npm test (180 pass); node dist/cli.js verify/compact smoke tests
+
+## Verification
+
+npm test (180 pass); node dist/cli.js verify/compact smoke tests
+
+# Citations
+
+[1] explicit_capture (2026-06-04T15:18:00.531Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:decision:citation-validation-enforced-at-agent-boundary-stale-exclusion-is-fingerprint-ba","title":"Citation validation enforced at agent boundary; stale exclusion is fingerprint-based","summary":"Added the PRD's missing memory quality mechanisms. Citation validation lives at the agent boundary kage capture/kage learn tools + CLI set strictCitations:true , not in core capture , so programmatic callers and migratio","body":"Added the PRD's missing memory-quality mechanisms. Citation validation lives at the agent boundary (kage_capture/kage_learn tools + CLI set strictCitations:true), not in core capture(), so programmatic callers and migrations stay permissive; allow_missing_paths is the escape hatch. Recall-time stale exclusion uses recallHardStaleReason() which only excludes when stored path_fingerprints (paths that existed at capture) are now deleted, ttl expired, or reports_stale>0 — a citation that NEVER existed is an ungrounded write (guarded at capture), not recall staleness. Packets carry author_branch. New kage_verify_citations and kage_compact tools/CLI commands. Packet loaders (loadPacketsFromDir/loadPacketEntriesFromDir) now skip unparseable/merge-conflicted packets instead of crashing all of recall.\nVerified by: npm test (180 pass); node dist/cli.js verify/compact smoke tests","type":"decision","scope":"repo","visibility":"team","sensitivity":"internal","status":"deprecated","confidence":0.7,"tags":["session-learning","memory-quality","prd","citations","staleness"],"paths":["mcp/kernel.ts","mcp/index.ts","mcp/cli.ts"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-06-04T15:18:00.531Z"}],"context":{"fact":"Added the PRD's missing memory-quality mechanisms. Citation validation lives at the agent boundary (kage_capture/kage_learn tools + CLI set strictCitations:true), not in core capture(), so programmatic callers and migrations stay permissive; allow_missing_paths is the escape hatch. Recall-time stale exclusion uses recallHardStaleReason() which only excludes when stored path_fingerprints (paths that existed at capture) are now deleted, ttl expired, or reports_stale>0 — a citation that NEVER existed is an ungrounded write (guarded at capture), not recall staleness. Packets carry author_branch. New kage_verify_citations and kage_compact tools/CLI commands. Packet loaders (loadPacketsFromDir/loadPacketEntriesFromDir) now skip unparseable/merge-conflicted packets instead of crashing all of recall.\nVerified by: npm test (180 pass); node dist/cli.js verify/compact smoke tests","verification":"npm test (180 pass); node dist/cli.js verify/compact smoke tests"},"freshness":{"ttl_days":365,"last_verified_at":"2026-06-15T21:58:03.331Z","path_fingerprints":[{"path":"mcp/kernel.ts","sha256":"c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f","size":844113,"symbols":[{"name":"time","kind":"constant","sha256":"36aa0a901e7fda47d7d7571d9c21879432386e4418ed56010d7e03c9a91f5482"},{"name":"verified","kind":"constant","sha256":"9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"},{"name":"recallhardstalereason","kind":"function","sha256":"bc5094b9c34ac06c4424f01b2460eb03e812b9570ce812f540a38b94693cdabf"},{"name":"loadpacketsfromdir","kind":"function","sha256":"34dfb741e9663aa3efa6336d3053f5d94492346c64c4c33586ba8701ff6dbd77"},{"name":"loadpacketentriesfromdir","kind":"function","sha256":"56f58921fa748842ae3c57d08c6fd4846f284b2e018501a1f8b9f269641b1e30"},{"name":"compact","kind":"constant","sha256":"c9b1c12cc7a86cc1cd5e8fe0a5d8f5153a50e841cc6135962452153780c8557f"},{"name":"verify","kind":"constant","sha256":"a52f5b45a4f358248075422f84ac83e7d291e8e7acb866eeabdb692896bc9c0d"},{"name":"learn","kind":"function","sha256":"93c4e74f4a7d140c065b4eaa12b6ef14ffa68bfaee0cfc0a3e3773881af468d3"},{"name":"capture","kind":"function","sha256":"d6ab6995f6712c0c94fc325e5aaaf3f495bdd81ba660e115f3d467f89f93ef29"},{"name":"memory","kind":"constant","sha256":"952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"},{"name":"when","kind":"constant","sha256":"48bfd58b3cdbf2d407e4443b90727d548d96eceaa4372c099dcd22c52f498452"},{"name":"conflicted","kind":"constant","sha256":"fe8cf8eefac7240e454701ec8e4968f319aebc553047d0eb328562fe029510b3"},{"name":"skip","kind":"constant","sha256":"84ce913f797ae6f1160ffe3c80d4f9852f31f1ce9c118d5e1a8be145e564b569"}]},{"path":"mcp/index.ts","sha256":"d5abac0cb8d92d9074ae37a32ee515da8b03c43fe2d1a03d44447ee7b3493861","size":69453,"symbols":[{"name":"validation","kind":"constant","sha256":"98a7747d4e4a450a2444f7de45c545d9527be0675ece8ebe7ba615af1b017a39"}]},{"path":"mcp/cli.ts","sha256":"a670bc601e227372c9ab3e862f4e25fa87ae4bfa90b63c3bbc61032d332da0d7","size":114201,"symbols":[{"name":"missing","kind":"constant","sha256":"1f67f0b431b553dcc4e02753e1a22a41a1e80566f743e181f9c8c7fe1d240f02"},{"name":"agent","kind":"constant","sha256":"5b9caa614311fe691d6af171b9a8985b0d49464b9df178ad28ff5b9883eb4cf2"}]}],"path_fingerprint_policy":"source_hash_staleness","verification":"repo_local_agent_capture"},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":221,"reverified_at":"2026-06-15T21:58:03.331Z","stale":true,"stale_reasons":["packet status is deprecated","linked path changed since memory was verified: mcp/kernel.ts"],"suggested_action":"mark_stale"},"created_at":"2026-06-04T15:18:00.531Z","updated_at":"2026-06-19T13:57:42.713Z","author_branch":"master"}
+```
+

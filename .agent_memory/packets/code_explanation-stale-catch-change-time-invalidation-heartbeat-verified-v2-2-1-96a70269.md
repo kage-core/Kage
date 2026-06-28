@@ -1,0 +1,35 @@
+---
+type: "Code Explanation"
+title: "Stale-catch: change-time invalidation heartbeat (verified v2.2.1)"
+description: "staleCatch detects memories invalidated by working tree/diff changes; surfaced by kage pr check lead and kage staleguard pre commit; stale caught events feed the ledger and kage gains. Quiet refresh on non default branch"
+resource: "mcp/kernel.ts"
+tags: ["session-learning"]
+timestamp: "2026-06-15T21:58:12.086Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:code_explanation:stale-catch-change-time-invalidation-heartbeat-verified-v2-2-1-1781268532337"
+x-kage-type: "code_explanation"
+x-kage-status: "approved"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "verified"
+x-kage-paths: ["mcp/kernel.ts"]
+---
+
+# Stale-catch: change-time invalidation heartbeat (verified v2.2.1)
+
+> staleCatch detects memories invalidated by working tree/diff changes; surfaced by kage pr check lead and kage stalegu…
+
+staleCatch detects memories invalidated by working-tree/diff changes; surfaced by kage pr check lead and kage staleguard pre-commit; stale_caught events feed the ledger and kage gains. Quiet refresh on non-default branches computes staleness in memory without persisting metadata rewrites; personal packets excluded. Unchanged by 2.2.1.
+
+# Citations
+
+[1] explicit_capture (2026-06-12T12:48:52.337Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:code_explanation:stale-catch-change-time-invalidation-heartbeat-verified-v2-2-1-1781268532337","title":"Stale-catch: change-time invalidation heartbeat (verified v2.2.1)","summary":"staleCatch detects memories invalidated by working tree/diff changes; surfaced by kage pr check lead and kage staleguard pre commit; stale caught events feed the ledger and kage gains. Quiet refresh on non default branch","body":"staleCatch detects memories invalidated by working-tree/diff changes; surfaced by kage pr check lead and kage staleguard pre-commit; stale_caught events feed the ledger and kage gains. Quiet refresh on non-default branches computes staleness in memory without persisting metadata rewrites; personal packets excluded. Unchanged by 2.2.1.","type":"code_explanation","scope":"repo","visibility":"team","sensitivity":"internal","status":"approved","confidence":0.7,"tags":["session-learning"],"paths":["mcp/kernel.ts"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-06-12T12:48:52.337Z"}],"context":{"fact":"staleCatch detects memories invalidated by working-tree/diff changes; surfaced by kage pr check lead and kage staleguard pre-commit; stale_caught events feed the ledger and kage gains. Quiet refresh on non-default branches computes staleness in memory without persisting metadata rewrites; personal packets excluded. Unchanged by 2.2.1."},"freshness":{"ttl_days":365,"last_verified_at":"2026-06-15T21:58:12.086Z","path_fingerprints":[{"path":"mcp/kernel.ts","sha256":"c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f","size":844113,"symbols":[{"name":"time","kind":"constant","sha256":"36aa0a901e7fda47d7d7571d9c21879432386e4418ed56010d7e03c9a91f5482"},{"name":"verified","kind":"constant","sha256":"9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"},{"name":"quiet","kind":"constant","sha256":"b0960735ee347c47ea2422888dd7ebfe019320d8af2f0b1ad395c8ef19dd9f6d"},{"name":"surfaced","kind":"constant","sha256":"dd98145f4654c60f06b4cb0037a6eb98de2eebb28c7a013826cdc06795331124"},{"name":"memory","kind":"constant","sha256":"952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"},{"name":"stalecatch","kind":"function","sha256":"f5c8a3a19318806b2dd089f0ece8a92a7b5799089c796665109fc20c63fdab9a"},{"name":"invalidated","kind":"constant","sha256":"091c9ec9a6da9da0aec9dbc1bcd2758e540de06cf60ce2ae280324b46b55c1dd"}]}],"path_fingerprint_policy":"source_hash_staleness","verification":"repo_local_agent_capture"},"edges":[{"relation":"supersedes","to":"repo:https-github-com-kage-core-kage:code_explanation:stale-catch-change-time-invalidation-heartbeat-current-through-v2-2-0-1781265198","evidence":"Newer repo memory supersedes this packet.","created_at":"2026-06-12T12:48:52.523Z"}],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"discovery_tokens":2000,"discovery_tokens_estimated":true,"score":78,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive"],"risks":["possible duplicate memory"],"duplicate_candidates":[{"id":"repo:https-github-com-kage-core-kage:code_explanation:stale-catch-change-time-invalidation-heartbeat-current-through-v2-2-0-1781265198","title":"Stale-catch: change-time invalidation heartbeat (current through v2.2.0)","score":0.64,"status":"approved"}],"estimated_tokens_saved":84,"reverified_at":"2026-06-15T21:58:12.086Z"},"created_at":"2026-06-12T12:48:52.337Z","updated_at":"2026-06-15T21:58:12.086Z","author_branch":"master"}
+```
+

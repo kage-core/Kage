@@ -1,0 +1,35 @@
+---
+type: "Decision"
+title: "v2.2.x closed the claude-mem parity gap — feature map and what remains"
+description: "Parity shipped across PRs 69 85 and releases 2.0.2/2.1.0/2.2.0/2.2.1 2.2.1 = sync identity + push self heal for identityless machines . Full map in CHANGELOG. Site content refreshed to match session loop, sync, audit wed"
+resource: "CHANGELOG.md"
+tags: ["session-learning"]
+timestamp: "2026-06-15T17:57:43.540Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:decision:v2-2-x-closed-the-claude-mem-parity-gap-feature-map-and-what-remains-17812685329"
+x-kage-type: "decision"
+x-kage-status: "approved"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "verified"
+x-kage-paths: ["CHANGELOG.md"]
+---
+
+# v2.2.x closed the claude-mem parity gap — feature map and what remains
+
+> Parity shipped across PRs 69 85 and releases 2.0.2/2.1.0/2.2.0/2.2.1 2.2.1 = sync identity + push self heal for ident…
+
+Parity shipped across PRs #69-#85 and releases 2.0.2/2.1.0/2.2.0/2.2.1 (2.2.1 = sync identity + push self-heal for identityless machines). Full map in CHANGELOG. Site content refreshed to match (session loop, sync, audit wedge, pricing, releases page rebuilt from v1.1.36). REMAINING vs claude-mem: hosted MCP endpoint (gated on waitlist issue #74) and their 80k-star distribution. Strategy: trust superiority + convenience parity + audit-claude-mem wedge.
+
+# Citations
+
+[1] explicit_capture (2026-06-12T12:48:52.965Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:decision:v2-2-x-closed-the-claude-mem-parity-gap-feature-map-and-what-remains-17812685329","title":"v2.2.x closed the claude-mem parity gap — feature map and what remains","summary":"Parity shipped across PRs 69 85 and releases 2.0.2/2.1.0/2.2.0/2.2.1 2.2.1 = sync identity + push self heal for identityless machines . Full map in CHANGELOG. Site content refreshed to match session loop, sync, audit wed","body":"Parity shipped across PRs #69-#85 and releases 2.0.2/2.1.0/2.2.0/2.2.1 (2.2.1 = sync identity + push self-heal for identityless machines). Full map in CHANGELOG. Site content refreshed to match (session loop, sync, audit wedge, pricing, releases page rebuilt from v1.1.36). REMAINING vs claude-mem: hosted MCP endpoint (gated on waitlist issue #74) and their 80k-star distribution. Strategy: trust superiority + convenience parity + audit-claude-mem wedge.","type":"decision","scope":"repo","visibility":"team","sensitivity":"internal","status":"approved","confidence":0.7,"tags":["session-learning"],"paths":["CHANGELOG.md"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-06-12T12:48:52.965Z"}],"context":{"fact":"Parity shipped across PRs #69-#85 and releases 2.0.2/2.1.0/2.2.0/2.2.1 (2.2.1 = sync identity + push self-heal for identityless machines). Full map in CHANGELOG. Site content refreshed to match (session loop, sync, audit wedge, pricing, releases page rebuilt from v1.1.36). REMAINING vs claude-mem: hosted MCP endpoint (gated on waitlist issue #74) and their 80k-star distribution. Strategy: trust superiority + convenience parity + audit-claude-mem wedge."},"freshness":{"ttl_days":365,"last_verified_at":"2026-06-15T17:57:43.540Z","path_fingerprints":[{"path":"CHANGELOG.md","sha256":"1d00aff932a74d380dad6e0d60ae0aed37e40aa5a03ae7ec0acb71f824d0ef0c","size":46022}],"path_fingerprint_policy":"source_hash_staleness","verification":"repo_local_agent_capture"},"edges":[{"relation":"supersedes","to":"repo:https-github-com-kage-core-kage:decision:v2-2-0-closed-the-claude-mem-parity-gap-full-feature-map-and-what-remains-178126","evidence":"Newer repo memory supersedes this packet.","created_at":"2026-06-12T12:48:53.167Z"}],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"discovery_tokens":4000,"discovery_tokens_estimated":true,"score":96,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":114,"reverified_at":"2026-06-15T17:57:43.540Z"},"created_at":"2026-06-12T12:48:52.965Z","updated_at":"2026-06-15T17:57:43.540Z","author_branch":"master"}
+```
+

@@ -1,0 +1,40 @@
+---
+type: "Decision"
+title: "Read-only commands reuse current graph artifacts"
+description: "Kage read only commands should load current code and knowledge graph artifacts, keep an in process graph cache for MCP sessions, and avoid rewriting indexes unless inputs are missing or stale. Recall should precompute gr"
+resource: "mcp/kernel.ts"
+tags: ["session-learning", "performance", "recall", "metrics", "code-graph"]
+timestamp: "2026-06-15T21:57:57.048Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:decision:read-only-commands-reuse-current-graph-artifacts-1778262618744"
+x-kage-type: "decision"
+x-kage-status: "approved"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "verified"
+x-kage-paths: ["mcp/kernel.ts", "mcp/kernel.test.ts"]
+---
+
+# Read-only commands reuse current graph artifacts
+
+> Kage read only commands should load current code and knowledge graph artifacts, keep an in process graph cache for MC…
+
+Kage read-only commands should load current code and knowledge graph artifacts, keep an in-process graph cache for MCP sessions, and avoid rewriting indexes unless inputs are missing or stale. Recall should precompute graph lookup maps once per query instead of scanning graph entities and edges for every packet.
+Verified by: npm test --prefix mcp
+
+## Verification
+
+npm test --prefix mcp
+
+# Citations
+
+[1] explicit_capture (2026-05-08T17:50:18.744Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:decision:read-only-commands-reuse-current-graph-artifacts-1778262618744","title":"Read-only commands reuse current graph artifacts","summary":"Kage read only commands should load current code and knowledge graph artifacts, keep an in process graph cache for MCP sessions, and avoid rewriting indexes unless inputs are missing or stale. Recall should precompute gr","body":"Kage read-only commands should load current code and knowledge graph artifacts, keep an in-process graph cache for MCP sessions, and avoid rewriting indexes unless inputs are missing or stale. Recall should precompute graph lookup maps once per query instead of scanning graph entities and edges for every packet.\nVerified by: npm test --prefix mcp","type":"decision","scope":"repo","visibility":"team","sensitivity":"internal","status":"approved","confidence":0.7,"tags":["session-learning","performance","recall","metrics","code-graph"],"paths":["mcp/kernel.ts","mcp/kernel.test.ts"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-05-08T17:50:18.744Z"}],"context":{"fact":"Kage read-only commands should load current code and knowledge graph artifacts, keep an in-process graph cache for MCP sessions, and avoid rewriting indexes unless inputs are missing or stale. Recall should precompute graph lookup maps once per query instead of scanning graph entities and edges for every packet.\nVerified by: npm test --prefix mcp","verification":"npm test --prefix mcp"},"freshness":{"ttl_days":365,"last_verified_at":"2026-06-15T21:57:57.048Z","verification":"repo_local_agent_capture","path_fingerprints":[{"path":"mcp/kernel.ts","sha256":"c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f","size":844113,"symbols":[{"name":"verified","kind":"constant","sha256":"9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"},{"name":"code","kind":"constant","sha256":"64b81d42a4c6de11c6ff891787a63a33c198717dba5a924932817e97a8d1f7cf"},{"name":"read","kind":"constant","sha256":"ffe49534fbcdb7c556f32fa5120c3dd4c00fce60f148c94f79d0d94d71145efd"},{"name":"keep","kind":"constant","sha256":"3e5df93c6de57dbae093461e4198d2bc24bb055a50d3f6a8bd6449397fd00f3b"}]},{"path":"mcp/kernel.test.ts","sha256":"f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec","size":290526,"symbols":[{"name":"edges","kind":"constant","sha256":"8c37bcd95245ff6d66b6f8b413ce98901f9c5e8bad1c2b4dc47e75e3b2815f73"},{"name":"missing","kind":"constant","sha256":"8c9fa6e4673545533b5cdc9a6ac45e775f0fb7ec7d969a7602c2d97d1411b01e"}]}]},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":87,"reverified_at":"2026-06-15T21:57:57.048Z"},"created_at":"2026-05-08T17:50:18.744Z","updated_at":"2026-06-15T21:57:57.048Z"}
+```
+

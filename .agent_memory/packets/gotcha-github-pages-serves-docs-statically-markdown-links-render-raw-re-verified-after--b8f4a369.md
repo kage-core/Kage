@@ -1,0 +1,35 @@
+---
+type: "Gotcha"
+title: "GitHub Pages serves docs/ statically; markdown links render raw (re-verified after dark-first flip)"
+description: "kage core.com is GitHub Pages serving docs/ as static files: .md files linked from HTML e.g. CLOUD.md from the pricing section render as raw text, not rendered markdown — link to .html pages or accept raw text. Pages dep"
+resource: "docs/index.html"
+tags: ["session-learning", "pages"]
+timestamp: "2026-06-12T16:06:02.878Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:gotcha:github-pages-serves-docs-statically-markdown-links-render-raw-re-verified-after-"
+x-kage-type: "gotcha"
+x-kage-status: "deprecated"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "deprecated"
+x-kage-paths: ["docs/index.html"]
+---
+
+# GitHub Pages serves docs/ statically; markdown links render raw (re-verified after dark-first flip)
+
+> kage core.com is GitHub Pages serving docs/ as static files: .md files linked from HTML e.g. CLOUD.md from the pricin…
+
+kage-core.com is GitHub Pages serving docs/ as static files: .md files linked from HTML (e.g. CLOUD.md from the pricing section) render as raw text, not rendered markdown — link to .html pages or accept raw text. Pages deploys take ~1-2 min after push and pages are CDN-cached with cache-control max-age=600, so verify with a cache-busting query or wait out the window; kage-core.github.io/Kage 301-redirects to the kage-core.com custom domain. Still true after the 2.2.1 content refresh and dark-first theme flip.
+
+# Citations
+
+[1] explicit_capture (2026-06-12T16:06:02.878Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:gotcha:github-pages-serves-docs-statically-markdown-links-render-raw-re-verified-after-","title":"GitHub Pages serves docs/ statically; markdown links render raw (re-verified after dark-first flip)","summary":"kage core.com is GitHub Pages serving docs/ as static files: .md files linked from HTML e.g. CLOUD.md from the pricing section render as raw text, not rendered markdown — link to .html pages or accept raw text. Pages dep","body":"kage-core.com is GitHub Pages serving docs/ as static files: .md files linked from HTML (e.g. CLOUD.md from the pricing section) render as raw text, not rendered markdown — link to .html pages or accept raw text. Pages deploys take ~1-2 min after push and pages are CDN-cached with cache-control max-age=600, so verify with a cache-busting query or wait out the window; kage-core.github.io/Kage 301-redirects to the kage-core.com custom domain. Still true after the 2.2.1 content refresh and dark-first theme flip.","type":"gotcha","scope":"repo","visibility":"team","sensitivity":"internal","status":"deprecated","confidence":0.7,"tags":["session-learning","pages"],"paths":["docs/index.html"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-06-12T16:06:02.878Z"}],"context":{"fact":"kage-core.com is GitHub Pages serving docs/ as static files: .md files linked from HTML (e.g. CLOUD.md from the pricing section) render as raw text, not rendered markdown — link to .html pages or accept raw text. Pages deploys take ~1-2 min after push and pages are CDN-cached with cache-control max-age=600, so verify with a cache-busting query or wait out the window; kage-core.github.io/Kage 301-redirects to the kage-core.com custom domain. Still true after the 2.2.1 content refresh and dark-first theme flip."},"freshness":{"ttl_days":365,"last_verified_at":"2026-06-12T16:06:02.878Z","path_fingerprints":[{"path":"docs/index.html","sha256":"26c92be615ea3f4116ed06e17e9938c7066d2fdb221e3ee0dc69750313a17926","size":29471}],"path_fingerprint_policy":"source_hash_staleness","verification":"repo_local_agent_capture"},"edges":[{"relation":"supersedes","to":"repo:https-github-com-kage-core-kage:gotcha:github-pages-serves-docs-statically-markdown-renders-raw-verified-after-2-2-1-si","evidence":"Newer repo memory supersedes this packet.","created_at":"2026-06-12T16:06:14.824Z"}],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"discovery_tokens":8000,"discovery_tokens_estimated":true,"score":96,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":129,"stale":true,"stale_reasons":["packet status is deprecated","linked path changed since memory was verified: docs/index.html"],"suggested_action":"mark_stale"},"created_at":"2026-06-12T16:06:02.878Z","updated_at":"2026-06-12T16:44:27.810Z","author_branch":"master"}
+```
+

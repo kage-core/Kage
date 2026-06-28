@@ -1,0 +1,41 @@
+---
+type: "Bug Fix"
+title: "Release 1.1.16 retries npm registry verification"
+description: "Release 1.1.16 fixes the guarded npm release helper after 1.1.15 exposed npm registry propagation lag: npm publish returned success, but immediate exact version npm view still returned 404. The release helper now gives t"
+resource: "mcp/release.ts"
+tags: ["session-learning", "release", "npm", "workflow", "verification"]
+timestamp: "2026-05-06T07:08:13.339Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:bug_fix:release-1-1-16-retries-npm-registry-verification-1778051293339"
+x-kage-type: "bug_fix"
+x-kage-status: "approved"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "verified"
+x-kage-paths: ["mcp/release.ts", "mcp/release.test.ts", "mcp/package.json", "CHANGELOG.md", "mcp/README.md"]
+---
+
+# Release 1.1.16 retries npm registry verification
+
+> Release 1.1.16 fixes the guarded npm release helper after 1.1.15 exposed npm registry propagation lag: npm publish re…
+
+Release 1.1.16 fixes the guarded npm release helper after 1.1.15 exposed npm registry propagation lag: npm publish returned success, but immediate exact-version npm view still returned 404. The release helper now gives the verify npm version step 10 retries with 3 second backoff before failing, so a successful publish is not reported as failed just because the registry has not propagated yet.
+Evidence: Observed during npm run release:npm for @kage-core/kage-graph-mcp@1.1.15: npm publish returned + @kage-core/kage-graph-mcp@1.1.15, then immediate npm view @kage-core/kage-graph-mcp@1.1.15 version returned E404; a later npm view @kage-core/kage-graph-mcp version returned 1.1.15.
+Verified by: npm test --prefix mcp
+
+## Verification
+
+Observed during npm run release:npm for @kage-core/kage-graph-mcp@1.1.15: npm publish returned + @kage-core/kage-graph-mcp@1.1.15, then immediate npm view @kage-core/kage-graph-mcp@1.1.15 version returned E404; a later npm view @kage-core/kage-graph-mcp version returned 1.1.15.
+
+# Citations
+
+[1] explicit_capture (2026-05-06T07:08:13.339Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:bug_fix:release-1-1-16-retries-npm-registry-verification-1778051293339","title":"Release 1.1.16 retries npm registry verification","summary":"Release 1.1.16 fixes the guarded npm release helper after 1.1.15 exposed npm registry propagation lag: npm publish returned success, but immediate exact version npm view still returned 404. The release helper now gives t","body":"Release 1.1.16 fixes the guarded npm release helper after 1.1.15 exposed npm registry propagation lag: npm publish returned success, but immediate exact-version npm view still returned 404. The release helper now gives the verify npm version step 10 retries with 3 second backoff before failing, so a successful publish is not reported as failed just because the registry has not propagated yet.\nEvidence: Observed during npm run release:npm for @kage-core/kage-graph-mcp@1.1.15: npm publish returned + @kage-core/kage-graph-mcp@1.1.15, then immediate npm view @kage-core/kage-graph-mcp@1.1.15 version returned E404; a later npm view @kage-core/kage-graph-mcp version returned 1.1.15.\nVerified by: npm test --prefix mcp","type":"bug_fix","scope":"repo","visibility":"team","sensitivity":"internal","status":"approved","confidence":0.7,"tags":["session-learning","release","npm","workflow","verification"],"paths":["mcp/release.ts","mcp/release.test.ts","mcp/package.json","CHANGELOG.md","mcp/README.md"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-05-06T07:08:13.339Z"}],"context":{"fact":"Release 1.1.16 fixes the guarded npm release helper after 1.1.15 exposed npm registry propagation lag: npm publish returned success, but immediate exact-version npm view still returned 404. The release helper now gives the verify npm version step 10 retries with 3 second backoff before failing, so a successful publish is not reported as failed just because the registry has not propagated yet.\nEvidence: Observed during npm run release:npm for @kage-core/kage-graph-mcp@1.1.15: npm publish returned + @kage-core/kage-graph-mcp@1.1.15, then immediate npm view @kage-core/kage-graph-mcp@1.1.15 version returned E404; a later npm view @kage-core/kage-graph-mcp version returned 1.1.15.\nVerified by: npm test --prefix mcp","verification":"Observed during npm run release:npm for @kage-core/kage-graph-mcp@1.1.15: npm publish returned + @kage-core/kage-graph-mcp@1.1.15, then immediate npm view @kage-core/kage-graph-mcp@1.1.15 version returned E404; a later npm view @kage-core/kage-graph-mcp version returned 1.1.15."},"freshness":{"ttl_days":365,"last_verified_at":"2026-05-06T07:08:13.339Z","verification":"repo_local_agent_capture"},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":180},"created_at":"2026-05-06T07:08:13.339Z","updated_at":"2026-05-19T04:50:14.878Z"}
+```
+

@@ -1,0 +1,39 @@
+---
+type: "Reference"
+title: "Viewer labels external retrieval benchmark modes"
+description: "The viewer benchmark cards now surface whether an external retrieval report used default Kage recall or dense local embeddings, and show the embedding model when present. This prevents optional embedding benchmark report"
+tags: ["session-learning", "viewer"]
+timestamp: "2026-05-17T19:42:17.453Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:reference:viewer-labels-external-retrieval-benchmark-modes-1779046937454"
+x-kage-type: "reference"
+x-kage-status: "deprecated"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "deprecated"
+---
+
+# Viewer labels external retrieval benchmark modes
+
+> The viewer benchmark cards now surface whether an external retrieval report used default Kage recall or dense local e…
+
+The viewer benchmark cards now surface whether an external retrieval report used default Kage recall or dense local embeddings, and show the embedding model when present. This prevents optional embedding benchmark reports from looking like generic LongMemEval output.
+Evidence: Implemented in mcp/viewer/app.js and synced to docs/viewer/app.js.
+Verified by: node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check
+
+## Verification
+
+Implemented in mcp/viewer/app.js and synced to docs/viewer/app.js.
+
+# Citations
+
+[1] explicit_capture (2026-05-17T19:42:17.453Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:reference:viewer-labels-external-retrieval-benchmark-modes-1779046937454","title":"Viewer labels external retrieval benchmark modes","summary":"The viewer benchmark cards now surface whether an external retrieval report used default Kage recall or dense local embeddings, and show the embedding model when present. This prevents optional embedding benchmark report","body":"The viewer benchmark cards now surface whether an external retrieval report used default Kage recall or dense local embeddings, and show the embedding model when present. This prevents optional embedding benchmark reports from looking like generic LongMemEval output.\nEvidence: Implemented in mcp/viewer/app.js and synced to docs/viewer/app.js.\nVerified by: node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check","type":"reference","scope":"repo","visibility":"team","sensitivity":"internal","status":"deprecated","confidence":0.7,"tags":["session-learning","viewer"],"paths":[],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-05-17T19:42:17.453Z"}],"context":{"fact":"The viewer benchmark cards now surface whether an external retrieval report used default Kage recall or dense local embeddings, and show the embedding model when present. This prevents optional embedding benchmark reports from looking like generic LongMemEval output.\nEvidence: Implemented in mcp/viewer/app.js and synced to docs/viewer/app.js.\nVerified by: node --check mcp/viewer/app.js; node --check docs/viewer/app.js; git diff --check","verification":"Implemented in mcp/viewer/app.js and synced to docs/viewer/app.js."},"freshness":{"ttl_days":365,"last_verified_at":"2026-05-17T19:42:17.453Z","verification":"repo_local_agent_capture"},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"score":90,"reasons":["has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":110,"stale":true,"stale_reasons":["packet status is deprecated"],"suggested_action":"mark_stale"},"created_at":"2026-05-17T19:42:17.453Z","updated_at":"2026-06-05T14:45:41.009Z"}
+```
+

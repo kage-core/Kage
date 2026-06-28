@@ -1,0 +1,35 @@
+---
+type: "Bug Fix"
+title: "Truth Report duplicate detector fixed (v2.2.6): methods/dunders excluded, signature required"
+description: "Fixed in 2.2.6: duplicate cluster detector restricted to top level function/class methods excluded — same name methods across classes are polymorphism , dunders + idiomatic closure names decorator/wrapper/inner/callback"
+resource: "mcp/kernel.ts"
+tags: ["session-learning", "truth-report"]
+timestamp: "2026-06-15T21:58:26.500Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:bug_fix:truth-report-duplicate-detector-fixed-v2-2-6-methods-dunders-excluded-signature-"
+x-kage-type: "bug_fix"
+x-kage-status: "deprecated"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "deprecated"
+x-kage-paths: ["mcp/kernel.ts"]
+---
+
+# Truth Report duplicate detector fixed (v2.2.6): methods/dunders excluded, signature required
+
+> Fixed in 2.2.6: duplicate cluster detector restricted to top level function/class methods excluded — same name method…
+
+Fixed in 2.2.6: duplicate-cluster detector restricted to top-level function/class (methods excluded — same-name methods across classes are polymorphism), dunders + idiomatic closure names (decorator/wrapper/inner/callback) denylisted via TRUTH_DUPLICATE_NAME_DENYLIST, signatureMatch now REQUIRED. 'likely AI-era' tag removed -> '[recently changed]'. Verified on Flask: 11 clusters -> 1 true positive (_make_timedelta in app.py + sansio/app.py). Found via famous-repo content generation.
+
+# Citations
+
+[1] explicit_capture (2026-06-13T07:16:35.460Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:bug_fix:truth-report-duplicate-detector-fixed-v2-2-6-methods-dunders-excluded-signature-","title":"Truth Report duplicate detector fixed (v2.2.6): methods/dunders excluded, signature required","summary":"Fixed in 2.2.6: duplicate cluster detector restricted to top level function/class methods excluded — same name methods across classes are polymorphism , dunders + idiomatic closure names decorator/wrapper/inner/callback","body":"Fixed in 2.2.6: duplicate-cluster detector restricted to top-level function/class (methods excluded — same-name methods across classes are polymorphism), dunders + idiomatic closure names (decorator/wrapper/inner/callback) denylisted via TRUTH_DUPLICATE_NAME_DENYLIST, signatureMatch now REQUIRED. 'likely AI-era' tag removed -> '[recently changed]'. Verified on Flask: 11 clusters -> 1 true positive (_make_timedelta in app.py + sansio/app.py). Found via famous-repo content generation.","type":"bug_fix","scope":"repo","visibility":"team","sensitivity":"internal","status":"deprecated","confidence":0.7,"tags":["session-learning","truth-report"],"paths":["mcp/kernel.ts"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-06-13T07:16:35.460Z"}],"context":{"fact":"Fixed in 2.2.6: duplicate-cluster detector restricted to top-level function/class (methods excluded — same-name methods across classes are polymorphism), dunders + idiomatic closure names (decorator/wrapper/inner/callback) denylisted via TRUTH_DUPLICATE_NAME_DENYLIST, signatureMatch now REQUIRED. 'likely AI-era' tag removed -> '[recently changed]'. Verified on Flask: 11 clusters -> 1 true positive (_make_timedelta in app.py + sansio/app.py). Found via famous-repo content generation."},"freshness":{"ttl_days":365,"last_verified_at":"2026-06-15T21:58:26.500Z","path_fingerprints":[{"path":"mcp/kernel.ts","sha256":"c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f","size":844113,"symbols":[{"name":"verified","kind":"constant","sha256":"9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"},{"name":"same","kind":"constant","sha256":"b150fada949a5c6d4babe0a0bc108765c6e7e1819d0ddbee55112b9c9a708447"},{"name":"decorator","kind":"constant","sha256":"093ca273ffc06326759549379125cea40814fcb000603d031fc17cfc317b02ae"},{"name":"level","kind":"constant","sha256":"832bbcc09db2b0a822fe5b0f77875aea29528b0343bffcb1c71cf2fe73b9aa5e"},{"name":"clusters","kind":"constant","sha256":"c4bc14fa3eb74791231b6b5e16a389cf20e11b48c757d950a3b571a8e4d5fcf8"},{"name":"truth_duplicate_name_denylist","kind":"constant","sha256":"8ffab02707094c90f55668be0da784baf7db13bee866cb4a5db63793739f8454"},{"name":"signaturematch","kind":"constant","sha256":"42e40d1c943f1bcd790acc79d1655b798d4510d3d86d7b4419c0e719009dd43f"},{"name":"removed","kind":"constant","sha256":"a0797a6325a4353640d2ec426c8c94ea9d093091c3e97fdacfd8387aec73d583"},{"name":"fixed","kind":"constant","sha256":"24c94f8af8d6bb9909e676bab33f87fca9b068e7ebf547b89b1ded262de468e1"}]}],"path_fingerprint_policy":"source_hash_staleness","verification":"repo_local_agent_capture"},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"discovery_tokens":8000,"discovery_tokens_estimated":true,"score":96,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":122,"reverified_at":"2026-06-15T21:58:26.500Z","stale":true,"stale_reasons":["packet status is deprecated"],"suggested_action":"mark_stale"},"created_at":"2026-06-13T07:16:35.460Z","updated_at":"2026-06-15T21:58:43.083Z","author_branch":"master"}
+```
+

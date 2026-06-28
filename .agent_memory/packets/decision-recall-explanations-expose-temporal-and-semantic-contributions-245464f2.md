@@ -1,0 +1,41 @@
+---
+type: "Decision"
+title: "Recall explanations expose temporal and semantic contributions"
+description: "Kage recall explanations now split expanded retrieval signals into temporal and semantic score fields. Temporal expansion comes from explicit query date metadata; semantic expansion comes from built in concept groups. wh"
+resource: "mcp/kernel.ts"
+tags: ["session-learning", "recall", "explainability", "semantic-expansion", "temporal", "benchmark"]
+timestamp: "2026-06-15T21:58:05.453Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:decision:recall-explanations-expose-temporal-and-semantic-contributions-1779027221668"
+x-kage-type: "decision"
+x-kage-status: "approved"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "verified"
+x-kage-paths: ["mcp/kernel.ts", "mcp/kernel.test.ts", "benchmarks/LONGMEMEVAL.md"]
+---
+
+# Recall explanations expose temporal and semantic contributions
+
+> Kage recall explanations now split expanded retrieval signals into temporal and semantic score fields. Temporal expan…
+
+Kage recall explanations now split expanded retrieval signals into temporal and semantic score fields. Temporal expansion comes from explicit query date metadata; semantic expansion comes from built-in concept groups. why_matched only includes semantic-concept labels when the packet actually received semantic score. This makes LongMemEval and normal recall results auditable instead of hiding expanded matches inside a single BM25 number.
+Evidence: Implemented RecallQueryExpansion and added temporal/semantic to RecallScoreBreakdown in mcp/kernel.ts; added tests for temporal and semantic score fields in mcp/kernel.test.ts; documented explainable expansion in benchmarks/LONGMEMEVAL.md.
+Verified by: npm test --prefix mcp; node benchmarks/longmemeval-kage-retrieval.mjs --data /private/tmp/kage-external-bench/longmemeval_s_cleaned.json --limit 470 --top-k 10 --out /private/tmp/kage-external-bench/longmemeval-kage-full-explainable-semantic.json
+
+## Verification
+
+Implemented RecallQueryExpansion and added temporal/semantic to RecallScoreBreakdown in mcp/kernel.ts; added tests for temporal and semantic score fields in mcp/kernel.test.ts; documented explainable expansion in benchmarks/LONGMEMEVAL.md.
+
+# Citations
+
+[1] explicit_capture (2026-05-17T14:13:41.668Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:decision:recall-explanations-expose-temporal-and-semantic-contributions-1779027221668","title":"Recall explanations expose temporal and semantic contributions","summary":"Kage recall explanations now split expanded retrieval signals into temporal and semantic score fields. Temporal expansion comes from explicit query date metadata; semantic expansion comes from built in concept groups. wh","body":"Kage recall explanations now split expanded retrieval signals into temporal and semantic score fields. Temporal expansion comes from explicit query date metadata; semantic expansion comes from built-in concept groups. why_matched only includes semantic-concept labels when the packet actually received semantic score. This makes LongMemEval and normal recall results auditable instead of hiding expanded matches inside a single BM25 number.\nEvidence: Implemented RecallQueryExpansion and added temporal/semantic to RecallScoreBreakdown in mcp/kernel.ts; added tests for temporal and semantic score fields in mcp/kernel.test.ts; documented explainable expansion in benchmarks/LONGMEMEVAL.md.\nVerified by: npm test --prefix mcp; node benchmarks/longmemeval-kage-retrieval.mjs --data /private/tmp/kage-external-bench/longmemeval_s_cleaned.json --limit 470 --top-k 10 --out /private/tmp/kage-external-bench/longmemeval-kage-full-explainable-semantic.json","type":"decision","scope":"repo","visibility":"team","sensitivity":"internal","status":"approved","confidence":0.7,"tags":["session-learning","recall","explainability","semantic-expansion","temporal","benchmark"],"paths":["mcp/kernel.ts","mcp/kernel.test.ts","benchmarks/LONGMEMEVAL.md"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-05-17T14:13:41.668Z"}],"context":{"fact":"Kage recall explanations now split expanded retrieval signals into temporal and semantic score fields. Temporal expansion comes from explicit query date metadata; semantic expansion comes from built-in concept groups. why_matched only includes semantic-concept labels when the packet actually received semantic score. This makes LongMemEval and normal recall results auditable instead of hiding expanded matches inside a single BM25 number.\nEvidence: Implemented RecallQueryExpansion and added temporal/semantic to RecallScoreBreakdown in mcp/kernel.ts; added tests for temporal and semantic score fields in mcp/kernel.test.ts; documented explainable expansion in benchmarks/LONGMEMEVAL.md.\nVerified by: npm test --prefix mcp; node benchmarks/longmemeval-kage-retrieval.mjs --data /private/tmp/kage-external-bench/longmemeval_s_cleaned.json --limit 470 --top-k 10 --out /private/tmp/kage-external-bench/longmemeval-kage-full-explainable-semantic.json","verification":"Implemented RecallQueryExpansion and added temporal/semantic to RecallScoreBreakdown in mcp/kernel.ts; added tests for temporal and semantic score fields in mcp/kernel.test.ts; documented explainable expansion in benchmarks/LONGMEMEVAL.md."},"freshness":{"ttl_days":365,"last_verified_at":"2026-06-15T21:58:05.453Z","verification":"repo_local_agent_capture","path_fingerprints":[{"path":"mcp/kernel.ts","sha256":"c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f","size":844113,"symbols":[{"name":"verified","kind":"constant","sha256":"9e1998eeb03a854663c4ce2fa27bc0dde75922738f56430c157d33ea3ab8d3b8"},{"name":"expanded","kind":"constant","sha256":"fefc26efbd1e159b2abac82ffc351f584b987fc62f94ac31eacd4e4e810e0077"},{"name":"explicit","kind":"constant","sha256":"3c7dc76a866b9617850dd05c43ef877cc5208ade5be761331cf32181ace414ff"},{"name":"labels","kind":"constant","sha256":"778f0005621bcaee46c842df3c8fb0f762390050af67f84ae3ec5c3017c5e515"},{"name":"recallqueryexpansion","kind":"function","sha256":"ded03df74785a5600a6e2c25df5c6e17696bb58b657b6e2d316b2880a2fa4e6c"},{"name":"expansion","kind":"constant","sha256":"077b75d250f9536ee59d78254a6dbf5a52371829ca1a9f2a8f7577bb170be66d"},{"name":"temporal","kind":"constant","sha256":"eb17097c42e0a93975c68a139b241065930cc14345f1722b7468f195612eab1b"},{"name":"data","kind":"constant","sha256":"491aa781049f0ad6b9dc4a2b393461ed407cfa306b0cf11bfad03315940015d7"},{"name":"groups","kind":"constant","sha256":"faf11f6fd9229c1eefb70e17cc50347ed46ef58cc6785848399c25adcdb27eea"},{"name":"when","kind":"constant","sha256":"48bfd58b3cdbf2d407e4443b90727d548d96eceaa4372c099dcd22c52f498452"},{"name":"full","kind":"constant","sha256":"9213768c4e556655970d7db34f178f135ab91810c1a0a99bba63452c01924f4f"}]},{"path":"mcp/kernel.test.ts","sha256":"f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec","size":290526,"symbols":[{"name":"added","kind":"constant","sha256":"bc14da9c82da760a8d437c7e912b7909ab47e5de278fb9a951ae4702a8835975"},{"name":"built","kind":"constant","sha256":"4625942b51635ac134d36301bea21059b44eaa49a4d49628383360b0715959be"},{"name":"single","kind":"constant","sha256":"5b9823fb4f0b06d426326ae80e61f38797c791b973663f805a99e65de9d84412"},{"name":"full","kind":"constant","sha256":"6270b632fb8c1ec230ad23878da137aab65feab7105ddd15ff76a1d27e5b5b44"}]},{"path":"benchmarks/LONGMEMEVAL.md","sha256":"5df10a3e759e49d4a1f48d158d4178ac75fcada36ec0efa45012a679359a3e40","size":5319}]},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":238,"reverified_at":"2026-06-15T21:58:05.453Z"},"created_at":"2026-05-17T14:13:41.668Z","updated_at":"2026-06-15T21:58:05.453Z"}
+```
+

@@ -144,6 +144,19 @@ import {
   writeLspSymbolIndex,
 } from "./kernel.js";
 import { buildGraphRegistryManifest } from "./graph-registry.js";
+import { okfConceptToPacket, packetToOkfConcept } from "./okf.js";
+
+// Packets are stored as OKF concept docs (.md). Read one back as a plain object,
+// transparently handling both .md (current) and legacy .json fixtures.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const parsePacket = (path: string): any =>
+  path.endsWith(".md") ? okfConceptToPacket(readFileSync(path, "utf8")) : JSON.parse(readFileSync(path, "utf8"));
+
+// Write a mutated packet back to disk in the on-disk format the path implies, so
+// tests that hand-edit a packet (status, timestamps) produce a valid OKF concept.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const writePacketFixture = (path: string, packet: any): void =>
+  writeFileSync(path, path.endsWith(".md") ? packetToOkfConcept(packet) : `${JSON.stringify(packet, null, 2)}\n`, "utf8");
 
 // Hermetic personal store: recall now reads $KAGE_HOME/memory, so tests must
 // never see the developer's real ~/.kage. Individual tests override per-case.
@@ -578,11 +591,10 @@ test("memory lifecycle report turns packet state into review actions", () => {
   for (let index = 0; index < 3; index += 1) recall(project, "checkout retry session state", 1, true);
   recordFeedback(project, stale.packet.id, "stale");
 
-  const staleFile = readFileSync(stale.path!, "utf8");
-  const stalePacket = JSON.parse(staleFile);
+  const stalePacket = parsePacket(stale.path!);
   stalePacket.freshness.ttl_days = 1;
   stalePacket.freshness.last_verified_at = "2024-01-01T00:00:00.000Z";
-  writeFileSync(stale.path!, `${JSON.stringify(stalePacket, null, 2)}\n`, "utf8");
+  writePacketFixture(stale.path!, stalePacket);
 
   const lifecycle = kageMemoryLifecycle(project);
   assert.equal(lifecycle.totals.approved >= 3, true);
@@ -618,10 +630,10 @@ test("memory timeline report shows recent collaborative memory activity", () => 
   assert.ok(added.packet);
   assert.ok(updated.packet);
 
-  const updatedPacket = JSON.parse(readFileSync(updated.path!, "utf8"));
+  const updatedPacket = parsePacket(updated.path!);
   updatedPacket.created_at = "2024-01-01T00:00:00.000Z";
   updatedPacket.updated_at = new Date().toISOString();
-  writeFileSync(updated.path!, `${JSON.stringify(updatedPacket, null, 2)}\n`, "utf8");
+  writePacketFixture(updated.path!, updatedPacket);
 
   const timeline = kageMemoryTimeline(project, 7);
   assert.equal(timeline.schema_version, 1);
@@ -685,10 +697,10 @@ test("memory lineage report flags superseded packets without replacement links",
     paths: ["README.md"],
   });
   assert.ok(packet.packet);
-  const raw = JSON.parse(readFileSync(packet.path!, "utf8"));
+  const raw = parsePacket(packet.path!);
   raw.status = "superseded";
   raw.updated_at = new Date().toISOString();
-  writeFileSync(packet.path!, `${JSON.stringify(raw, null, 2)}\n`, "utf8");
+  writePacketFixture(packet.path!, raw);
 
   const lineage = kageMemoryLineage(project);
   assert.equal(lineage.totals.orphans, 1);
@@ -1036,9 +1048,9 @@ test("recall diversifies results across observed session sources", () => {
     });
     assert.ok(result.packet);
     assert.ok(result.path);
-    const packet = JSON.parse(readFileSync(result.path, "utf8"));
+    const packet = parsePacket(result.path);
     packet.source_refs = [{ kind: "observation_session", session_id: sessionId }];
-    writeFileSync(result.path, `${JSON.stringify(packet, null, 2)}\n`, "utf8");
+    writePacketFixture(result.path, packet);
   };
 
   writeSessionPacket("A checkout retry session note", "noisy-session");
@@ -3215,8 +3227,8 @@ test("project validation warns when approved packet paths are ungrounded", () =>
     paths: ["missing/subsystem"],
   });
   assert.equal(result.ok, true);
-  const packet = JSON.parse(readFileSync(result.path!, "utf8"));
-  writeFileSync(result.path!, `${JSON.stringify(packet, null, 2)}\n`, "utf8");
+  const packet = parsePacket(result.path!);
+  writePacketFixture(result.path!, packet);
 
   const validation = validateProject(project);
   assert.equal(validation.ok, true);
@@ -3233,9 +3245,9 @@ test("project validation ignores retired packet quality warnings", () => {
     paths: ["missing/subsystem"],
   });
   assert.equal(result.ok, true);
-  const packet = JSON.parse(readFileSync(result.path!, "utf8"));
+  const packet = parsePacket(result.path!);
   packet.status = "deprecated";
-  writeFileSync(result.path!, `${JSON.stringify(packet, null, 2)}\n`, "utf8");
+  writePacketFixture(result.path!, packet);
   renameSync(result.path!, `${result.path!}.retired`);
 
   const validation = validateProject(project);
@@ -3612,12 +3624,12 @@ test("gc deprecates stale packets by exact packet file path", () => {
 
   const dryRun = gcProject(project, { dryRun: true });
   assert.equal(dryRun.deprecated.length, 1);
-  let packet = JSON.parse(readFileSync(result.path!, "utf8"));
+  let packet = parsePacket(result.path!);
   assert.equal(packet.status, "approved");
 
   const gc = gcProject(project);
   assert.equal(gc.deprecated.length, 1);
-  packet = JSON.parse(readFileSync(result.path!, "utf8"));
+  packet = parsePacket(result.path!);
   assert.equal(packet.status, "deprecated");
   assert.equal(loadApprovedPackets(project).some((candidate) => candidate.id === result.packet!.id), false);
 });
@@ -3760,7 +3772,7 @@ test("gc deletes serialized-dump packets that predate the capture guard", () => 
 
   // Simulate a legacy dump packet written before the guard existed by writing it directly
   // to disk (bypassing capture). gc must reclaim it.
-  const base = JSON.parse(readFileSync(legit.path!, "utf8"));
+  const base = parsePacket(legit.path!);
   const dumpPacket = { ...base, id: "dump-legacy-id", title: 'Workflow: {"file": {"content": "x"}}', body: "z".repeat(50000) };
   const dumpPath = join(packetsDir(project), "dump-legacy.json");
   writeFileSync(dumpPath, JSON.stringify(dumpPacket), "utf8");
@@ -4302,7 +4314,7 @@ test("refresh prunes kageignore'd grounding and does not mark memory stale for i
 
   refreshProject(project);
 
-  const packet = JSON.parse(readFileSync(res.path as string, "utf8"));
+  const packet = parsePacket(res.path as string);
   assert.equal(packet.paths.includes("viewer/app.js"), false);
   assert.equal(packet.paths.includes("src/a.js"), true);
   assert.notEqual(packet.quality?.stale, true);
@@ -4992,9 +5004,9 @@ test("file-context returns only verified packets citing the file, capped at thre
   const stale = capture({ projectDir: project, title: "Stale auth note", body: "Old auth rotation behavior documented in src/auth.ts.", type: "decision", paths: ["src/auth.ts"] });
   assert.equal(stale.ok, true);
   // Mark the second packet reported-stale on disk: it must never be injected.
-  const stalePacket = JSON.parse(readFileSync(stale.path!, "utf8"));
+  const stalePacket = parsePacket(stale.path!);
   stalePacket.quality.reports_stale = 1;
-  writeFileSync(stale.path!, JSON.stringify(stalePacket, null, 2), "utf8");
+  writePacketFixture(stale.path!, stalePacket);
 
   const result = kageFileContext(project, "src/auth.ts");
   assert.equal(result.packets.length, 1);
@@ -5141,8 +5153,9 @@ test("repair backs up and auto-resolves a merge-conflicted packet keeping the ne
   assert.equal(captured.ok, true);
   const packetPath = captured.path!;
   const oursSide = readFileSync(packetPath, "utf8").trim();
-  const newer = { ...JSON.parse(oursSide), title: "Build the repo (newest)", updated_at: "2099-01-01T00:00:00.000Z" };
-  const conflicted = `<<<<<<< HEAD\n${oursSide}\n=======\n${JSON.stringify(newer, null, 2)}\n>>>>>>> theirs\n`;
+  const newer = { ...parsePacket(packetPath), title: "Build the repo (newest)", updated_at: "2099-01-01T00:00:00.000Z" };
+  const theirsSide = (packetPath.endsWith(".md") ? packetToOkfConcept(newer) : `${JSON.stringify(newer, null, 2)}\n`).trim();
+  const conflicted = `<<<<<<< HEAD\n${oursSide}\n=======\n${theirsSide}\n>>>>>>> theirs\n`;
   writeFileSync(packetPath, conflicted, "utf8");
   assert.equal(validateProject(project).ok, false);
 
@@ -5151,7 +5164,7 @@ test("repair backs up and auto-resolves a merge-conflicted packet keeping the ne
   const backupPath = join(project, ".agent_memory", "backup", `${basename(packetPath)}.broken`);
   assert.equal(existsSync(backupPath), true);
   assert.equal(readFileSync(backupPath, "utf8"), conflicted);
-  const repaired = JSON.parse(readFileSync(packetPath, "utf8"));
+  const repaired = parsePacket(packetPath);
   assert.equal(repaired.title, "Build the repo (newest)");
   const packetAction = result.actions.find((action) => action.area === "packets" && action.status === "fixed");
   assert.ok(packetAction);
@@ -5302,7 +5315,7 @@ test("refresh on a non-default branch skips metadata-only packet rewrites but st
   // --force persists the stale flag even on a non-default branch.
   const forced = refreshProject(project, { force: true });
   assert.equal(forced.quiet_refresh, false);
-  const rewritten = JSON.parse(readFileSync(packetPath, "utf8"));
+  const rewritten = parsePacket(packetPath);
   assert.equal(rewritten.quality.stale, true);
 });
 
@@ -5313,7 +5326,7 @@ test("refresh on the default branch persists stale metadata to disk", () => {
   const result = refreshProject(project);
   assert.equal(result.quiet_refresh, false);
   assert.equal(result.stale_packets.some((finding) => finding.id === packetId), true);
-  const rewritten = JSON.parse(readFileSync(packetPath, "utf8"));
+  const rewritten = parsePacket(packetPath);
   assert.equal(rewritten.quality.stale, true);
 });
 
@@ -5387,7 +5400,7 @@ test("packet merge gitattributes entry is idempotent and preserves existing cont
   const replaced = ensurePacketMergeAttributes(project);
   assert.equal(replaced.changed, true);
   const updated = readFileSync(join(project, ".gitattributes"), "utf8");
-  const packetLines = updated.split("\n").filter((line) => line.includes(".agent_memory/packets/*.json"));
+  const packetLines = updated.split("\n").filter((line) => line.includes(".agent_memory/packets/"));
   assert.deepEqual(packetLines, [PACKET_MERGE_ATTRIBUTE_LINE]);
 });
 
@@ -5403,7 +5416,7 @@ test("resume keeps recent_memory in the report but never injects a recency timel
     paths: ["src/app.ts"],
   });
   assert.equal(captured.ok, true);
-  const template = JSON.parse(readFileSync(captured.path!, "utf8"));
+  const template = parsePacket(captured.path!);
   for (let i = 0; i < 19; i += 1) {
     const clone = {
       ...template,
@@ -5671,23 +5684,23 @@ test("reverify refreshes grounding in place and clears stale flags", () => {
   assert.equal(captured.ok, true);
   const id = captured.packet!.id;
   const packetFile = () => {
-    const name = readdirSync(packetsDir(project)).find((f) => JSON.parse(readFileSync(join(packetsDir(project), f), "utf8")).id === id)!;
+    const name = readdirSync(packetsDir(project)).filter((f) => f.endsWith(".md") || f.endsWith(".json")).find((f) => parsePacket(join(packetsDir(project), f))?.id === id)!;
     return join(packetsDir(project), name);
   };
   // mutate the cited file, then let refresh mark the packet stale (default branch persists flags)
   writeFileSync(join(project, "lib.ts"), "export const v = 2;\n", "utf8");
   refreshProject(project);
-  const before = JSON.parse(readFileSync(packetFile(), "utf8"));
+  const before = parsePacket(packetFile());
   const result = reverifyMemory(project, id);
   assert.equal(result.ok, true, JSON.stringify(result.errors));
   assert.equal(result.refreshed_paths.includes("lib.ts"), true);
   assert.equal(result.was_stale, before.quality?.stale === true);
-  const after = JSON.parse(readFileSync(packetFile(), "utf8"));
+  const after = parsePacket(packetFile());
   assert.equal(after.quality?.stale === true, false);
   assert.equal(typeof after.quality?.reverified_at, "string");
   // fingerprints now match current content — a fresh refresh re-marks nothing
   refreshProject(project);
-  const settled = JSON.parse(readFileSync(packetFile(), "utf8"));
+  const settled = parsePacket(packetFile());
   assert.equal(settled.quality?.stale === true, false);
 });
 
@@ -5733,7 +5746,7 @@ test("two KAGE_HOME clones of one bare remote exchange personal packets round-tr
     assert.equal(setupB.ok, true, `machine B syncSetup failed: ${JSON.stringify(setupB.errors)}`);
     const pulled = syncPersonal();
     assert.equal(pulled.ok, true, `machine B sync failed: ${JSON.stringify(pulled.errors ?? pulled)}`);
-    const names = readdirSync(join(home, "memory", "packets")).filter((name) => name.endsWith(".json"));
+    const names = readdirSync(join(home, "memory", "packets")).filter((name) => name.endsWith(".md") || name.endsWith(".json"));
     assert.equal(names.some((name) => /machine-a-habit/.test(name)), true);
 
     const captured = learnPersonal({ projectDir: project, learning: "Machine B habit: review diffs with --stat first." });
@@ -5751,7 +5764,7 @@ test("two KAGE_HOME clones of one bare remote exchange personal packets round-tr
     const synced = syncPersonal();
     assert.equal(synced.ok, true);
     assert.equal(synced.pulled >= 1, true);
-    const names = readdirSync(join(homeA, "memory", "packets")).filter((name) => name.endsWith(".json"));
+    const names = readdirSync(join(homeA, "memory", "packets")).filter((name) => name.endsWith(".md") || name.endsWith(".json"));
     assert.equal(names.some((name) => /machine-b-habit/.test(name)), true);
     assert.equal(names.some((name) => /machine-a-habit/.test(name)), true);
   } finally {
@@ -5820,7 +5833,7 @@ test("sync conflicts resolve newest-updated_at-wins and preserve the loser under
     const synced = syncPersonal();
     assert.equal(synced.ok, true);
     assert.equal(synced.pulled >= 1, true);
-    const winner = JSON.parse(readFileSync(join(personalPacketsDir(), packetName), "utf8")) as { title: string };
+    const winner = parsePacket(join(personalPacketsDir(), packetName)) as { title: string };
     assert.equal(winner.title, "newer version");
     assert.equal(readdirSync(personalConflictsDir()).length, 1);
   });

@@ -1,0 +1,41 @@
+---
+type: "Bug Fix"
+title: "Viewer node inspector shows type-specific code details"
+description: "Kage viewer selected node details should expose type specific code metadata and adjacent relations, not just generic ID/summary rows. Code file nodes should show path, language, parser, size, line count, and hash; symbol"
+resource: "mcp/kernel.test.ts"
+tags: ["session-learning", "viewer", "code-graph", "inspector", "combined-view"]
+timestamp: "2026-06-15T21:58:10.085Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:bug_fix:viewer-node-inspector-shows-type-specific-code-details-1778308660540"
+x-kage-type: "bug_fix"
+x-kage-status: "approved"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "verified"
+x-kage-paths: ["mcp/kernel.test.ts"]
+---
+
+# Viewer node inspector shows type-specific code details
+
+> Kage viewer selected node details should expose type specific code metadata and adjacent relations, not just generic …
+
+Kage viewer selected-node details should expose type-specific code metadata and adjacent relations, not just generic ID/summary rows. Code file nodes should show path, language, parser, size, line count, and hash; symbol/test nodes should show path, parser, line, export status, and signature; route nodes should show method/path/framework/handler; every selected node should show connected relations. Combined signal mode should select connected code endpoints so memory, code, and their relations remain visible together. Verified by npm --prefix mcp test.
+Evidence: Patched mcp/viewer/app.js normalizeCodeGraph metadata, renderDetails/entityDetailRows/directConnections, and balancedSignalEntities; extended viewer VM tests in mcp/kernel.test.ts.
+Verified by: npm --prefix mcp test
+
+## Verification
+
+Patched mcp/viewer/app.js normalizeCodeGraph metadata, renderDetails/entityDetailRows/directConnections, and balancedSignalEntities; extended viewer VM tests in mcp/kernel.test.ts.
+
+# Citations
+
+[1] explicit_capture (2026-05-09T06:37:40.540Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:bug_fix:viewer-node-inspector-shows-type-specific-code-details-1778308660540","title":"Viewer node inspector shows type-specific code details","summary":"Kage viewer selected node details should expose type specific code metadata and adjacent relations, not just generic ID/summary rows. Code file nodes should show path, language, parser, size, line count, and hash; symbol","body":"Kage viewer selected-node details should expose type-specific code metadata and adjacent relations, not just generic ID/summary rows. Code file nodes should show path, language, parser, size, line count, and hash; symbol/test nodes should show path, parser, line, export status, and signature; route nodes should show method/path/framework/handler; every selected node should show connected relations. Combined signal mode should select connected code endpoints so memory, code, and their relations remain visible together. Verified by npm --prefix mcp test.\nEvidence: Patched mcp/viewer/app.js normalizeCodeGraph metadata, renderDetails/entityDetailRows/directConnections, and balancedSignalEntities; extended viewer VM tests in mcp/kernel.test.ts.\nVerified by: npm --prefix mcp test","type":"bug_fix","scope":"repo","visibility":"team","sensitivity":"internal","status":"approved","confidence":0.7,"tags":["session-learning","viewer","code-graph","inspector","combined-view"],"paths":["mcp/kernel.test.ts"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-05-09T06:37:40.540Z"}],"context":{"fact":"Kage viewer selected-node details should expose type-specific code metadata and adjacent relations, not just generic ID/summary rows. Code file nodes should show path, language, parser, size, line count, and hash; symbol/test nodes should show path, parser, line, export status, and signature; route nodes should show method/path/framework/handler; every selected node should show connected relations. Combined signal mode should select connected code endpoints so memory, code, and their relations remain visible together. Verified by npm --prefix mcp test.\nEvidence: Patched mcp/viewer/app.js normalizeCodeGraph metadata, renderDetails/entityDetailRows/directConnections, and balancedSignalEntities; extended viewer VM tests in mcp/kernel.test.ts.\nVerified by: npm --prefix mcp test","verification":"Patched mcp/viewer/app.js normalizeCodeGraph metadata, renderDetails/entityDetailRows/directConnections, and balancedSignalEntities; extended viewer VM tests in mcp/kernel.test.ts."},"freshness":{"ttl_days":365,"last_verified_at":"2026-06-15T21:58:10.085Z","verification":"repo_local_agent_capture","path_fingerprints":[{"path":"mcp/kernel.test.ts","sha256":"f36a1d0dfbc7d5b07d8eb3b6a8fa27993044f052d48622ccbac330cf35b705ec","size":290526,"symbols":[{"name":"signal","kind":"constant","sha256":"f084f4945e43a881cf04b4d6eff63df1f052d4d6e933b089af3696e2bc699289"},{"name":"rows","kind":"constant","sha256":"c88a7715618c34af1ee0d582eb7707e1c1ba4bebbd6b29f12994136263c6a825"},{"name":"combined","kind":"constant","sha256":"554ec06aae48c9a47df84376a48ae5875cf9f989c81cbc3cead38693c38b4db7"}]}]},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":196,"reverified_at":"2026-06-15T21:58:10.085Z"},"created_at":"2026-05-09T06:37:40.540Z","updated_at":"2026-06-15T21:58:10.085Z"}
+```
+

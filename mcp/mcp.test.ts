@@ -5,6 +5,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { callTool, listTools } from "./index.js";
+import { okfConceptToPacket } from "./okf.js";
 
 // Hermetic personal store: recall reads $KAGE_HOME/memory, so tool tests must
 // never see the developer's real ~/.kage.
@@ -295,8 +296,11 @@ test("MCP kage_supersede writes memory lineage", async () => {
     paths: ["src/checkout.ts"],
   });
   const packets = readdirSync(join(project, ".agent_memory", "packets"))
-    .filter((name) => name.endsWith(".json"))
-    .map((name) => JSON.parse(readFileSync(join(project, ".agent_memory", "packets", name), "utf8")));
+    .filter((name) => name.endsWith(".md") || name.endsWith(".json"))
+    .map((name) => {
+      const p = join(project, ".agent_memory", "packets", name);
+      return name.endsWith(".md") ? okfConceptToPacket(readFileSync(p, "utf8")) : JSON.parse(readFileSync(p, "utf8"));
+    });
   const oldPacket = packets.find((packet) => packet.title === "Old retry note");
   const replacement = packets.find((packet) => packet.title === "Checkout retry split");
   assert.ok(oldPacket);

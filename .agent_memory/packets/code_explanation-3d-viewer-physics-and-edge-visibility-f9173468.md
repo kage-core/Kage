@@ -1,0 +1,39 @@
+---
+type: "Code Explanation"
+title: "3D viewer physics and edge visibility"
+description: "The 3D viewer uses a bounded orb preserving force relaxation, not a full unbounded force graph. It starts from deterministic spherical positions, then applies node repulsion, edge spring forces, radial orb gravity, and a"
+tags: ["session-learning", "viewer", "threejs", "physics", "code-graph", "ux"]
+timestamp: "2026-05-11T12:57:52.264Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:code_explanation:3d-viewer-physics-and-edge-visibility-1778504272264"
+x-kage-type: "code_explanation"
+x-kage-status: "deprecated"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "deprecated"
+---
+
+# 3D viewer physics and edge visibility
+
+> The 3D viewer uses a bounded orb preserving force relaxation, not a full unbounded force graph. It starts from determ…
+
+The 3D viewer uses a bounded orb-preserving force relaxation, not a full unbounded force graph. It starts from deterministic spherical positions, then applies node repulsion, edge spring forces, radial orb gravity, and a light graph-kind depth bias for about 180 animation frames. Edge springs are deliberately weaker than the orb constraint so the graph stays orb-shaped. Code-code edges use visible cyan opacity and depthTest=false so source structure is visible before node selection.
+Evidence: Updated mcp/viewer/app.js in response to user feedback asking how physics works, for better physics, and for code edges to be visible before clicking nodes.
+Verified by: node --check mcp/viewer/app.js; npm test --prefix mcp; Playwright desktop/mobile WebGL screenshot checks
+
+## Verification
+
+Updated mcp/viewer/app.js in response to user feedback asking how physics works, for better physics, and for code edges to be visible before clicking nodes.
+
+# Citations
+
+[1] explicit_capture (2026-05-11T12:57:52.264Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:code_explanation:3d-viewer-physics-and-edge-visibility-1778504272264","title":"3D viewer physics and edge visibility","summary":"The 3D viewer uses a bounded orb preserving force relaxation, not a full unbounded force graph. It starts from deterministic spherical positions, then applies node repulsion, edge spring forces, radial orb gravity, and a","body":"The 3D viewer uses a bounded orb-preserving force relaxation, not a full unbounded force graph. It starts from deterministic spherical positions, then applies node repulsion, edge spring forces, radial orb gravity, and a light graph-kind depth bias for about 180 animation frames. Edge springs are deliberately weaker than the orb constraint so the graph stays orb-shaped. Code-code edges use visible cyan opacity and depthTest=false so source structure is visible before node selection.\nEvidence: Updated mcp/viewer/app.js in response to user feedback asking how physics works, for better physics, and for code edges to be visible before clicking nodes.\nVerified by: node --check mcp/viewer/app.js; npm test --prefix mcp; Playwright desktop/mobile WebGL screenshot checks","type":"code_explanation","scope":"repo","visibility":"team","sensitivity":"internal","status":"deprecated","confidence":0.7,"tags":["session-learning","viewer","threejs","physics","code-graph","ux"],"paths":[],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-05-11T12:57:52.264Z"}],"context":{"fact":"The 3D viewer uses a bounded orb-preserving force relaxation, not a full unbounded force graph. It starts from deterministic spherical positions, then applies node repulsion, edge spring forces, radial orb gravity, and a light graph-kind depth bias for about 180 animation frames. Edge springs are deliberately weaker than the orb constraint so the graph stays orb-shaped. Code-code edges use visible cyan opacity and depthTest=false so source structure is visible before node selection.\nEvidence: Updated mcp/viewer/app.js in response to user feedback asking how physics works, for better physics, and for code edges to be visible before clicking nodes.\nVerified by: node --check mcp/viewer/app.js; npm test --prefix mcp; Playwright desktop/mobile WebGL screenshot checks","verification":"Updated mcp/viewer/app.js in response to user feedback asking how physics works, for better physics, and for code edges to be visible before clicking nodes."},"freshness":{"ttl_days":365,"last_verified_at":"2026-05-11T12:57:52.264Z","verification":"repo_local_agent_capture"},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":193,"stale":true,"stale_reasons":["packet status is deprecated"],"suggested_action":"mark_stale"},"created_at":"2026-05-11T12:57:52.264Z","updated_at":"2026-06-05T14:45:40.999Z"}
+```
+

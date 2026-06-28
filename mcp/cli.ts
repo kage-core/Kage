@@ -169,7 +169,7 @@ Usage:
   kage hook status --project <dir> [--json]
   kage hook uninstall --project <dir> [--json]
   kage refresh --project <dir> [--full] [--force] [--json]
-  kage merge-packet <ours> <base> <theirs>      git merge driver for .agent_memory/packets/*.json
+  kage merge-packet <ours> <base> <theirs>      git merge driver for .agent_memory/packets/*.md
   kage gc --project <dir> [--dry-run] [--force] [--json]
   kage compact --project <dir> [--dry-run] [--json]
   kage verify --project <dir> [--id <packet-id>] [--json]

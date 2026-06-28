@@ -1,0 +1,35 @@
+---
+type: "Decision"
+title: "v2.2.0 closed the claude-mem parity gap — full feature map and what remains"
+description: "Released 2026 06 12 npm + MCP registry + vendored . Parity achieved vs claude mem/CMEM in one day across PRs 69 85: one shot install, plugin w/ hooks+commands, auto capture fallback signal gated =0.4 via observationSigna"
+resource: "CHANGELOG.md"
+tags: ["session-learning", "release"]
+timestamp: "2026-06-12T11:49:36.416Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:decision:v2-2-0-closed-the-claude-mem-parity-gap-full-feature-map-and-what-remains-178126"
+x-kage-type: "decision"
+x-kage-status: "superseded"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "superseded"
+x-kage-paths: ["CHANGELOG.md"]
+---
+
+# v2.2.0 closed the claude-mem parity gap — full feature map and what remains
+
+> Released 2026 06 12 npm + MCP registry + vendored . Parity achieved vs claude mem/CMEM in one day across PRs 69 85: o…
+
+Released 2026-06-12 (npm + MCP registry + vendored). Parity achieved vs claude-mem/CMEM in one day across PRs #69-#85: one-shot install, plugin w/ hooks+commands, auto-capture fallback (signal-gated >=0.4 via observationSignalScore), session continuity (kage resume + timeline index), kage repair + remediation errors, [private]
+
+# Citations
+
+[1] explicit_capture (2026-06-12T11:49:36.416Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:decision:v2-2-0-closed-the-claude-mem-parity-gap-full-feature-map-and-what-remains-178126","title":"v2.2.0 closed the claude-mem parity gap — full feature map and what remains","summary":"Released 2026 06 12 npm + MCP registry + vendored . Parity achieved vs claude mem/CMEM in one day across PRs 69 85: one shot install, plugin w/ hooks+commands, auto capture fallback signal gated =0.4 via observationSigna","body":"Released 2026-06-12 (npm + MCP registry + vendored). Parity achieved vs claude-mem/CMEM in one day across PRs #69-#85: one-shot install, plugin w/ hooks+commands, auto-capture fallback (signal-gated >=0.4 via observationSignalScore), session continuity (kage resume + timeline index), kage repair + remediation errors, [private]","type":"decision","scope":"repo","visibility":"team","sensitivity":"internal","status":"superseded","confidence":0.7,"tags":["session-learning","release"],"paths":["CHANGELOG.md"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-06-12T11:49:36.416Z"}],"context":{"fact":"Released 2026-06-12 (npm + MCP registry + vendored). Parity achieved vs claude-mem/CMEM in one day across PRs #69-#85: one-shot install, plugin w/ hooks+commands, auto-capture fallback (signal-gated >=0.4 via observationSignalScore), session continuity (kage resume + timeline index), kage repair + remediation errors, [private]"},"freshness":{"ttl_days":365,"last_verified_at":"2026-06-12T11:49:36.416Z","path_fingerprints":[{"path":"CHANGELOG.md","sha256":"3ad9282ba49b5bd6dcdda45f8762490c4cf11a89400fae1478244869643f378c","size":31450}],"path_fingerprint_policy":"source_hash_staleness","verification":"repo_local_agent_capture","superseded_at":"2026-06-12T12:48:53.167Z","superseded_by":"repo:https-github-com-kage-core-kage:decision:v2-2-x-closed-the-claude-mem-parity-gap-feature-map-and-what-remains-17812685329","superseded_reason":"Newer repo memory supersedes this packet."},"edges":[{"relation":"superseded_by","to":"repo:https-github-com-kage-core-kage:decision:v2-2-x-closed-the-claude-mem-parity-gap-feature-map-and-what-remains-17812685329","evidence":"Newer repo memory supersedes this packet.","created_at":"2026-06-12T12:48:53.167Z"}],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"discovery_tokens":4000,"discovery_tokens_estimated":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":82,"stale":true,"stale_reasons":["packet status is superseded"],"suggested_action":"mark_stale","superseded_by":"repo:https-github-com-kage-core-kage:decision:v2-2-x-closed-the-claude-mem-parity-gap-feature-map-and-what-remains-17812685329","superseded_reason":"Newer repo memory supersedes this packet."},"created_at":"2026-06-12T11:49:36.416Z","updated_at":"2026-06-16T14:06:27.655Z","author_branch":"master"}
+```
+

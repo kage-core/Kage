@@ -1,0 +1,40 @@
+---
+type: "Runbook"
+title: "2.0 user-acquisition sprint: channels live, baselines, and what each channel needs"
+description: "Distribution executed 2026 06 12 for the 2.0 scan first story. LIVE: X thread x.com/183kush/status/2065179463470784548 3 posts, scan hook + Express void + receipts, PINNED to profile, reply links the article ; dev.to art"
+resource: "launch/reddit.md"
+tags: ["session-learning", "distribution", "launch", "v2", "metrics-baseline"]
+timestamp: "2026-06-11T21:17:06.181Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:runbook:2-0-user-acquisition-sprint-channels-live-baselines-and-what-each-channel-needs-"
+x-kage-type: "runbook"
+x-kage-status: "deprecated"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "deprecated"
+x-kage-paths: ["launch/reddit.md", "launch/distribution-plan.md", "README.md"]
+---
+
+# 2.0 user-acquisition sprint: channels live, baselines, and what each channel needs
+
+> Distribution executed 2026 06 12 for the 2.0 scan first story. LIVE: X thread x.com/183kush/status/206517946347078454…
+
+Distribution executed 2026-06-12 for the 2.0 scan-first story. LIVE: X thread x.com/183kush/status/2065179463470784548 (3 posts, scan hook + Express void + receipts, PINNED to profile, reply links the article); dev.to article dev.to/kage18/we-ran-one-command-on-expressjs-its-repo-is-hiding-7-knowledge-voids-3bbg (Express scan story, knowledge-void concept, try-it CTA); mcp.so/server/Kage/kage-core (200); glama.ai/mcp/servers/kage-core/Kage (200). PENDING: awesome-mcp-servers PR #7480 MERGEABLE+green, awaiting maintainer punkpeye only. BLOCKED FOR AUTOMATION: Reddit (browser tool hard-blocks reddit.com regardless of login — paste-ready copy in launch/reddit.md, needs human 60s for r/mcp + r/ClaudeAI); HN (kage18 flag status unverifiable). BASELINES for measuring pull: GitHub stars 6, dev.to first post ~25 views lifetime. Kill-criteria from strategy discussion: <10% scan-rate from repo visitors or <5 second-session users in 2 weeks means archive honestly. Channel lesson: X composer needs explicit field clicks between thread posts (typed text silently drops otherwise); dev.to tags field steals focus from title.
+Verified by: Live posts verified by screenshot + URL fetch 2026-06-12; listings curl 200
+
+## Verification
+
+Live posts verified by screenshot + URL fetch 2026-06-12; listings curl 200
+
+# Citations
+
+[1] explicit_capture (2026-06-11T21:17:06.181Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:runbook:2-0-user-acquisition-sprint-channels-live-baselines-and-what-each-channel-needs-","title":"2.0 user-acquisition sprint: channels live, baselines, and what each channel needs","summary":"Distribution executed 2026 06 12 for the 2.0 scan first story. LIVE: X thread x.com/183kush/status/2065179463470784548 3 posts, scan hook + Express void + receipts, PINNED to profile, reply links the article ; dev.to art","body":"Distribution executed 2026-06-12 for the 2.0 scan-first story. LIVE: X thread x.com/183kush/status/2065179463470784548 (3 posts, scan hook + Express void + receipts, PINNED to profile, reply links the article); dev.to article dev.to/kage18/we-ran-one-command-on-expressjs-its-repo-is-hiding-7-knowledge-voids-3bbg (Express scan story, knowledge-void concept, try-it CTA); mcp.so/server/Kage/kage-core (200); glama.ai/mcp/servers/kage-core/Kage (200). PENDING: awesome-mcp-servers PR #7480 MERGEABLE+green, awaiting maintainer punkpeye only. BLOCKED FOR AUTOMATION: Reddit (browser tool hard-blocks reddit.com regardless of login — paste-ready copy in launch/reddit.md, needs human 60s for r/mcp + r/ClaudeAI); HN (kage18 flag status unverifiable). BASELINES for measuring pull: GitHub stars 6, dev.to first post ~25 views lifetime. Kill-criteria from strategy discussion: <10% scan-rate from repo visitors or <5 second-session users in 2 weeks means archive honestly. Channel lesson: X composer needs explicit field clicks between thread posts (typed text silently drops otherwise); dev.to tags field steals focus from title.\nVerified by: Live posts verified by screenshot + URL fetch 2026-06-12; listings curl 200","type":"runbook","scope":"repo","visibility":"team","sensitivity":"internal","status":"deprecated","confidence":0.7,"tags":["session-learning","distribution","launch","v2","metrics-baseline"],"paths":["launch/reddit.md","launch/distribution-plan.md","README.md"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-06-11T21:17:06.181Z"}],"context":{"fact":"Distribution executed 2026-06-12 for the 2.0 scan-first story. LIVE: X thread x.com/183kush/status/2065179463470784548 (3 posts, scan hook + Express void + receipts, PINNED to profile, reply links the article); dev.to article dev.to/kage18/we-ran-one-command-on-expressjs-its-repo-is-hiding-7-knowledge-voids-3bbg (Express scan story, knowledge-void concept, try-it CTA); mcp.so/server/Kage/kage-core (200); glama.ai/mcp/servers/kage-core/Kage (200). PENDING: awesome-mcp-servers PR #7480 MERGEABLE+green, awaiting maintainer punkpeye only. BLOCKED FOR AUTOMATION: Reddit (browser tool hard-blocks reddit.com regardless of login — paste-ready copy in launch/reddit.md, needs human 60s for r/mcp + r/ClaudeAI); HN (kage18 flag status unverifiable). BASELINES for measuring pull: GitHub stars 6, dev.to first post ~25 views lifetime. Kill-criteria from strategy discussion: <10% scan-rate from repo visitors or <5 second-session users in 2 weeks means archive honestly. Channel lesson: X composer needs explicit field clicks between thread posts (typed text silently drops otherwise); dev.to tags field steals focus from title.\nVerified by: Live posts verified by screenshot + URL fetch 2026-06-12; listings curl 200","verification":"Live posts verified by screenshot + URL fetch 2026-06-12; listings curl 200"},"freshness":{"ttl_days":365,"last_verified_at":"2026-06-11T21:17:06.181Z","path_fingerprints":[{"path":"launch/reddit.md","sha256":"5b0d79ebb33b08e556b0e99a8e3109d954b20db7a537ded05b1c4de2da9e7e96","size":1776},{"path":"launch/distribution-plan.md","sha256":"42794b9080e067ff0a387760bbed68f3118bcf2044df8f01b07903c15ee577ae","size":2568},{"path":"README.md","sha256":"853581411f4f92d31bd5170cda5ed35547c3f6b800bb5159238d7f8c416bb668","size":8155}],"path_fingerprint_policy":"source_hash_staleness","verification":"repo_local_agent_capture"},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"stale_reasons":["packet status is deprecated","linked path changed since memory was verified: launch/reddit.md, README.md"],"estimated_tokens_saved":304,"stale":true,"suggested_action":"mark_stale"},"created_at":"2026-06-11T21:17:06.181Z","updated_at":"2026-06-12T17:50:12.205Z","author_branch":"release/v2.0.0"}
+```
+

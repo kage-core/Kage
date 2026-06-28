@@ -1,0 +1,35 @@
+---
+type: "Decision"
+title: "v2.3.0 closed the trust axis vs the 73-system comparison"
+description: "Shipped to top carsteneu/ai memory comparison. WIN 1 contradiction detectContradictions/kage conflicts/ strict contradictions : contradiction ⚠️→✅, conflict ❌→✅. WIN 2 docs search buildDocsIndex/searchDocs/kage docs sear"
+resource: "mcp/kernel.ts"
+tags: ["session-learning", "comparison"]
+timestamp: "2026-06-15T21:58:41.161Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:decision:v2-3-0-closed-the-trust-axis-vs-the-73-system-comparison-1781342332834"
+x-kage-type: "decision"
+x-kage-status: "approved"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "verified"
+x-kage-paths: ["mcp/kernel.ts"]
+---
+
+# v2.3.0 closed the trust axis vs the 73-system comparison
+
+> Shipped to top carsteneu/ai memory comparison. WIN 1 contradiction detectContradictions/kage conflicts/ strict contra…
+
+Shipped to top carsteneu/ai-memory-comparison. WIN-1 contradiction (detectContradictions/kage conflicts/--strict-contradictions): contradiction ⚠️→✅, conflict ❌→✅. WIN-2 docs search (buildDocsIndex/searchDocs/kage docs-search/recall --docs): docsSearch 1/73→✅. WIN-3 +3 platforms (openclaw/copilot/hermes). WIN-4 kageLayers: layeredMemory ❌→✅. ~38→~45 features, #2 behind YesMem(52), most complete Knowledge Lifecycle column. Skipped on purpose: proxy/sandboxed/scheduled exec, emotional, external LLM providers (offline by design). 258 tests.
+
+# Citations
+
+[1] explicit_capture (2026-06-13T09:18:52.834Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:decision:v2-3-0-closed-the-trust-axis-vs-the-73-system-comparison-1781342332834","title":"v2.3.0 closed the trust axis vs the 73-system comparison","summary":"Shipped to top carsteneu/ai memory comparison. WIN 1 contradiction detectContradictions/kage conflicts/ strict contradictions : contradiction ⚠️→✅, conflict ❌→✅. WIN 2 docs search buildDocsIndex/searchDocs/kage docs sear","body":"Shipped to top carsteneu/ai-memory-comparison. WIN-1 contradiction (detectContradictions/kage conflicts/--strict-contradictions): contradiction ⚠️→✅, conflict ❌→✅. WIN-2 docs search (buildDocsIndex/searchDocs/kage docs-search/recall --docs): docsSearch 1/73→✅. WIN-3 +3 platforms (openclaw/copilot/hermes). WIN-4 kageLayers: layeredMemory ❌→✅. ~38→~45 features, #2 behind YesMem(52), most complete Knowledge Lifecycle column. Skipped on purpose: proxy/sandboxed/scheduled exec, emotional, external LLM providers (offline by design). 258 tests.","type":"decision","scope":"repo","visibility":"team","sensitivity":"internal","status":"approved","confidence":0.7,"tags":["session-learning","comparison"],"paths":["mcp/kernel.ts"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-06-13T09:18:52.834Z"}],"context":{"fact":"Shipped to top carsteneu/ai-memory-comparison. WIN-1 contradiction (detectContradictions/kage conflicts/--strict-contradictions): contradiction ⚠️→✅, conflict ❌→✅. WIN-2 docs search (buildDocsIndex/searchDocs/kage docs-search/recall --docs): docsSearch 1/73→✅. WIN-3 +3 platforms (openclaw/copilot/hermes). WIN-4 kageLayers: layeredMemory ❌→✅. ~38→~45 features, #2 behind YesMem(52), most complete Knowledge Lifecycle column. Skipped on purpose: proxy/sandboxed/scheduled exec, emotional, external LLM providers (offline by design). 258 tests."},"freshness":{"ttl_days":365,"last_verified_at":"2026-06-15T21:58:41.161Z","path_fingerprints":[{"path":"mcp/kernel.ts","sha256":"c3ee0e093ee2c8e8ebd3af30b04569ef542f43061e9b180bd17d141a3d6d5e0f","size":844113,"symbols":[{"name":"detectcontradictions","kind":"function","sha256":"0f2cda77253bce857daf16c5213a265ebb3a5540d01ffc7da19d5dfa83993ba0"},{"name":"lifecycle","kind":"constant","sha256":"4c9035caf232fe3c21c75eb26521182ed429c6816d1c52ca6290dee9b611a22c"},{"name":"builddocsindex","kind":"function","sha256":"aa51e8fc16bde19658ef42d21dd7aa4c3acd9eb94fe09741b4345d2a97decaeb"},{"name":"searchdocs","kind":"function","sha256":"a3354b8a4ab15257bb1b883fcf96edebbe9b50864d430742aa880f1433dd16e2"},{"name":"trust","kind":"constant","sha256":"c4f3cf768a9a0a966c067fd73a1469f96703dc6373eb12e5440b885221736875"},{"name":"contradictions","kind":"constant","sha256":"4b56b46daa8275744ec3b98eeaa5d9469568aa1811b7683a855e39fbffc6efc5"},{"name":"memory","kind":"constant","sha256":"952449fe9c2c8827ca2a6a85c0d0a86b82826696ff4f88ee167500678734db36"},{"name":"kagelayers","kind":"function","sha256":"9dd39e91c11bcb822ed71a2b4f2343fd9107dea2ce564fb0fbdaf0f6524655e1"}]}],"path_fingerprint_policy":"source_hash_staleness","verification":"repo_local_agent_capture"},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"discovery_tokens":4000,"discovery_tokens_estimated":true,"score":96,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":136,"reverified_at":"2026-06-15T21:58:41.161Z"},"created_at":"2026-06-13T09:18:52.834Z","updated_at":"2026-06-15T21:58:41.161Z","author_branch":"master"}
+```
+

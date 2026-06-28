@@ -1,0 +1,35 @@
+---
+type: "Decision"
+title: "Decision: Kage viewer uses canvas force graph for interactive exploration"
+description: "Decision: Kage viewer should use a custom canvas force graph for the primary graph surface. Keep Kage's high signal filtering and repo/code/memory semantics, but render visible nodes with force simulation, drag, pan, whe"
+tags: ["session-learning", "viewer", "canvas", "force-graph", "ux", "external-memory-tool"]
+timestamp: "2026-05-02T20:18:18.616Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:decision:decision-kage-viewer-uses-canvas-force-graph-for-interactive-exploration-1777753"
+x-kage-type: "decision"
+x-kage-status: "deprecated"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "deprecated"
+---
+
+# Decision: Kage viewer uses canvas force graph for interactive exploration
+
+> Decision: Kage viewer should use a custom canvas force graph for the primary graph surface. Keep Kage's high signal f…
+
+Decision: Kage viewer should use a custom canvas force graph for the primary graph surface. Keep Kage's high-signal filtering and repo/code/memory semantics, but render visible nodes with force simulation, drag, pan, wheel zoom, hover tooltips, selected-node focus, double-click focus selection, zoom-aware labels, weighted edges, and shape/color encoding by node type. The old SVG renderer can remain as fallback/internal code but should not be the primary visible graph.
+Evidence: Implemented in mcp/viewer/index.html, mcp/viewer/app.js, and mcp/viewer/styles.css after comparing external memory tool's canvas viewer.
+Verified by: node --check mcp/viewer/app.js; npm test --prefix mcp; npm --cache /tmp/kage-npm-cache pack --dry-run
+
+# Citations
+
+[1] explicit_capture (2026-05-02T20:18:18.616Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:decision:decision-kage-viewer-uses-canvas-force-graph-for-interactive-exploration-1777753","title":"Decision: Kage viewer uses canvas force graph for interactive exploration","summary":"Decision: Kage viewer should use a custom canvas force graph for the primary graph surface. Keep Kage's high signal filtering and repo/code/memory semantics, but render visible nodes with force simulation, drag, pan, whe","body":"Decision: Kage viewer should use a custom canvas force graph for the primary graph surface. Keep Kage's high-signal filtering and repo/code/memory semantics, but render visible nodes with force simulation, drag, pan, wheel zoom, hover tooltips, selected-node focus, double-click focus selection, zoom-aware labels, weighted edges, and shape/color encoding by node type. The old SVG renderer can remain as fallback/internal code but should not be the primary visible graph.\nEvidence: Implemented in mcp/viewer/index.html, mcp/viewer/app.js, and mcp/viewer/styles.css after comparing external memory tool's canvas viewer.\nVerified by: node --check mcp/viewer/app.js; npm test --prefix mcp; npm --cache /tmp/kage-npm-cache pack --dry-run","type":"decision","scope":"repo","visibility":"team","sensitivity":"internal","status":"deprecated","confidence":0.7,"tags":["session-learning","viewer","canvas","force-graph","ux","external-memory-tool"],"paths":[],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-05-02T20:18:18.616Z"}],"freshness":{"ttl_days":365,"last_verified_at":"2026-05-02T20:18:18.616Z","verification":"repo_local_agent_capture"},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":364,"stale":true,"stale_reasons":["packet status is deprecated"],"suggested_action":"mark_stale"},"created_at":"2026-05-02T20:18:18.616Z","updated_at":"2026-06-05T14:45:41.001Z"}
+```
+

@@ -1,0 +1,41 @@
+---
+type: "Decision"
+title: "MemoryArena answer accuracy harness requires a real LLM provider"
+description: "Kage now has an official style MemoryArena answer accuracy harness separate from context recall. It runs Kage strict recall, asks an answer provider for each subtask, scores against gold answers, and saves gold feedback"
+resource: "benchmarks/memoryarena-kage-answer.mjs"
+tags: ["session-learning", "benchmark", "memoryarena", "answer-accuracy", "llm-provider"]
+timestamp: "2026-05-18T05:05:57.404Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:decision:memoryarena-answer-accuracy-harness-requires-a-real-llm-provider-1779080757405"
+x-kage-type: "decision"
+x-kage-status: "approved"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "verified"
+x-kage-paths: ["benchmarks/memoryarena-kage-answer.mjs", "benchmarks/README.md"]
+---
+
+# MemoryArena answer accuracy harness requires a real LLM provider
+
+> Kage now has an official style MemoryArena answer accuracy harness separate from context recall. It runs Kage strict …
+
+Kage now has an official-style MemoryArena answer-accuracy harness separate from context recall. It runs Kage strict recall, asks an answer provider for each subtask, scores against gold answers, and saves gold feedback as memory for later subtasks. Real benchmark reporting requires an LLM provider such as OpenAI via OPENAI_API_KEY; --provider gold is only a scorer smoke test and must not be reported as model accuracy.
+Evidence: Added benchmarks/memoryarena-kage-answer.mjs and documented it in benchmarks/README.md. Gold-provider smoke over 3 progressive_search tasks produced 100% by construction and estimated token usage, proving the loop/scorer writes artifacts.
+Verified by: node --check benchmarks/memoryarena-kage-answer.mjs; node benchmarks/memoryarena-kage-answer.mjs --dataset /private/tmp/kage-memoryarena/progressive_search.jsonl --suite progressive_search --limit 3 --top-k 10 --provider gold --out /private/tmp/kage-memoryarena/progressive-search-kage-answer-gold-smoke.json
+
+## Verification
+
+Added benchmarks/memoryarena-kage-answer.mjs and documented it in benchmarks/README.md. Gold-provider smoke over 3 progressive_search tasks produced 100% by construction and estimated token usage, proving the loop/scorer writes artifacts.
+
+# Citations
+
+[1] explicit_capture (2026-05-18T05:05:57.404Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:decision:memoryarena-answer-accuracy-harness-requires-a-real-llm-provider-1779080757405","title":"MemoryArena answer accuracy harness requires a real LLM provider","summary":"Kage now has an official style MemoryArena answer accuracy harness separate from context recall. It runs Kage strict recall, asks an answer provider for each subtask, scores against gold answers, and saves gold feedback","body":"Kage now has an official-style MemoryArena answer-accuracy harness separate from context recall. It runs Kage strict recall, asks an answer provider for each subtask, scores against gold answers, and saves gold feedback as memory for later subtasks. Real benchmark reporting requires an LLM provider such as OpenAI via OPENAI_API_KEY; --provider gold is only a scorer smoke test and must not be reported as model accuracy.\nEvidence: Added benchmarks/memoryarena-kage-answer.mjs and documented it in benchmarks/README.md. Gold-provider smoke over 3 progressive_search tasks produced 100% by construction and estimated token usage, proving the loop/scorer writes artifacts.\nVerified by: node --check benchmarks/memoryarena-kage-answer.mjs; node benchmarks/memoryarena-kage-answer.mjs --dataset /private/tmp/kage-memoryarena/progressive_search.jsonl --suite progressive_search --limit 3 --top-k 10 --provider gold --out /private/tmp/kage-memoryarena/progressive-search-kage-answer-gold-smoke.json","type":"decision","scope":"repo","visibility":"team","sensitivity":"internal","status":"approved","confidence":0.7,"tags":["session-learning","benchmark","memoryarena","answer-accuracy","llm-provider"],"paths":["benchmarks/memoryarena-kage-answer.mjs","benchmarks/README.md"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-05-18T05:05:57.404Z"}],"context":{"fact":"Kage now has an official-style MemoryArena answer-accuracy harness separate from context recall. It runs Kage strict recall, asks an answer provider for each subtask, scores against gold answers, and saves gold feedback as memory for later subtasks. Real benchmark reporting requires an LLM provider such as OpenAI via OPENAI_API_KEY; --provider gold is only a scorer smoke test and must not be reported as model accuracy.\nEvidence: Added benchmarks/memoryarena-kage-answer.mjs and documented it in benchmarks/README.md. Gold-provider smoke over 3 progressive_search tasks produced 100% by construction and estimated token usage, proving the loop/scorer writes artifacts.\nVerified by: node --check benchmarks/memoryarena-kage-answer.mjs; node benchmarks/memoryarena-kage-answer.mjs --dataset /private/tmp/kage-memoryarena/progressive_search.jsonl --suite progressive_search --limit 3 --top-k 10 --provider gold --out /private/tmp/kage-memoryarena/progressive-search-kage-answer-gold-smoke.json","verification":"Added benchmarks/memoryarena-kage-answer.mjs and documented it in benchmarks/README.md. Gold-provider smoke over 3 progressive_search tasks produced 100% by construction and estimated token usage, proving the loop/scorer writes artifacts."},"freshness":{"ttl_days":365,"last_verified_at":"2026-05-18T05:05:57.404Z","verification":"repo_local_agent_capture"},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":249},"created_at":"2026-05-18T05:05:57.404Z","updated_at":"2026-05-19T04:50:14.929Z"}
+```
+

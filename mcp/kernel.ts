@@ -7,6 +7,7 @@ import { basename, delimiter, dirname, extname, isAbsolute, join, relative, reso
 import { Worker } from "node:worker_threads";
 import * as ts from "typescript";
 import { createPublicCandidateBundleManifest, createSignedManifest, generateOrgRegistryManifest } from "./registry/index.js";
+import { okfConceptToPacket, packetToOkfConcept } from "./okf.js";
 
 export const PACKET_SCHEMA_VERSION = 2;
 
@@ -2288,7 +2289,11 @@ const AGENTS_POLICY_END = "<!-- END_KAGE_MEMORY_POLICY_V1 -->";
 const AGENTS_POLICY = `${AGENTS_POLICY_MARKER}
 # Kage Memory Harness
 
-This repo uses Kage as an automatic memory harness for coding agents.
+This repo uses Kage as an automatic memory harness for coding agents. Memory is
+stored and exchanged in Open Knowledge Format (OKF) — markdown concept files under
+\`.agent_memory/packets/\`, with Kage's verification metadata in OKF-legal \`x-kage-*\`
+frontmatter, readable by any OKF consumer. Use \`kage okf migrate|lint|import\` to
+work with OKF bundles.
 
 ## Automatic Recall
 
@@ -2509,11 +2514,23 @@ function ensureDir(path: string): void {
 }
 
 function readJson<T>(path: string): T {
+  // Packet files are OKF concept docs (.md); every other store artifact is JSON.
+  // Routing the dispatch here makes all packet readers (supersede, stale, repair,
+  // sync, …) format-aware without touching each call site.
+  if (path.endsWith(".md")) {
+    const packet = okfConceptToPacket(readFileSync(path, "utf8"));
+    if (!packet) throw new Error(`not a parseable OKF concept: ${path}`);
+    return packet as unknown as T;
+  }
   return JSON.parse(readFileSync(path, "utf8")) as T;
 }
 
 function writeJson(path: string, value: unknown): void {
   ensureDir(dirname(path));
+  if (path.endsWith(".md")) {
+    writeFileSync(path, packetToOkfConcept(value as MemoryPacket), "utf8");
+    return;
+  }
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
@@ -2529,7 +2546,7 @@ export function slugify(input: string): string {
 
 function packetFileName(packet: Pick<MemoryPacket, "type" | "title" | "id">): string {
   const idHash = createHash("sha256").update(packet.id).digest("hex").slice(0, 8);
-  return `${packet.type}-${slugify(packet.title)}-${idHash}.json`;
+  return `${packet.type}-${slugify(packet.title)}-${idHash}.md`;
 }
 
 function repoKey(projectDir: string): string {
@@ -4548,9 +4565,33 @@ function walkFiles(root: string, predicate: (path: string) => boolean): string[]
 // Tolerant packet read: a single corrupt or merge-conflicted packet (e.g. an
 // unresolved `<<<<<<<` from a teammate's git merge) must not take down all of
 // recall/verify/compact. Skip the bad file with a warning and keep going.
+// Packets are stored as OKF concept documents (.md). Legacy .json packets stay
+// readable so existing stores and test fixtures keep loading during/after the swap.
+function isPacketFile(name: string): boolean {
+  return name.endsWith(".md") || name.endsWith(".json");
+}
+
+// Read a packet file from disk, dispatching on format. Throws on an unparseable
+// file (same contract as the JSON reader it replaces); callers that tolerate bad
+// files go through tryReadPacket.
+function readPacketFromDisk(path: string): MemoryPacket {
+  if (path.endsWith(".md")) {
+    const packet = okfConceptToPacket(readFileSync(path, "utf8"));
+    if (!packet) throw new Error(`not a parseable OKF concept: ${path}`);
+    return packet;
+  }
+  return readJson<MemoryPacket>(path);
+}
+
+// Write a packet file, preserving its on-disk format (.md = OKF, legacy .json).
+function writePacketToDisk(path: string, packet: MemoryPacket): void {
+  if (path.endsWith(".md")) writeFileSync(path, packetToOkfConcept(packet), "utf8");
+  else writeJson(path, packet);
+}
+
 function tryReadPacket(path: string): MemoryPacket | null {
   try {
-    return readJson<MemoryPacket>(path);
+    return readPacketFromDisk(path);
   } catch (error) {
     process.stderr.write(`kage: skipping unreadable memory packet ${path}: ${(error as Error).message}\n`);
     return null;
@@ -4560,7 +4601,7 @@ function tryReadPacket(path: string): MemoryPacket | null {
 function loadPacketsFromDir(dir: string): MemoryPacket[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
-    .filter((name) => name.endsWith(".json"))
+    .filter(isPacketFile)
     .sort()
     .flatMap((name) => {
       const packet = tryReadPacket(join(dir, name));
@@ -4571,7 +4612,7 @@ function loadPacketsFromDir(dir: string): MemoryPacket[] {
 function loadPacketEntriesFromDir(dir: string): Array<{ path: string; packet: MemoryPacket }> {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
-    .filter((name) => name.endsWith(".json"))
+    .filter(isPacketFile)
     .sort()
     .flatMap((name) => {
       const path = join(dir, name);
@@ -4601,7 +4642,7 @@ function recallablePendingPackets(projectDir: string): MemoryPacket[] {
 function writePacket(projectDir: string, packet: MemoryPacket, statusDir: "packets" | "pending"): string {
   const dir = statusDir === "packets" ? packetsDir(projectDir) : pendingDir(projectDir);
   const path = join(dir, packetFileName(packet));
-  writeJson(path, packet);
+  writePacketToDisk(path, packet);
   return path;
 }
 
@@ -5019,7 +5060,7 @@ const NOISE_PATH_PREFIXES = [
 ];
 
 function isReviewableMemoryPath(filePath: string): boolean {
-  return /^\.agent_memory\/(?:packets|pending)\/[^/]+\.json$/.test(filePath);
+  return /^\.agent_memory\/(?:packets|pending)\/[^/]+\.(?:json|md)$/.test(filePath);
 }
 
 function isNoisePath(filePath: string): boolean {
@@ -9028,7 +9069,7 @@ function readCurrentKnowledgeGraph(projectDir: string, codeGraph: CodeGraph, exp
 function graphFastFingerprint(projectDir: string): string {
   const packetPaths = existsSync(packetsDir(projectDir))
     ? readdirSync(packetsDir(projectDir))
-        .filter((name) => name.endsWith(".json"))
+        .filter(isPacketFile)
         .map((name) => join(packetsDir(projectDir), name))
     : [];
   const paths = [
@@ -9499,7 +9540,7 @@ export function compactProject(projectDir: string, options: { dryRun?: boolean }
     const hardReason = recallHardStaleReason(projectDir, packet, cache);
     if (hardReason) {
       deprecated.push({ id: packet.id, title: packet.title, reason: hardReason });
-      if (!dryRun) writeJson(path, { ...packet, status: "deprecated" as const, updated_at: nowIso() });
+      if (!dryRun) writePacketToDisk(path, { ...packet, status: "deprecated" as const, updated_at: nowIso() });
       continue;
     }
     const meaningful = packet.paths.filter((p) => meaningfulMemoryPath(p) && !shouldSkipRepoMemoryPath(p));
@@ -16622,7 +16663,7 @@ export function createPublicCandidate(projectDir: string, id: string): PublicCan
   const validation = validatePacket(packet, "public candidate");
   if (!validation.ok) return { ok: false, errors: validation.errors };
   const path = join(publicCandidatesDir(projectDir), packetFileName(packet));
-  writeJson(path, packet);
+  writePacketToDisk(path, packet);
   return { ok: true, packet, path, errors: [] };
 }
 
@@ -18170,7 +18211,7 @@ export function distillSession(projectDir: string, sessionId: string, options: {
       if (result.path && result.path !== promotedPath) { try { unlinkSync(result.path); } catch {} }
       result.path = promotedPath;
     } else {
-      writeJson(result.path, result.packet);
+      writePacketToDisk(result.path, result.packet);
     }
     return result;
   };
@@ -18391,7 +18432,7 @@ function createDiffChangeMemory(projectDir: string, summary: BranchReviewSummary
     );
     for (const name of existing) {
       const stale = join(packetsDir(projectDir), name);
-      const stalePacket = readJson<MemoryPacket>(stale);
+      const stalePacket = readPacketFromDisk(stale);
       if (stalePacket?.type === "workflow" && stalePacket?.title === title) {
         unlinkSync(stale);
       }
@@ -18781,7 +18822,7 @@ export function prCheck(projectDir: string): PrCheckResult {
       .split(/\r?\n/)
       .map(parsePorcelainPath)
       .map((path) => path.replace(/^.* -> /, ""))
-      .filter((path) => path.startsWith(".agent_memory/packets/") && path.endsWith(".json"))
+      .filter((path) => path.startsWith(".agent_memory/packets/") && isPacketFile(path))
   ).sort();
   const codeGraphCurrent = graphIsCurrent(projectDir, ".agent_memory/code_graph/graph.json", { head: overlay.head, tree, inputHash: codeInputHash });
   const memoryGraphCurrent = graphIsCurrent(projectDir, ".agent_memory/graph/graph.json", { head: overlay.head, tree, inputHash: memoryInputHash });
@@ -19179,8 +19220,8 @@ export function recordFeedback(projectDir: string, id: string, feedback: MemoryF
   if (!["helpful", "wrong", "stale"].includes(feedback)) {
     return { ok: false, errors: [`Invalid feedback: ${feedback}`] };
   }
-  for (const path of walkFiles(packetsDir(projectDir), (candidate) => candidate.endsWith(".json"))) {
-    const packet = readJson<MemoryPacket>(path);
+  for (const path of walkFiles(packetsDir(projectDir), isPacketFile)) {
+    const packet = readPacketFromDisk(path);
     if (packet.id !== id) continue;
     const quality = (packet.quality ?? {}) as Record<string, unknown>;
     const increment = (key: string) => {
@@ -19197,7 +19238,7 @@ export function recordFeedback(projectDir: string, id: string, feedback: MemoryF
         stale_reported_at: packet.updated_at,
       };
     }
-    writeJson(path, packet);
+    writePacketToDisk(path, packet);
     recordMemoryAudit(projectDir, "feedback", [packet], {
       feedback,
       path: relative(projectDir, path),
@@ -19219,9 +19260,9 @@ export function validateProject(projectDir: string): ValidationResult {
     [pendingDir(projectDir), "pending"],
     [publicCandidatesDir(projectDir), "public candidate"],
   ] as const) {
-    for (const packetPath of walkFiles(dir, (path) => path.endsWith(".json"))) {
+    for (const packetPath of walkFiles(dir, isPacketFile)) {
       try {
-        const packet = readJson<MemoryPacket>(packetPath);
+        const packet = readPacketFromDisk(packetPath);
         const validation = validatePacket(packet, relative(projectDir, packetPath));
         errors.push(...validation.errors);
         warnings.push(...validation.warnings);
@@ -19430,10 +19471,15 @@ function resolveConflictedPacket(content: string): MemoryPacket | null {
   for (const side of [sides.ours, sides.theirs]) {
     try {
       const parsed = JSON.parse(side) as MemoryPacket;
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) candidates.push(parsed);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        candidates.push(parsed);
+        continue;
+      }
     } catch {
-      // This side does not parse; the other side may still win.
+      // Not JSON — fall through and try the OKF concept format below.
     }
+    const okf = okfConceptToPacket(side);
+    if (okf) candidates.push(okf);
   }
   if (!candidates.length) return null;
   candidates.sort((a, b) => packetRecency(b).localeCompare(packetRecency(a)));
@@ -19447,7 +19493,7 @@ function resolveConflictedPacket(content: string): MemoryPacket | null {
 // newest-wins by updated_at — packets are single facts, so field-level merges
 // buy little over taking the most recently verified side.
 
-export const PACKET_MERGE_ATTRIBUTE_LINE = ".agent_memory/packets/*.json merge=kage-packet";
+export const PACKET_MERGE_ATTRIBUTE_LINE = ".agent_memory/packets/*.md merge=kage-packet";
 export const PACKET_MERGE_DRIVER_CONFIG =
   'git config merge.kage-packet.driver "npx -y @kage-core/kage-graph-mcp merge-packet %A %O %B"';
 
@@ -19462,6 +19508,10 @@ export function mergePacketFiles(oursPath: string, basePath: string, theirsPath:
   const readSide = (path: string): { raw: string; packet: Partial<MemoryPacket> } | null => {
     const raw = safeReadText(path);
     if (raw === null) return null;
+    if (path.endsWith(".md")) {
+      const packet = okfConceptToPacket(raw);
+      return packet ? { raw, packet } : null;
+    }
     try {
       const parsed = JSON.parse(raw) as unknown;
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
@@ -19508,7 +19558,7 @@ export function ensurePacketMergeAttributes(projectDir: string): { path: string;
   const path = join(projectDir, ".gitattributes");
   const existing = safeReadText(path) ?? "";
   const lines = existing.split(/\r?\n/);
-  const pattern = /^\.agent_memory\/packets\/\*\.json\s+merge=/;
+  const pattern = /^\.agent_memory\/packets\/\*\.(?:json|md)\s+merge=/;
   const index = lines.findIndex((line) => pattern.test(line.trim()));
   if (index !== -1) {
     if (lines[index].trim() === PACKET_MERGE_ATTRIBUTE_LINE) return { path, changed: false };
@@ -19536,7 +19586,7 @@ export function repairProject(projectDir: string, options: { homeDir?: string; s
     [publicCandidatesDir(projectDir), "public-candidates"],
   ];
   for (const [dir, label] of packetDirs) {
-    for (const path of walkFiles(dir, (candidate) => candidate.endsWith(".json"))) {
+    for (const path of walkFiles(dir, isPacketFile)) {
       const target = `${label}/${basename(path)}`;
       let raw: string;
       try {
@@ -19720,14 +19770,14 @@ export function remediationFor(error: unknown): string {
 }
 
 export function approvePending(projectDir: string, id: string): string {
-  const pendingFiles = walkFiles(pendingDir(projectDir), (path) => path.endsWith(".json"));
+  const pendingFiles = walkFiles(pendingDir(projectDir), isPacketFile);
   for (const path of pendingFiles) {
-    const packet = readJson<MemoryPacket>(path);
+    const packet = readPacketFromDisk(path);
     if (packet.id === id) {
       packet.status = "approved";
       packet.updated_at = nowIso();
       const target = join(packetsDir(projectDir), packetFileName(packet));
-      writeJson(target, packet);
+      writePacketToDisk(target, packet);
       renameSync(path, `${path}.approved`);
       recordMemoryAudit(projectDir, "approve", [packet], {
         from: relative(projectDir, path),
@@ -19741,9 +19791,9 @@ export function approvePending(projectDir: string, id: string): string {
 }
 
 export function rejectPending(projectDir: string, id: string): string {
-  const pendingFiles = walkFiles(pendingDir(projectDir), (path) => path.endsWith(".json"));
+  const pendingFiles = walkFiles(pendingDir(projectDir), isPacketFile);
   for (const path of pendingFiles) {
-    const packet = readJson<MemoryPacket>(path);
+    const packet = readPacketFromDisk(path);
     if (packet.id === id) {
       const target = `${path}.rejected`;
       renameSync(path, target);
@@ -20592,7 +20642,7 @@ function syncIdentityArgs(memoryDir: string): string[] {
 const SYNC_SETUP_HINT = "Run: kage sync setup --remote <git-url>";
 
 function syncPacketFile(file: string): boolean {
-  return file.startsWith("packets/") && file.endsWith(".json");
+  return file.startsWith("packets/") && isPacketFile(file);
 }
 
 function countSyncPacketFiles(namesOutput: string): number {
@@ -20685,7 +20735,7 @@ function rebaseOntoUpstream(memoryDir: string, upstream: string): SyncRebaseOutc
     for (const file of conflicted) {
       if (!syncPacketFile(file)) {
         runSyncGit(memoryDir, ["rebase", "--abort"]);
-        return { ok: false, resolved, conflictBackups, error: `kage sync only auto-resolves packets/*.json conflicts; ${file} needs manual resolution in ${memoryDir}.` };
+        return { ok: false, resolved, conflictBackups, error: `kage sync only auto-resolves packets/*.md conflicts; ${file} needs manual resolution in ${memoryDir}.` };
       }
       const resolution = resolvePacketSyncConflict(memoryDir, file);
       if (!resolution.ok) {

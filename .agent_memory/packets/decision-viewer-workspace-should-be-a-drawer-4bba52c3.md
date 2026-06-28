@@ -1,0 +1,38 @@
+---
+type: "Decision"
+title: "Viewer workspace should be a drawer"
+description: "Viewer comparison against repo-intelligence tool showed Kage should not keep the right workspace permanently visible. Default viewer should be canvas first with the workspace hidden as a drawer; quick controls open Tools/Path/Inspecto"
+tags: ["session-learning", "viewer", "ui", "graph", "repo-intelligence-tool"]
+timestamp: "2026-05-15T06:53:20.215Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:decision:viewer-workspace-should-be-a-drawer-1778828000216"
+x-kage-type: "decision"
+x-kage-status: "deprecated"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-confidence: 0.7
+x-kage-verified: "deprecated"
+---
+
+# Viewer workspace should be a drawer
+
+> Viewer comparison against repo-intelligence tool showed Kage should not keep the right workspace permanently visible.…
+
+Viewer comparison against repo-intelligence tool showed Kage should not keep the right workspace permanently visible. Default viewer should be canvas-first with the workspace hidden as a drawer; quick controls open Tools/Path/Inspector only when needed, and selecting a node opens Inspect. This keeps the graph from being visually compressed while preserving memory/intel/review surfaces.
+Verified by: Live screenshot comparison with https://www.repo-intelligence-tool.dev/repo/repo-intelligence-tool-dev/repo-intelligence-tool/graph and Playwright smoke
+
+## Verification
+
+Live screenshot comparison with https://www.repo-intelligence-tool.dev/repo/repo-intelligence-tool-dev/repo-intelligence-tool/graph and Playwright smoke
+
+# Citations
+
+[1] explicit_capture (2026-05-15T06:53:20.215Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:decision:viewer-workspace-should-be-a-drawer-1778828000216","title":"Viewer workspace should be a drawer","summary":"Viewer comparison against repo-intelligence tool showed Kage should not keep the right workspace permanently visible. Default viewer should be canvas first with the workspace hidden as a drawer; quick controls open Tools/Path/Inspecto","body":"Viewer comparison against repo-intelligence tool showed Kage should not keep the right workspace permanently visible. Default viewer should be canvas-first with the workspace hidden as a drawer; quick controls open Tools/Path/Inspector only when needed, and selecting a node opens Inspect. This keeps the graph from being visually compressed while preserving memory/intel/review surfaces.\nVerified by: Live screenshot comparison with https://www.repo-intelligence-tool.dev/repo/repo-intelligence-tool-dev/repo-intelligence-tool/graph and Playwright smoke","type":"decision","scope":"repo","visibility":"team","sensitivity":"internal","status":"deprecated","confidence":0.7,"tags":["session-learning","viewer","ui","graph","repo-intelligence-tool"],"paths":[],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-05-15T06:53:20.215Z"}],"context":{"fact":"Viewer comparison against repo-intelligence tool showed Kage should not keep the right workspace permanently visible. Default viewer should be canvas-first with the workspace hidden as a drawer; quick controls open Tools/Path/Inspector only when needed, and selecting a node opens Inspect. This keeps the graph from being visually compressed while preserving memory/intel/review surfaces.\nVerified by: Live screenshot comparison with https://www.repo-intelligence-tool.dev/repo/repo-intelligence-tool-dev/repo-intelligence-tool/graph and Playwright smoke","verification":"Live screenshot comparison with https://www.repo-intelligence-tool.dev/repo/repo-intelligence-tool-dev/repo-intelligence-tool/graph and Playwright smoke"},"freshness":{"ttl_days":365,"last_verified_at":"2026-05-15T06:53:20.215Z","verification":"repo_local_agent_capture"},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":125,"stale":true,"stale_reasons":["packet status is deprecated"],"suggested_action":"mark_stale"},"created_at":"2026-05-15T06:53:20.215Z","updated_at":"2026-06-05T14:45:41.008Z"}
+```
+
