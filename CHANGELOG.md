@@ -1,5 +1,24 @@
 # Changelog
 
+## v3.0.0 — Open Knowledge Format is now Kage's standard
+
+- **Memory is now stored and exchanged in Google's [Open Knowledge Format
+  (OKF)](https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf).**
+  Packets are OKF concept documents (Markdown + YAML frontmatter) under
+  `.agent_memory/packets/`, readable by any OKF consumer — including Google's own
+  visualizer. Kage's verification metadata (content-hash anchors, status, freshness,
+  lineage) rides in OKF-legal `x-kage-*` fields, so a Kage bundle stays fully
+  conformant. OKF standardizes the store; Kage is the verification/freshness layer
+  Google deliberately left out of the spec.
+- **New `kage okf` command:** `migrate` (render the store as an OKF bundle), `lint`
+  (conformance check), and `import` (read any OKF bundle, including third-party ones).
+- **The on-disk packet format flipped from JSON to `.md`.** All read/write paths
+  dispatch on extension, so legacy `.json` packets are still read transparently and
+  existing stores keep working. The round-trip is lossless.
+- New `mcp/okf.ts` adapter; the merge driver, repair, sync, diff-proposal, viewer,
+  and `.gitattributes`/`.gitignore` all updated for `.md`. Full suite (360 unit + 12
+  dogfood tests) green.
+
 ## v2.5.7 — honest dollar estimate (no more 5x overstatement)
 
 - **The savings $ estimate used $15/1M input tokens — Opus pricing — but the

@@ -1,7 +1,7 @@
 {
   "name": "@kage-core/kage-graph-mcp",
-  "version": "2.5.7",
-  "description": "Team memory for coding agents: captures the decisions, runbooks, and bug fixes that get lost, verified against your code and shared via git. MCP server, no account, no API key.",
+  "version": "3.0.0",
+  "description": "Verified memory for coding agents, stored as a Google Open Knowledge Format (OKF) bundle and checked against your code. The verification layer OKF leaves out. MCP server, no account, no API key.",
   "main": "dist/index.js",
   "files": [
     "dist/**/*.js",

@@ -312,7 +312,7 @@ export function startLiveFeed(projectRoot: string, options: { heartbeatMs?: numb
   try {
     watchers.push(watch(packetsDir, (_event, filename) => {
       const name = String(filename ?? "");
-      if (!name.endsWith(".json")) return;
+      if (!name.endsWith(".json") && !name.endsWith(".md")) return;
       debounced(`packet:${name}`, () => onPacketChange(name));
     }));
   } catch {

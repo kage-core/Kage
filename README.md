@@ -3,7 +3,7 @@
 <img src="docs/assets/kage-banner.svg" alt="Kage" width="150%">
 
 
-### Team memory for coding agents that never gets lost
+### Verified memory for coding agents — a Google OKF bundle, kept true to your code
 
 <img src="docs/assets/kage-viewer-walkthrough.gif" alt="kage viewer: a team's captured decisions, runbooks, and bug fixes mapped to the code they're grounded in, with trust and savings — a live walkthrough" width="760">
 
@@ -11,10 +11,13 @@
 
 The decisions behind your codebase, the runbook for a tricky deploy, the root cause of a
 gnarly bug: this knowledge lives in people's heads and scrolls past in chat, then gets lost.
-**Kage** captures it as your coding agents work, keeps it as plain files in your repo, and
-shares it with your whole team through git. The next session, yours or a teammate's, starts
-already knowing it. Every memory is also checked against the actual code, so what gets shared
-stays true. No account, no database, no API key.
+**Kage** captures it as your coding agents work, keeps it as a
+[Google Open Knowledge Format (OKF)](https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf)
+bundle in your repo — plain Markdown concept files any OKF consumer can read — and shares it
+with your whole team through git. The next session, yours or a teammate's, starts already
+knowing it. Every memory is also checked against the actual code, so what gets shared stays
+true. **OKF standardizes the store; Kage is the verification layer Google left out.** No
+account, no database, no API key.
 
 ```bash
 npx -y @kage-core/kage-graph-mcp install
@@ -172,6 +175,7 @@ kage verify --project .        # check citations against current code
 kage pr check --project .      # stale-catch + graph freshness gate
 kage gains --project .         # what Kage saved you
 kage viewer --project .        # local dashboard
+kage okf migrate --project .   # render memory as a Google OKF bundle
 ```
 
 Full CLI and MCP reference: [docs](https://kage-core.com/guide.html).
