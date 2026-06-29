@@ -381,28 +381,6 @@ tags: [auth, security]
       </section>
 
       <section class="section">
-        <div class="wrap feature flip">
-          <div class="feature-copy">
-            <span class="eyebrow">Recall — already warm</span>
-            <h2>Every session starts knowing.</h2>
-            <p class="lede">Verified memory for the task is injected as the agent works — on every prompt, and the moment it opens a cited file.</p>
-            <a class="more" href="viewer/">Watch memory stream in, live →</a>
-          </div>
-          <div class="sysmsg" aria-label="What Kage injects at session start">
-            <div class="head"><span>SessionStart · injected</span><span>~600 tokens</span></div>
-            <div class="body"><span class="g"># Open threads (Kage)</span>
-Change memory: payment retry consolidation <span class="dim">(master)</span>
-Drafts awaiting review: 1 · <span class="dim">kage inbox</span>
-
-<span class="g"># Always-on repo facts (pinned)</span>
-<span class="dim">·</span> retry paths must stay separate — idempotency keys
-<span class="dim">·</span> auth uses jose, not jsonwebtoken — CVE in a transitive dep
-<span class="dim">·</span> npm test --prefix mcp before release</div>
-          </div>
-        </div>
-      </section>
-
-      <section class="section">
         <div class="wrap feature">
           <div class="feature-copy">
             <span class="eyebrow">Catch — before it merges</span>
@@ -421,27 +399,6 @@ Drafts awaiting review: 1 · <span class="dim">kage inbox</span>
               <b>Webhook retries are capped at 3</b>
               <span>cites src/webhooks/retry.ts — constant removed</span>
               <span class="fix">fix: kage learn (update) — then this warning disappears</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="wrap feature flip">
-          <div class="feature-copy">
-            <span class="eyebrow">Sync — no account</span>
-            <h2>Memory that follows you.</h2>
-            <p class="lede">Personal memory syncs over a private git remote <em>you</em> own — re-verified on each machine before recall trusts it.</p>
-            <a class="more" href="CLOUD.md">The sync &amp; cloud design →</a>
-          </div>
-          <div class="syncwrap">
-            <div class="syncchip"><span class="dot"></span>git@github.com:you/kage-memory.git<span class="st">● synced · 2 machines</span></div>
-            <div class="terminal">
-              <div class="terminal-head"><span>kage sync</span><span>your remote, your keys</span></div>
-              <pre>$ kage sync
-pushed 2, pulled 1, resolved 0
-$ kage learn --personal --learning "Always run the full suite before releasing"
-✓ captured · personal · synced across machines</pre>
             </div>
           </div>
         </div>
@@ -557,22 +514,6 @@ Seeded 3 grounded memories in a throwaway repo
 <span style="color:var(--green-strong)">Checks: write-time rejection ✓ · stale withholding ✓ · grounded recall ✓</span></pre>
           </div>
           <p class="demo-cap">See what your own repo is hiding first: <code>npx -y @kage-core/kage-graph-mcp scan --project .</code></p>
-        </div>
-      </section>
-
-      <!-- ——————————————— TESTIMONIALS ——————————————— -->
-      <section class="section">
-        <div class="wrap">
-          <div class="section-head">
-            <span class="eyebrow">Early users</span>
-            <h2>The receipts speak first.</h2>
-            <p class="lede">Kage is days old in its current form — we'd rather show you a blank wall than fake quotes. These three spots belong to the first teams who run it.</p>
-          </div>
-          <div class="cards">
-            <div class="card"><p style="font-style: italic;">"Your quote here — after we run the Truth Report on your repo, live."</p><p style="margin-top:12px; color: var(--faint); font-size: 13px;">— First design partner · <a href="demo.html" style="color: var(--green);">book the demo</a></p></div>
-            <div class="card"><p style="font-style: italic;">"Your quote here — after the first stale-catch saves your PR."</p><p style="margin-top:12px; color: var(--faint); font-size: 13px;">— Second design partner · <a href="demo.html" style="color: var(--green);">book the demo</a></p></div>
-            <div class="card"><p style="font-style: italic;">"Your quote here — after a week of receipts."</p><p style="margin-top:12px; color: var(--faint); font-size: 13px;">— Third design partner · <a href="demo.html" style="color: var(--green);">book the demo</a></p></div>
-          </div>
         </div>
       </section>
 
