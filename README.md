@@ -45,8 +45,6 @@ npx -y @kage-core/kage-graph-mcp install
 **Works with** Claude Code · Codex · Cursor · Windsurf · Gemini CLI · Cline · Goose ·
 Roo Code · Kilo Code · OpenCode · Aider · Claude Desktop · Copilot · OpenClaw · Hermes · any MCP client
 
-🌐 English · [简体中文](translations/README.zh-CN.md) · [日本語](translations/README.ja.md) · [한국어](translations/README.ko.md) · [Español](translations/README.es.md) · [Português (Brasil)](translations/README.pt-BR.md) · [Français](translations/README.fr.md) · [Deutsch](translations/README.de.md) · [हिन्दी](translations/README.hi.md)
-
 </div>
 
 ---
