@@ -1,5 +1,5 @@
 <!-- Kage -> OKF pivot plan. 2026-06-28. Verification/freshness layer for Google Open Knowledge Format. -->
-> Status: DECISION-READY PROPOSAL. Supersedes the Probe framing in PIVOT.md where they conflict.
+> Status: DECISION-READY PROPOSAL. Supersedes the earlier Probe framing where they conflict.
 
 # Kage → OKF: The Definitive Pivot Plan
 
@@ -17,7 +17,7 @@
 
 The strategic logic is a three-line syllogism, and each line is load-bearing:
 
-1. **Google standardized the store.** OKF is, almost word for word, the artifact the prior `NO_STORE_MEMORY.md` research identified as the thing that rots: "a curated NL record-store that asserts facts about a source of truth from *outside* it." A concept doc says "the `orders` table has a `coupon_code` column"; the table changes; the doc does not. That is the canonical drift failure.
+1. **Google standardized the store.** OKF is, almost word for word, the artifact the prior no-store-memory research identified as the thing that rots: "a curated NL record-store that asserts facts about a source of truth from *outside* it." A concept doc says "the `orders` table has a `coupon_code` column"; the table changes; the doc does not. That is the canonical drift failure.
 
 2. **Google left the checker unbuilt — on purpose.** Grounding line 22 is explicit: freshness checking, validation against source of truth, claim verification, staleness detection, and consistency verification are all out of scope for v0.1. OKF even ships the *anchors* a verifier needs — `resource` (the asset URI to check against), `# Citations`, `timestamp`, `log.md` — and then ships no checker. This is not an oversight. OKF's stated charter is **"format, not platform: no cloud/DB/model/account/SDK required."** Verification *requires* connecting to live infrastructure (warehouses, repos, credentials, schedulers). So the gap is **charter-protected**: it is exactly the thing OKF's design principles commit Google *not* to building into the spec.
 
@@ -35,7 +35,7 @@ OKF is a store format, and the mapping has two halves with very different status
 
 ### 3.1 The store half maps cleanly (and is the natural fit)
 
-Kage's `decision` / `rationale` / `gotcha` / `negative_result` packets — the sub-100-packet irreducible store that `NO_STORE_MEMORY.md` concedes survives — become OKF concept `.md` files almost 1:1.
+Kage's `decision` / `rationale` / `gotcha` / `negative_result` packets — the sub-100-packet irreducible store that the no-store-memory analysis concedes survives — become OKF concept `.md` files almost 1:1.
 
 | Kage packet field (schema v2) | OKF destination | Notes |
 |---|---|---|
@@ -82,7 +82,7 @@ This is the crux — the axis Google deferred and Kage's entire IP. The verifica
 >
 > - **Tier A — staleness tripwire (exists today):** "the source behind this concept changed since its `timestamp`." Honest label: *stale*, not *false*. The `source_hash` fingerprint. Already in the engine.
 > - **Tier B — structured claim-vs-reality (net-new, but mechanical and genuinely defensible):** schema diff (`# Schema` columns/types vs live table), function-signature diff (the code graph's symbol spans vs current HEAD), broken-citation / dead-link resolution, OKF conformance. All deterministic, reproducible, signable, **LLM-free**. The signature differ — re-deriving from the multilingual code graph — is the part Google's BigQuery-only enrichment agent structurally cannot match.
-> - **Tier C — prose-claim judgment (hard-walled OFF the verdict path):** "this metric excludes refunds." The only general verifier is an LLM, which is non-deterministic, non-reproducible, reintroduces the false positives that killed the Probe claim-vs-diff gate, and breaks the "re-run, identical hash" promise. **If offered at all, label it advisory, keep it off the signed scorecard.** This is the Fork-1 discipline `PIVOT.md` already learned.
+> - **Tier C — prose-claim judgment (hard-walled OFF the verdict path):** "this metric excludes refunds." The only general verifier is an LLM, which is non-deterministic, non-reproducible, reintroduces the false positives that killed the Probe claim-vs-diff gate, and breaks the "re-run, identical hash" promise. **If offered at all, label it advisory, keep it off the signed scorecard.** This is the Fork-1 discipline the earlier Probe pivot already learned.
 >
 > The honest one-liner is therefore narrower than "verify every concept": **"Kage detects when an OKF concept's source has drifted, and when its *structured* claims no longer match the source — deterministically, no LLM on the verdict, re-run and get the identical hash."** This is true to the engine and defensible. The grandiose version is not.
 
@@ -319,4 +319,4 @@ The design tracks wanted *both* full open-standards distribution *and* a proprie
 
 ---
 
-**Relevant files:** `/Users/kushaljain/code/Kage/PIVOT.md` (prior Probe pivot; "memory demoted to evidence cache" + the Fork-1 no-LLM-on-verdict discipline), `/Users/kushaljain/code/Kage/NO_STORE_MEMORY.md` (the store-vs-oracle boundary gating which half maps to OKF), `/Users/kushaljain/code/Kage/mcp/kernel.ts` (the surviving engine — `truthReport`, `verifyCitations`, `detectContradictions`, `source_hash` staleness, `impactSurface`, `shortestDependencyPath`, `supersedeMemory`, `createSignedManifest`, `truthScorecardSvg`), `/Users/kushaljain/code/Kage/mcp/cli.ts` (`scan` → `okf verify`), `/Users/kushaljain/code/Kage/mcp/index.ts` (75 `kage_*` tools to prune to ~15), `/Users/kushaljain/code/Kage/mcp/daemon.ts` (`startViewer`/`startLiveFeed` → OKF visualizer + trust overlay), and the grounding at `/private/tmp/claude-501/-Users-kushaljain-code-Kage/de36686e-0f9d-4e91-983d-75b9a96411cf/scratchpad/okf-pivot-grounding.md`.
+**Relevant files:** `/Users/kushaljain/code/Kage/OKF_STANDARD.md` (the OKF conformance spec Kage targets), `/Users/kushaljain/code/Kage/mcp/kernel.ts` (the surviving engine — `truthReport`, `verifyCitations`, `detectContradictions`, `source_hash` staleness, `impactSurface`, `shortestDependencyPath`, `supersedeMemory`, `createSignedManifest`, `truthScorecardSvg`), `/Users/kushaljain/code/Kage/mcp/cli.ts` (`scan` → `okf verify`), `/Users/kushaljain/code/Kage/mcp/index.ts` (75 `kage_*` tools to prune to ~15), `/Users/kushaljain/code/Kage/mcp/daemon.ts` (`startViewer`/`startLiveFeed` → OKF visualizer + trust overlay), and the grounding at `/private/tmp/claude-501/-Users-kushaljain-code-Kage/de36686e-0f9d-4e91-983d-75b9a96411cf/scratchpad/okf-pivot-grounding.md`.

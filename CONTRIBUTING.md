@@ -37,8 +37,6 @@ Requirements:
 | `plugin/`       | Editor/agent plugin assets.                                             |
 | `skills/`       | Reusable skills shipped with Kage.                                      |
 | `docs/`         | Documentation and the published guide.                                  |
-| `launch/`       | Launch and marketing assets.                                            |
-| `translations/` | Localized strings — adding a language here is welcome.                  |
 | `.agent_memory/`| Kage's own memory store (Kage dogfoods itself — see below).             |
 
 Inside `.agent_memory/`:
@@ -104,8 +102,7 @@ artifacts; they're rebuildable with `kage refresh`.
 New here? Look for issues labeled
 [`good first issue`](https://github.com/kage-core/Kage/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 These are scoped to be approachable without deep knowledge of the codebase.
-Adding a translation under `translations/`, tightening docs, or improving error
-messages are all great places to start.
+Tightening docs or improving error messages are great places to start.
 
 Have an idea that isn't filed yet? Open an issue describing it, or start a
 discussion. We'd rather hear from you early.

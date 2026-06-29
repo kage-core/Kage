@@ -29,7 +29,7 @@
 
   <g>
     <rect x="828" y="27" width="185" height="136" rx="12" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
-    <text x="920.5" y="100" text-anchor="middle" font-size="42" font-weight="700" fill="#0969da">370+</text>
+    <text x="920.5" y="100" text-anchor="middle" font-size="42" font-weight="700" fill="#0969da">360+</text>
     <text x="920.5" y="132" text-anchor="middle" font-size="12.5" font-weight="600" letter-spacing="1.2" fill="#57606a">TESTS PASSING</text>
   </g>
 

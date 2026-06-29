@@ -27,7 +27,7 @@ The current focus.
 Planned, not yet started.
 
 - **Distribution presence.** First-class listings across MCP directories and
-  agent plugin marketplaces (see [`launch/directory-listings.md`](./launch/directory-listings.md)).
+  agent plugin marketplaces.
 - **Team-memory workflows.** Smoother review of memory changes in the same PR as
   the code — conflict handling, branch overlays, reviewer hints.
 - **Viewer dashboard polish.** A clearer landing overview, better live-feed
@@ -48,7 +48,6 @@ Directional, further out.
 Approachable, well-scoped, and a great way to get started. Many of these are or
 will be tagged `good first issue`.
 
-- **Translations.** Add or improve a language under [`translations/`](./translations) — **`good first issue`**.
 - **Better error messages.** Make failures self-explanatory and actionable — **`good first issue`**.
 - **Docs tightening.** Fix anything stale or unclear in `docs/` or the README — **`good first issue`**.
 - **Scorecard themes.** Light-mode / compact variants of the scan scorecard — **`help wanted`**.
