@@ -2,7 +2,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { daemonDoctor, readDaemonStatus, startDaemon, startViewer, stopDaemon } from "./daemon.js";
@@ -125,7 +125,7 @@ import {
   type SetupAgent,
 } from "./kernel.js";
 import { buildGraphRegistryManifest } from "./graph-registry.js";
-import { lintOkfBundle, loadOkfConcepts, migratePacketsToOkf, okfBundleDir } from "./okf.js";
+import { lintOkfBundle, loadOkfConcepts, migratePacketsToOkf, okfBundleDir, okfViewerHtml } from "./okf.js";
 
 const CORE_USAGE = `Kage — code-grounded memory for coding agents
 
@@ -602,7 +602,18 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (sub === "view") {
+      migratePacketsToOkf(project, { includePending: args.includes("--pending") });
+      const concepts = loadOkfConcepts(okfBundleDir(project), { projectDir: project });
+      const out = join(okfBundleDir(project), "viewer.html");
+      writeFileSync(out, okfViewerHtml(concepts, { title: basename(project) }), "utf8");
+      console.log(`OKF viewer: ${concepts.length} concept(s) — a self-contained page, no server, no giant URL.`);
+      console.log(`Open it:  open ${out}`);
+      return;
+    }
+
     console.log("kage okf — Open Knowledge Format is Kage's standard memory format.");
+    console.log("  kage okf view [--project <dir>]                   view your memory as a clean OKF bundle (self-contained page)");
     console.log("  kage okf migrate [--project <dir>] [--pending]   packets → OKF bundle (.agent_memory/okf)");
     console.log("  kage okf lint [<dir|file>] [--project <dir>]      check OKF conformance");
     console.log("  kage okf import [<dir>] [--project <dir>] [--json]  read an OKF bundle back into packets");

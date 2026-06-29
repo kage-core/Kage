@@ -1,5 +1,14 @@
 # Changelog
 
+## v3.1.0 — cleaner viewer + `kage okf view`
+
+- **`kage okf view`** — open your memory as a clean, self-contained OKF bundle
+  viewer: a single HTML page (no server, no giant URL) where every concept is a
+  filterable card showing its OKF type, `resource`, and verification status,
+  click-through to the body. Works on any OKF bundle, not just Kage's.
+- **`kage viewer` now prints a clean URL** (`http://127.0.0.1:3113/`) instead of a
+  ~500-character query string; the live feed watches `.md` packets.
+
 ## v3.0.0 — Open Knowledge Format is now Kage's standard
 
 - **Memory is now stored and exchanged in Google's [Open Knowledge Format

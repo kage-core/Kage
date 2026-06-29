@@ -933,7 +933,7 @@ export async function startViewer(projectDir: string, options: { host?: string; 
   });
 
   await new Promise<void>((resolveListen) => server.listen(port, host, resolveListen));
-  console.log(`Kage viewer listening on ${url}`);
+  console.log(`Kage viewer → http://${host}:${port}/`);
   process.on("SIGTERM", () => {
     liveFeed.close();
     server.close(() => process.exit(0));

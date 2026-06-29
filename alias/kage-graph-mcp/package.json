@@ -1,6 +1,6 @@
 {
   "name": "kage-graph-mcp",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Kage: a framework for collaborative agent memory. Unscoped alias of @kage-core/kage-graph-mcp (so commands paste cleanly on sites that auto-link @mentions).",
   "license": "GPL-3.0-only",
   "repository": {

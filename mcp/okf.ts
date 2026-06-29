@@ -406,6 +406,103 @@ export function loadOkfConcepts(dir: string, opts: { projectDir?: string } = {})
   return out;
 }
 
+// A clean, self-contained OKF bundle viewer — one HTML file with the concepts
+// inlined, so it opens directly in a browser (no server, no giant URL). Renders
+// concepts as filterable cards with their OKF type, resource, and verification
+// status; click for the body. This is the "view your memory as an OKF bundle"
+// experience, and it works on ANY OKF bundle, not just Kage's.
+export function okfViewerHtml(concepts: MemoryPacket[], opts: { title?: string } = {}): string {
+  const rows = concepts.map((p) => ({
+    t: okfType(p.type),
+    title: p.title,
+    desc: p.summary || "",
+    resource: p.paths?.[0] || "",
+    tags: p.tags || [],
+    v: okfVerifiedStatus(p),
+    body: p.body || "",
+    updated: (p.updated_at || "").slice(0, 10),
+  }));
+  const data = JSON.stringify(rows).replace(/<\/(script)/gi, "<\\/$1");
+  const title = (opts.title || "Kage").replace(/[<>&"]/g, "");
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OKF bundle — ${title}</title>
+<style>
+:root{--g:#1f9d57;--ink:#16201a;--mut:#5b665e;--line:#e3e6e0;--paper:#fff;--bg:#f7f8f6;--code:#0c110d}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 -apple-system,Segoe UI,Inter,sans-serif;color:var(--ink);background:var(--bg)}
+header{padding:26px 24px 18px;border-bottom:1px solid var(--line);background:var(--paper)}
+.wrap{max-width:1120px;margin:0 auto}
+.brand{display:flex;align-items:center;gap:9px;font-weight:600;font-size:13px;color:var(--mut)}
+.brand .dot{width:17px;height:17px;border-radius:5px;border:1.5px solid var(--g);position:relative}
+.brand .dot::after{content:"";position:absolute;inset:4px;border-radius:50%;background:var(--g);opacity:.5}
+h1{margin:10px 0 2px;font-size:22px}
+.stats{color:var(--mut);font-size:13.5px}.stats b{color:var(--ink)}
+.controls{max-width:1120px;margin:16px auto 0;padding:0 24px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+#q{flex:1;min-width:200px;padding:9px 13px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:var(--paper);color:var(--ink)}
+#chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{padding:6px 11px;border:1px solid var(--line);border-radius:999px;background:var(--paper);color:var(--mut);font-size:12.5px;cursor:pointer}
+.chip.on{border-color:var(--g);color:var(--g);font-weight:600}
+main#grid{max-width:1120px;margin:18px auto 60px;padding:0 24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.card{padding:15px 16px;border:1px solid var(--line);border-radius:12px;background:var(--paper);cursor:pointer;transition:border-color .12s}
+.card:hover{border-color:var(--g)}
+.meta{display:flex;align-items:center;gap:8px}
+.badge{font:600 10.5px/1 ui-monospace,monospace;text-transform:uppercase;letter-spacing:.05em;color:var(--g);background:rgba(31,157,87,.1);padding:4px 7px;border-radius:5px}
+.pill{margin-left:auto;font:600 11px/1 ui-monospace,monospace;padding:3px 8px;border-radius:999px}
+.pill.ok{color:#0c7a4d;background:rgba(12,122,77,.12)}.pill.warn{color:#9a6b08;background:rgba(154,107,8,.14)}.pill.dim{color:var(--mut);background:rgba(0,0,0,.05)}
+.ti{margin-top:9px;font-weight:600;font-size:15px;line-height:1.3}
+.res{margin-top:6px;font:12px/1.4 ui-monospace,monospace;color:#155e9c;word-break:break-all}
+.ds{margin-top:7px;color:var(--mut);font-size:13px}
+.empty{color:var(--mut);padding:50px;text-align:center;grid-column:1/-1}
+.detail{position:fixed;top:0;right:0;width:min(560px,93vw);height:100vh;overflow:auto;background:var(--paper);border-left:1px solid var(--line);box-shadow:-8px 0 34px rgba(0,0,0,.1);padding:24px 26px 60px;z-index:10}
+.detail.hidden{display:none}
+.detail .x{position:absolute;top:13px;right:16px;border:0;background:none;font-size:25px;color:var(--mut);cursor:pointer;line-height:1}
+.detail h2{margin:12px 0 4px;font-size:19px}
+.tags{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px}.tags span{font:11px/1 ui-monospace,monospace;color:var(--mut);background:rgba(0,0,0,.05);padding:4px 7px;border-radius:5px}
+.detail pre{margin-top:16px;padding:14px 15px;background:var(--code);color:#c7cfc4;border-radius:10px;white-space:pre-wrap;font:12.5px/1.7 ui-monospace,monospace}
+.upd{font:11px/1 ui-monospace,monospace;color:var(--mut)}
+@media (prefers-color-scheme:dark){:root{--ink:#e7ebe4;--mut:#9aa49c;--line:#2a2f2a;--bg:#0e110e}body{background:var(--bg)}header,.card,#q,.chip,.detail{background:#161a16}.badge{background:rgba(31,157,87,.16)}.pill.dim{background:rgba(255,255,255,.07)}.tags span{background:rgba(255,255,255,.07)}}
+</style></head><body>
+<header><div class="wrap">
+  <div class="brand"><span class="dot"></span> Open Knowledge Format · viewed with Kage</div>
+  <h1>${title} — memory bundle</h1>
+  <div class="stats"><b id="n">0</b> concepts · <b id="nv">0</b> verified · <b id="nd">0</b> need attention</div>
+</div></header>
+<div class="controls"><input id="q" placeholder="Search concepts…" autocomplete="off"><div id="chips"></div></div>
+<main id="grid"></main>
+<div id="detail" class="detail hidden"></div>
+<script>
+var C=${data};
+(function(){
+  var grid=document.getElementById('grid'),q=document.getElementById('q'),chips=document.getElementById('chips'),detail=document.getElementById('detail'),active='all';
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];});}
+  function vClass(v){return v==='fresh'||v==='verified'?'ok':(v==='drifted'||v==='stale'?'warn':'dim');}
+  var nv=0,nd=0;C.forEach(function(c){if(c.v==='fresh'||c.v==='verified')nv++;if(c.v==='drifted'||c.v==='stale')nd++;});
+  document.getElementById('n').textContent=C.length;document.getElementById('nv').textContent=nv;document.getElementById('nd').textContent=nd;
+  var types={};C.forEach(function(c){types[c.t]=(types[c.t]||0)+1;});
+  function mkChip(label,key){var b=document.createElement('button');b.className='chip'+(key==='all'?' on':'');b.textContent=label;b.onclick=function(){active=key;[].forEach.call(chips.children,function(x){x.classList.remove('on');});b.classList.add('on');render();};chips.appendChild(b);}
+  mkChip('All '+C.length,'all');Object.keys(types).sort().forEach(function(t){mkChip(t+' '+types[t],t);});
+  q.oninput=render;
+  function render(){var term=q.value.toLowerCase();grid.innerHTML='';var shown=0;
+    C.forEach(function(c){
+      if(active!=='all'&&c.t!==active)return;
+      if(term&&(c.title+' '+c.desc+' '+c.resource+' '+c.tags.join(' ')).toLowerCase().indexOf(term)<0)return;
+      shown++;var card=document.createElement('div');card.className='card';
+      card.innerHTML='<div class="meta"><span class="badge">'+esc(c.t)+'</span><span class="pill '+vClass(c.v)+'">'+esc(c.v)+'</span></div><div class="ti">'+esc(c.title)+'</div>'+(c.resource?'<div class="res">'+esc(c.resource)+'</div>':'')+'<div class="ds">'+esc(c.desc.slice(0,150))+'</div>';
+      card.onclick=function(){show(c);};grid.appendChild(card);
+    });
+    if(!shown)grid.innerHTML='<div class="empty">No concepts match.</div>';
+  }
+  function show(c){
+    detail.innerHTML='<button class="x" aria-label="Close" onclick="document.getElementById(\\'detail\\').classList.add(\\'hidden\\')">&times;</button><div class="meta"><span class="badge">'+esc(c.t)+'</span><span class="pill '+vClass(c.v)+'">'+esc(c.v)+'</span>'+(c.updated?'<span class="upd" style="margin-left:8px">'+esc(c.updated)+'</span>':'')+'</div><h2>'+esc(c.title)+'</h2>'+(c.resource?'<div class="res">resource · '+esc(c.resource)+'</div>':'')+(c.tags.length?'<div class="tags">'+c.tags.map(function(t){return '<span>'+esc(t)+'</span>';}).join('')+'</div>':'')+'<pre>'+esc(c.body)+'</pre>';
+    detail.classList.remove('hidden');
+  }
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')detail.classList.add('hidden');});
+  render();
+})();
+</script></body></html>
+`;
+}
+
 export function lintOkfBundle(dir: string): { files: number; failures: Array<{ path: string; errors: string[] }> } {
   const failures: Array<{ path: string; errors: string[] }> = [];
   let files = 0;
