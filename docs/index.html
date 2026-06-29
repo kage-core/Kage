@@ -53,6 +53,12 @@
       .okf-badge:hover { border-color: var(--green); }
       .okf-badge .by { color: var(--faint); font-weight: 500; }
       .okf-badge .arr { color: var(--green); }
+      .okf-badge .by { display: inline-flex; align-items: center; gap: 4px; }
+      .okf-badge .by img { width: 13px; height: 13px; }
+      .okf-lockup { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin-bottom: 14px; }
+      .okf-lockup img { width: 19px; height: 19px; }
+      .okf-lockup .lbl { color: #d6dcd2; font: 600 13px/1 var(--sans); }
+      .okf-lockup .sep { color: rgba(255,255,255,0.22); }
       .okf-band { background: var(--code-bg); padding: 84px 0; }
       .okf-band .eyebrow { color: var(--green-strong); }
       .okf-band h2 { color: #f3f6f2; max-width: 760px; }
@@ -231,27 +237,19 @@
                 <path d="M7.6 7.5 L16.4 8.6 M7.6 7.5 L11 16.2 M16.4 8.6 L11 16.2" stroke="var(--green)" stroke-width="1.1" opacity="0.55"/>
                 <circle cx="7.6" cy="7.5" r="2.1" fill="var(--green)"/><circle cx="16.4" cy="8.6" r="2.1" fill="var(--green)"/><circle cx="11" cy="16.2" r="2.1" fill="var(--green)"/>
               </svg>
-              Built on Open Knowledge Format <span class="by">· Google Cloud</span> <span class="arr">↗</span>
+              Built on Open Knowledge Format <span class="by">·&nbsp;<img src="assets/google-g.svg" alt="" aria-hidden="true" width="13" height="13"> Google Cloud</span> <span class="arr">↗</span>
             </a>
             <h1>Your coding agent forgets everything. Kage gives it memory that's <span class="accent">verified</span> against your code.</h1>
             <p class="hero-copy">
-              Open, git-native memory your team's coding agents read and write together.
-              Every lesson an agent learns becomes a conformant <a href="https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf">Open Knowledge Format</a>
-              concept in your repo: plain Markdown, versioned in git, reviewed in pull requests,
-              readable by any OKF tool. Kage checks each one against your code, so deleted and
-              stale citations get caught before they mislead anyone — the verification layer
-              OKF leaves out.
+              Memory your agents read and write as a <a href="https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf">Google&nbsp;OKF</a>
+              bundle in your repo — checked against your code, so it never goes stale.
             </p>
             <div class="cmd">
               <span class="ps1">$</span>
               <span id="install-cmd">npx -y @kage-core/kage-graph-mcp install</span>
               <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('install-cmd').textContent).then(()=>{this.textContent='copied';setTimeout(()=>this.textContent='copy',1200)})">copy</button>
             </div>
-            <p style="margin:14px 0 6px;color:var(--muted);font:400 14px/1.5 var(--sans)">One command sets up everything, then restart your agent. <strong style="color:var(--ink)">Or just tell your agent:</strong></p>
-            <div class="cmd">
-              <span id="agent-prompt">Set up Kage in this repo (https://github.com/kage-core/Kage): run npx -y @kage-core/kage-graph-mcp install, then tell me to restart you.</span>
-              <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('agent-prompt').textContent).then(()=>{this.textContent='copied';setTimeout(()=>this.textContent='copy',1200)})">copy</button>
-            </div>
+            <p style="margin:12px 0 0;color:var(--muted);font:400 14px/1.5 var(--sans)">One command, then restart your agent. No account, no API key.</p>
             <div class="actions">
               <a class="button primary" href="guide.html#quickstart">Install in 60s</a>
               <a class="button" href="https://github.com/kage-core/Kage">★ Star on GitHub</a>
@@ -286,25 +284,33 @@
       <section class="okf-band">
         <div class="wrap">
           <div class="section-head">
-            <span class="eyebrow">Open Knowledge Format · by Google Cloud</span>
+            <div class="okf-lockup">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="1.5" y="1.5" width="21" height="21" rx="6" stroke="var(--green)" stroke-width="1.5"/>
+                <path d="M7.6 7.5 L16.4 8.6 M7.6 7.5 L11 16.2 M16.4 8.6 L11 16.2" stroke="var(--green)" stroke-width="1.1" opacity="0.55"/>
+                <circle cx="7.6" cy="7.5" r="2.1" fill="var(--green)"/><circle cx="16.4" cy="8.6" r="2.1" fill="var(--green)"/><circle cx="11" cy="16.2" r="2.1" fill="var(--green)"/>
+              </svg>
+              <span class="lbl">Open Knowledge Format</span>
+              <span class="sep">·</span>
+              <img src="assets/google-g.svg" alt="Google" width="18" height="18">
+              <span class="lbl">Google Cloud</span>
+            </div>
             <h2>Kage called it. Google made it the <span class="accent">standard</span>.</h2>
           </div>
           <div class="okf-grid">
             <div>
               <p class="okf-lede">
-                From day one, Kage kept your agents' memory as <strong style="color:#e6ebe3">plain files in your repo</strong> —
-                versioned in git, reviewed in PRs. No cloud, no database, no lock-in, while everyone else
-                was building memory clouds. In June 2026, Google Cloud shipped the
-                <a href="https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf" target="_blank" rel="noopener">Open Knowledge Format</a>:
-                knowledge as Markdown in git, vendor-neutral, no account. The exact thesis Kage already ran on.
-                <strong style="color:#e6ebe3">So we adopted it on day one — and we supercharge it.</strong>
+                Kage always kept agent memory as plain files in your repo — no cloud, no lock-in,
+                while everyone else built memory clouds. In June 2026, Google Cloud shipped
+                <a href="https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf" target="_blank" rel="noopener">OKF</a>:
+                the same idea, now an open standard. <strong style="color:#e6ebe3">We adopted it on day one — and supercharge it.</strong>
               </p>
               <div class="okf-brings">
-                <div class="okf-bring"><span class="n">1</span><div><b>Verification</b><p>OKF stores what you wrote down. Kage checks every concept against your real code and refuses hallucinated citations at write time.</p></div></div>
-                <div class="okf-bring"><span class="n">2</span><div><b>Freshness</b><p>OKF has no notion of staleness. Kage catches drift the moment your code changes and withholds memory that's no longer true.</p></div></div>
-                <div class="okf-bring"><span class="n">3</span><div><b>Code-grounding</b><p>A deterministic code graph anchors each concept to the exact symbols it describes — the layer OKF deliberately leaves to tooling.</p></div></div>
+                <div class="okf-bring"><span class="n">1</span><div><b>Verification</b><p>Every concept is checked against your real code; hallucinated citations are refused on write.</p></div></div>
+                <div class="okf-bring"><span class="n">2</span><div><b>Freshness</b><p>OKF has no notion of staleness. Kage catches drift the moment code changes and withholds it.</p></div></div>
+                <div class="okf-bring"><span class="n">3</span><div><b>Code-grounding</b><p>A code graph anchors each concept to the exact symbols it describes.</p></div></div>
               </div>
-              <p class="okf-closer">OKF standardizes the store. <b>Kage is the verification and freshness layer Google left out</b> — carried in OKF-legal <code>x-kage-*</code> fields, so a Kage bundle stays 100% conformant and opens in any OKF tool, including Google's own visualizer.</p>
+              <p class="okf-closer">OKF standardizes the store. <b>Kage is the verification layer Google left out</b> — in OKF-legal <code>x-kage-*</code> fields, so a Kage bundle stays 100% conformant.</p>
             </div>
             <div class="okf-concept" aria-label="A Kage memory is a conformant OKF concept">
               <div class="h"><span>orders.md — a Kage memory, as an OKF concept</span><span class="ok">verified ✓</span></div>
@@ -346,7 +352,7 @@ tags: [auth, security]
           <div class="feature-copy">
             <span class="eyebrow">Capture — with proof</span>
             <h2>It takes notes. Then it checks them.</h2>
-            <p class="lede">Learnings become packets as the agent works — explicitly, or auto-distilled from the session with a signal gate. Every citation is validated against your repo <em>before</em> it's written. A memory citing a file that doesn't exist is refused on the spot.</p>
+            <p class="lede">Every memory is checked against your code before it's saved — cite a file that doesn't exist and it's refused on the spot.</p>
             <a class="more" href="guide.html#lifecycle">How a packet earns trust →</a>
           </div>
           <div class="stream" aria-label="Memory packets being written, verification visible">
@@ -379,7 +385,7 @@ tags: [auth, security]
           <div class="feature-copy">
             <span class="eyebrow">Recall — already warm</span>
             <h2>Every session starts knowing.</h2>
-            <p class="lede">On Claude Code, each session opens with your team's pinned repo facts and any open threads — and when the agent reads a file, the verified packets citing <em>that file</em> are injected right then, each recall with a token receipt. Other agents pull the same memory through the MCP tools.</p>
+            <p class="lede">Verified memory for the task is injected as the agent works — on every prompt, and the moment it opens a cited file.</p>
             <a class="more" href="viewer/">Watch memory stream in, live →</a>
           </div>
           <div class="sysmsg" aria-label="What Kage injects at session start">
@@ -401,7 +407,7 @@ Drafts awaiting review: 1 · <span class="dim">kage inbox</span>
           <div class="feature-copy">
             <span class="eyebrow">Catch — before it merges</span>
             <h2>Your diff gets fact-checked.</h2>
-            <p class="lede">No other memory tool does this: when your change invalidates what the team knows, <code>kage pr check</code> says so — in the same review as the code, with the fix one command away.</p>
+            <p class="lede">When your change invalidates what the team knew, <code>kage pr check</code> flags it in the same review — the fix one command away.</p>
             <a class="more" href="guide.html#cli">The stale-catch commands →</a>
           </div>
           <div class="prwarn" aria-label="kage pr check stale-catch output">
@@ -425,7 +431,7 @@ Drafts awaiting review: 1 · <span class="dim">kage inbox</span>
           <div class="feature-copy">
             <span class="eyebrow">Sync — no account</span>
             <h2>Memory that follows you.</h2>
-            <p class="lede">Personal memory lives in <code>~/.kage/memory</code> and syncs over a private git remote <em>you</em> own. Conflicts resolve newest-wins with both versions kept — and synced packets are re-verified against the local checkout before any recall trusts them.</p>
+            <p class="lede">Personal memory syncs over a private git remote <em>you</em> own — re-verified on each machine before recall trusts it.</p>
             <a class="more" href="CLOUD.md">The sync &amp; cloud design →</a>
           </div>
           <div class="syncwrap">
@@ -447,7 +453,7 @@ $ kage learn --personal --learning "Always run the full suite before releasing"
           <div class="section-head">
             <span class="eyebrow">Compare</span>
             <h2>Remembering is solved. Trusting isn't.</h2>
-            <p class="lede">Capture-everything memory solves <em>remembering</em>. Kage solves <em>trusting what's remembered</em> — and a memory system that never re-verifies its own claims gets less trustworthy the longer you use it.</p>
+            <p class="lede">Capture-everything memory solves <em>remembering</em>. Kage solves <em>trusting what's remembered</em> — it re-checks every claim against your code.</p>
           </div>
           <div class="compare-scroll">
             <table class="compare">
