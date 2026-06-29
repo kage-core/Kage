@@ -8,6 +8,7 @@ import { Worker } from "node:worker_threads";
 import * as ts from "typescript";
 import { createPublicCandidateBundleManifest, createSignedManifest, generateOrgRegistryManifest } from "./registry/index.js";
 import { okfConceptToPacket, packetToOkfConcept } from "./okf.js";
+import { averageNumber, codingMrr, codingNdcgAt, codingPrecisionAt, codingRecallAt, countByKey, percentileNumber, roundDecimal, titleCase } from "./metrics-math.js";
 
 export const PACKET_SCHEMA_VERSION = 2;
 
@@ -16069,29 +16070,6 @@ function codingQualityByCategory(perQuery: CodingMemoryQualityBenchmarkReport["p
   }));
 }
 
-function codingRecallAt(retrieved: Array<{ packet_id: string }>, relevant: Set<string>, k: number): number {
-  if (!relevant.size) return 0;
-  return retrieved.slice(0, k).filter((item) => relevant.has(item.packet_id)).length / relevant.size;
-}
-
-function codingPrecisionAt(retrieved: Array<{ packet_id: string }>, relevant: Set<string>, k: number): number {
-  const rows = retrieved.slice(0, k);
-  return rows.length ? rows.filter((item) => relevant.has(item.packet_id)).length / rows.length : 0;
-}
-
-function codingNdcgAt(retrieved: Array<{ packet_id: string }>, relevant: Set<string>, k: number): number {
-  const dcg = retrieved.slice(0, k).reduce((sum, item, index) => sum + (relevant.has(item.packet_id) ? 1 / Math.log2(index + 2) : 0), 0);
-  const idealHits = Math.min(relevant.size, k);
-  let ideal = 0;
-  for (let index = 0; index < idealHits; index += 1) ideal += 1 / Math.log2(index + 2);
-  return ideal ? dcg / ideal : 0;
-}
-
-function codingMrr(retrieved: Array<{ packet_id: string }>, relevant: Set<string>): number {
-  const index = retrieved.findIndex((item) => relevant.has(item.packet_id));
-  return index >= 0 ? 1 / (index + 1) : 0;
-}
-
 function codingTypeForCategory(category: string): MemoryType {
   if (category === "runbook") return "runbook";
   if (category === "decision") return "decision";
@@ -16101,35 +16079,6 @@ function codingTypeForCategory(category: string): MemoryType {
 
 function codingFileForTopic(topic: string, variant: number): string {
   return `src/${slugify(topic)}-${variant % 3}.ts`;
-}
-
-function averageNumber(values: number[]): number {
-  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
-}
-
-function percentileNumber(values: number[], p: number): number {
-  if (!values.length) return 0;
-  const sorted = values.slice().sort((a, b) => a - b);
-  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * p) - 1));
-  return sorted[index];
-}
-
-function roundDecimal(value: number, digits = 2): number {
-  const factor = 10 ** digits;
-  return Math.round(value * factor) / factor;
-}
-
-function countByKey<T>(rows: T[], fn: (row: T) => string): Record<string, number> {
-  const counts: Record<string, number> = {};
-  for (const row of rows) {
-    const key = fn(row);
-    counts[key] = (counts[key] ?? 0) + 1;
-  }
-  return counts;
-}
-
-function titleCase(value: string): string {
-  return value.replace(/\b[a-z]/g, (match) => match.toUpperCase());
 }
 
 function baselineDiscoveryFiles(projectDir: string, task: string): Array<{ path: string; tokens: number; why: string; score: number }> {
