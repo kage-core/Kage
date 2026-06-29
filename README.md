@@ -32,7 +32,7 @@ npx -y @kage-core/kage-graph-mcp install
   <a href="https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf"><img src="https://img.shields.io/badge/built%20on-Open%20Knowledge%20Format-41ff8f" alt="Built on Google Open Knowledge Format"></a>
 </p>
 
-<img src="docs/kage-stats.svg" alt="Kage in numbers: 96% R@5 recall, 0% stale served, 18% faster than grep, 0 dependencies, 340+ tests passing, 15 agents supported" width="820">
+<img src="docs/kage-stats.svg" alt="Kage in numbers: 96% R@5 recall, 0% stale served, 18% faster than grep, 0 dependencies, 370+ tests passing, 15 agents supported" width="820">
 
 <p>
   <a href="https://kage-core.com/">Website</a> ·
