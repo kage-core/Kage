@@ -3,21 +3,20 @@
 <img src="docs/assets/kage-banner.svg" alt="Kage" width="150%">
 
 
-### Verified memory for coding agents — a Google OKF bundle, kept true to your code
+### Google shipped OKF. Kage keeps it true.
 
 <img src="docs/assets/kage-viewer-walkthrough.gif" alt="kage viewer: a team's captured decisions, runbooks, and bug fixes mapped to the code they're grounded in, with trust and savings — a live walkthrough" width="760">
 
 <sub>`kage viewer`: your team's decisions, runbooks, and bug fixes (purple), kept in the repo and linked to the code they are about (blue).</sub>
 
-The decisions behind your codebase, the runbook for a tricky deploy, the root cause of a
-gnarly bug: this knowledge lives in people's heads and scrolls past in chat, then gets lost.
-**Kage** captures it as your coding agents work, keeps it as a
-[Google Open Knowledge Format (OKF)](https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf)
-bundle in your repo — plain Markdown concept files any OKF consumer can read — and shares it
-with your whole team through git. The next session, yours or a teammate's, starts already
-knowing it. Every memory is also checked against the actual code, so what gets shared stays
-true. **OKF standardizes the store; Kage is the verification layer Google left out.** No
-account, no database, no API key.
+In June 2026 Google shipped [**OKF (Open Knowledge Format)**](https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf):
+a standard for keeping knowledge as plain Markdown concept files in your repo, vendor-neutral, no
+lock-in. It standardizes the store and stops there. Verification, freshness, and staleness are
+explicitly *out of scope* for v0.1. **Kage is the framework that maintains it.** It captures what
+your coding agents learn as a conformant OKF bundle in git, then keeps every concept honest against
+your real code: a memory whose cited code no longer exists is rejected at write time, and one that
+drifts when the code changes is flagged and withheld until it is re-verified. Deterministic, no LLM
+on the verdict path. No account, no database, no API key.
 
 ```bash
 npx -y @kage-core/kage-graph-mcp install
