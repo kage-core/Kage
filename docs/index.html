@@ -480,23 +480,6 @@ tags: [auth, security]
   Stale-memory exclusion:          100%
   Live grounding rate:              98%</pre>
           </div>
-          <div class="terminal" aria-label="kage demo — the trust loop running live in a sandbox">
-            <div class="terminal-head"><span>kage demo</span><span>live sandbox · nothing canned</span></div>
-            <pre>$ npx -y @kage-core/kage-graph-mcp demo
-Seeded 3 grounded memories in a throwaway repo
-
-1 · Hallucinated citation
-   <span style="color:var(--danger)">✗ rejected on write</span> — "Use the helper in src/ghost.ts", file never existed
-
-2 · Stale memory (cited file deleted)
-   <span style="color:var(--warn)">⊘ withheld from recall</span> — "Legacy retry helper", src/legacy-retry.ts gone
-
-3 · Recall returns only grounded, current memory
-   <span style="color:var(--green-strong)">✓</span> Payments must be idempotent
-   <span style="color:var(--green-strong)">✓</span> Auth uses jose, not jsonwebtoken
-
-<span style="color:var(--green-strong)">Checks: write-time rejection ✓ · stale withholding ✓ · grounded recall ✓</span></pre>
-          </div>
           <p class="demo-cap">See what your own repo is hiding first: <code>npx -y @kage-core/kage-graph-mcp scan --project .</code></p>
         </div>
       </section>
