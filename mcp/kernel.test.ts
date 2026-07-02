@@ -288,6 +288,9 @@ test("installs and updates Codex agent policy idempotently", () => {
   const first = readFileSync(join(project, "AGENTS.md"), "utf8");
   assert.match(first, /Automatic Recall/);
   assert.match(first, /kage_context/);
+  // The no-tools fallback: an agent without the MCP server must still be pointed
+  // at the OKF bundle itself, so a fresh clone inherits memory with zero install.
+  assert.match(first, /\.agent_memory\/okf\/index\.md/);
 
   const second = installAgentPolicy(project);
   assert.equal(second.created, false);
