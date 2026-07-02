@@ -2393,25 +2393,32 @@ For normal coding tasks:
 For quick factual questions, \`kage_context\` alone is enough. For status or demo requests, call \`kage_metrics\`.
 ${AGENTS_POLICY_END}
 `;
+// Hooks pass raw user prompts as recall queries ("what is X? can we replace it"),
+// so interrogatives, pronouns, and auxiliaries must be stopwords too — otherwise
+// filler words collect BM25/vector/graph credit and drown the query's rare,
+// high-IDF terms (a packet literally titled with the queried term lost to
+// packets matching only "what"/"can"/"we").
 const STOPWORDS = new Set([
-  "a",
-  "an",
-  "and",
-  "are",
-  "do",
-  "does",
-  "for",
-  "how",
-  "i",
-  "in",
-  "is",
-  "it",
-  "of",
-  "on",
-  "or",
-  "the",
-  "to",
-  "with",
+  "a", "about", "again", "also", "an", "and", "are", "as", "at",
+  "be", "been", "being", "but", "by",
+  "can", "could",
+  "did", "do", "does",
+  "else",
+  "for", "from",
+  "had", "has", "have", "having", "he", "her", "hers", "here", "him", "his", "how",
+  "i", "if", "in", "into", "is", "it", "its",
+  "just",
+  "let", "lets",
+  "may", "me", "might", "mine", "my",
+  "no", "not",
+  "of", "on", "once", "or", "our", "ours", "over",
+  "please",
+  "shall", "she", "should", "so",
+  "than", "that", "the", "their", "theirs", "them", "then", "there", "these", "they", "this", "those", "to", "too",
+  "under", "us",
+  "very",
+  "was", "we", "were", "what", "when", "where", "which", "who", "whom", "whose", "why", "will", "would", "with",
+  "you", "your", "yours",
 ]);
 
 export function memoryRoot(projectDir: string): string {
@@ -9303,6 +9310,7 @@ export function refreshProject(projectDir: string, options: { full?: boolean; fo
   }
   const validation = validateProject(projectDir);
   const metrics = kageMetricsShallow(projectDir, { codeGraph, knowledgeGraph, validation });
+  pruneObservations(projectDir);
   ensureDir(reportsDir(projectDir));
   writeJson(join(reportsDir(projectDir), "context-slots.json"), kageContextSlots(projectDir));
   writeJson(join(reportsDir(projectDir), "handoff.json"), kageMemoryHandoff(projectDir));
@@ -10332,12 +10340,17 @@ function recallBreakdown(
   const vector = Number(vectorScore.toFixed(2));
   const usage = Number(usageScore.toFixed(2));
   const pathTypeTagWeight = packet.type === "reference" ? 0.2 : 0.8;
-  // Popularity (usage) must only AMPLIFY genuine relevance, never float a packet that has no
-  // lexical/semantic/graph/intent match to the top — that is what produced confident
-  // off-domain junk (a hot packet ranked #1 for a query it shared no terms with).
+  // Priors (usage, quality, freshness) must only AMPLIFY genuine relevance, never float a
+  // packet that has no lexical/semantic/graph/tag/intent match to the top — that is what
+  // produced confident off-domain junk: a hot, high-quality packet ranked above the one
+  // packet whose title literally contained the queried term, because its unconditional
+  // quality+freshness (~12 pts) beat a weak-but-real lexical match.
   const coreRelevance = textScore + graphScore + intent + vector;
+  const matchSignal = coreRelevance + pathTypeTag;
   const effectiveUsage = coreRelevance > 0 ? usage : 0;
-  const final = Number((textScore + graphScore + pathTypeTag * pathTypeTagWeight + intent + vector + effectiveUsage + freshness + quality + feedback).toFixed(2));
+  const effectiveQuality = matchSignal > 0 ? quality : 0;
+  const effectiveFreshness = matchSignal > 0 ? freshness : Math.min(freshness, 0);
+  const final = Number((textScore + graphScore + pathTypeTag * pathTypeTagWeight + intent + vector + effectiveUsage + effectiveFreshness + effectiveQuality + feedback).toFixed(2));
   return {
     bm25: textScore,
     text: textScore,
@@ -17397,6 +17410,34 @@ export function verifyAgentActivation(
 
 function observationPath(projectDir: string, id: string): string {
   return join(observationsDir(projectDir), `${id}.json`);
+}
+
+// Observations are session-scoped raw signal: distill consumes them at session end and
+// the resume digest only reads the recent window. Without retention the directory grows
+// forever (measured: 12k files / 48MB in two months of dogfooding), so refresh prunes
+// records older than the retention window. 0 disables pruning.
+const OBSERVATION_RETENTION_DAYS = (() => {
+  const raw = Number(process.env.KAGE_OBSERVATION_RETENTION_DAYS ?? "30");
+  return Number.isFinite(raw) && raw >= 0 ? raw : 30;
+})();
+
+export function pruneObservations(projectDir: string, maxAgeDays = OBSERVATION_RETENTION_DAYS): { pruned: number } {
+  if (maxAgeDays <= 0) return { pruned: 0 };
+  const dir = observationsDir(projectDir);
+  if (!existsSync(dir)) return { pruned: 0 };
+  const cutoff = Date.now() - maxAgeDays * 86_400_000;
+  let pruned = 0;
+  for (const name of readdirSync(dir)) {
+    if (!name.endsWith(".json")) continue;
+    const path = join(dir, name);
+    try {
+      if (statSync(path).mtimeMs < cutoff) {
+        unlinkSync(path);
+        pruned += 1;
+      }
+    } catch { /* concurrent removal — skip */ }
+  }
+  return { pruned };
 }
 
 function observationHash(projectDir: string, event: ObservationEvent): string {

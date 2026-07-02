@@ -1,5 +1,23 @@
 # Changelog
 
+## v3.2.0 — recall ranking fix + observation retention
+
+- **Recall ranking: rare terms now beat filler words.** Hooks pass raw prompts as
+  queries ("what is X? can we replace it"), and filler words were collecting
+  BM25/vector/graph credit while unconditional quality/freshness priors floated
+  entrenched packets over the one packet literally titled with the queried term.
+  Fixed by expanding the stopword list (interrogatives, pronouns, auxiliaries)
+  and gating quality/freshness on a real query match, the same way usage was
+  already gated. The exact term now ranks #1 on `recall`, `prompt-context`
+  (the ambient hook path), and `kage_context` alike.
+- **Observation retention.** `.agent_memory/observations/` grew unbounded
+  (measured 12k files / 48MB in two months). `kage refresh` now prunes
+  observations older than 30 days (`KAGE_OBSERVATION_RETENTION_DAYS` overrides;
+  `0` disables). Distill consumes observations per session, so aged records are
+  dead weight.
+- Also removed the dollar estimate from the viewer's gains panel (measured
+  token counts stay), and cut the "money saved" framing from the value receipt.
+
 ## v3.1.0 — cleaner viewer + `kage okf view`
 
 - **`kage okf view`** — open your memory as a clean, self-contained OKF bundle

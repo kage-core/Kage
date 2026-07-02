@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, unlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { basename, delimiter, join } from "node:path";
 import { availableParallelism, tmpdir } from "node:os";
 import vm from "node:vm";
@@ -89,6 +89,7 @@ import {
   PACKET_MERGE_ATTRIBUTE_LINE,
   observe,
   observationsDir,
+  pruneObservations,
   packetsDir,
   stripPrivateSpans,
   pendingDir,
@@ -450,6 +451,39 @@ test("recall uses BM25 lexical ranking for repeated body evidence", () => {
   assert.equal(result.results[0]?.packet.title, "Z repeated unrelated note");
   assert.equal(result.explanations?.[0]?.provider, "bm25");
   assert.equal((result.results[0]?.score_breakdown?.bm25 ?? 0) > 0, true);
+});
+
+test("natural-language filler words do not outrank a rare exact term", () => {
+  const project = tempProject();
+  // Decoy: a rich, high-quality packet whose only overlap with the query is filler
+  // words ("what", "can", "we"). Before the stopword + prior-gating fix, its
+  // unconditional quality/freshness/graph credit beat the packet literally titled
+  // with the queried term.
+  capture({
+    projectDir: project,
+    title: "What reviewers can check before we edit risky files",
+    summary: "Checklist explaining what we can verify before edits",
+    body: "Before you edit, check what the blast radius is and what tests cover it. We can gate risky edits. Evidence: reviewed against viewer risk page behavior. Verified by: npm test.",
+    type: "decision",
+    tags: ["review", "risk"],
+  });
+  capture({
+    projectDir: project,
+    title: "zling sprint outcome and integration stance",
+    summary: "zling is an external markdown memory tool; interop over replace",
+    body: "zling stores agent memory as markdown. Our stance: import zling bundles instead of competing head-on. Verified by: gh queries.",
+    type: "reference",
+  });
+
+  // Hooks pass raw prompts as queries — the rare term must win despite the filler.
+  const result = recall(project, "what is zling? can we replace it", 3, true);
+  assert.equal(result.results[0]?.packet.title, "zling sprint outcome and integration stance");
+  // The decoy matches nothing but stopwords, so gated priors must not float it.
+  const decoy = result.results.find((entry) => entry.packet.title.startsWith("What reviewers"));
+  if (decoy) {
+    assert.equal((decoy.score_breakdown?.bm25 ?? 0) === 0, true);
+    assert.equal(decoy.score < (result.results[0]?.score ?? 0), true);
+  }
 });
 
 test("recall tokenizes multilingual memory without requiring spaces", () => {
@@ -3189,6 +3223,26 @@ test("observe sanitizes private spans before writing observation events", () => 
   assert.match(raw, /Then rerun tests/);
   const stored = readdirSync(observationsDir(project)).filter((name) => name.endsWith(".json"));
   assert.equal(stored.length, 1);
+});
+
+test("refresh prunes observations past the retention window but keeps recent ones", () => {
+  const project = tempProject();
+  const oldResult = observe(project, { type: "user_prompt", session_id: "s1", text: "an old prompt from a finished session" });
+  const newResult = observe(project, { type: "user_prompt", session_id: "s2", text: "a fresh prompt from the current session" });
+  assert.equal(oldResult.stored, true);
+  assert.equal(newResult.stored, true);
+  // Backdate the first record past the 30-day default window.
+  const past = new Date(Date.now() - 45 * 86_400_000);
+  utimesSync(oldResult.path!, past, past);
+
+  const { pruned } = pruneObservations(project);
+  assert.equal(pruned, 1);
+  assert.equal(existsSync(oldResult.path!), false);
+  assert.equal(existsSync(newResult.path!), true);
+  // 0 disables pruning entirely.
+  utimesSync(newResult.path!, past, past);
+  assert.equal(pruneObservations(project, 0).pruned, 0);
+  assert.equal(existsSync(newResult.path!), true);
 });
 
 test("non-tagged capture text is stored untouched by the private sanitizer", () => {
