@@ -25,6 +25,7 @@ import {
   loadPendingPackets,
   makePacketId,
   memoryRoot,
+  packetVerificationLabel,
   parseFrontmatter,
   slugify,
   type MemoryPacket,
@@ -143,8 +144,10 @@ function citationText(ref: Record<string, unknown>): string {
 function okfVerifiedStatus(packet: MemoryPacket): string {
   if (packet.status === "superseded") return "superseded";
   if (packet.status === "deprecated") return "deprecated";
-  const freshness = packet.freshness as Record<string, unknown> | undefined;
-  return freshness && freshness.last_verified_at ? "verified" : "unverified";
+  // "verified" is earned, not born: capture provenance (repo_local_agent_capture)
+  // is not a check of the claim. Only an actual recheck (evidence-backed
+  // reverification, validation pass) may carry the label.
+  return packetVerificationLabel(packet);
 }
 
 // ---- packet -> OKF concept document ----
@@ -166,7 +169,8 @@ export function packetToOkfConcept(packet: MemoryPacket): string {
   fm.push(`x-kage-status: ${yamlScalar(packet.status)}`);
   fm.push(`x-kage-scope: ${yamlScalar(packet.scope)}`);
   fm.push(`x-kage-visibility: ${yamlScalar(packet.visibility)}`);
-  fm.push(`x-kage-confidence: ${packet.confidence}`);
+  // No x-kage-confidence: the field was a hardcoded 0.7 nobody computed or
+  // consumed — a number that means nothing must not ship as trust metadata.
   fm.push(`x-kage-verified: ${yamlScalar(okfVerifiedStatus(packet))}`);
   if (packet.paths?.length) fm.push(`x-kage-paths: ${yamlList(packet.paths)}`);
   if (packet.stack?.length) fm.push(`x-kage-stack: ${yamlList(packet.stack)}`);

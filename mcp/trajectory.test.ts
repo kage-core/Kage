@@ -156,10 +156,15 @@ test("trajectory: create -> recall -> content change -> reverify -> fresh", () =
   // Task #39: content-changed memory is withheld from recall, not merely flagged.
   assert.equal(served(p, c), false, "soft-stale memory must be withheld from recall");
 
-  const rv = reverifyMemory(p, c.id);
+  // Bare re-stamp after a content change is refused — that path laundered
+  // unchecked claims back to verified. Evidence restores it.
+  const bare = reverifyMemory(p, c.id);
+  assert.equal(bare.ok, false);
+  assert.equal(bare.changed_paths.length > 0, true);
+  const rv = reverifyMemory(p, c.id, { verifiedBy: "re-ran the runbook against the changed file" });
   assert.equal(rv.ok, true);
   assert.equal(observe(p, c.id), "approved_fresh");
-  assert.equal(served(p, c), true, "reverify restores the memory to recall");
+  assert.equal(served(p, c), true, "evidence-backed reverify restores the memory to recall");
   assertInvariants(p, c);
 });
 
@@ -242,7 +247,7 @@ function applyEvent(project: string, ctx: Ctx, event: string): void {
   switch (event) {
     case "approve": approvePending(project, ctx.id); break;
     case "change_content": mutateFile(project, ctx.file); break;
-    case "reverify": reverifyMemory(project, ctx.id); break;
+    case "reverify": reverifyMemory(project, ctx.id, { verifiedBy: "markov transition recheck" }); break;
     case "delete_cited": unlinkSync(join(project, ctx.file)); break;
     case "report_stale": recordFeedback(project, ctx.id, "stale"); break;
     case "supersede": supersedeMemory(project, ctx.id, captureRunbook(project).id); break;

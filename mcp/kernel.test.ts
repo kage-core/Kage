@@ -99,6 +99,7 @@ import {
   queryCodeGraph,
   queryGraph,
   recall,
+  recallRecencyScore,
   recallWithEmbeddings,
   buildDocsIndex,
   searchDocs,
@@ -4164,7 +4165,8 @@ test("verifyCitations flags deleted citations and reports grounding", () => {
   unlinkSync(join(project, "src", "drop.ts"));
 
   const report = verifyCitations(project);
-  assert.equal(report.ok, true);
+  // ok is a real verdict now: a deleted citation is hard-stale, so the check fails.
+  assert.equal(report.ok, false);
   assert.equal(report.checked, 2);
   const dropEntry = report.packets.find((entry) => entry.title === "Drop note");
   assert.equal(dropEntry?.stale, true);
@@ -5768,7 +5770,11 @@ test("reverify refreshes grounding in place and clears stale flags", () => {
   writeFileSync(join(project, "lib.ts"), "export const v = 2;\n", "utf8");
   refreshProject(project);
   const before = parsePacket(packetFile());
-  const result = reverifyMemory(project, id);
+  // Changed content refuses a bare re-stamp; evidence is required.
+  const refused = reverifyMemory(project, id);
+  assert.equal(refused.ok, false);
+  assert.equal(refused.changed_paths.includes("lib.ts"), true);
+  const result = reverifyMemory(project, id, { evidence: "confirmed lib.ts still holds the version constant (now v=2)" });
   assert.equal(result.ok, true, JSON.stringify(result.errors));
   assert.equal(result.refreshed_paths.includes("lib.ts"), true);
   assert.equal(result.was_stale, before.quality?.stale === true);
@@ -6274,4 +6280,62 @@ test("indexProject builds the docs-index artifact so it stays current", () => {
   const result = indexProject(project);
   assert.ok(existsSync(join(indexesDir(project), "docs-index.json")));
   assert.ok(result.indexes.some((path) => path.endsWith("docs-index.json")));
+});
+
+test("recall ranking: aged changelog-shaped memory sinks below a fresh evergreen match", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "hooks.ts"), "export const rotate = 1;\n", "utf8");
+  const old = learn({
+    projectDir: project,
+    type: "decision",
+    title: "Webhook signing rollout decision",
+    learning: "Webhook signature rotation policy decided for the gateway because keys rotate quarterly.",
+    paths: ["src/hooks.ts"],
+  });
+  const fresh = learn({
+    projectDir: project,
+    type: "runbook",
+    title: "Webhook signature rotation runbook",
+    learning: "Webhook signature rotation policy: run the rotation script because keys rotate quarterly.",
+    paths: ["src/hooks.ts"],
+  });
+  assert.equal(old.ok && fresh.ok, true);
+  const aged = new Date(Date.now() - 150 * 86_400_000).toISOString();
+  const agedText = readFileSync(old.path as string, "utf8")
+    .replace(/"created_at":\s*"[^"]+"/, `"created_at":"${aged}"`)
+    .replace(/"updated_at":\s*"[^"]+"/, `"updated_at":"${aged}"`);
+  writeFileSync(old.path as string, agedText, "utf8");
+
+  const result = recall(project, "webhook signature rotation policy");
+  assert.equal(result.results[0]?.packet.title, "Webhook signature rotation runbook");
+  assert.equal((result.results[0]?.score_breakdown?.recency ?? 0) >= 3, true);
+  const agedEntry = result.results.find((entry) => entry.packet.title === "Webhook signing rollout decision");
+  if (agedEntry) assert.equal((agedEntry.score_breakdown?.recency ?? 0) <= -3, true);
+
+  // The curve itself: fresh boost, neutral middle, penalty only for changelog-shaped types.
+  const now = new Date().toISOString();
+  const twoHundredDays = new Date(Date.now() - 200 * 86_400_000).toISOString();
+  assert.equal(recallRecencyScore({ type: "runbook", created_at: now, updated_at: now }), 3);
+  assert.equal(recallRecencyScore({ type: "decision", created_at: twoHundredDays, updated_at: twoHundredDays }), -3);
+  assert.equal(recallRecencyScore({ type: "gotcha", created_at: twoHundredDays, updated_at: twoHundredDays }), 0);
+});
+
+test("recall ranking: terse identifier query grounds through the code graph", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "chain.ts"), "export function verifySignatureChain(input: string): string {\n  return input;\n}\n", "utf8");
+  buildCodeGraph(project, { force: true });
+  const saved = learn({
+    projectDir: project,
+    title: "Gateway request validation notes",
+    learning: "The gateway validates every request twice because the edge cache replays traffic.",
+    paths: ["src/chain.ts"],
+  });
+  assert.equal(saved.ok, true);
+
+  const result = recall(project, "verifySignatureChain");
+  const entry = result.results.find((item) => item.packet.title === "Gateway request validation notes");
+  assert.ok(entry, "identifier-grounded packet must surface despite zero lexical overlap");
+  assert.equal((entry?.score_breakdown?.identifier ?? 0) > 0, true);
 });

@@ -1657,12 +1657,16 @@ async function main(): Promise<void> {
   if (command === "reverify") {
     const packetId = takeArg(args, "--packet");
     if (!packetId) usage();
-    const result = reverifyMemory(projectArg(args), packetId!);
+    const result = reverifyMemory(projectArg(args), packetId!, {
+      evidence: takeArg(args, "--evidence"),
+      verifiedBy: takeArg(args, "--verified-by"),
+    });
     if (args.includes("--json")) {
       console.log(JSON.stringify(result, null, 2));
     } else if (result.ok) {
       console.log(`Reverified ${result.packet_id}`);
       console.log(`  grounding refreshed for ${result.refreshed_paths.length} path(s)${result.was_stale ? " · stale flag cleared" : ""}`);
+      if (result.changed_paths.length) console.log(`  evidence recorded for changed path(s): ${result.changed_paths.join(", ")}`);
       if (result.missing_paths.length) console.log(`  dropped missing path(s): ${result.missing_paths.join(", ")}`);
     } else {
       console.log(`Reverify failed: ${result.errors.join("; ")}`);

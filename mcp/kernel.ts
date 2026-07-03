@@ -219,6 +219,8 @@ export interface RecallScoreBreakdown {
   vector: number;
   usage: number;
   freshness: number;
+  recency: number;
+  identifier: number;
   quality: number;
   feedback: number;
   final: number;
@@ -3394,7 +3396,7 @@ export function kageFileContext(projectDir: string, filePath: string): FileConte
   const lines = [
     `# Kage File Context: ${rel}`,
     ...verified.flatMap((packet, index) => [
-      `${index + 1}. [${packet.type} | confidence ${packet.confidence.toFixed(2)}] ${packet.title}`,
+      `${index + 1}. [${packet.type} | ${packetVerificationLabel(packet)}] ${packet.title}`,
       `   ${packet.summary}`,
     ]),
     `_${verified.length} verified memor${verified.length === 1 ? "y" : "ies"} citing this file (citations checked, not stale)._`,
@@ -9487,6 +9489,18 @@ export function kageSuppressedMemory(projectDir: string): SuppressedMemoryReport
   return { schema_version: 1, generated_at: nowIso(), count: items.length, items };
 }
 
+// A packet is "verified" only when something actually checked the claim: an
+// evidence-backed reverification. Capture at birth is provenance, not
+// verification — packets are born unverified and must earn the label.
+export function packetVerificationLabel(packet: MemoryPacket): "verified" | "unverified" | "stale" {
+  const quality = (packet.quality ?? {}) as Record<string, unknown>;
+  if (quality.stale === true) return "stale";
+  const freshness = (packet.freshness ?? {}) as Record<string, unknown>;
+  const verification = freshness.verification;
+  const checked = typeof verification === "string" && verification.length > 0 && verification !== "repo_local_agent_capture";
+  return checked && freshness.last_verified_at ? "verified" : "unverified";
+}
+
 export function verifyCitations(projectDir: string, options: { id?: string } = {}): CitationVerificationResult {
   ensureMemoryDirs(projectDir);
   const approved = loadApprovedPackets(projectDir);
@@ -9513,13 +9527,17 @@ export function verifyCitations(projectDir: string, options: { id?: string } = {
       stale_reasons: reasons,
     };
   });
+  const hardStale = packets.filter((entry) => entry.stale_severity === "hard").length;
+  const ungrounded = packets.filter((entry) => !entry.grounded).length;
   return {
-    ok: true,
+    // ok used to be hardcoded true, which made `kage verify` a check that
+    // cannot fail. It fails now: hard-stale or ungrounded memory is a defect.
+    ok: hardStale === 0 && ungrounded === 0,
     project_dir: projectDir,
     checked: packets.length,
     valid: packets.filter((entry) => !entry.stale && entry.grounded).length,
     stale: packets.filter((entry) => entry.stale).length,
-    ungrounded: packets.filter((entry) => !entry.grounded).length,
+    ungrounded,
     packets,
     errors: [],
   };
@@ -10324,6 +10342,8 @@ function recallBreakdown(
   semanticScore = 0,
   vectorScore = 0,
   usageScore = 0,
+  recencyScore = 0,
+  identifierScore = 0,
   graph = buildKnowledgeGraph(projectDir),
   lookup = recallGraphLookup(graph)
 ): RecallScoreBreakdown {
@@ -10331,11 +10351,14 @@ function recallBreakdown(
   const rawGraphScore = packetEntityId
     ? (lookup.edgesByEntityId.get(packetEntityId) ?? []).reduce((sum, edge) => sum + scoreText(terms, edge.fact), 0)
     : 0;
+  // Graph prior at parity with lexical evidence, log1p-damped: raw edge sums
+  // grow with graph density, not with relevance — an old release note with 40
+  // edges must not outscore the packet whose title matches the query.
   const graphCap = packet.type === "reference"
     ? 0
-    : (textScore > 0 ? textScore * 1.5 + 12 : 8);
+    : (textScore > 0 ? Math.min(textScore, 8) : 4);
   const graphWeight = packet.type === "reference" ? 0 : 0.45;
-  const graphScore = Math.min(rawGraphScore * graphWeight, graphCap);
+  const graphScore = Math.min(Math.log1p(rawGraphScore * graphWeight) * 3, graphCap);
   const pathTypeTag = scoreText(terms, `${packet.type} ${packet.tags.join(" ")} ${packet.paths.join(" ")}`, [packet.type, ...packet.tags, ...packet.paths]);
   const intent = recallIntentBoost(terms, packet);
   const freshness = packet.status === "approved" ? 2 : packet.status === "pending" ? 0 : -5;
@@ -10349,12 +10372,15 @@ function recallBreakdown(
   // produced confident off-domain junk: a hot, high-quality packet ranked above the one
   // packet whose title literally contained the queried term, because its unconditional
   // quality+freshness (~12 pts) beat a weak-but-real lexical match.
-  const coreRelevance = textScore + graphScore + intent + vector;
+  const coreRelevance = textScore + graphScore + intent + vector + identifierScore;
   const matchSignal = coreRelevance + pathTypeTag;
   const effectiveUsage = coreRelevance > 0 ? usage : 0;
   const effectiveQuality = matchSignal > 0 ? quality : 0;
   const effectiveFreshness = matchSignal > 0 ? freshness : Math.min(freshness, 0);
-  const final = Number((textScore + graphScore + pathTypeTag * pathTypeTagWeight + intent + vector + effectiveUsage + effectiveFreshness + effectiveQuality + feedback).toFixed(2));
+  // Recency amplifies matches and sinks aged changelog-shaped memory; like
+  // freshness, the positive side never floats a non-match.
+  const effectiveRecency = matchSignal > 0 ? recencyScore : Math.min(recencyScore, 0);
+  const final = Number((textScore + graphScore + pathTypeTag * pathTypeTagWeight + intent + vector + identifierScore + effectiveUsage + effectiveFreshness + effectiveRecency + effectiveQuality + feedback).toFixed(2));
   return {
     bm25: textScore,
     text: textScore,
@@ -10366,10 +10392,27 @@ function recallBreakdown(
     vector,
     usage,
     freshness,
+    recency: Number(effectiveRecency.toFixed(2)),
+    identifier: Number(identifierScore.toFixed(2)),
     quality: Number(quality.toFixed(2)),
     feedback,
     final,
   };
+}
+
+// Changelog-shaped memory (decisions, fixes, change summaries) ages fast — a
+// four-month-old release note outranking the current runbook was the headline
+// ranking bug. Evergreen types (runbooks, conventions, gotchas) keep the boost
+// window but never take the penalty.
+const RECENCY_FAST_TYPES = new Set<string>(["decision", "bug_fix", "workflow", "reference", "issue_context"]);
+export function recallRecencyScore(packet: Pick<MemoryPacket, "type" | "created_at" | "updated_at">): number {
+  const stamp = Date.parse(packet.updated_at || packet.created_at || "");
+  if (!Number.isFinite(stamp)) return 0;
+  const days = (Date.now() - stamp) / 86_400_000;
+  if (days <= 14) return 3;
+  if (days <= 60) return 1;
+  if (days <= 120) return 0;
+  return RECENCY_FAST_TYPES.has(packet.type) ? -3 : 0;
 }
 
 type ScoredRecallEntry = {
@@ -10581,6 +10624,23 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
   const referenceBodyScores = scoreReferenceBodyBm25(terms, approvedPackets);
   const accessEntries = readMemoryAccessEntries(projectDir, approvedPackets);
   const graphLookup = recallGraphLookup(knowledgeGraph);
+  // Terse identifier queries ("recallBreakdown") often share no prose with the
+  // packet that documents them; ground them through the code graph instead — a
+  // packet citing the file that defines the queried identifier is evidence.
+  const identifierTerms = unique((query.match(/[A-Za-z_][A-Za-z0-9_]{5,}/g) ?? []).filter((token) => /[a-z][A-Z]|_/.test(token)));
+  let identifierFiles: Set<string> | null = null;
+  if (identifierTerms.length) {
+    try {
+      const wanted = new Set(identifierTerms.map((token) => token.toLowerCase()));
+      identifierFiles = new Set(
+        buildCodeGraph(projectDir).symbols
+          .filter((symbol) => wanted.has(symbol.name.toLowerCase()))
+          .map((symbol) => symbol.path)
+      );
+    } catch {
+      identifierFiles = null;
+    }
+  }
   const rankedScored = approvedPackets
     .map((packet) => {
       const base = baseScores.get(packet.id) ?? { score: 0, why: [] };
@@ -10591,8 +10651,10 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
       const lexicalScore = base.score + temporal.score + semantic.score;
       const textScore = packet.type === "reference" ? Math.max(lexicalScore, referenceBodyScore) : lexicalScore;
       const usageScore = memoryAccessScore(accessEntries.get(packet.id));
-      const score_breakdown = recallBreakdown(projectDir, terms, packet, textScore, temporal.score, semantic.score, vector.score, usageScore, knowledgeGraph, graphLookup);
-      const relevance = textScore + score_breakdown.graph + score_breakdown.path_type_tag + score_breakdown.intent + score_breakdown.vector;
+      const identifierScore = identifierFiles && identifierFiles.size && packet.paths.some((path) => (identifierFiles as Set<string>).has(path)) ? 6 : 0;
+      const recencyScore = recallRecencyScore(packet);
+      const score_breakdown = recallBreakdown(projectDir, terms, packet, textScore, temporal.score, semantic.score, vector.score, usageScore, recencyScore, identifierScore, knowledgeGraph, graphLookup);
+      const relevance = textScore + score_breakdown.graph + score_breakdown.path_type_tag + score_breakdown.intent + score_breakdown.vector + score_breakdown.identifier;
       const why = [
         ...base.why,
         ...temporal.why.map((item) => `temporal:${item}`),
@@ -10600,6 +10662,7 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
         ...(semantic.score > 0 ? expansion.semanticLabels.map((label) => `semantic-concept:${label}`) : []),
         ...vector.why,
         ...(usageScore > 0 ? [`usage:${accessEntries.get(packet.id)?.uses_30d ?? 0} recalls in 30d`] : []),
+        ...(identifierScore > 0 ? ["identifier: query names a symbol defined in a cited file"] : []),
       ];
       return { packet, score: score_breakdown.final, relevance, why_matched: unique(why).slice(0, 12), score_breakdown };
     })
@@ -10688,7 +10751,7 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
     pendingScored.length ? "## Working Memory (Pending Review)" : "",
     ...pendingScored.flatMap((entry, index) => [
       "",
-      `${index + 1}. [${entry.packet.type} | pending | confidence ${entry.packet.confidence.toFixed(2)}] ${entry.packet.title}`,
+      `${index + 1}. [${entry.packet.type} | pending | unreviewed draft] ${entry.packet.title}`,
       `   Summary: ${entry.packet.summary}`,
       `   Why matched: ${entry.why_matched.join(", ") || "text relevance"}`,
       `   Source: pending packet; unapproved local/session memory`,
@@ -10711,7 +10774,7 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
           "_Cross-machine personal store (~/.kage/memory). Lower trust than repo memory: not repo-reviewed — verify before relying on it. Repo memory above takes precedence on conflict._",
           ...personalEntries.flatMap((entry, index) => [
             "",
-            `${index + 1}. [personal] [${entry.packet.type} | confidence ${entry.packet.confidence.toFixed(2)}] ${entry.packet.title}`,
+            `${index + 1}. [personal] [${entry.packet.type} | ${packetVerificationLabel(entry.packet)}] ${entry.packet.title}`,
             `   [personal] Summary: ${entry.packet.summary}`,
             `   [personal] Why matched: ${entry.why_matched.join(", ") || "text relevance"}`,
             `   [personal] Verification: ${entry.unverifiable ? "unverifiable (citation-free personal note)" : "citations re-verified against this checkout"}`,
@@ -20036,6 +20099,7 @@ export interface ReverifyMemoryResult {
   packet_id: string;
   refreshed_paths: string[];
   missing_paths: string[];
+  changed_paths: string[];
   was_stale: boolean;
   errors: string[];
 }
@@ -20209,7 +20273,7 @@ export function generateSkills(
 // supersede churn when code changed but the memory's claim did not. Refuses
 // when ALL cited evidence is gone — that memory needs supersede or stale, not
 // a rubber stamp.
-export function reverifyMemory(projectDir: string, packetId: string): ReverifyMemoryResult {
+export function reverifyMemory(projectDir: string, packetId: string, options: { evidence?: string; verifiedBy?: string } = {}): ReverifyMemoryResult {
   ensureMemoryDirs(projectDir);
   const result: ReverifyMemoryResult = {
     ok: false,
@@ -20217,6 +20281,7 @@ export function reverifyMemory(projectDir: string, packetId: string): ReverifyMe
     packet_id: packetId,
     refreshed_paths: [],
     missing_paths: [],
+    changed_paths: [],
     was_stale: false,
     errors: [],
   };
@@ -20243,13 +20308,53 @@ export function reverifyMemory(projectDir: string, packetId: string): ReverifyMe
   const presentPaths = citedPaths.filter((path) => !result.missing_paths.includes(path));
   const now = nowIso();
   const freshness = { ...(packet.freshness ?? {}) } as Record<string, unknown>;
-  freshness.path_fingerprints = memoryPathFingerprints(projectDir, presentPaths, `${packet.title}\n${packet.summary}\n${packet.body}`);
+  const nextPrints = memoryPathFingerprints(projectDir, presentPaths, `${packet.title}\n${packet.summary}\n${packet.body}`);
+  // Evidence gate: when cited code changed since the stored fingerprints, a
+  // bare re-stamp would launder a possibly-false claim back to "verified".
+  // Byte-identical files may refresh freely; changed files demand evidence.
+  const storedShas = new Map(packetStoredPathFingerprints(packet).map((print) => [print.path, print.sha256]));
+  const changedPaths = nextPrints
+    .filter((print) => storedShas.has(print.path) && storedShas.get(print.path) !== print.sha256)
+    .map((print) => print.path);
+  result.changed_paths = changedPaths;
+  const evidence = (options.evidence ?? "").trim();
+  const verifiedBy = (options.verifiedBy ?? "").trim();
+  if (changedPaths.length && !evidence && !verifiedBy) {
+    result.errors.push(
+      `Cited code changed since the last verification (${changedPaths.join(", ")}). `
+      + "Re-stamping without evidence would mark an unchecked claim verified: rerun with "
+      + "--evidence \"<what you checked>\" or --verified-by \"<command/test that proved it>\", "
+      + "or supersede the packet if the claim no longer holds.",
+    );
+    return result;
+  }
+  freshness.path_fingerprints = nextPrints;
   freshness.last_verified_at = now;
+  // Only an evidence-backed recheck upgrades verification; a clean fingerprint
+  // refresh keeps whatever verification the packet already had.
+  if (evidence || verifiedBy) freshness.verification = "evidence_reverification";
   const { stale: _stale, stale_reasons: _staleReasons, suggested_action: _suggestedAction, ...nextQuality } = quality;
+  const sourceRefs = changedPaths.length
+    ? [
+        ...(packet.source_refs ?? []),
+        {
+          kind: "reverification",
+          at: now,
+          ...(verifiedBy ? { verified_by: verifiedBy } : {}),
+          ...(evidence ? { evidence } : {}),
+          changed_paths: changedPaths.map((path) => ({
+            path,
+            prior_sha256: storedShas.get(path),
+            sha256: nextPrints.find((print) => print.path === path)?.sha256,
+          })),
+        } as unknown as MemoryPacket["source_refs"][number],
+      ]
+    : packet.source_refs;
   writeJson(entry.path, {
     ...packet,
     paths: presentPaths.length ? presentPaths : packet.paths,
     freshness,
+    source_refs: sourceRefs,
     quality: { ...nextQuality, reverified_at: now },
     updated_at: now,
   });
