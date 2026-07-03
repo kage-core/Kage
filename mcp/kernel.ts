@@ -16731,7 +16731,7 @@ export function registryRecommendations(projectDir: string): RegistryRecommendat
   return recommendations.sort((a, b) => a.kind.localeCompare(b.kind) || a.id.localeCompare(b.id));
 }
 
-export function setupAgent(agent: SetupAgent, projectDir: string, options: { write?: boolean; serverPath?: string; homeDir?: string } = {}): AgentSetupResult {
+export function setupAgent(agent: SetupAgent, projectDir: string, options: { write?: boolean; serverPath?: string; homeDir?: string; portableHooks?: boolean } = {}): AgentSetupResult {
   if (!SETUP_AGENTS.includes(agent)) throw new Error(`Unsupported agent: ${agent}`);
   const serverPath = options.serverPath ?? join(__dirname, "index.js");
   // An npx cache path (~/.npm/_npx/<hash>/...) is ephemeral — npx prunes it and
@@ -16791,14 +16791,16 @@ export function setupAgent(agent: SetupAgent, projectDir: string, options: { wri
     // Resolve the CLI the same way the MCP server config does — PATH first
     // (fast), then the install-time cli.js (guarded by -f so npx cache pruning
     // degrades gracefully), then the package runner. The loop never silently dies.
-    const hookCliPath = join(dirname(serverPath), "cli.js");
-    const hookKageResolve = `# Resolve the kage CLI: repo-local, PATH, baked install path, then the package runner.
+    // portableHooks (plugin generation): the scripts are committed and shared,
+    // so no machine-specific path may be baked in — PATH then package runner.
+    const hookCliPath = options.portableHooks ? "" : join(dirname(serverPath), "cli.js");
+    const hookKageResolve = `# Resolve the kage CLI: repo-local, PATH${hookCliPath ? ", baked install path" : ""}, then the package runner.
 export PATH="$CWD/node_modules/.bin:$PATH"
 if command -v kage >/dev/null 2>&1; then
   :
-elif [[ -f "${hookCliPath}" ]] && command -v node >/dev/null 2>&1; then
+${hookCliPath ? `elif [[ -f "${hookCliPath}" ]] && command -v node >/dev/null 2>&1; then
   kage() { node "${hookCliPath}" "$@"; }
-else
+` : ""}else
   kage() { npx -y --package=@kage-core/kage-graph-mcp kage "$@"; }
 fi`;
     const hookScript = `#!/usr/bin/env bash
@@ -17216,7 +17218,7 @@ export function generatePluginHooks(pluginDir: string): { scripts: string[]; rem
   const tmpHome = mkdtempSync(join(tmpdir(), "kage-plugin-home-"));
   const tmpProject = mkdtempSync(join(tmpdir(), "kage-plugin-proj-"));
   try {
-    setupAgent("claude-code", tmpProject, { write: true, homeDir: tmpHome });
+    setupAgent("claude-code", tmpProject, { write: true, homeDir: tmpHome, portableHooks: true });
     const srcHookDir = join(tmpHome, ".claude", "kage", "hooks");
     const settings = JSON.parse(readFileSync(join(tmpHome, ".claude", "settings.json"), "utf8")) as {
       hooks?: Record<string, Array<{ matcher?: string; hooks: Array<{ type: string; command: string; timeout?: number }> }>>;

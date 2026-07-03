@@ -7,12 +7,10 @@ PAYLOAD="$(cat || true)"
 CWD="$(printf "%s" "$PAYLOAD" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('cwd',''))" 2>/dev/null || echo "")"
 
 [[ -d "$CWD/.agent_memory" ]] || exit 0
-# Resolve the kage CLI: repo-local, PATH, baked install path, then the package runner.
+# Resolve the kage CLI: repo-local, PATH, then the package runner.
 export PATH="$CWD/node_modules/.bin:$PATH"
 if command -v kage >/dev/null 2>&1; then
   :
-elif [[ -f "/Users/kushaljain/code/Kage/mcp/dist/cli.js" ]] && command -v node >/dev/null 2>&1; then
-  kage() { node "/Users/kushaljain/code/Kage/mcp/dist/cli.js" "$@"; }
 else
   kage() { npx -y --package=@kage-core/kage-graph-mcp kage "$@"; }
 fi
