@@ -9408,6 +9408,9 @@ export interface GcResult {
   total_scanned: number;
 }
 
+// How long deprecated/superseded packets stay on disk before gc deletes them.
+const GC_DEAD_PACKET_RETENTION_DAYS = positiveIntEnv("KAGE_GC_RETENTION_DAYS", 30);
+
 export function gcProject(projectDir: string, options: { dryRun?: boolean; force?: boolean } = {}): GcResult {
   ensureMemoryDirs(projectDir);
   const packetEntries = loadPacketEntriesFromDir(packetsDir(projectDir));
@@ -9416,8 +9419,18 @@ export function gcProject(projectDir: string, options: { dryRun?: boolean; force
   const skipped: GcResult["skipped"] = [];
 
   for (const { path, packet } of packetEntries) {
-    if (packet.status === "deprecated") {
-      skipped.push({ id: packet.id, title: packet.title, reason: "already deprecated" });
+    if (packet.status === "deprecated" || packet.status === "superseded") {
+      // Dead packets used to be immortal — 32% of the store was deprecated
+      // weight every teammate cloned forever. Retain briefly for undo, then
+      // delete; the audit trail keeps the tombstone.
+      const stamp = Date.parse(packet.updated_at || packet.created_at || "");
+      const expired = Number.isFinite(stamp) && Date.now() - stamp > GC_DEAD_PACKET_RETENTION_DAYS * 86_400_000;
+      if (expired) {
+        if (!options.dryRun) unlinkSync(path);
+        deleted.push({ id: packet.id, title: packet.title });
+      } else {
+        skipped.push({ id: packet.id, title: packet.title, reason: `${packet.status} — retained ${GC_DEAD_PACKET_RETENTION_DAYS}d before deletion` });
+      }
       continue;
     }
     // Serialized transcript / tool-output / file-content dumps and ungrounded conversational
@@ -19723,22 +19736,27 @@ export function mergePacketFiles(oursPath: string, basePath: string, theirsPath:
   const readSide = (path: string): { raw: string; packet: Partial<MemoryPacket> } | null => {
     const raw = safeReadText(path);
     if (raw === null) return null;
-    if (path.endsWith(".md")) {
-      const packet = okfConceptToPacket(raw);
-      return packet ? { raw, packet } : null;
-    }
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        return { raw, packet: parsed as Partial<MemoryPacket> };
+    // Sniff content, never the extension: git merge temp files may keep or
+    // drop the original extension depending on the flow, and .md packet files
+    // have held both raw JSON and OKF frontmatter. Routing raw-JSON .md files
+    // to the OKF parser made every sync-bot race a manual conflict.
+    if (raw.trimStart().startsWith("{")) {
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          return { raw, packet: parsed as Partial<MemoryPacket> };
+        }
+      } catch {
+        // fall through to the other parsers
       }
-    } catch {
-      // A side that carries committed conflict markers (the exact failure mode
-      // this driver exists to end) can often be recovered with repair's
-      // conflict-splitting logic before giving up on it.
-      const recovered = resolveConflictedPacket(raw);
-      if (recovered) return { raw: `${JSON.stringify(recovered, null, 2)}\n`, packet: recovered };
     }
+    const okf = okfConceptToPacket(raw);
+    if (okf) return { raw, packet: okf };
+    // A side that carries committed conflict markers (the exact failure mode
+    // this driver exists to end) can often be recovered with repair's
+    // conflict-splitting logic before giving up on it.
+    const recovered = resolveConflictedPacket(raw);
+    if (recovered) return { raw: `${JSON.stringify(recovered, null, 2)}\n`, packet: recovered };
     return null;
   };
   const ours = readSide(oursPath);

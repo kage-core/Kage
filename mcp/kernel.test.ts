@@ -6365,3 +6365,38 @@ test("staleness anchors are code identifiers, not prose words", () => {
   assert.equal(names.includes("verified"), false);
   assert.equal(names.includes("same"), false);
 });
+
+test("merge-packet driver sniffs content, not extension (raw-JSON .md packets auto-merge)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "kage-merge-"));
+  const packetJson = (updated: string) => JSON.stringify({
+    schema_version: 2, id: "repo:x:decision:t", title: "T", summary: "s", body: "b",
+    type: "decision", status: "approved", tags: [], paths: [], source_refs: [], edges: [],
+    quality: {}, created_at: "2026-07-01T00:00:00Z", updated_at: updated,
+  });
+  writeFileSync(join(dir, "o.md"), packetJson("2026-07-02T00:00:00Z"), "utf8");
+  writeFileSync(join(dir, "b.md"), packetJson("2026-07-01T00:00:00Z"), "utf8");
+  writeFileSync(join(dir, "t.md"), packetJson("2026-07-03T00:00:00Z"), "utf8");
+  const result = mergePacketFiles(join(dir, "o.md"), join(dir, "b.md"), join(dir, "t.md"));
+  assert.equal(result.ok, true, result.detail);
+  assert.equal(result.winner, "theirs");
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("gc deletes deprecated packets past retention, keeps recent ones", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "a.ts"), "export {};\n", "utf8");
+  const saved = learn({ projectDir: project, learning: "src/a.ts documents the a module because tests need it.", paths: ["src/a.ts"] });
+  assert.equal(saved.ok, true);
+  const packetPath = saved.path as string;
+  const old = new Date(Date.now() - 60 * 86_400_000).toISOString();
+  // Packets are OKF markdown with a kage-state fence; mutate both layers.
+  const aged = readFileSync(packetPath, "utf8")
+    .replace(/"updated_at":\s*"[^"]+"/g, `"updated_at":"${old}"`)
+    .replace(/"status":\s*"approved"/g, '"status":"deprecated"')
+    .replace(/^x-kage-status: .*$/m, "x-kage-status: deprecated");
+  writeFileSync(packetPath, aged, "utf8");
+  const result = gcProject(project, {});
+  assert.equal(result.deleted.some((entry) => entry.id === saved.packet!.id), true);
+  assert.equal(existsSync(packetPath), false);
+});
