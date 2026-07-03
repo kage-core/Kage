@@ -121,15 +121,52 @@ conformant and opens in any OKF consumer, including Google's own visualizer.
 
 ## How it works
 
-Once installed, it's ambient. You don't run anything by hand:
+Once installed, it's ambient — hooks watch the session; you don't run anything by hand.
+Four paths make up the loop:
 
-1. **Recall before acting.** At the start of a task (and the moment the agent opens a file),
-   Kage surfaces the relevant verified memory for it. Stale or deleted memory is left out.
-2. **Capture as it works.** Durable learnings become packets. A memory that cites a file
-   which doesn't exist is rejected on the spot, so hallucinations never enter storage.
-3. **Stay honest as the code moves.** When a diff changes code that a memory cites, that
-   memory is flagged at commit/PR time (`kage pr check`) and withheld from recall until it's
-   re-verified or replaced, so knowledge can't quietly rot.
+```mermaid
+flowchart LR
+    A[session events<br/>prompts · edits · commands] -->|prose observations,<br/>signal-scored| B[distill on session end<br/>gate ≥0.4 · dedupe]
+    B -->|drafts born pending| C{grounded + fail→pass<br/>evidence?}
+    C -->|yes| D[approved packet<br/>OKF markdown in git]
+    C -->|no| E[pending inbox<br/>kage review]
+    D --> F[fingerprints:<br/>file hash + code-symbol anchors]
+    F -->|cited code changed| G[stale: withheld<br/>until evidence reverify]
+    D -->|ranked recall| H[injected context:<br/>session start · each prompt · each file open]
+    D -->|git push/pull| I[teammate's next session]
+```
+
+**Write path (capture).** Hooks turn the session into observations — your prompts, each
+edit as prose (the edit content is where fixes and conventions live), each command with its
+output. Every observation is signal-scored; machine noise hard-rejects to zero. On session
+end, `distill --auto` gates (≥0.4), dedupes, and writes drafts **born pending** — never
+approved by default. One thing lifts a draft to trusted recall automatically: it cites real
+files, duplicates nothing, contradicts nothing, and the session contains a **fail→pass
+command pair** — mechanical evidence a real fix happened. Explicit `kage_learn` writes are
+refused if the cited files don't exist; secrets are scanned out.
+
+**Trust path (verification).** Every packet fingerprints what it cites: a whole-file hash
+plus anchors on the code symbols the memory actually names (real identifiers only, never
+prose words). Cited code edited → soft-stale, withheld from recall until re-verified **with
+evidence** (`kage reverify --evidence` — a bare re-stamp on changed code is refused). Cited
+file deleted → hard-stale, withheld, garbage-collected after 30 days. "Verified" is earned
+by an actual check, never granted at birth.
+
+**Read path (recall).** Three injection moments: session start (policy + "previously…"
+digest), every prompt (top verified packets + graph facts for what you asked), and every
+file the agent opens or edits (packets citing that file). Ranking trusts evidence — lexical
+match first, a damped graph prior that can't outvote a title match, recency decay so aged
+change-logs sink, and code-graph identifier grounding so a query for `someFunction` finds
+the packet citing the file that defines it. Stale memory never appears; every serve
+increments a real usage counter.
+
+**Team path (git).** The store is plain OKF markdown committed in the repo — a teammate's
+clone *is* the memory transfer. A merge driver auto-resolves packet collisions (newest
+content wins), and `kage pr check` gates merges: if your diff breaks what a memory claims,
+you hear about it before the PR lands.
+
+One principle threads through all four: **every number Kage shows is a count of a
+reproducible check — never an estimate.**
 
 Watch it happen in the **local dashboard** (`kage viewer`): packets, the memory↔code graph,
 trust gates, and live events stream in as the agent works. Wrap anything in
