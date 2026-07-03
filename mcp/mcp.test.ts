@@ -26,7 +26,7 @@ function textContent(result: Awaited<ReturnType<typeof callTool>>): string {
 test("MCP default tool surface is the agent-facing core only", () => {
   const core = listTools().map((tool) => tool.name).sort();
   assert.deepEqual(core, [
-    "kage_context", "kage_feedback", "kage_learn", "kage_pr_check",
+    "kage_check", "kage_context", "kage_feedback", "kage_learn", "kage_pr_check",
     "kage_refresh", "kage_skills", "kage_supersede",
     "kage_risk", "kage_decisions", "kage_dependency_path", "kage_docs_search",
   ].sort());

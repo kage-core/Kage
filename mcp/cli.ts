@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { daemonDoctor, readDaemonStatus, startDaemon, startViewer, stopDaemon } from "./daemon.js";
@@ -125,12 +125,14 @@ import {
   type SetupAgent,
 } from "./kernel.js";
 import { buildGraphRegistryManifest } from "./graph-registry.js";
+import { checkReportMarkdown, driftCheck, formatCheckReport, kageCheckWorkflowYaml, writeCheckBaseline } from "./check.js";
 import { lintOkfBundle, loadOkfConcepts, migratePacketsToOkf, okfBundleDir, okfViewerHtml } from "./okf.js";
 
 const CORE_USAGE = `Kage — code-grounded memory for coding agents
 
 Core commands:
   kage install [--project <dir>]             one-shot: init + index + auto-wire detected agents
+  kage check [--project <dir>]               verify CLAUDE.md/AGENTS.md/docs claims against the code — counted, not estimated
   kage scan --project <dir>                  60-second truth report on any repo (zero setup)
   kage init --project <dir>                  create repo memory (.agent_memory only)
   kage index --project <dir> [--full]        build/refresh code graph + indexes
@@ -149,6 +151,7 @@ const FULL_USAGE = `Kage — full command reference
 
 Usage:
   kage index --project <dir>
+  kage check [--project <dir>] [--json | --md] [--base <ref>] [--write-baseline] [--init-ci [--force]]
   kage scan --project <dir> [--json] [--scorecard [--out <file>]]
   kage demo [--project <dir>]
   kage install [--project <dir>] [--agents a,b] [--no-agents] [--json]
@@ -428,6 +431,38 @@ async function main(): Promise<void> {
     if (result.policyPath) console.log(`Agent policy: ${result.policyPath}`);
     console.log(`Indexes:\n${result.indexes.map((path) => `  - ${path}`).join("\n")}`);
     return;
+  }
+
+  if (command === "check") {
+    const checkTarget = resolve(projectArg(args));
+    if (args.includes("--init-ci")) {
+      const workflowPath = join(checkTarget, ".github", "workflows", "kage-check.yml");
+      if (existsSync(workflowPath) && !args.includes("--force")) {
+        console.log(`${workflowPath} already exists — rerun with --force to overwrite.`);
+        process.exit(2);
+      }
+      mkdirSync(dirname(workflowPath), { recursive: true });
+      writeFileSync(workflowPath, kageCheckWorkflowYaml(), "utf8");
+      console.log(`Wrote ${workflowPath}`);
+      console.log("Every PR now gets a drift check: it comments and fails only when the diff breaks a documented claim.");
+      return;
+    }
+    let report;
+    try {
+      report = driftCheck(checkTarget, { base: takeArg(args, "--base") });
+    } catch (error) {
+      console.error(`kage check failed: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(2);
+    }
+    if (args.includes("--write-baseline")) {
+      const written = writeCheckBaseline(checkTarget, report);
+      console.log(`Baseline written: ${written} (${report.confirmed.length} finding(s) accepted — future runs gate only on new drift)`);
+      return;
+    }
+    if (args.includes("--json")) console.log(JSON.stringify(report, null, 2));
+    else if (args.includes("--md")) console.log(checkReportMarkdown(report));
+    else console.log(formatCheckReport(report));
+    process.exit(report.totals.confirmed > 0 ? 1 : 0);
   }
 
   if (command === "scan") {

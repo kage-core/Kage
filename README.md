@@ -31,8 +31,6 @@ npx -y @kage-core/kage-graph-mcp install
   <a href="https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf"><img src="https://img.shields.io/badge/built%20on-Open%20Knowledge%20Format-41ff8f" alt="Built on Google Open Knowledge Format"></a>
 </p>
 
-<img src="docs/kage-stats.svg" alt="Kage in numbers: 96% R@5 recall, 0% stale served, 18% faster than grep, 0 dependencies, 360+ tests passing, 15 agents supported" width="820">
-
 <p>
   <a href="https://kage-core.com/">Website</a> ·
   <a href="https://kage-core.com/guide.html">Docs</a> ·
@@ -176,15 +174,12 @@ repo and verifies it, so it stays your team's and stays true as the code changes
 
 ## Benchmarks
 
-- **18% faster than grep at equal correctness** on real code-navigation tasks (N=3 suite,
-  same agent/model; reproduce with `kage benchmark --project . --compare`).
 - **LongMemEval-S retrieval:** 96.17% R@5 / 98.72% R@10, zero dependencies.
 - **Memory Correctness Under Change:** 0% stale-served (memory whose code was deleted or
   changed is withheld), vs 100% for capture-everything stores.
-- **Trust benchmark:** 100/100, covering hallucination rejection, stale exclusion, and live
-  grounding (`kage benchmark --trust --project .`).
 
-Methodology, commands, and caveats: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+Methodology, commands, and caveats: [docs/BENCHMARKS.md](docs/BENCHMARKS.md). Every number
+above has a reproducible harness in this repo; claims without one don't ship.
 
 ## Daily commands
 

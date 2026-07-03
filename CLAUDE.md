@@ -27,13 +27,6 @@ Until then, fall back to the memory directly: it is a plain OKF bundle — start
 verification status in `x-kage-*` frontmatter; treat anything not marked
 verified as unconfirmed). No tools are required to read it.
 
-## Show the Value
-
-`kage_context` and `kage_recall` return a one-line gains receipt (tokens/$ saved
-this session, stale memories withheld). When it is non-trivial, relay it to the
-user in your own words — Kage's value is otherwise invisible, and a user who never
-sees it churns. Repeat only what the tool actually reported; never fabricate numbers.
-
 ## Automatic Capture
 
 When you learn something reusable, create repo-local memory with `kage_learn`.

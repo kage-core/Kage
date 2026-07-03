@@ -76,13 +76,13 @@ import {
   supersedeMemory,
   validateProject,
   valueSummary,
-  formatTokenCount,
   verifyAgentActivation,
   writeCodeIndex,
   type MemoryType,
   type ObservationEvent,
   type SetupAgent,
 } from "./kernel.js";
+import { driftCheck, formatCheckReport } from "./check.js";
 import { buildGraphRegistryManifest } from "./graph-registry.js";
 
 const BASE_URL = "https://raw.githubusercontent.com/kage-core/kage-graph/master";
@@ -202,6 +202,7 @@ const KAGE_WORKFLOW_TEXT =
 // mode (KAGE_TOOLS=full) or via the CLI. Keeping the default small enough that
 // the client always-loads it removes the per-call ToolSearch round-trip.
 export const CORE_TOOLS = new Set([
+  "kage_check",
   "kage_context",
   "kage_learn",
   "kage_supersede",
@@ -677,6 +678,20 @@ export function listTools() {
         type: "object",
         properties: {
           project_dir: { type: "string", description: "Absolute path to the repository root." },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_check",
+      description:
+        "Verify the claims in agent-context files (CLAUDE.md, AGENTS.md, .cursor/rules, README, docs) against the code: cited paths, npm scripts, make targets, CLI subcommands. Reports confirmed drift / verified true / unverifiable — every number is a reproducible check, never an estimate. Pass base to gate only drift introduced since that ref.",
+      annotations: { title: "Verify agent-context files against the code", readOnlyHint: true },
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string", description: "Absolute path to the repository root." },
+          base: { type: "string", description: "Optional git ref: only report drift attributable to changes since this ref (diff-aware mode for PRs)." },
         },
         required: ["project_dir"],
       },
@@ -1295,10 +1310,12 @@ export async function callTool(name: string, args: Record<string, unknown> | und
       reconciliation.unresolved_count ? `\n## Memory Reconciliation\n${reconciliation.agent_instruction}` : "",
       `\n_${validationText}_`,
     ].filter(Boolean).join("");
-    // Visible receipt: surface what the harness saved today so agents relay it. Kept
-    // outside the size cap so it always survives.
+    // Receipt of counts only: served/withheld are observable events; token or
+    // dollar "savings" were estimates with no counterfactual and do not ship.
     const gains = valueSummary(projectDir).today;
-    const gainsLine = `\n\nGains: ~${formatTokenCount(gains.tokens_saved)} tokens saved this session · stale memories withheld: ${gains.stale_withheld}`;
+    const gainsLine = gains.stale_withheld > 0
+      ? `\n\n_${gains.stale_withheld} stale memor${gains.stale_withheld === 1 ? "y" : "ies"} withheld today (cited code changed; run \`kage doctor\` to review)._`
+      : "";
     // Backstop: per-field clamping + graph dedup keep this compact in practice, but never
     // let a pathological repo overflow the MCP response again. ~24k chars ≈ 6k tokens.
     const MAX_CONTEXT_CHARS = 24000;
@@ -1320,11 +1337,11 @@ export async function callTool(name: string, args: Record<string, unknown> | und
       const docsSection = docsRecallSection(String(args?.project_dir ?? ""), String(args?.query ?? ""), 3);
       if (docsSection) result.context_block = `${result.context_block}\n\n${docsSection}`;
     }
-    // Visible receipt: in text mode, surface what this recall saved so the agent
-    // can relay it. Value is otherwise invisible; an unseen win is a churned user.
+    // Counts only: stale-withheld is an observable event; estimated token
+    // savings are not a measurement and do not ship.
     const receipt = result.value_receipt;
-    const gainsLine = receipt && (receipt.tokens_saved > 0 || receipt.stale_withheld > 0)
-      ? `\n\nGains: ~${formatTokenCount(receipt.tokens_saved)} tokens saved by this recall${receipt.stale_withheld ? ` · stale memories withheld: ${receipt.stale_withheld}` : ""}`
+    const gainsLine = receipt && receipt.stale_withheld > 0
+      ? `\n\n_${receipt.stale_withheld} stale memor${receipt.stale_withheld === 1 ? "y" : "ies"} withheld by this recall (cited code changed)._`
       : "";
     return {
       content: [{ type: "text", text: args?.json || args?.explain ? JSON.stringify(result, null, 2) : `${result.context_block}${gainsLine}` }],
@@ -1640,6 +1657,15 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       isError: !result.ok,
+    };
+  }
+
+  if (name === "kage_check") {
+    const report = driftCheck(String(args?.project_dir ?? ""), {
+      base: typeof args?.base === "string" ? args.base : undefined,
+    });
+    return {
+      content: [{ type: "text", text: formatCheckReport(report) }],
     };
   }
 
