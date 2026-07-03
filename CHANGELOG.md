@@ -1,5 +1,45 @@
 # Changelog
 
+## v3.3.0 — the memory loop works end-to-end
+
+The core promise — session 2 inherits what session 1 learned — now holds, proven
+by a two-session sandbox test through the real installed hooks.
+
+- **Hooks never silently die.** The documented npx install left no `kage` on
+  PATH, so every ambient hook silently exited for new users. Hooks now resolve
+  the CLI via PATH → install-time path → npx package runner. Installed scripts
+  carry a `# kage-hooks-v2` stamp; `kage doctor` reports outdated hooks.
+- **Capture finally carries signal.** The observe hook serialized tool payloads
+  to JSON, which the signal scorer hard-rejects — all tool activity scored 0 and
+  edit contents (where fixes and conventions live) were discarded. Observations
+  are now built as prose: edits carry old→new excerpts, commands carry output.
+- **Distill is gated in every mode.** SessionEnd/PreCompact/SubagentStop ran the
+  ungated path (no signal filter, no dedupe, born approved) — the source of every
+  junk dump stamped verified. All modes gate, dedupe, and write drafts as
+  pending; fail→pass command pairs stamp truthful verification evidence that
+  lets grounded fixes auto-promote.
+- **Ranking trusts evidence.** Graph prior capped at lexical parity (log1p-damped),
+  recency decay sinks aged changelog-shaped memory, and terse identifier queries
+  ground through the code graph.
+- **Verification is earned, not born.** Packets start unverified; `kage reverify`
+  refuses bare re-stamps when cited code changed (`--evidence`/`--verified-by`
+  required and recorded); `kage verify` can fail; the hardcoded confidence 0.7
+  is gone from OKF output and displays show the verification label.
+- **Store health.** Staleness anchors are code identifiers, not prose words.
+  The merge driver sniffs content (raw-JSON `.md` packets auto-merge — proven on
+  a live sync race). GC deletes deprecated/superseded packets after 30 days.
+  Metadata rewrites no longer bump `updated_at`, so recency and retention are
+  honest. Usage counters are reconciled onto packets (`uses_30d` is real).
+- **New: `kage check`** — verify the claims in agent-context files (CLAUDE.md,
+  AGENTS.md, .cursor/rules, README, docs) against the code: cited paths, npm
+  scripts, make targets, CLI subcommands. Three buckets — confirmed drift /
+  verified true / unverifiable — counts, never estimates. `--base` gates PRs on
+  new drift only; `--init-ci` ships the GitHub Action; corpus-validated on 70
+  public repos (docs/CHECK_VALIDATION.md).
+- **Honesty cleanup.** The bytes/4 "tokens saved" receipt no longer ships in
+  `kage_context`/`kage_recall` output; the "Show the Value" relay is gone from
+  the policy template; unbacked benchmark claims removed from the README.
+
 ## v3.2.0 — recall ranking fix + observation retention
 
 - **Recall ranking: rare terms now beat filler words.** Hooks pass raw prompts as
