@@ -1,82 +1,150 @@
 # Kage Growth Plan — 2026-07 (evidence-based, 90 days)
 
-Generated 2026-07-03 from a 3-researcher evidence sweep (growth case studies, channel map, buyer discovery) plus the same day's market research. Claims are traced to URLs in the research transcripts.
+Generated 2026-07-03 from a 3-researcher evidence sweep (growth case studies, channel map,
+buyer discovery); reworked 2026-07-04 per founder decision: **the memory loop leads; kage
+check is a quiet secondary feature and leads nothing.**
 
 ## Positioning
 
-"Your agent's memory is 30% wrong — Kage is the verification layer that proves which agent-context claims are still true against your code and withholds the stale ones (claude-mem remembers; Kage verifies)." Evidence: the highest-engagement live debate in the niche is 'do context files even help, and how would you know?' (ETH Zurich AGENTS.md study, arXiv 2602.11988: auto-generated files −3% success; Raschka's tweet hit the HN front page) — verification is the only unclaimed side of that argument; the context-engineering intelligentsia (Willison, Horthy, Zechner) hold a less-context-not-more prior, so 'decides what NOT to inject' survives the reflexive 'context bloat' objection that killed every memory-tool Show HN; Anthropic's native team-memory sync (reverse-engineered Apr 2026) erases 'sharing' as a wedge but demonstrably lacks verification/staleness/provenance — the exact gap raised organically in claude-code#38536 ('the first debugging questions are provenance questions'); and Supabase proved positioning-against-incumbent-gravity is executable with zero audience (80→800 users on a tagline change), where claude-mem's 85k stars are the incumbent gravity. Single-player wedge first (every winner — claude-mem, Mem0, PostHog — monetized team/hosted only after solo OSS adoption); team-shared-via-git is the retained upsell, not the headline.
+**Kage is memory for coding agents that stays true.** Your agent learns as you work —
+decisions, fixes, conventions — and the next session (yours or a teammate's) starts already
+knowing it. Unlike every other memory tool, Kage verifies each memory against your code
+before injecting it: stale knowledge is withheld, never served. claude-mem remembers;
+natives remember; **Kage remembers and stays true.**
+
+Why this framing survives the market (from the research): the loudest live debate is "does
+agent context/memory even help, and how would you know?" (ETH Zurich AGENTS.md study hit
+the HN front page showing auto-generated context files *hurt*). Every memory tool is on the
+defensive side of that debate. Kage's loop is the only one that answers it structurally —
+memory that carries evidence and withholds itself when the code moves. Single-player first:
+every category winner (claude-mem, Mem0, PostHog) monetized team features only after solo
+OSS adoption. Anthropic shipped native team-memory sync in April, so "sharing" is not the
+headline — git-reviewable, verified, cross-agent memory is the retained differentiator.
 
 ## Ranked plays
 
-### 1. The drift study as a quantified-claim data post, dropped into the live 'do context files help?' debate
+### 1. The living-memory demo post (r/ClaudeAI)
 
-**What:** Turn docs/CHECK_VALIDATION.md into a public, reproducible data post: '30% of 70 real repos ship agent-context files with confirmed drift (91 findings, ~85% adjudicated precision, methodology + repo list published)'. Publish on the docs site, then post to r/ClaudeAI (claude-mem's exact channel) with a one-line install and the two known objections pre-answered in the body: (1) 'this bloats context' → Kage withholds stale memory, it subtracts; (2) 'prove it' → every finding is a reproducible check with the doc line + failing ground-truth check + deleting commit. Second angle a week later on r/ClaudeCode (338k members, ~4,200 weekly contributors) as a build-in-public teardown: 'I scanned 70 repos' CLAUDE.md files; here's what's actually stale.' A small paid X boost ($500-1k, PostHog-style) only if the Reddit post shows organic legs, timed to court GitHub Trending. Founder posts personally and camps in the comments all day.
+**What:** A 60-second demo (gif/asciinema) of the loop itself: session 1 debugs a failing
+test and establishes a convention → session 2 opens cold and *already knows it* → then the
+kicker: the cited file is changed, and Kage **withholds** the now-stale memory instead of
+injecting it. One-line install. The demo script is committed in the repo so anyone can
+reproduce it. Post to r/ClaudeAI (the channel where claude-mem went vertical on exactly
+this format: quantified claim + one-line install), founder posts personally and lives in
+the comments all day. A week later, second angle on r/ClaudeCode.
 
-**Why (evidence):** Every traced zero-to-one moment was a quantified claim in the audience's home forum: claude-mem's r/ClaudeAI post ('95% token savings', 1-line install) took it from ~1k stars/3 months to vertical; PostHog paired HN with $2k of Twitter promotion to tip Trending. Benchmark controversy is the proven format (ETH study derivatives: 142 pts, 54 pts on HN) while memory-tool demos cluster at 1-10 pts. The drift study is exactly the artifact this debate lacks: real-repo forensic data ('what Fortune-500 CLAUDE.md files actually contain'-style content outperformed advice content — Apple CLAUDE.md leak, 384 pts). Crucially it makes Kage the measurement side of the argument, not another memory tool.
+**Why:** The traced zero-to-one mechanism for this exact category and channel. And the
+withholding kicker pre-answers the reflexive objection that killed memory-tool posts
+("context bloat / stale garbage in my context") — Kage is the memory tool that *subtracts*.
 
-**Effort:** 4-6 days: 2 days turning CHECK_VALIDATION.md into a post with charts + repo table, 1 day reproducibility packaging (one command re-runs the scan on any repo), 1 day per Reddit post + full-day comment presence.
+**Metric (non-vanity):** by Aug 15, ≥10 strangers post their own session-2 recall moment or
+withholding receipt (screenshot/output). Kill/iterate: <20 non-vendor comments and zero
+reproductions → rewrite the hook once, try r/ClaudeCode, then stop and reassess.
 
-**Success metric (non-vanity):** By Aug 15, ≥10 strangers run `kage check` on their own repo and report results publicly (issue, PR, or comment with output) — activation, not stars. Kill/iterate threshold: if the first post gets <20 non-vendor comments and 0 reproductions, rewrite the hook once and try the other subreddit before abandoning.
+### 2. Memory-health PR comment — free GitHub Action for OSS
 
-### 2. Evidence PRs to the 21 confirmed-drift repos (warm outreach that ships value first)
+**What:** Package `kage pr check` (already runs on this repo) as a marketplace Action: on
+every PR it reports which of the repo's *memories* the diff invalidates ("this change
+breaks 2 things your agents believe — reverify or supersede") and posts a short comment.
+Free forever for public repos. This is the loop at the merge boundary — memory
+reconciliation, not doc linting.
 
-**What:** For each of the 21 corpus repos with confirmed drift, open a hand-written PR that fixes the actual stale claims in their CLAUDE.md/AGENTS.md, citing the ground-truth evidence (the failing check + deleting commit) in the PR body, with one non-salesy footer line: 'found with kage check — methodology here'. Batch of 7/week over 3 weeks so each gets real care. Founder sends personally (constraint satisfied: these deliver value before any ask, unlike the 0/20 cold DMs). Maintainers who merge get a follow-up comment offering the GitHub Action (play 3).
+**Why:** CodeRabbit's traced engine: free-for-OSS + output visible in every PR + two-click
+install → 100k repos before any marketing spend. And it plants the future paid surface at
+the boundary where proven budgets live ($15–24/seat band).
 
-**Why (evidence):** This is the CodeRabbit mechanism scaled to solo means: the product's output visible inside other people's shared artifacts (PR comments were CodeRabbit's self-advertising surface en route to $1M ARR bootstrapped). It converts the corpus from a research artifact into 21 warm, evidence-based touches — the opposite shape of the failed cold DMs, because the recipient gets a merged fix whether or not they ever install Kage. Each merged PR is also public proof-of-work that seeds the play-1 post's credibility.
+**Metric:** by Sep 30, ≥5 external repos running it on real PRs.
 
-**Effort:** ~2-3 hours per PR including verification the fix is right; 7/week ≈ 1.5 days/week for 3 weeks.
+### 3. The build-in-public teardown: "my memory product's loop was silently dead"
 
-**Success metric (non-vanity):** By Aug 15: ≥7 of 21 PRs merged, and ≥3 maintainers take a next step (install, run kage check themselves, add the Action, or open an issue/discussion). Merged-PR rate is the honest proxy for 'does the drift evidence matter to the people who own the files'.
+**What:** An honest engineering war story: the forensic trace that found the ambient loop
+delivering zero (JSON-noise capture, ungated distill, dead promote path), the eleven fixes,
+and the two-session proof — written as a teardown with real numbers and commits. Docs-site
+post; founder shares personally.
 
-### 3. Free-for-OSS 'memory health' PR comment — package kage-pr.yml as a public GitHub Action
+**Why:** War stories and forensic teardowns are the highest-engagement format in this
+niche's channels (the research traced teardown-style posts outperforming advice content
+consistently). It also converts Kage's most awkward fact — the loop was broken — into its
+most credible asset: this team measures itself and publishes the truth.
 
-**What:** Extract the existing kage-pr.yml workflow (already posts memory-health comments on this repo's PRs) into a standalone marketplace GitHub Action: 'Agent Context Drift Check' — on every PR it verifies the repo's CLAUDE.md/AGENTS.md/memory bundle against the diff and posts a short comment (verified / drifted / stale-withheld) with a link. Free forever for public repos. Offer it in the follow-up to every merged evidence PR (play 2) and in the data post (play 1). Every comment is visible to all contributors of that repo — people who never installed anything.
+**Metric:** one third-party citation (newsletter, blog, or a named amplifier linking it).
 
-**Why (evidence):** CodeRabbit's traced growth engine was exactly this: free-for-OSS tier + output visible in PRs + two-click install → 100k OSS projects before the influencer spend. The research names kage_pr_check as 'the CodeRabbit-style self-advertising surface a solo founder can run with zero audience'. It also matches where the proven budgets live (PR/CI boundary, $24-50/seat) — so the free surface doubles as the future revenue surface, unlike a memory UI which the claude-mem evidence says nobody pays for.
+### 4. One-line install + listings sweep (fulfillment only)
 
-**Effort:** 3-5 days to extract, harden (works on shallow clones, no secrets needed, graceful no-memory-bundle mode), publish to GitHub Marketplace, and write the README.
+**What:** Self-hosted plugin marketplace repo (`/plugin marketplace add …` works in one
+line); 10× fresh-machine install test (<10 min to first verified recall); then batch the
+listings (awesome-claude-code, community plugins, MCP registry, directories) in half a day
+and forget them.
 
-**Success metric (non-vanity):** By Sep 30: ≥5 external repos (not owned by the founder) running the Action on real PRs, generating ≥30 total PR comments. Repos-running-it is the metric; comment impressions are the mechanism.
+**Why:** Registries are fulfillment, not discovery (claude-mem's own download curve proves
+it) — but a broken install during the post window kills the only asset that matters.
 
-### 4. One-line install + full listing sweep — fulfillment only, zero growth expectation
+**Metric:** 10/10 clean-machine installs pass before play 1 posts.
 
-**What:** Ship a self-hosted plugin marketplace repo so '/plugin marketplace add <org>/kage' works in one line; verify install-to-first-verified-recall on a clean machine 10 times; make the Discover-tab context-cost figure small and screenshot it (a memory plugin showing LOW context cost at the point of install is a built-in differentiator). Then list everywhere cheap: awesome-claude-code PR, anthropics/claude-plugins-community submission, official MCP registry, claudemarketplaces.com, ClaudePluginHub, plus a pitch to one tested-roundup writer (Composio / buildtolaunch Substack accept pitches).
+### 5. Honest eval post + three staged amplifier pitches
 
-**Why (evidence):** Registries are fulfillment, not discovery — claude-mem's npm downloads were 47-2.3k/month for 5 months around its own marketplace launch and only exploded (99k/month) after the Reddit/Trending spike; no 2025-26 tool credibly attributes growth to a registry listing. But the trickle is real (claude-mem's first ~1k stars started the day of its awesome-claude-code listing) and a broken or slow install would waste 100% of plays 1-3's traffic. Listings are a half-day each and permanent SEO.
+**What:** Re-run the retrieval benchmarks (LongMemEval, the staleness bench) against
+current code and publish one honest eval post — including where Kage doesn't help — framed
+as "how would you even know your agent's memory is true?" Then three personal pitches
+(drafts staged, founder sends): ClaudeLog (mechanics page on memory verification),
+Willison/Raschka (the eval artifact), one tested-roundup writer.
 
-**Effort:** 3-4 days total in week 1-2, then near-zero maintenance.
+**Why:** Benchmark content is the proven high-engagement format; the pitches ride an
+artifact, not a request for attention.
 
-**Success metric (non-vanity):** By Jul 17: 10/10 fresh-machine installs reach a verified recall in <10 minutes (timed). By Jul 31: awesome-claude-code PR merged and community-marketplace submission accepted. These are readiness gates, not growth numbers — allocate zero installs-expected to this play.
+**Metric:** one third-party artifact by Sep 30; zero after three pitches → the artifact
+isn't strong enough, stop pitching.
 
-### 5. Eval numbers + staged earned-media pitches to the three winnable amplifiers
+### Quiet channel (unranked): evidence PRs
 
-**What:** Run the existing LongMemEval retrieval harness and publish one honest, reproducible eval post — including where Kage doesn't help — framed as 'how would you even know your agent memory is true?' Then stage three personal pitches (drafts staged, Kushal sends, per the outreach playbook): (1) InventorBlack/ClaudeLog — offer a documented mechanics page on memory verification (he mods r/ClaudeAI; single-gatekeeper reach); (2) Sebastian Raschka — he amplified the AGENTS.md efficacy data and the drift study is adjacent data; (3) IndyDevDan — a reproducible install→verified-recall→receipt demo his 'agentic engineer' audience can copy. Willison is the stretch target: he links to interesting verifiable engineering unprompted, so the play is making the drift post good enough to find him, not pitching him.
-
-**Why (evidence):** The channels research is explicit that credibility + verifiable evidence beats demos: practitioner teardowns (451 pts) and eval disputes dominated the same 90 days in which ~15 memory-tool Show HNs averaged <10 pts, and 'Universal Claude.md' was shredded specifically for token-count-only benchmarks. Pragmatic Engineer/Latent Space 'cover survey-grade evidence, not product announcements' — eval numbers are the only currency these amplifiers accept. Raschka demonstrably converts adjacent data into HN front-page reach.
-
-**Effort:** 1 week for the eval run + writeup (harness exists); pitches are 2-3 hours each, sent weeks 5-8 after the drift post gives them something public to react to.
-
-**Success metric (non-vanity):** By Sep 30: one third-party artifact exists — a ClaudeLog page, a Raschka/Willison link, a tested-roundup inclusion, or an IndyDevDan segment. One is enough; zero after three sent pitches means the eval story isn't landing and gets reworked before any further amplifier spend.
+The 21 corpus repos with confirmed stale context can still receive hand-written fix PRs
+(value-first, evidence-cited, one-line footer) at ~2-3/week when time allows. This is a
+goodwill/warm-contact channel, not a launch surface — and it never leads.
 
 ## Revenue motion
 
-Who pays: not individuals, ever — claude-mem's 85k stars with a still-free waitlist cloud, and Mem0's platform-after-41k-stars sequence, prove individual agent memory is a $0 category; and 'teams pay for shared memory' is explicitly unvalidated (ByteRover quietly dropped its $149/mo Team tier; zero public paying-team case studies found). The buyer with proven budget sits at the PR/CI boundary: EMs and the emerging 'agent manager'/DX-DRI role Anthropic itself names, spending general AI-tooling budget ($500-3,000+/dev/yr; 85.7% of leaders reserving 2026 budget for non-code-authoring AI tools) at CodeRabbit-anchored seat prices ($15-24/seat/mo band, CodeRabbit $15M ARR). What they'd pay for: the drift gate on private repos — the same PR comment that's free for OSS (play 3), sold as CI enforcement: verified agent context as a merge check, with provenance/staleness receipts natives don't have (git-reviewable vs Anthropic's opaque server sync; covers Bedrock/Vertex users excluded from native sync; readable by Codex/Cursor via OKF). When to ask: not in the first 60 days. Days 60-90, run 10-15 discovery interviews with EMs/DRIs sourced from evidence-PR merges, Action adopters, and drift-post commenters (the #38536 author's seven scenarios are the interview script; qualify by team size 10-15+ and repo count, since committed CLAUDE.md feels sufficient below that). Gate: build a paid private-repo tier only after ≥3 distinct teams independently ask for private-repo usage or support; price at $15-19/seat/mo inside the CodeRabbit band. No billing infrastructure, no pricing page, no 'Team' tier marketing before that gate — PostHog's documented failure was monetizing before the free base existed.
+Individuals never pay for memory (claude-mem: 85k stars, still free; ByteRover retreated
+from its team tier). The buyer with proven budget is the EM / DX-lead at the PR/CI
+boundary, spending existing AI-tooling budget at CodeRabbit-anchored prices ($15–24/seat).
+What they'd pay for: the **memory gate on private repos** — play 2's PR comment sold as CI
+enforcement, with the provenance/staleness receipts natives don't have (git-reviewable vs
+opaque server sync; covers Bedrock/Vertex users excluded from native sync; readable by
+Codex/Cursor via OKF). When to ask: days 60–90, via 10–15 discovery interviews sourced from
+Action adopters and demo-post commenters. Hard gate: **no billing, no pricing page, no
+hosted anything until ≥3 teams pull.**
 
 ## Do NOT do
 
-- No third Show HN. Two 3-point attempts match the category base rate (~15 memory-tool Show HNs averaged <10 pts in 90 days; best-in-category Recall got only 137 with a hostile thread). An HN post is earned later as a 'what we measured/learned' story once 20-50 genuine users exist — PostHog physics.
-- No cold DMs of any kind (0/20 documented). All outreach must deliver value first (evidence PRs) or be a staged pitch to a named amplifier with a public artifact attached.
-- Do not lead with 'team-shared memory' or 'Claude Code memory is machine-local'. The claim is expiring — Anthropic shipped native team-memory sync (live in v2.1.165) — and every category winner led single-player and held team back as the upsell. The vendor chorus on claude-code#38536 (6 vendors per authentic complainant) is not demand.
-- Do not use stars, npm downloads, or clones as success metrics or in public claims — documented bot noise for this repo, and claude-mem's npm numbers show downloads lag reality by months anyway.
-- Do not plug Kage on competitor or partner trackers, including anthropics/claude-code issues (#38536 is already a vendor pit). Quote those threads in Kage's own content instead; the pain quotes are citable without spamming the source.
-- Do not publish the gains receipt as a headline number until the bytes/4 inflation (honest-reset diagnosis) is fixed. Token-count-only claims get shredded ('Universal Claude.md': 'efficiency is highest without any instructions'); one inflated number in the drift post kills the entire credibility strategy.
-- Do not spend on X influencers, press, sponsorships, or courting Cherny at current scale — lagging indicators everywhere they were traced; CodeRabbit's brand spend came after $1M ARR. Exception: the small PostHog-style paid boost ($500-1k) only when timed to an already-moving organic post.
-- Do not treat registry/marketplace listings as a growth channel or build a Kage Discord — no registry-attributed growth story exists in 2025-26, the '78% of MCP installs' stat is unverifiable vendor SEO, and the community isn't organized on Discord.
-- Do not build team-tier billing, a pricing page, or a hosted service before the ≥3-teams pull gate. ByteRover's Team-tier retreat is the market telling you the sequencing.
-- Do not let growth work exceed ~60% of the week — a broken v3.3.1 during the drift-post window destroys the only asset (a product that verifiably works) that separates Kage from the 12 dead memory tools.
+- **Do not lead with `kage check` anywhere.** Founder decision (2026-07-04). It remains a
+  quiet secondary feature; the drift study stays published as methodology but is not a
+  launch artifact.
+- No third Show HN (two 3-point attempts match the category base rate). HN is earned later
+  via a "what we learned" post, not pitched.
+- No cold DMs of any kind (0/20 documented). Value-first or artifact-attached pitches only.
+- Do not lead with "team-shared memory" — natives ship team sync now; sharing is a retained
+  differentiator, not the headline.
+- No stars/downloads/clones as success metrics or in public claims (documented bot noise).
+- Never plug Kage on competitor or partner trackers (incl. anthropics/claude-code issues) —
+  quote the pain threads in Kage's own content instead.
+- No influencer spend, press, or sponsorships at current scale; the only paid exception is
+  a small PostHog-style boost (~$500–1k) if a post already shows organic legs.
+- No Discord, no community-building before there is a community.
+- No team-tier billing before the ≥3-teams pull gate.
+- Growth work caps at ~60% of the week — a broken release during the post window destroys
+  the one differentiating asset: a product that verifiably works.
 
 ## First 30 days
 
-WEEK 1 (Jul 6-12) — make the story publishable. Mon-Tue: fix the gains-receipt inflation so every number Kage prints is defensible (hard blocker for all content). Wed: ship the self-hosted marketplace repo; run the 10x fresh-machine install test (<10 min to first verified recall); fix whatever breaks. Thu: submit awesome-claude-code PR, community-marketplace submission, MCP registry + directory listings (batch them, half a day, then forget them). Fri: draft the drift-study post from docs/CHECK_VALIDATION.md — headline '30% of 70 real repos ship agent-context files with confirmed drift', reproducible one-command scan, the two objections (bloat, prove-it) answered in the body. ~1 day reserved for product/maintenance. WEEK 2 (Jul 13-19) — first contact. Mon: finalize post + publish on docs site. Tue (US morning): post to r/ClaudeAI; clear the calendar and answer every comment same-day; log every objection verbatim. Wed-Thu: evidence PRs batch 1 — 7 hand-written drift-fix PRs to corpus repos, evidence-cited, one-line footer. Fri: retro on the Reddit thread (what hook worked, which objection dominated); start extracting kage-pr.yml into the standalone GitHub Action. WEEK 3 (Jul 20-26) — second angle + the visible surface. Mon-Tue: finish and publish the 'Agent Context Drift Check' Action to GitHub Marketplace; add it to this repo + offer it in follow-ups on any merged PRs. Wed: post the build-in-public teardown angle to r/ClaudeCode ('I scanned 70 repos' CLAUDE.md files — here's what's actually stale'), full-day comment presence. Thu-Fri: evidence PRs batch 2 (7 more); shepherd batch 1 toward merge. If either Reddit post is visibly moving, trigger the $500-1k X boost now, not later. WEEK 4 (Jul 27-Aug 2) — follow-through + set up days 30-60. Mon: evidence PRs batch 3 (final 7); merge-shepherding across all batches. Tue: send the ClaudeLog/InventorBlack pitch personally (offer a memory-verification mechanics page, attach the drift post + any merged PRs as proof). Wed-Thu: start the LongMemEval eval run for the day-30-60 eval post; capture every 'does this actually help?' comment from both threads as the eval post's framing. Fri: 30-day scorecard against the play metrics — reproductions of kage check by strangers, PRs merged, Action adopters, install-test pass rate — and kill/iterate decisions per play. Throughout: growth capped at ~3 days/week; product maintenance and same-day support responses (PostHog's 30-second-support lesson) fill the rest.
+**Week 1 (Jul 6–12):** record the two-session demo + withholding kicker; commit the
+reproduction script; 10× fresh-machine install test, fix what breaks; ship the marketplace
+repo; batch all listings in half a day. Draft the demo post.
+**Week 2 (Jul 13–19):** publish demo post on the docs site; Tuesday US-morning post to
+r/ClaudeAI; founder in the comments all day; log every objection verbatim. Start extracting
+`kage pr check` into the standalone Action.
+**Week 3 (Jul 20–26):** second-angle post to r/ClaudeCode; finish + publish the Action
+(free for OSS); draft the teardown war story from the deep-dive/fix history.
+**Week 4 (Jul 27–Aug 2):** publish teardown; retro on both posts (which hook, which
+objections); begin eval re-runs for play 5; first quiet evidence PRs if time allows.
 
-_Note: the week-1 "fix gains-receipt inflation" blocker was already completed on 2026-07-03 — the receipt was removed entirely in v3.3.0, so those days are free._
+_Prereq already done (2026-07-03): every number Kage prints is a count, not an estimate —
+the inflated receipt was removed in v3.3.0, so all content claims are defensible._
