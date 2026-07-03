@@ -2219,6 +2219,13 @@ test("setup generates all-agent MCP configuration and writes Codex config idempo
   const observeHookPath = join(home, ".claude", "kage", "hooks", "observe.sh");
   execFileSync("bash", ["-n", observeHookPath]);
   execFileSync("bash", ["-n", join(home, ".claude", "kage", "hooks", "stop.sh")]);
+  // The ambient loop must never silently die: every hook resolves the CLI via
+  // PATH -> baked install path -> package runner (npx installs put nothing on PATH).
+  for (const hookName of ["session-start.sh", "observe.sh", "stop.sh"]) {
+    const hookText = readFileSync(join(home, ".claude", "kage", "hooks", hookName), "utf8");
+    assert.match(hookText, /--package=@kage-core\/kage-graph-mcp kage/, `${hookName} missing package-runner fallback`);
+    assert.match(hookText, /\[\[ -f ".*cli\.js" \]\]/, `${hookName} missing baked cli path fallback`);
+  }
   // PreToolUse(Read) memory injection: dedicated script + a "Read"-matcher hook entry.
   const readContextHookPath = join(home, ".claude", "kage", "hooks", "kage-read-context.sh");
   const readContextHook = readFileSync(readContextHookPath, "utf8");
@@ -2567,11 +2574,24 @@ test("auto distill quietly skips empty sessions and sessions where the agent alr
   assert.equal(skipped.skipped_reason, "session_already_captured");
   assert.equal(loadPendingPackets(project).length, 0);
 
-  // Manual distill is unchanged: candidates are written as approved repo memory without the auto tag.
+  // Manual distill is safe by default now: it dedupes like auto (SessionEnd +
+  // PreCompact + SubagentStop can all fire for one session), and drafts are
+  // born pending — nothing lands approved without review or auto-promotion.
   const manual = distillSession(project, "captured-session");
   assert.equal(manual.mode, "manual");
-  const packet = manual.candidates[0]?.packet;
-  assert.equal(packet?.status, "approved");
+  assert.equal(manual.skipped_reason, "session_already_captured");
+
+  assert.equal(observe(project, {
+    type: "command_result",
+    session_id: "manual-session",
+    command: "npm run lint",
+    exit_code: 0,
+    summary: "Run this because CI requires lint before push; it guards src/index.ts formatting.",
+  }).ok, true);
+  const manualFresh = distillSession(project, "manual-session");
+  assert.equal(manualFresh.candidates.length > 0, true);
+  const packet = manualFresh.candidates[0]?.packet;
+  assert.equal(packet?.status, "pending");
   assert.equal(packet?.tags.includes("auto-distill"), false);
 });
 

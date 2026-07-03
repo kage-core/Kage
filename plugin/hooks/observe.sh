@@ -13,8 +13,15 @@ print(d.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or "")
 ' 2>/dev/null || echo "")"
 
 [[ -d "$CWD/.agent_memory" ]] || exit 0
-# Resolve a repo-local install too, so hooks work without a global kage on PATH.
+# Resolve the kage CLI: repo-local, PATH, baked install path, then the package runner.
 export PATH="$CWD/node_modules/.bin:$PATH"
+if command -v kage >/dev/null 2>&1; then
+  :
+elif [[ -f "/Users/kushaljain/code/Kage/mcp/dist/cli.js" ]] && command -v node >/dev/null 2>&1; then
+  kage() { node "/Users/kushaljain/code/Kage/mcp/dist/cli.js" "$@"; }
+else
+  kage() { npx -y --package=@kage-core/kage-graph-mcp kage "$@"; }
+fi
 command -v kage >/dev/null 2>&1 || exit 0
 
 EVENT="$(PAYLOAD="$PAYLOAD" python3 -c 'import json, os
@@ -64,17 +71,53 @@ tool_response = d.get("tool_response") or d.get("toolResponse") or d.get("result
 prompt = first(d.get("prompt"), d.get("user_prompt"), d.get("message"))
 path = ""
 command = ""
+new_text = ""
+old_text = ""
 if isinstance(tool_input, dict):
     path = first(tool_input.get("file_path"), tool_input.get("path"), tool_input.get("notebook_path"))
     command = first(tool_input.get("command"))
+    new_text = first(tool_input.get("new_string"), tool_input.get("content"), tool_input.get("new_source"))
+    old_text = first(tool_input.get("old_string"))
+    if not new_text and isinstance(tool_input.get("edits"), list):
+        new_text = " ".join(e.get("new_string") or "" for e in tool_input["edits"] if isinstance(e, dict))[:1200]
+
+def prose(value, limit=1200, tail=False):
+    # Plain-text extraction. Serialized dicts read as noise to the signal
+    # scorer (jsonNoiseText), so pull the human-readable field instead of
+    # json.dumps-ing the payload — otherwise every tool observation scores 0.
+    if isinstance(value, dict):
+        for key in ("stdout", "stderr", "output", "error", "message", "content", "text"):
+            candidate = value.get(key)
+            if isinstance(candidate, str) and candidate.strip():
+                flat = " ".join(candidate.split())
+                return flat[-limit:] if tail else flat[:limit]
+        flat = " ".join(str(v) for v in value.values() if isinstance(v, str) and v.strip())
+        flat = " ".join(flat.split())
+        return flat[:limit]
+    if value is None:
+        return ""
+    flat = " ".join(str(value).split())
+    return flat[-limit:] if tail else flat[:limit]
 
 if event_name == "UserPromptSubmit":
     payload = {"type": "user_prompt", "text": prompt, "summary": compact(prompt, 240)}
 elif event_name == "PostToolUseFailure":
-    payload = {"type": "command_result" if command else "tool_result", "tool": tool, "path": path, "command": command, "summary": "Tool failed: " + compact(tool_response or d, 320), "text": compact(tool_response or d)}
+    err = prose(tool_response or d, 900, tail=True)
+    line = (command or tool or "tool") + " failed: " + err
+    payload = {"type": "command_result" if command else "tool_result", "tool": tool, "path": path, "command": command, "summary": line[:320], "text": line}
 elif event_name == "PostToolUse":
-    obs_type = "file_change" if path else ("command_result" if command else "tool_use")
-    payload = {"type": obs_type, "tool": tool, "path": path, "command": command, "summary": compact(tool_response or tool_input, 320), "text": compact(tool_response or tool_input)}
+    if path and (new_text or old_text):
+        # The edit content is where fixes and conventions live; tool_response
+        # only says "success" and must never displace it.
+        change = ("changed " + path + ": " + old_text[:160] + " -> " + new_text[:480]) if old_text else ("wrote " + path + ": " + new_text[:600])
+        payload = {"type": "file_change", "tool": tool, "path": path, "summary": change[:320], "text": change}
+    elif command:
+        out = prose(tool_response, 900, tail=True)
+        line = command + (": " + out if out else " completed")
+        payload = {"type": "command_result", "tool": tool, "path": path, "command": command, "summary": line[:320], "text": line}
+    else:
+        body = prose(tool_response) or prose(tool_input)
+        payload = {"type": "file_change" if path else "tool_use", "tool": tool, "path": path, "command": command, "summary": ((tool + ": ") if tool else "") + body[:300], "text": body}
 elif event_name == "PreCompact":
     payload = {"type": "session_end", "summary": "Claude Code is compacting context; distill durable observations before compaction."}
 elif event_name == "SessionEnd":
@@ -95,7 +138,9 @@ if [[ -n "$OBSERVATION" ]]; then
 fi
 
 if [[ "$EVENT" == "PreCompact" || "$EVENT" == "SessionEnd" || "$EVENT" == "SubagentStop" ]]; then
-  kage distill --project "$CWD" --session "$SESSION" --json >/dev/null 2>&1 || true
+  # --auto is load-bearing: it is the gated path (signal filter, dedupe, pending
+  # review). Without it, distill writes unfiltered packets stamped approved.
+  kage distill --auto --project "$CWD" --session "$SESSION" --json >/dev/null 2>&1 || true
 fi
 
 if [[ "$EVENT" == "UserPromptSubmit" ]]; then

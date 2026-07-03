@@ -30,6 +30,15 @@ Before finishing a task that changed files: kage_pr_summarize or kage_propose_fr
 If recalled memory helped: kage_feedback helpful. If wrong or stale: kage_feedback wrong or stale."
 fi
 
+# Resolve the kage CLI: repo-local, PATH, baked install path, then the package runner.
+export PATH="$CWD/node_modules/.bin:$PATH"
+if command -v kage >/dev/null 2>&1; then
+  :
+elif [[ -f "/Users/kushaljain/code/Kage/mcp/dist/cli.js" ]] && command -v node >/dev/null 2>&1; then
+  kage() { node "/Users/kushaljain/code/Kage/mcp/dist/cli.js" "$@"; }
+else
+  kage() { npx -y --package=@kage-core/kage-graph-mcp kage "$@"; }
+fi
 # Session continuity: append a compact "previously…" digest when prior session data exists.
 if command -v kage >/dev/null 2>&1; then
   PREVIOUSLY="$(kage resume --project "$CWD" 2>/dev/null || true)"

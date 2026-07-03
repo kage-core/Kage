@@ -10423,6 +10423,11 @@ function diversifyRecallEntries(entries: ScoredRecallEntry[], limit: number, max
 function isSerializedDumpTitle(title: string): boolean {
   const t = (title ?? "").trimStart();
   return /^(workflow|runbook)\s*:?\s*[{[]/i.test(t)
+    // "Runbook: Tool failed: {...}" evaded the brace check above because prose
+    // sits between the label and the payload; braces early in a title are a
+    // dump signature regardless of what precedes them.
+    || /^(workflow|runbook)\s*:.{0,40}[{[]/i.test(t)
+    || /^(workflow|runbook)\s*:\s*tool failed/i.test(t)
     || t.startsWith('{"')
     || /^<(task-notification|div|svg|html)\b/i.test(t)
     || /\btool_use_id\b|toolu_[A-Za-z0-9]{10}/.test(title)
@@ -12491,9 +12496,9 @@ export function truthReport(projectDir: string): TruthReport {
     findings,
     warnings,
     next_actions: [
-      "npx -y @kage-core/kage-graph-mcp install      one command: creates repo memory + wires your agents (Claude Code, Codex, Cursor, ...)",
-      "then just work — agents capture learnings and recall them, verified against this code",
-      "kage gains --project .      the receipt: what the memory loop saved you this week",
+      "kage check --project .      verify CLAUDE.md/AGENTS.md/docs claims against this code — counted, not estimated",
+      "kage check --init-ci        gate every PR: fail only when a diff breaks a documented claim",
+      "npx -y @kage-core/kage-graph-mcp install      wire repo memory + agents (Claude Code, Codex, Cursor, ...)",
     ],
   };
 }
@@ -16781,6 +16786,21 @@ export function setupAgent(agent: SetupAgent, projectDir: string, options: { wri
     const path = join(home, ".claude.json");
     const server = { type: "stdio", command: serverCommand, args: serverArgs, alwaysLoad: true };
     const hookDir = join(home, ".claude", "kage", "hooks");
+    // The hooks used to die on `command -v kage || exit 0`: an npx install puts
+    // nothing on PATH, so every ambient hook silently no-oped for new users.
+    // Resolve the CLI the same way the MCP server config does — PATH first
+    // (fast), then the install-time cli.js (guarded by -f so npx cache pruning
+    // degrades gracefully), then the package runner. The loop never silently dies.
+    const hookCliPath = join(dirname(serverPath), "cli.js");
+    const hookKageResolve = `# Resolve the kage CLI: repo-local, PATH, baked install path, then the package runner.
+export PATH="$CWD/node_modules/.bin:$PATH"
+if command -v kage >/dev/null 2>&1; then
+  :
+elif [[ -f "${hookCliPath}" ]] && command -v node >/dev/null 2>&1; then
+  kage() { node "${hookCliPath}" "$@"; }
+else
+  kage() { npx -y --package=@kage-core/kage-graph-mcp kage "$@"; }
+fi`;
     const hookScript = `#!/usr/bin/env bash
 # Kage SessionStart hook — injects full memory policy as a system message.
 # Silent if Kage is not initialized in the current project.
@@ -16813,6 +16833,7 @@ Before finishing a task that changed files: kage_pr_summarize or kage_propose_fr
 If recalled memory helped: kage_feedback helpful. If wrong or stale: kage_feedback wrong or stale."
 fi
 
+${hookKageResolve}
 # Session continuity: append a compact "previously…" digest when prior session data exists.
 if command -v kage >/dev/null 2>&1; then
   PREVIOUSLY="$(kage resume --project "$CWD" 2>/dev/null || true)"
@@ -16834,8 +16855,7 @@ PAYLOAD="$(cat || true)"
 CWD="$(printf "%s" "$PAYLOAD" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('cwd',''))" 2>/dev/null || echo "")"
 
 [[ -d "$CWD/.agent_memory" ]] || exit 0
-# Resolve a repo-local install too, so hooks work without a global kage on PATH.
-export PATH="$CWD/node_modules/.bin:$PATH"
+${hookKageResolve}
 command -v kage >/dev/null 2>&1 || exit 0
 
 if git -C "$CWD" status --porcelain -uall >/dev/null 2>&1 && [[ -n "$(git -C "$CWD" status --porcelain -uall)" ]]; then
@@ -16892,8 +16912,7 @@ print(d.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or "")
 ' 2>/dev/null || echo "")"
 
 [[ -d "$CWD/.agent_memory" ]] || exit 0
-# Resolve a repo-local install too, so hooks work without a global kage on PATH.
-export PATH="$CWD/node_modules/.bin:$PATH"
+${hookKageResolve}
 command -v kage >/dev/null 2>&1 || exit 0
 
 EVENT="$(PAYLOAD="$PAYLOAD" python3 -c 'import json, os
@@ -16943,17 +16962,53 @@ tool_response = d.get("tool_response") or d.get("toolResponse") or d.get("result
 prompt = first(d.get("prompt"), d.get("user_prompt"), d.get("message"))
 path = ""
 command = ""
+new_text = ""
+old_text = ""
 if isinstance(tool_input, dict):
     path = first(tool_input.get("file_path"), tool_input.get("path"), tool_input.get("notebook_path"))
     command = first(tool_input.get("command"))
+    new_text = first(tool_input.get("new_string"), tool_input.get("content"), tool_input.get("new_source"))
+    old_text = first(tool_input.get("old_string"))
+    if not new_text and isinstance(tool_input.get("edits"), list):
+        new_text = " ".join(e.get("new_string") or "" for e in tool_input["edits"] if isinstance(e, dict))[:1200]
+
+def prose(value, limit=1200, tail=False):
+    # Plain-text extraction. Serialized dicts read as noise to the signal
+    # scorer (jsonNoiseText), so pull the human-readable field instead of
+    # json.dumps-ing the payload — otherwise every tool observation scores 0.
+    if isinstance(value, dict):
+        for key in ("stdout", "stderr", "output", "error", "message", "content", "text"):
+            candidate = value.get(key)
+            if isinstance(candidate, str) and candidate.strip():
+                flat = " ".join(candidate.split())
+                return flat[-limit:] if tail else flat[:limit]
+        flat = " ".join(str(v) for v in value.values() if isinstance(v, str) and v.strip())
+        flat = " ".join(flat.split())
+        return flat[:limit]
+    if value is None:
+        return ""
+    flat = " ".join(str(value).split())
+    return flat[-limit:] if tail else flat[:limit]
 
 if event_name == "UserPromptSubmit":
     payload = {"type": "user_prompt", "text": prompt, "summary": compact(prompt, 240)}
 elif event_name == "PostToolUseFailure":
-    payload = {"type": "command_result" if command else "tool_result", "tool": tool, "path": path, "command": command, "summary": "Tool failed: " + compact(tool_response or d, 320), "text": compact(tool_response or d)}
+    err = prose(tool_response or d, 900, tail=True)
+    line = (command or tool or "tool") + " failed: " + err
+    payload = {"type": "command_result" if command else "tool_result", "tool": tool, "path": path, "command": command, "summary": line[:320], "text": line}
 elif event_name == "PostToolUse":
-    obs_type = "file_change" if path else ("command_result" if command else "tool_use")
-    payload = {"type": obs_type, "tool": tool, "path": path, "command": command, "summary": compact(tool_response or tool_input, 320), "text": compact(tool_response or tool_input)}
+    if path and (new_text or old_text):
+        # The edit content is where fixes and conventions live; tool_response
+        # only says "success" and must never displace it.
+        change = ("changed " + path + ": " + old_text[:160] + " -> " + new_text[:480]) if old_text else ("wrote " + path + ": " + new_text[:600])
+        payload = {"type": "file_change", "tool": tool, "path": path, "summary": change[:320], "text": change}
+    elif command:
+        out = prose(tool_response, 900, tail=True)
+        line = command + (": " + out if out else " completed")
+        payload = {"type": "command_result", "tool": tool, "path": path, "command": command, "summary": line[:320], "text": line}
+    else:
+        body = prose(tool_response) or prose(tool_input)
+        payload = {"type": "file_change" if path else "tool_use", "tool": tool, "path": path, "command": command, "summary": ((tool + ": ") if tool else "") + body[:300], "text": body}
 elif event_name == "PreCompact":
     payload = {"type": "session_end", "summary": "Claude Code is compacting context; distill durable observations before compaction."}
 elif event_name == "SessionEnd":
@@ -16974,7 +17029,9 @@ if [[ -n "$OBSERVATION" ]]; then
 fi
 
 if [[ "$EVENT" == "PreCompact" || "$EVENT" == "SessionEnd" || "$EVENT" == "SubagentStop" ]]; then
-  kage distill --project "$CWD" --session "$SESSION" --json >/dev/null 2>&1 || true
+  # --auto is load-bearing: it is the gated path (signal filter, dedupe, pending
+  # review). Without it, distill writes unfiltered packets stamped approved.
+  kage distill --auto --project "$CWD" --session "$SESSION" --json >/dev/null 2>&1 || true
 fi
 
 if [[ "$EVENT" == "UserPromptSubmit" ]]; then
@@ -17013,8 +17070,7 @@ print(d.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or "")
 ' 2>/dev/null || echo "")"
 
 [[ -d "$CWD/.agent_memory" ]] || exit 0
-# Resolve a repo-local install too, so hooks work without a global kage on PATH.
-export PATH="$CWD/node_modules/.bin:$PATH"
+${hookKageResolve}
 command -v kage >/dev/null 2>&1 || exit 0
 
 FILE_PATH="$(PAYLOAD="$PAYLOAD" python3 -c 'import json, os
@@ -17782,6 +17838,15 @@ function reusablePromptObservation(event: ObservationRecord): string {
     "always",
     "never",
     "prefer",
+    // Debugging intent is the highest-signal prompt there is: the session that
+    // follows usually contains the root cause and the fix.
+    "fail",
+    "fix",
+    "error",
+    "broken",
+    "regression",
+    "doesn't work",
+    "not working",
     "avoid",
   ];
   if (!durableSignals.some((signal) => lower.includes(signal))) return "";
@@ -18149,10 +18214,13 @@ export function distillSession(projectDir: string, sessionId: string, options: {
   const auto = Boolean(options.auto);
   const mode = auto ? ("auto" as const) : ("manual" as const);
   const observations = loadObservations(projectDir, sessionId);
-  if (auto && observations.length === 0) {
+  if (observations.length === 0) {
     return { ok: true, session_id: sessionId, observations: 0, candidates: [], errors: [], mode, skipped_reason: "no_observations", skipped_low_signal: 0 };
   }
-  if (auto && sessionAlreadyCaptured(projectDir, sessionId, observations)) {
+  // Dedupe guards both modes: SessionEnd + PreCompact + SubagentStop can all
+  // fire for one session, and re-distilling the same material wrote duplicate
+  // packets for years.
+  if (sessionAlreadyCaptured(projectDir, sessionId, observations)) {
     return { ok: true, session_id: sessionId, observations: observations.length, candidates: [], errors: [], mode, skipped_reason: "session_already_captured", skipped_low_signal: 0 };
   }
   const candidates: CaptureResult[] = [];
@@ -18171,7 +18239,9 @@ export function distillSession(projectDir: string, sessionId: string, options: {
       {
         kind: "observation_session",
         session_id: sessionId,
-        observation_ids: observationIds,
+        // A sample is enough provenance; full arrays made single packets 112KB
+        // and every teammate clones them.
+        observation_ids: observationIds.slice(0, 20),
         observation_count: observations.length,
       },
     ];
@@ -18210,12 +18280,12 @@ export function distillSession(projectDir: string, sessionId: string, options: {
     return result;
   };
   const autoTags = auto ? [AUTO_DISTILL_TAG] : [];
-  // Auto-distill quality gate: drafts may only be seeded by observations scoring at
+  // Distill quality gate: drafts may only be seeded by observations scoring at
   // least AUTO_DISTILL_SIGNAL_THRESHOLD. Events tagged low_signal at ingestion skip
-  // cheaply; untagged (older) records are scored here. Manual distill is not gated.
+  // cheaply; untagged (older) records are scored here. Both modes are gated —
+  // ungated manual distill is how 116KB dumps got stamped approved+verified.
   let skippedLowSignal = 0;
   const signalGate = (events: ObservationRecord[]): ObservationRecord[] => {
-    if (!auto) return events;
     return events.filter((event) => {
       const lowSignal = event.low_signal === true
         || (event.low_signal === undefined && observationSignalScore(event) < AUTO_DISTILL_SIGNAL_THRESHOLD);
@@ -18226,6 +18296,29 @@ export function distillSession(projectDir: string, sessionId: string, options: {
   const commandEvents = signalGate(observations.filter((event) => event.type === "command_result" && event.command));
   const fileEvents = signalGate(observations.filter((event) => event.type === "file_change" && event.path));
   const promptEvents = signalGate(observations.filter((event) => event.type === "user_prompt" && (event.text || event.summary)));
+
+  // A fail→pass pair on the same command is the strongest evidence a session
+  // produced a real fix. Stamp it on the drafts: it is true, it is checkable
+  // from the observations, and it lets grounded fixes cross the promote bar.
+  // Scanned pre-gate: the failing run often carries error text the gate keeps,
+  // but the passing run can be terse.
+  const failThenPassed: string[] = (() => {
+    const failedAt = new Map<string, number>();
+    const proven: string[] = [];
+    observations.forEach((event, index) => {
+      if (event.type !== "command_result" || !event.command) return;
+      const cmd = normalizeCommandText(event.command);
+      const failed = typeof event.exit_code === "number"
+        ? event.exit_code !== 0
+        : /\bfail(ed|ure|ing)?\b|\berror\b/i.test(`${event.summary ?? ""} ${event.text ?? ""}`);
+      if (failed) failedAt.set(cmd, index);
+      else if (failedAt.has(cmd) && (failedAt.get(cmd) as number) < index && !proven.includes(cmd)) proven.push(cmd);
+    });
+    return proven;
+  })();
+  const verificationLine = failThenPassed.length
+    ? `\n\nVerified: \`${failThenPassed[0]}\` failed then passed after the change — reproduced in session ${sessionId}.`
+    : "";
 
   const meaningfulCommandEvents = commandEvents
     .map((event) => ({ event, reusable: reusableCommandObservation(event, knownRepoCommands(projectDir)) }))
@@ -18238,11 +18331,13 @@ export function distillSession(projectDir: string, sessionId: string, options: {
       projectDir,
       title: `Runbook: ${lead}`,
       summary: `Observed commands: ${commands.slice(0, 3).join(", ")}`,
-      body: `Reusable command observation distilled from session ${sessionId}:\n\n${meaningfulCommandEvents.map((item) => `- ${item.reusable.command}: ${item.reusable.learning}`).join("\n")}\n\nReview before approving as a durable runbook.`,
+      body: `Reusable command observation distilled from session ${sessionId}:\n\n${meaningfulCommandEvents.map((item) => `- ${item.reusable.command}: ${item.reusable.learning}`).join("\n")}${verificationLine}\n\nReview before approving as a durable runbook.`,
       type: "runbook",
       tags: ["observed-session", "commands", "runbook", ...autoTags],
       paths: unique(meaningfulCommandEvents.map((item) => item.event.path).filter(Boolean) as string[]),
-      pendingReview: auto,
+      // Distilled drafts are born pending in every mode; only the grounded
+      // high-signal auto-promotion path may lift them to approved.
+      pendingReview: true,
     })));
   }
 
@@ -18257,23 +18352,25 @@ export function distillSession(projectDir: string, sessionId: string, options: {
       projectDir,
       title: `Workflow: ${lead}`,
       summary: lead,
-      body: `Reusable file observation distilled from session ${sessionId}:\n\n${meaningfulFileEvents.map((item) => `- ${item.event.path}: ${item.learning}`).join("\n")}\n\nReview before approving as durable repo memory.`,
+      body: `Reusable file observation distilled from session ${sessionId}:\n\n${meaningfulFileEvents.map((item) => `- ${item.event.path}: ${item.learning}`).join("\n")}${verificationLine}\n\nReview before approving as durable repo memory.`,
       type: "workflow",
       tags: ["observed-session", "workflow", ...autoTags],
       paths,
-      pendingReview: auto,
+      pendingReview: true,
     })));
   }
 
   if (promptEvents.length) {
-    const text = promptEvents.map(reusablePromptObservation).filter(Boolean).join("\n").trim();
+    // Prompt-derived text is the least grounded input: clamp per prompt and
+    // joined, and always land it in the pending inbox.
+    const text = promptEvents.map((event) => clampInline(reusablePromptObservation(event), 500)).filter(Boolean).join("\n").trim().slice(0, 4000);
     if (text) candidates.push(annotate(learn({
       projectDir,
       title: titleFromLearning(text),
-      learning: text,
+      learning: `${text}${verificationLine}`,
       evidence: `Observation session: ${sessionId}`,
       tags: ["observed-session", "intent", ...autoTags],
-      pendingReview: auto,
+      pendingReview: true,
     })));
   }
 
