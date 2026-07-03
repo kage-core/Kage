@@ -2,6 +2,7 @@
 .DS_Store
 .agent_memory/*
 !.agent_memory/
+!.agent_memory/check-baseline.json
 !.agent_memory/packets/
 !.agent_memory/packets/*.json
 !.agent_memory/packets/*.md
