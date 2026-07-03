@@ -169,6 +169,8 @@ export interface AgentHookSummary {
   required: string[];
   installed: string[];
   missing: string[];
+  /** Installed scripts whose kage-hooks-v stamp is older than the current templates. */
+  outdated: string[];
   script_paths: string[];
   ready: boolean;
 }
@@ -3411,6 +3413,9 @@ export function kageFileContext(projectDir: string, filePath: string): FileConte
   }));
   const replay = replayTokensSaved(verified, result.context_block);
   recordValueEvent(projectDir, { kind: "recall_served", tokens_saved: replay, replay_tokens: replay });
+  // File-context serves are real uses — the uses_30d counter read 0 forever
+  // because only recall() counted.
+  recordRecallAccess(projectDir, verified.map((packet) => ({ packet })) as unknown as RecallResult["results"]);
   return result;
 }
 
@@ -3876,6 +3881,29 @@ function identifierTokens(text: string): Set<string> {
   return out;
 }
 
+// Anchor candidates must be written AS CODE in the memory text — camelCase,
+// snake_case, `backticked`, or called() — never plain prose words. Treating
+// every word as a candidate anchored 90% of packets to tokens like "verified"
+// and "when" that happened to collide with incidental symbols in the file.
+function codeAnchorTokens(text: string): Set<string> {
+  const out = new Set<string>();
+  const add = (token: string) => {
+    if (token.length >= 6) out.add(token.toLowerCase());
+  };
+  for (const match of text.matchAll(/`([^`\n]+)`/g)) {
+    for (const token of match[1].matchAll(/[A-Za-z_$][A-Za-z0-9_$]*/g)) add(token[0]);
+  }
+  for (const match of text.matchAll(/\b[a-z][a-z0-9]*[A-Z][A-Za-z0-9]*\b/g)) add(match[0]);
+  for (const match of text.matchAll(/\b[A-Za-z0-9]+_[A-Za-z0-9_]+\b/g)) add(match[0]);
+  for (const match of text.matchAll(/\b([A-Za-z_$][A-Za-z0-9_$]{2,})\(\)/g)) add(match[1]);
+  return out;
+}
+
+// Symbol kinds that make meaningful anchors. Constants are allowed only when
+// the name itself is code-shaped (contains an underscore after lowercasing) —
+// a constant literally named "verified" is a prose-word collision, not a handle.
+const ANCHOR_SYMBOL_KINDS = new Set(["function", "class", "method", "interface", "type", "enum"]);
+
 // current-file symbol span hashes, keyed by `${nameLower}\0${kind}` -> [sha256...].
 // Cached by mtime+size: extraction only runs when a file actually changed.
 const anchorSymbolCache = new Map<string, { mtimeMs: number; size: number; byKey: Map<string, string[]> }>();
@@ -3931,7 +3959,7 @@ function fileSymbolSpanHashes(projectDir: string, path: string): Map<string, str
 // title+summary+body) is supplied, anchor each TS/JS file to the symbols the
 // memory actually names, so unrelated edits in the same file do not mark it stale.
 function memoryPathFingerprints(projectDir: string, paths: string[], anchorText?: string): MemoryPathFingerprint[] {
-  const idents = anchorText ? identifierTokens(anchorText) : null;
+  const idents = anchorText ? codeAnchorTokens(anchorText) : null;
   const fingerprints: MemoryPathFingerprint[] = [];
   for (const path of unique(paths).filter(fingerprintableMemoryPath)) {
     const fingerprint = memoryPathFingerprint(projectDir, path);
@@ -3951,6 +3979,7 @@ function memoryPathFingerprints(projectDir: string, paths: string[], anchorText?
         for (const [key, hashes] of byKey) {
           const [name, kind] = key.split("\0");
           if (!idents.has(name) || spanCountByName.get(name) !== 1) continue;
+          if (!ANCHOR_SYMBOL_KINDS.has(kind) && !name.includes("_")) continue;
           symbols.push({ name, kind, sha256: hashes[0] });
         }
         if (symbols.length) {
@@ -9255,6 +9284,10 @@ function refreshPacketStaleness(projectDir: string, options: { quiet?: boolean }
   let updated = 0;
   const fingerprintCache = new Map<string, MemoryPathFingerprint | null>();
   const ignorePatterns = readKageIgnore(projectDir);
+  // Usage telemetry reconciliation: the live counters accumulate in the
+  // machine-local memory-access report; refresh copies them onto the packet so
+  // the committed store carries real usage instead of a hardcoded zero.
+  const accessEntries = readMemoryAccessEntries(projectDir);
   for (const entry of loadPacketEntriesFromDir(packetsDir(projectDir))) {
     // Drop any .kageignore'd grounding (presentation layers etc.) from the stored packet
     // so memory is never anchored to non-knowledge files.
@@ -9276,6 +9309,15 @@ function refreshPacketStaleness(projectDir: string, options: { quiet?: boolean }
     } else {
       const { stale: _stale, stale_reasons: _staleReasons, suggested_action: _suggestedAction, ...rest } = oldQuality;
       nextQuality = rest;
+    }
+    const access = accessEntries.get(packet.id);
+    if (access && (access.uses_30d !== nextQuality.uses_30d || access.total_uses !== nextQuality.total_uses)) {
+      nextQuality = {
+        ...nextQuality,
+        uses_30d: access.uses_30d,
+        total_uses: access.total_uses,
+        ...(access.last_accessed_at ? { last_accessed_at: access.last_accessed_at } : {}),
+      };
     }
     const nextFreshness = oldFreshness;
     const contentChanged = pruned !== null;
@@ -16857,7 +16899,8 @@ export function setupAgent(agent: SetupAgent, projectDir: string, options: { wri
     // portableHooks (plugin generation): the scripts are committed and shared,
     // so no machine-specific path may be baked in — PATH then package runner.
     const hookCliPath = options.portableHooks ? "" : join(dirname(serverPath), "cli.js");
-    const hookKageResolve = `# Resolve the kage CLI: repo-local, PATH${hookCliPath ? ", baked install path" : ""}, then the package runner.
+    const hookKageResolve = `# kage-hooks-v${KAGE_HOOKS_VERSION}
+# Resolve the kage CLI: repo-local, PATH${hookCliPath ? ", baked install path" : ""}, then the package runner.
 export PATH="$CWD/node_modules/.bin:$PATH"
 if command -v kage >/dev/null 2>&1; then
   :
@@ -17418,6 +17461,11 @@ function configMentionsKage(path: string | null): boolean {
 
 const CLAUDE_AMBIENT_HOOK_EVENTS = ["SessionStart", "UserPromptSubmit", "PostToolUse", "PostToolUseFailure", "PreCompact", "Stop", "SessionEnd"];
 
+// Bump whenever a hook template changes behavior. Installed scripts carry the
+// stamp; doctor/verify report a mismatch so fixes actually reach existing
+// installs instead of only new setups.
+export const KAGE_HOOKS_VERSION = 2;
+
 function claudeHookEventConfigured(settings: Record<string, unknown>, event: string): boolean {
   const hooks = settings.hooks && typeof settings.hooks === "object" && !Array.isArray(settings.hooks)
     ? settings.hooks as Record<string, unknown>
@@ -17441,15 +17489,26 @@ function claudeAmbientHookSummary(homeDir: string): AgentHookSummary {
   }
   const installed = CLAUDE_AMBIENT_HOOK_EVENTS.filter((event) => claudeHookEventConfigured(settings, event));
   const missing = CLAUDE_AMBIENT_HOOK_EVENTS.filter((event) => !installed.includes(event));
+  const outdated: string[] = [];
   for (const scriptPath of scriptPaths) {
-    if (!existsSync(scriptPath)) missing.push(basename(scriptPath));
+    if (!existsSync(scriptPath)) {
+      missing.push(basename(scriptPath));
+      continue;
+    }
+    // A present-but-stale script is worse than a missing one: it runs old
+    // behavior silently. Unstamped scripts predate versioning (v1).
+    const text = safeReadText(scriptPath) ?? "";
+    const stamp = text.match(/^# kage-hooks-v(\d+)$/m);
+    const version = stamp ? Number(stamp[1]) : 1;
+    if (version < KAGE_HOOKS_VERSION) outdated.push(basename(scriptPath));
   }
   return {
     required: [...CLAUDE_AMBIENT_HOOK_EVENTS],
     installed,
     missing: unique(missing),
+    outdated,
     script_paths: scriptPaths,
-    ready: missing.length === 0,
+    ready: missing.length === 0 && outdated.length === 0,
   };
 }
 
@@ -17475,7 +17534,7 @@ export function verifyAgentActivation(
   const mcpToolReachable = Boolean(options.mcpToolReachable);
   const hookSummary = agent === "claude-code"
     ? claudeAmbientHookSummary(options.homeDir ?? process.env.HOME ?? "~")
-    : { required: [], installed: [], missing: [], script_paths: [], ready: true };
+    : { required: [], installed: [], missing: [], outdated: [], script_paths: [], ready: true };
   const ambientHooksPresent = hookSummary.ready;
   const warnings: string[] = [];
   const nextSteps: string[] = [];

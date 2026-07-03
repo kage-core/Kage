@@ -6339,3 +6339,29 @@ test("recall ranking: terse identifier query grounds through the code graph", ()
   assert.ok(entry, "identifier-grounded packet must surface despite zero lexical overlap");
   assert.equal((entry?.score_breakdown?.identifier ?? 0) > 0, true);
 });
+
+test("staleness anchors are code identifiers, not prose words", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "retry.ts"), [
+    "const verified = true;",
+    "const same = 1;",
+    "export function normalizeRetryWindow(ms: number): number {",
+    "  return Math.max(ms, 50);",
+    "}",
+    "",
+  ].join("\n"), "utf8");
+  const saved = learn({
+    projectDir: project,
+    title: "Retry window normalization",
+    learning: "The gateway is verified when the same request replays; `normalizeRetryWindow` guards the retry window.",
+    paths: ["src/retry.ts"],
+  });
+  assert.equal(saved.ok, true);
+  const prints = ((saved.packet!.freshness ?? {}) as { path_fingerprints?: Array<{ path: string; symbols?: Array<{ name: string }> }> }).path_fingerprints ?? [];
+  const anchor = prints.find((print) => print.path === "src/retry.ts");
+  const names = (anchor?.symbols ?? []).map((symbol) => symbol.name);
+  assert.equal(names.includes("normalizeretrywindow"), true, `anchors: ${names.join(",")}`);
+  assert.equal(names.includes("verified"), false);
+  assert.equal(names.includes("same"), false);
+});

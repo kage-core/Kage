@@ -7,6 +7,7 @@ PAYLOAD="$(cat || true)"
 CWD="$(printf "%s" "$PAYLOAD" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('cwd',''))" 2>/dev/null || echo "")"
 
 [[ -d "$CWD/.agent_memory" ]] || exit 0
+# kage-hooks-v2
 # Resolve the kage CLI: repo-local, PATH, then the package runner.
 export PATH="$CWD/node_modules/.bin:$PATH"
 if command -v kage >/dev/null 2>&1; then

@@ -30,6 +30,7 @@ Before finishing a task that changed files: kage_pr_summarize or kage_propose_fr
 If recalled memory helped: kage_feedback helpful. If wrong or stale: kage_feedback wrong or stale."
 fi
 
+# kage-hooks-v2
 # Resolve the kage CLI: repo-local, PATH, then the package runner.
 export PATH="$CWD/node_modules/.bin:$PATH"
 if command -v kage >/dev/null 2>&1; then

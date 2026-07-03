@@ -13,6 +13,7 @@ print(d.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or "")
 ' 2>/dev/null || echo "")"
 
 [[ -d "$CWD/.agent_memory" ]] || exit 0
+# kage-hooks-v2
 # Resolve the kage CLI: repo-local, PATH, then the package runner.
 export PATH="$CWD/node_modules/.bin:$PATH"
 if command -v kage >/dev/null 2>&1; then
