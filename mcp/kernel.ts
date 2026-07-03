@@ -2315,17 +2315,10 @@ Do this without waiting for the user to ask. Kage should feel like ambient repo 
 If Kage appears installed but no Kage tools are available, report that the active
 agent session has not loaded the MCP server and ask the user to restart the
 agent. After restart, call \`kage_verify_agent\` to prove the harness is live.
-Until then, fall back to the memory directly: it is a plain OKF bundle — start at
-\`.agent_memory/okf/index.md\` and follow the links (concept files carry their
-verification status in \`x-kage-*\` frontmatter; treat anything not marked
-verified as unconfirmed). No tools are required to read it.
-
-## Show the Value
-
-\`kage_context\` and \`kage_recall\` return a one-line gains receipt (tokens/$ saved
-this session, stale memories withheld). When it is non-trivial, relay it to the
-user in your own words — Kage's value is otherwise invisible, and a user who never
-sees it churns. Repeat only what the tool actually reported; never fabricate numbers.
+Until then, fall back to the memory directly: read the packet files under
+\`.agent_memory/packets/\` — each is a self-describing OKF markdown document
+(verification status in \`x-kage-*\` frontmatter; treat anything not marked
+verified as unconfirmed). No tools are required to read them.
 
 ## Automatic Capture
 
@@ -9329,7 +9322,10 @@ function refreshPacketStaleness(projectDir: string, options: { quiet?: boolean }
         ...packet,
         freshness: nextFreshness,
         quality: nextQuality,
-        updated_at: nowIso(),
+        // updated_at is a CONTENT timestamp. Metadata rewrites (stale flags,
+        // usage counters) bumping it made dead packets look fresh forever:
+        // recency scoring lied and gc retention could never age them out.
+        updated_at: contentChanged ? nowIso() : packet.updated_at,
       });
       updated += 1;
     }
@@ -18669,7 +18665,20 @@ function createDiffChangeMemory(projectDir: string, summary: BranchReviewSummary
   const verifyCommands = npmScriptCommands(projectDir)
     .filter((command) => /(test|check|lint|build|type|verify)/i.test(command))
     .slice(0, 8);
-  const changedList = summary.changed_files.slice(0, 40).map((file) => `- ${file}`).join("\n");
+  // Change-memory carries the substance of a change, not Kage's own
+  // bookkeeping: memory files, git plumbing, and Kage-written policy files are
+  // excluded — git already stores those diffs, and lists of packet filenames
+  // were the whole body of the worst change-memory packets.
+  const kagePolicyFiles = new Set(
+    ["CLAUDE.md", "AGENTS.md"].filter((name) => (safeReadText(join(projectDir, name)) ?? "").includes("KAGE_MEMORY_POLICY"))
+  );
+  const meaningfulChanged = summary.changed_files.filter((file) =>
+    !file.startsWith(".agent_memory/")
+    && file !== ".gitattributes"
+    && !kagePolicyFiles.has(file));
+  const listedChanged = meaningfulChanged.length ? meaningfulChanged : summary.changed_files;
+  const changedList = listedChanged.slice(0, 25).map((file) => `- ${file}`).join("\n")
+    + (listedChanged.length > 25 ? `\n- … ${listedChanged.length - 25} more` : "");
   const verifyList = verifyCommands.length
     ? verifyCommands.map((command) => `- ${command}`).join("\n")
     : "- Add the exact test, build, or manual verification command when you refine this memory.";
@@ -18685,7 +18694,7 @@ function createDiffChangeMemory(projectDir: string, summary: BranchReviewSummary
     "```text",
     // Clamp the diff stat: a huge diff would otherwise produce a dump-sized change-memory
     // body. This path builds the packet directly (not via capture()), so bound it here.
-    clampBlock(summary.diff_stat, 4000),
+    clampBlock(summary.diff_stat, 1500),
     "```",
     "",
     "How to verify:",
@@ -18704,7 +18713,7 @@ function createDiffChangeMemory(projectDir: string, summary: BranchReviewSummary
     schema_version: PACKET_SCHEMA_VERSION,
     id: stableId,
     title,
-    summary: `Repo-local context for ${summary.changed_files.length} changed repo path${summary.changed_files.length === 1 ? "" : "s"} on ${branch}.`,
+    summary: `Repo-local context for ${listedChanged.length} changed repo path${listedChanged.length === 1 ? "" : "s"} on ${branch}.`,
     body,
     type: "workflow",
     scope: "repo",
@@ -18713,7 +18722,7 @@ function createDiffChangeMemory(projectDir: string, summary: BranchReviewSummary
     status: "approved",
     confidence: 0.62,
     tags: unique(["change-memory", "diff-proposal", "repo-local", branch ? `branch:${slugify(branch)}` : "branch:detached"]),
-    paths: summary.changed_files.slice(0, 40),
+    paths: listedChanged.slice(0, 40),
     stack: inferStack(projectDir),
     source_refs: [
       {
@@ -18721,12 +18730,12 @@ function createDiffChangeMemory(projectDir: string, summary: BranchReviewSummary
         branch,
         head,
         merge_base: summary.merge_base,
-        changed_files: summary.changed_files,
+        changed_files: summary.changed_files.slice(0, 100),
         summary_path: join(reviewDir(projectDir), `branch-summary-${slugify(branch)}.json`),
       },
     ],
     context: {
-      fact: `Current branch ${branch} changes ${summary.changed_files.length} repo path${summary.changed_files.length === 1 ? "" : "s"}.`,
+      fact: `Current branch ${branch} changes ${listedChanged.length} repo path${listedChanged.length === 1 ? "" : "s"}.`,
       why: "Branch change memory gives future agents durable context from the git diff when they continue, review, or verify this work.",
       trigger: "Recall when asking what changed on this branch, preparing a PR review, or resuming this work.",
       action: "Use the changed file list and diff summary as orientation, then inspect the actual diff and source files before making further edits.",

@@ -22,17 +22,10 @@ Do this without waiting for the user to ask. Kage should feel like ambient repo 
 If Kage appears installed but no Kage tools are available, report that the active
 agent session has not loaded the MCP server and ask the user to restart the
 agent. After restart, call `kage_verify_agent` to prove the harness is live.
-Until then, fall back to the memory directly: it is a plain OKF bundle — start at
-`.agent_memory/okf/index.md` and follow the links (concept files carry their
-verification status in `x-kage-*` frontmatter; treat anything not marked
-verified as unconfirmed). No tools are required to read it.
-
-## Show the Value
-
-`kage_context` and `kage_recall` return a one-line gains receipt (tokens/$ saved
-this session, stale memories withheld). When it is non-trivial, relay it to the
-user in your own words — Kage's value is otherwise invisible, and a user who never
-sees it churns. Repeat only what the tool actually reported; never fabricate numbers.
+Until then, fall back to the memory directly: read the packet files under
+`.agent_memory/packets/` — each is a self-describing OKF markdown document
+(verification status in `x-kage-*` frontmatter; treat anything not marked
+verified as unconfirmed). No tools are required to read them.
 
 ## Automatic Capture
 

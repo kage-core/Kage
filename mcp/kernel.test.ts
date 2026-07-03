@@ -290,8 +290,9 @@ test("installs and updates Codex agent policy idempotently", () => {
   assert.match(first, /Automatic Recall/);
   assert.match(first, /kage_context/);
   // The no-tools fallback: an agent without the MCP server must still be pointed
-  // at the OKF bundle itself, so a fresh clone inherits memory with zero install.
-  assert.match(first, /\.agent_memory\/okf\/index\.md/);
+  // at the packet store itself (tracked in git, unlike the okf/ export), so a
+  // fresh clone inherits memory with zero install.
+  assert.match(first, /\.agent_memory\/packets\//);
 
   const second = installAgentPolicy(project);
   assert.equal(second.created, false);
@@ -6399,4 +6400,18 @@ test("gc deletes deprecated packets past retention, keeps recent ones", () => {
   const result = gcProject(project, {});
   assert.equal(result.deleted.some((entry) => entry.id === saved.packet!.id), true);
   assert.equal(existsSync(packetPath), false);
+});
+
+test("metadata-only refresh rewrites preserve updated_at (content timestamp)", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "mod.ts"), "export const mod = 1;\n", "utf8");
+  const saved = learn({ projectDir: project, learning: "src/mod.ts holds the module flag because tests toggle it.", paths: ["src/mod.ts"] });
+  assert.equal(saved.ok, true);
+  const before = parsePacket(saved.path as string).updated_at;
+  // Serve it so the access report has a counter to reconcile onto the packet.
+  recall(project, "module flag toggle");
+  refreshProject(project, { force: true });
+  const after = parsePacket(saved.path as string);
+  assert.equal(after.updated_at, before, "metadata reconciliation must not bump updated_at");
 });
