@@ -13,6 +13,7 @@ import {
   defaultClaudeMemStorePath,
   renderClaudeMemAuditReceipt,
   benchmarkTaskComparison,
+  benchmarkSavings,
   benchmarkCodingMemoryQuality,
   benchmarkMemoryScale,
   benchmarkTrust,
@@ -2078,6 +2079,30 @@ async function main(): Promise<void> {
     console.log(`Review queue size: ${result.totals.pending}`);
     console.log(`Approved vs pending ratio: ${result.approved_to_pending_ratio}`);
     console.log(`Type coverage: ${Object.entries(result.memory_type_coverage).map(([type, count]) => `${type}=${count}`).join(", ") || "(none)"}`);
+    return;
+  }
+
+  if (command === "savings") {
+    const result = benchmarkSavings(projectArg(args), { queries: args.includes("--queries") ? numberArg(args, "--queries", 12) : undefined });
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    const pct = result.reduction_percent;
+    const bars = Math.round(pct / 10);
+    const bar = "▰".repeat(bars) + "▱".repeat(Math.max(0, 10 - bars));
+    console.log("");
+    console.log(`  Kage cut context by  ${bar}  ${pct}%`);
+    console.log("");
+    console.log(`  Baseline (read the files)   ${formatTokenCount(result.baseline_tokens_avg)} tokens / query`);
+    console.log(`  With Kage (recall + graph)  ${formatTokenCount(result.kage_tokens_avg)} tokens / query`);
+    console.log(`  ${"─".repeat(46)}`);
+    console.log(`  Saved                       ${formatTokenCount(result.baseline_tokens_avg - result.kage_tokens_avg)} tokens / query  (${result.queries} queries, recall hit ${Math.round(result.recall_hit_rate * 100)}%)`);
+    console.log("");
+    console.log(`  Deterministic · no LLM · rerun on this commit = identical ${pct}%`);
+    console.log(`  Reproduce:  npx -y @kage-core/kage-graph-mcp savings --project . --json`);
+    console.log("");
+    console.log(`  ${result.caveats[0]}`);
     return;
   }
 

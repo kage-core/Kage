@@ -16323,6 +16323,98 @@ export function benchmarkTaskComparison(projectDir: string, task: string): Bench
   };
 }
 
+export interface SavingsBenchmarkReport {
+  schema_version: 1;
+  project_dir: string;
+  generated_at: string;
+  queries: number;
+  reduction_percent: number;
+  baseline_tokens_total: number;
+  kage_tokens_total: number;
+  baseline_tokens_avg: number;
+  kage_tokens_avg: number;
+  tokens_saved_total: number;
+  recall_hit_rate: number;
+  per_query: Array<{ query: string; baseline_tokens: number; kage_tokens: number; reduction_percent: number; recall_hit: boolean }>;
+  caveats: string[];
+}
+
+// Deterministically derive realistic "how do I understand X" queries from the repo's own
+// code graph — the most-referenced exported symbols and declared routes are what an agent
+// actually asks about. No LLM, no hand-picked queries: same repo + same commit => same
+// queries => same number, which is what makes the headline reproducible (and stronger than
+// an embedding benchmark, whose recall drifts with the model).
+function deriveSavingsQueries(projectDir: string, count: number): string[] {
+  const built = currentOrBuildGraphs(projectDir);
+  const graph = built.codeGraph;
+  const queries: string[] = [];
+  if (graph) {
+    const callCounts = new Map<string, number>();
+    for (const call of graph.calls) callCounts.set(call.to_symbol, (callCounts.get(call.to_symbol) ?? 0) + 1);
+    const routes = [...graph.routes]
+      .sort((a, b) => `${a.method} ${a.path}`.localeCompare(`${b.method} ${b.path}`))
+      .slice(0, Math.ceil(count / 3));
+    for (const route of routes) queries.push(`where is ${route.method} ${route.path} handled`);
+    const symbols = graph.symbols
+      .filter((symbol) => symbol.export && (symbol.kind === "function" || symbol.kind === "class"))
+      .map((symbol) => ({ symbol, weight: callCounts.get(symbol.id) ?? 0 }))
+      .sort((a, b) => b.weight - a.weight || a.symbol.name.localeCompare(b.symbol.name));
+    for (const { symbol } of symbols) {
+      if (queries.length >= count) break;
+      queries.push(`how does ${symbol.name} work`);
+    }
+  }
+  // Universal fallbacks so a repo with a thin graph still produces a stable set.
+  for (const q of ["how do I run the tests", "where is the entry point", "how is the project configured"]) {
+    if (queries.length >= count) break;
+    if (!queries.includes(q)) queries.push(q);
+  }
+  return queries.slice(0, count);
+}
+
+// Aggregate, reproducible token-savings benchmark: run the per-query A/B comparison across
+// a deterministic query set and report the headline context-reduction percent. This is
+// Kage's answer to the "save N% on agent tokens" number — measured, not asserted, and
+// re-runnable to the same value on the same commit.
+export function benchmarkSavings(projectDir: string, options: { queries?: number } = {}): SavingsBenchmarkReport {
+  ensureMemoryDirs(projectDir);
+  const count = Math.max(1, Math.min(options.queries ?? 12, 50));
+  const queries = deriveSavingsQueries(projectDir, count);
+  const perQuery = queries.map((query) => {
+    const cmp = benchmarkTaskComparison(projectDir, query);
+    return {
+      query,
+      baseline_tokens: cmp.baseline_without_kage.full_file_tokens,
+      kage_tokens: cmp.with_kage.context_tokens,
+      reduction_percent: cmp.delta.context_reduction_percent,
+      recall_hit: cmp.delta.recall_hit,
+    };
+  });
+  const baselineTotal = perQuery.reduce((sum, q) => sum + q.baseline_tokens, 0);
+  const kageTotal = perQuery.reduce((sum, q) => sum + q.kage_tokens, 0);
+  const savedTotal = Math.max(0, baselineTotal - kageTotal);
+  const hits = perQuery.filter((q) => q.recall_hit).length;
+  return {
+    schema_version: 1,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    queries: perQuery.length,
+    reduction_percent: baselineTotal > 0 ? percent(savedTotal, baselineTotal) : 0,
+    baseline_tokens_total: baselineTotal,
+    kage_tokens_total: kageTotal,
+    baseline_tokens_avg: perQuery.length ? Math.round(baselineTotal / perQuery.length) : 0,
+    kage_tokens_avg: perQuery.length ? Math.round(kageTotal / perQuery.length) : 0,
+    tokens_saved_total: savedTotal,
+    recall_hit_rate: perQuery.length ? Number((hits / perQuery.length).toFixed(2)) : 0,
+    per_query: perQuery,
+    caveats: [
+      "Measured against full-file reads of the files each query touches — a deterministic, reproducible baseline, NOT a head-to-head vs your agent's actual grep/partial-read behavior (real-world savings run lower).",
+      "Queries are auto-derived from this repo's code graph; same commit reproduces the same number.",
+      "No LLM on the measurement path: rerun on the same commit and the percent is identical.",
+    ],
+  };
+}
+
 function kageMetricsShallow(
   projectDir: string,
   inputs: { codeGraph?: CodeGraph; knowledgeGraph?: KnowledgeGraph; validation?: ValidationResult } = {}

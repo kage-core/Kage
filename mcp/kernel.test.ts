@@ -8,6 +8,7 @@ import vm from "node:vm";
 import {
   SETUP_AGENTS,
   benchmarkTaskComparison,
+  benchmarkSavings,
   benchmarkCodingMemoryQuality,
   benchmarkMemoryScale,
   benchmarkProject,
@@ -2876,6 +2877,29 @@ test("recall explanations, quality, and benchmark expose proof metrics", () => {
   assert.equal(comparison.with_kage.context_tokens > 0, true);
   assert.equal(typeof comparison.delta.context_reduction_percent, "number");
   assert.equal(comparison.evidence.kage_memory.length > 0, true);
+});
+
+test("savings benchmark yields a reproducible percent from auto-derived queries", () => {
+  const project = tempProject();
+  capture({
+    projectDir: project,
+    title: "Payment retry is idempotent via the ledger key",
+    summary: "Retries dedupe on ledger idempotency key",
+    body: "processPayment in src/pay.ts must pass the ledger idempotency key so retries dedupe. Verified by: npm test.",
+    type: "decision",
+    allowMissingPaths: true,
+  });
+  const a = benchmarkSavings(project, { queries: 6 });
+  assert.equal(a.queries > 0, true);
+  assert.equal(a.reduction_percent >= 0 && a.reduction_percent <= 100, true);
+  // savedTotal is floored at 0, so the percent is always well-formed even on a trivial
+  // temp repo where the compact context can exceed the tiny baseline (real repos invert this).
+  assert.equal(a.tokens_saved_total >= 0, true);
+  assert.equal(a.per_query.length, a.queries);
+  // The whole credibility claim is determinism: same commit -> identical number.
+  const b = benchmarkSavings(project, { queries: 6 });
+  assert.equal(a.reduction_percent, b.reduction_percent);
+  assert.deepEqual(a.per_query.map((q) => q.query), b.per_query.map((q) => q.query));
 });
 
 test("coding memory quality benchmark is package-callable", () => {
