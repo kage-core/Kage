@@ -15,10 +15,12 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { request as httpsRequest } from "node:https";
 import { request as httpRequest } from "node:http";
 import { existsSync } from "node:fs";
-import { memoryRoot, observe, recall } from "./kernel.js";
+import { memoryRoot, observe, recall, type MemoryPacket } from "./kernel.js";
 
 const MEMORY_HEADER = "# Verified repo memory (injected by Kage — follow it, it is checked against this code)";
 const MAX_MEMORY_CHARS = 6000; // ~1.5k tokens, so injection never dominates the prompt
+const BODY_PACKET_COUNT = 2;   // top N hits inject their FULL body (memory that answers, not just points)
+const MAX_BODY_CHARS = 2200;   // per-packet body cap so one long packet can't starve the next
 
 interface ProxyStats {
   requests: number;
@@ -69,6 +71,25 @@ export function isCompletionsRequest(method: string | undefined, url: string | u
   return path === "/v1/messages";
 }
 
+// Build the injected memory text from recall hits. The top BODY_PACKET_COUNT packets emit their
+// FULL body (capped per-packet) so the agent can ANSWER from memory instead of re-reading the
+// code; the rest stay as one-line title+summary pointers. Pure + exported for unit testing.
+export function buildInjectedMemory(results: Array<{ packet: MemoryPacket }>): string {
+  const sections: string[] = [MEMORY_HEADER];
+  results.forEach((entry, index) => {
+    const p = entry.packet;
+    const when = (p.created_at || p.updated_at || "").slice(0, 10);
+    const cited = (p.paths ?? []).slice(0, 3).join(", ");
+    const provenance = [when, cited].filter(Boolean).join(" · ");
+    if (index < BODY_PACKET_COUNT && p.body?.trim()) {
+      sections.push(`## ${p.title}${provenance ? `\n_${provenance}_` : ""}\n\n${p.body.trim().slice(0, MAX_BODY_CHARS)}`);
+    } else {
+      sections.push(`- ${p.title} — ${p.summary}${provenance ? ` (${provenance})` : ""}`);
+    }
+  });
+  return sections.join("\n\n");
+}
+
 // Pure + exported so it is unit-testable without a network: given an Anthropic Messages
 // request body, return it with relevant memory appended to the last user message. No memory => no change.
 export function injectMemory(projectDir: string, body: Record<string, unknown>): { body: Record<string, unknown>; injected: number } {
@@ -76,7 +97,7 @@ export function injectMemory(projectDir: string, body: Record<string, unknown>):
   if (!query.trim()) return { body, injected: 0 };
   const result = recall(projectDir, query, 4, false);
   if (!result.results.length) return { body, injected: 0 };
-  const memoryText = `${MEMORY_HEADER}\n\n${result.context_block}`.slice(0, MAX_MEMORY_CHARS);
+  const memoryText = buildInjectedMemory(result.results).slice(0, MAX_MEMORY_CHARS);
 
   // Inject into the LAST USER MESSAGE, never the system prompt. Subscription/OAuth tokens
   // (Claude Code on a plan, not an API key) require the system prompt's first block to be the
