@@ -128,6 +128,7 @@ import {
 import { buildGraphRegistryManifest } from "./graph-registry.js";
 import { checkReportMarkdown, driftCheck, formatCheckReport, kageCheckWorkflowYaml, writeCheckBaseline } from "./check.js";
 import { lintOkfBundle, loadOkfConcepts, migratePacketsToOkf, okfBundleDir, okfViewerHtml } from "./okf.js";
+import { startProxy } from "./proxy.js";
 
 const CORE_USAGE = `Kage — code-grounded memory for coding agents
 
@@ -2079,6 +2080,14 @@ async function main(): Promise<void> {
     console.log(`Review queue size: ${result.totals.pending}`);
     console.log(`Approved vs pending ratio: ${result.approved_to_pending_ratio}`);
     console.log(`Type coverage: ${Object.entries(result.memory_type_coverage).map(([type, count]) => `${type}=${count}`).join(", ") || "(none)"}`);
+    return;
+  }
+
+  if (command === "proxy") {
+    const project = projectArg(args);
+    const port = args.includes("--port") ? numberArg(args, "--port", 8788) : 8788;
+    const upstream = takeArg(args, "--upstream");
+    startProxy(project, { port, upstream: upstream ?? undefined });
     return;
   }
 
