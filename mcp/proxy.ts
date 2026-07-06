@@ -59,6 +59,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+// Only a POST to exactly /v1/messages is a completion we inject into. IMPORTANT: the
+// sibling endpoint /v1/messages/count_tokens also starts with "/v1/messages" — injecting
+// into it would pollute Claude Code's own token accounting (making it think its context is
+// larger than it is) and inflate the injected counter. Match the path exactly, sans query.
+export function isCompletionsRequest(method: string | undefined, url: string | undefined): boolean {
+  if (method !== "POST") return false;
+  const path = (url ?? "").split("?")[0];
+  return path === "/v1/messages";
+}
+
 // Pure + exported so it is unit-testable without a network: given an Anthropic Messages
 // request body, return it with relevant memory appended to the last user message. No memory => no change.
 export function injectMemory(projectDir: string, body: Record<string, unknown>): { body: Record<string, unknown>; injected: number } {
@@ -132,7 +142,7 @@ export function startProxy(projectDir: string, options: { port?: number; upstrea
 
   async function handle(clientReq: IncomingMessage, clientRes: ServerResponse): Promise<void> {
     const raw = await readBody(clientReq);
-    const isMessages = clientReq.method === "POST" && (clientReq.url ?? "").startsWith("/v1/messages");
+    const isMessages = isCompletionsRequest(clientReq.method, clientReq.url);
 
     let outBody = raw;
     let injected = 0;

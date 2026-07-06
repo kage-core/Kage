@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { capture } from "./kernel.js";
-import { injectMemory } from "./proxy.js";
+import { injectMemory, isCompletionsRequest } from "./proxy.js";
 
 if (!process.env.KAGE_HOME) process.env.KAGE_HOME = mkdtempSync(join(tmpdir(), "kage-proxy-home-"));
 
@@ -62,6 +62,15 @@ test("proxy appends a memory block to an array-form last user message, leaving s
   const content = (body.messages as Array<{ content: Array<{ type: string; text: string }> }>)[0].content;
   assert.equal(content[0].text, "which jwt library does auth use?");
   assert.match(content[content.length - 1].text, /injected by Kage/);
+});
+
+test("only POST /v1/messages is a completion — count_tokens and non-POST are excluded", () => {
+  assert.equal(isCompletionsRequest("POST", "/v1/messages"), true);
+  assert.equal(isCompletionsRequest("POST", "/v1/messages?beta=true"), true);
+  // The sibling token-counting endpoint must NOT get injected into.
+  assert.equal(isCompletionsRequest("POST", "/v1/messages/count_tokens?beta=true"), false);
+  assert.equal(isCompletionsRequest("GET", "/v1/messages"), false);
+  assert.equal(isCompletionsRequest("POST", "/v1/models"), false);
 });
 
 test("proxy leaves the request untouched when nothing relevant is recalled", () => {
