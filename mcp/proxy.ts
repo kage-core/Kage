@@ -110,7 +110,7 @@ function extractUsageAndText(raw: string): { input: number; output: number; text
   return { input, output, text };
 }
 
-export function startProxy(projectDir: string, options: { port?: number; upstream?: string } = {}): Server {
+export function startProxy(projectDir: string, options: { port?: number; upstream?: string; verbose?: boolean } = {}): Server {
   const port = options.port ?? 8788;
   const upstreamUrl = new URL(options.upstream ?? process.env.KAGE_PROXY_UPSTREAM ?? "https://api.anthropic.com");
   const stats: ProxyStats = { requests: 0, injected: 0, captured: 0, input_tokens: 0, output_tokens: 0 };
@@ -165,13 +165,22 @@ export function startProxy(projectDir: string, options: { port?: number; upstrea
           passHeaders[key] = value;
         }
         clientRes.writeHead(upstreamRes.statusCode ?? 502, passHeaders);
+        const status = upstreamRes.statusCode ?? 0;
         const tap: Buffer[] = [];
         upstreamRes.on("data", (chunk: Buffer) => {
           clientRes.write(chunk); // passthrough, unmodified, preserves streaming
-          if (isMessages) tap.push(chunk);
+          // Tap for the receipt/capture and — always — for surfacing error bodies.
+          if (isMessages || status >= 300) tap.push(chunk);
         });
         upstreamRes.on("end", () => {
           clientRes.end();
+          // Diagnostics: every request when --verbose; every non-2xx always. This is what
+          // tells us, on subscription auth, whether the request even reached upstream and
+          // how it was answered (401/403 = auth/header issue, not a Kage bug).
+          if (options.verbose || status >= 300) {
+            const body = status >= 300 ? Buffer.concat(tap).toString("utf8").slice(0, 300).replace(/\s+/g, " ") : "";
+            console.log(`\n[proxy] ${clientReq.method} ${clientReq.url} -> ${status}${body ? `  ${body}` : ""}`);
+          }
           if (!isMessages) return;
           stats.requests += 1;
           stats.injected += injected;
@@ -180,7 +189,7 @@ export function startProxy(projectDir: string, options: { port?: number; upstrea
             stats.input_tokens += input;
             stats.output_tokens += output;
             // Capture the exchange into the memory loop — no hook required, agent-agnostic.
-            if (userPrompt.trim()) {
+            if (status < 300 && userPrompt.trim()) {
               observe(projectDir, { type: "user_prompt", agent: "kage-proxy", text: userPrompt.slice(0, 4000), summary: userPrompt.slice(0, 200) });
               stats.captured += 1;
             }
@@ -192,7 +201,8 @@ export function startProxy(projectDir: string, options: { port?: number; upstrea
         });
       }
     );
-    upstreamReq.on("error", () => {
+    upstreamReq.on("error", (err) => {
+      console.error(`\n[proxy] upstream error for ${clientReq.method} ${clientReq.url}: ${err.message}`);
       if (!clientRes.headersSent) clientRes.writeHead(502, { "content-type": "application/json" });
       clientRes.end(JSON.stringify({ type: "error", error: { type: "kage_proxy_error", message: "upstream request failed" } }));
     });
