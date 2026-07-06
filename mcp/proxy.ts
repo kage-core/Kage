@@ -4,7 +4,8 @@
 // Anthropic-API client (Claude Code, Codex CLI, aider, ...) flows through Kage with zero
 // per-agent install and zero code changes. This first slice does two things and nothing
 // else, so it can be a SAFE passthrough:
-//   1. outbound: inject relevant verified repo memory into the request's `system`
+//   1. outbound: inject relevant verified repo memory into the last user message (NOT `system` —
+//                subscription/OAuth tokens reject a modified system prompt with a 429)
 //   2. inbound:  tap the (streamed) response to record the exchange into the memory loop
 // It never rewrites the model's output and preserves streaming byte-for-byte. Token
 // COMPRESSION (the Headroom savings number) is deliberately a later layer — this slice
@@ -59,7 +60,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 // Pure + exported so it is unit-testable without a network: given an Anthropic Messages
-// request body, return it with relevant memory injected into `system`. No memory => no change.
+// request body, return it with relevant memory appended to the last user message. No memory => no change.
 export function injectMemory(projectDir: string, body: Record<string, unknown>): { body: Record<string, unknown>; injected: number } {
   const query = lastUserText(body).slice(0, 1000);
   if (!query.trim()) return { body, injected: 0 };
@@ -67,16 +68,25 @@ export function injectMemory(projectDir: string, body: Record<string, unknown>):
   if (!result.results.length) return { body, injected: 0 };
   const memoryText = `${MEMORY_HEADER}\n\n${result.context_block}`.slice(0, MAX_MEMORY_CHARS);
 
-  const existing = body.system;
-  let system: unknown;
-  if (typeof existing === "string") {
-    system = `${memoryText}\n\n${existing}`;
-  } else if (Array.isArray(existing)) {
-    system = [{ type: "text", text: memoryText }, ...existing];
-  } else {
-    system = memoryText;
+  // Inject into the LAST USER MESSAGE, never the system prompt. Subscription/OAuth tokens
+  // (Claude Code on a plan, not an API key) require the system prompt's first block to be the
+  // exact Claude Code identity string; prepending to it makes Anthropic reject the request
+  // (observed: 429 rate_limit_error on /v1/messages?beta=true, every request). Appending to the
+  // user turn keeps `system` byte-identical and works for both OAuth and API-key requests.
+  const messages = Array.isArray(body.messages) ? [...body.messages] : [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (!isRecord(message) || message.role !== "user") continue;
+    if (typeof message.content === "string") {
+      messages[i] = { ...message, content: `${message.content}\n\n${memoryText}` };
+    } else if (Array.isArray(message.content)) {
+      messages[i] = { ...message, content: [...message.content, { type: "text", text: memoryText }] };
+    } else {
+      messages[i] = { ...message, content: memoryText };
+    }
+    return { body: { ...body, messages }, injected: result.results.length };
   }
-  return { body: { ...body, system }, injected: result.results.length };
+  return { body, injected: 0 };
 }
 
 // Best-effort usage + assistant text from either a non-streamed JSON body or a streamed SSE
@@ -110,7 +120,7 @@ function extractUsageAndText(raw: string): { input: number; output: number; text
   return { input, output, text };
 }
 
-export function startProxy(projectDir: string, options: { port?: number; upstream?: string; verbose?: boolean } = {}): Server {
+export function startProxy(projectDir: string, options: { port?: number; upstream?: string; verbose?: boolean; noInject?: boolean } = {}): Server {
   const port = options.port ?? 8788;
   const upstreamUrl = new URL(options.upstream ?? process.env.KAGE_PROXY_UPSTREAM ?? "https://api.anthropic.com");
   const stats: ProxyStats = { requests: 0, injected: 0, captured: 0, input_tokens: 0, output_tokens: 0 };
@@ -127,7 +137,9 @@ export function startProxy(projectDir: string, options: { port?: number; upstrea
     let outBody = raw;
     let injected = 0;
     let userPrompt = "";
-    if (isMessages && hasMemory && raw.length) {
+    // --no-inject forwards the exact original bytes (diagnostic: proves whether the proxy can
+    // carry subscription traffic at all, independent of any memory injection).
+    if (isMessages && hasMemory && raw.length && !options.noInject) {
       try {
         const parsed = JSON.parse(raw.toString("utf8")) as Record<string, unknown>;
         userPrompt = lastUserText(parsed);

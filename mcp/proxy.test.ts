@@ -14,7 +14,7 @@ function tempProject(): string {
   return dir;
 }
 
-test("proxy injects relevant repo memory into a request's string system prompt", () => {
+test("proxy appends memory to a string-form last user message, leaving system byte-identical", () => {
   const project = tempProject();
   capture({
     projectDir: project,
@@ -27,21 +27,21 @@ test("proxy injects relevant repo memory into a request's string system prompt",
 
   const request = {
     model: "claude-x",
-    system: "You are a helpful coding assistant.",
+    system: "You are Claude Code, Anthropic's official CLI for Claude.",
     messages: [{ role: "user", content: "how should I make the payment flow idempotent?" }],
   };
   const { body, injected } = injectMemory(project, request as Record<string, unknown>);
   assert.equal(injected > 0, true);
-  assert.equal(typeof body.system, "string");
-  assert.match(body.system as string, /injected by Kage/);
-  assert.match(body.system as string, /idempotent/i);
-  // Original system prompt is preserved, not replaced.
-  assert.match(body.system as string, /helpful coding assistant/);
-  // Client messages are never altered.
-  assert.deepEqual(body.messages, request.messages);
+  // OAuth invariant: the system prompt is NEVER touched (subscription tokens 429 otherwise).
+  assert.equal(body.system, request.system);
+  // Memory lands in the last user message instead.
+  const msgs = body.messages as Array<{ role: string; content: string }>;
+  assert.match(msgs[0].content, /how should I make the payment flow idempotent/);
+  assert.match(msgs[0].content, /injected by Kage/);
+  assert.match(msgs[0].content, /idempotent/i);
 });
 
-test("proxy prepends a memory block to an array-form system prompt", () => {
+test("proxy appends a memory block to an array-form last user message, leaving system untouched", () => {
   const project = tempProject();
   capture({
     projectDir: project,
@@ -52,15 +52,16 @@ test("proxy prepends a memory block to an array-form system prompt", () => {
     allowMissingPaths: true,
   });
   const request = {
-    system: [{ type: "text", text: "base instructions" }],
-    messages: [{ role: "user", content: "which jwt library does auth use?" }],
+    system: [{ type: "text", text: "You are Claude Code, Anthropic's official CLI for Claude." }],
+    messages: [{ role: "user", content: [{ type: "text", text: "which jwt library does auth use?" }] }],
   };
   const { body, injected } = injectMemory(project, request as Record<string, unknown>);
   assert.equal(injected > 0, true);
-  assert.equal(Array.isArray(body.system), true);
-  const arr = body.system as Array<{ type: string; text: string }>;
-  assert.match(arr[0].text, /injected by Kage/);
-  assert.equal(arr[arr.length - 1].text, "base instructions");
+  // System array is returned unchanged — identity block still first and only.
+  assert.deepEqual(body.system, request.system);
+  const content = (body.messages as Array<{ content: Array<{ type: string; text: string }> }>)[0].content;
+  assert.equal(content[0].text, "which jwt library does auth use?");
+  assert.match(content[content.length - 1].text, /injected by Kage/);
 });
 
 test("proxy leaves the request untouched when nothing relevant is recalled", () => {
@@ -72,4 +73,5 @@ test("proxy leaves the request untouched when nothing relevant is recalled", () 
   const { body, injected } = injectMemory(project, request as Record<string, unknown>);
   assert.equal(injected, 0);
   assert.equal(body.system, "unchanged");
+  assert.deepEqual(body.messages, request.messages);
 });

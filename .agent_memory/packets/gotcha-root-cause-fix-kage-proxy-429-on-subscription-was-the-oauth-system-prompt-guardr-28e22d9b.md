@@ -1,0 +1,40 @@
+---
+type: "Gotcha"
+title: "ROOT CAUSE + FIX: kage proxy 429 on subscription was the OAuth system-prompt guardrail; inject into the user message instead"
+description: "Diagnosed the consistent 429 rate limit error on POST /v1/messages?beta=true 6 of 6 requests, every Claude Code retry seen when running the proxy on subscription auth. Root cause: Anthropic's OAuth/subscription tokens re"
+resource: "mcp/proxy.ts"
+tags: ["session-learning", "proxy", "subscription", "oauth", "anthropic", "rate-limit", "root-cause", "fix", "system-prompt"]
+timestamp: "2026-07-06T19:03:50.463Z"
+x-kage-id: "repo:https-github-com-kage-core-kage:gotcha:root-cause-fix-kage-proxy-429-on-subscription-was-the-oauth-system-prompt-guardr"
+x-kage-type: "gotcha"
+x-kage-status: "approved"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-verified: "unverified"
+x-kage-paths: ["mcp/proxy.ts"]
+---
+
+# ROOT CAUSE + FIX: kage proxy 429 on subscription was the OAuth system-prompt guardrail; inject into the user message instead
+
+> Diagnosed the consistent 429 rate limit error on POST /v1/messages?beta=true 6 of 6 requests, every Claude Code retry…
+
+Diagnosed the consistent 429 rate_limit_error on POST /v1/messages?beta=true (6 of 6 requests, every Claude Code retry) seen when running the proxy on subscription auth. Root cause: Anthropic's OAuth/subscription tokens require the system prompt's FIRST block to be the exact Claude Code identity string, and reject the request (surfaced as 429 rate_limit_error, not a real usage limit) if anything is prepended to system. The proxy's original injectMemory prepended verified memory to system, so every request was rejected. Fix: injectMemory now appends memory to the LAST USER MESSAGE and never touches system, keeping the OAuth identity block byte-identical. Works for both OAuth (subscription) and API-key requests. Also added a --no-inject passthrough flag so pure-passthrough vs injected behavior can be A/B tested to rule out any remaining edge rejection. Status: diagnosed + unit-tested (3 proxy tests green, 386 full-suite green); LIVE subscription confirmation still pending a re-run through Claude Code.
+Evidence: Verbose proxy log: POST /v1/messages?beta=true -> 429 {type:error,error:{type:rate_limit_error,message:Error}} on every request while memory was injected into system. Fix verified by proxy.test.ts asserting body.system is byte-identical and memory lands in the last user message.
+Verified by: node --test dist/proxy.test.js (3 pass); full suite 386 pass; live subscription re-run pending
+
+## Verification
+
+Verbose proxy log: POST /v1/messages?beta=true -> 429 {type:error,error:{type:rate_limit_error,message:Error}} on every request while memory was injected into system. Fix verified by proxy.test.ts asserting body.system is byte-identical and memory lands in the last user message.
+
+# Citations
+
+[1] explicit_capture (2026-07-06T19:03:50.463Z)
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:https-github-com-kage-core-kage:gotcha:root-cause-fix-kage-proxy-429-on-subscription-was-the-oauth-system-prompt-guardr","title":"ROOT CAUSE + FIX: kage proxy 429 on subscription was the OAuth system-prompt guardrail; inject into the user message instead","summary":"Diagnosed the consistent 429 rate limit error on POST /v1/messages?beta=true 6 of 6 requests, every Claude Code retry seen when running the proxy on subscription auth. Root cause: Anthropic's OAuth/subscription tokens re","body":"Diagnosed the consistent 429 rate_limit_error on POST /v1/messages?beta=true (6 of 6 requests, every Claude Code retry) seen when running the proxy on subscription auth. Root cause: Anthropic's OAuth/subscription tokens require the system prompt's FIRST block to be the exact Claude Code identity string, and reject the request (surfaced as 429 rate_limit_error, not a real usage limit) if anything is prepended to system. The proxy's original injectMemory prepended verified memory to system, so every request was rejected. Fix: injectMemory now appends memory to the LAST USER MESSAGE and never touches system, keeping the OAuth identity block byte-identical. Works for both OAuth (subscription) and API-key requests. Also added a --no-inject passthrough flag so pure-passthrough vs injected behavior can be A/B tested to rule out any remaining edge rejection. Status: diagnosed + unit-tested (3 proxy tests green, 386 full-suite green); LIVE subscription confirmation still pending a re-run through Claude Code.\nEvidence: Verbose proxy log: POST /v1/messages?beta=true -> 429 {type:error,error:{type:rate_limit_error,message:Error}} on every request while memory was injected into system. Fix verified by proxy.test.ts asserting body.system is byte-identical and memory lands in the last user message.\nVerified by: node --test dist/proxy.test.js (3 pass); full suite 386 pass; live subscription re-run pending","type":"gotcha","scope":"repo","visibility":"team","sensitivity":"internal","status":"approved","confidence":0.7,"tags":["session-learning","proxy","subscription","oauth","anthropic","rate-limit","root-cause","fix","system-prompt"],"paths":["mcp/proxy.ts"],"stack":[],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-07-06T19:03:50.463Z"}],"context":{"fact":"Diagnosed the consistent 429 rate_limit_error on POST /v1/messages?beta=true (6 of 6 requests, every Claude Code retry) seen when running the proxy on subscription auth. Root cause: Anthropic's OAuth/subscription tokens require the system prompt's FIRST block to be the exact Claude Code identity string, and reject the request (surfaced as 429 rate_limit_error, not a real usage limit) if anything is prepended to system. The proxy's original injectMemory prepended verified memory to system, so every request was rejected. Fix: injectMemory now appends memory to the LAST USER MESSAGE and never touches system, keeping the OAuth identity block byte-identical. Works for both OAuth (subscription) and API-key requests. Also added a --no-inject passthrough flag so pure-passthrough vs injected behavior can be A/B tested to rule out any remaining edge rejection. Status: diagnosed + unit-tested (3 proxy tests green, 386 full-suite green); LIVE subscription confirmation still pending a re-run through Claude Code.\nEvidence: Verbose proxy log: POST /v1/messages?beta=true -> 429 {type:error,error:{type:rate_limit_error,message:Error}} on every request while memory was injected into system. Fix verified by proxy.test.ts asserting body.system is byte-identical and memory lands in the last user message.\nVerified by: node --test dist/proxy.test.js (3 pass); full suite 386 pass; live subscription re-run pending","verification":"Verbose proxy log: POST /v1/messages?beta=true -> 429 {type:error,error:{type:rate_limit_error,message:Error}} on every request while memory was injected into system. Fix verified by proxy.test.ts asserting body.system is byte-identical and memory lands in the last user message."},"freshness":{"ttl_days":365,"last_verified_at":"2026-07-06T19:03:50.463Z","path_fingerprints":[{"path":"mcp/proxy.ts","sha256":"be62ac50a8f46551e63ea721b92fe2516513613b5e0ff5c30721d4197fdf8842","size":12206,"symbols":[{"name":"injectmemory","kind":"function","sha256":"b3731f548e3897b343bea87f6f818e31bf6a94d79188bef5bcf46198bc2d7072"}]}],"path_fingerprint_policy":"source_hash_staleness","verification":"repo_local_agent_capture"},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"discovery_tokens":8000,"discovery_tokens_estimated":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"stale_reasons":[],"estimated_tokens_saved":353},"created_at":"2026-07-06T19:03:50.463Z","updated_at":"2026-07-06T19:03:50.463Z","author_branch":"master"}
+```
+

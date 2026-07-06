@@ -2087,7 +2087,7 @@ async function main(): Promise<void> {
     const project = projectArg(args);
     const port = args.includes("--port") ? numberArg(args, "--port", 8788) : 8788;
     const upstream = takeArg(args, "--upstream");
-    startProxy(project, { port, upstream: upstream ?? undefined, verbose: args.includes("--verbose") });
+    startProxy(project, { port, upstream: upstream ?? undefined, verbose: args.includes("--verbose"), noInject: args.includes("--no-inject") });
     return;
   }
 
