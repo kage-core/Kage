@@ -86,6 +86,8 @@ import {
   loadPendingPackets,
   memoryInbox,
   mergePacketFiles,
+  conflictsDir,
+  teamMemoryReport,
   ensurePacketMergeAttributes,
   PACKET_MERGE_ATTRIBUTE_LINE,
   observe,
@@ -5464,6 +5466,118 @@ test("merge-packet keeps the newest side whole-file and rejects garbage", () => 
   assert.equal(garbage.ok, false);
 });
 
+test("merge-packet never silently drops a teammate's concurrent edit — the losing side is preserved for review", () => {
+  const project = mkdtempSync(join(tmpdir(), "kage-merge-preserve-"));
+  const dir = mkdtempSync(join(tmpdir(), "kage-merge-preserve-tmp-"));
+  const basePacket = { id: "gotcha-merge-preserve", title: "base", body: "base body", updated_at: "2026-01-01T00:00:00.000Z" };
+  const oursPath = join(dir, "ours.json");
+  const basePath = join(dir, "base.json");
+  const theirsPath = join(dir, "theirs.json");
+  writeFileSync(basePath, JSON.stringify(basePacket, null, 2), "utf8");
+  // Two teammates concurrently reverified/edited the SAME packet — genuine divergence,
+  // not a race where one side is a stale copy of the other.
+  writeFileSync(oursPath, JSON.stringify({ ...basePacket, body: "ours added evidence X", updated_at: "2026-02-01T00:00:00.000Z" }, null, 2), "utf8");
+  writeFileSync(theirsPath, JSON.stringify({ ...basePacket, body: "theirs added evidence Y", updated_at: "2026-03-01T00:00:00.000Z" }, null, 2), "utf8");
+
+  // No projectDir passed: preservation is a best-effort add-on, must not be required for a merge to succeed.
+  const withoutProject = mergePacketFiles(oursPath, basePath, theirsPath);
+  assert.equal(withoutProject.ok, true);
+  assert.equal(withoutProject.preserved_path, undefined);
+
+  writeFileSync(oursPath, JSON.stringify({ ...basePacket, body: "ours added evidence X", updated_at: "2026-02-01T00:00:00.000Z" }, null, 2), "utf8");
+  const withProject = mergePacketFiles(oursPath, basePath, theirsPath, project);
+  assert.equal(withProject.ok, true);
+  assert.equal(withProject.winner, "theirs");
+  assert.equal(typeof withProject.preserved_path, "string");
+  assert.equal(existsSync(withProject.preserved_path!), true);
+  const preserved = JSON.parse(readFileSync(withProject.preserved_path!, "utf8"));
+  // The LOSING (ours) side's real edit is recoverable, not gone.
+  assert.equal(preserved.body, "ours added evidence X");
+  assert.equal(withProject.detail.includes("preserved for review"), true);
+
+  // Identical resolution on both sides (a true no-op race) must not spam a conflict artifact.
+  writeFileSync(theirsPath, JSON.stringify({ ...basePacket, body: "same", updated_at: "2026-04-01T00:00:00.000Z" }, null, 2), "utf8");
+  writeFileSync(oursPath, JSON.stringify({ ...basePacket, body: "same", updated_at: "2026-04-01T00:00:00.000Z" }, null, 2), "utf8");
+  const identical = mergePacketFiles(oursPath, basePath, theirsPath, project);
+  assert.equal(identical.ok, true);
+  assert.equal(identical.preserved_path, undefined);
+});
+
+// Simulates a real multi-contributor team on one repo: two teammates capturing memory
+// under their own git identity, a stale claim left unreviewed, a concurrent-edit
+// conflict, and a pending item awaiting review — then asserts the team report tells
+// the truth about all of it in one call.
+test("teamMemoryReport gives an accurate receipt for a simulated multi-contributor team", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "auth.ts"), "export function login() { return true; }\n", "utf8");
+  writeFileSync(join(project, "src", "billing.ts"), "export function charge() { return true; }\n", "utf8");
+
+  // Teammate 1 (Ada) captures a decision.
+  execFileSync("git", ["config", "user.name", "Ada Lovelace"], { cwd: project, stdio: "ignore" });
+  const adaPacket = capture({
+    projectDir: project,
+    title: "Auth login is idempotent",
+    body: "login() is safe to call twice. Verified by: npm test.",
+    type: "decision",
+    paths: ["src/auth.ts"],
+  });
+  assert.equal(adaPacket.ok, true);
+  assert.equal(adaPacket.packet!.author_name, "Ada Lovelace");
+
+  // Teammate 2 (Grace) captures a gotcha, then the cited file changes under it —
+  // a real drift scenario, left unreviewed (no reverify).
+  execFileSync("git", ["config", "user.name", "Grace Hopper"], { cwd: project, stdio: "ignore" });
+  const gracePacket = capture({
+    projectDir: project,
+    title: "Billing charge() gotcha",
+    body: "charge() must be called from the billing queue only. Verified by: npm test.",
+    type: "gotcha",
+    paths: ["src/billing.ts"],
+  });
+  assert.equal(gracePacket.ok, true);
+  assert.equal(gracePacket.packet!.author_name, "Grace Hopper");
+  writeFileSync(join(project, "src", "billing.ts"), "export function charge() { return false; /* changed */ }\n", "utf8");
+
+  // Grace also leaves an item explicitly routed to pending review.
+  const pendingPacket = capture({
+    projectDir: project,
+    title: "Needs a second pair of eyes",
+    body: "Draft claim about the payment retry policy that still needs review.",
+    type: "reference",
+    paths: ["src/billing.ts"],
+    pendingReview: true,
+  });
+  assert.equal(pendingPacket.ok, true);
+
+  // A merge-driver conflict artifact from an earlier concurrent edit, so the
+  // report's "nothing was silently dropped" count reflects something real.
+  mkdirSync(conflictsDir(project), { recursive: true });
+  writeFileSync(join(conflictsDir(project), "lost-edit.md"), "# preserved conflict\n", "utf8");
+
+  const report = teamMemoryReport(project);
+  assert.equal(report.approved_packets, 2);
+  assert.equal(report.unattributed_packets, 0);
+  assert.deepEqual(
+    report.contributors.map((c) => c.name).sort(),
+    ["Ada Lovelace", "Grace Hopper"]
+  );
+  assert.equal(report.pending_review, 1);
+  assert.equal(report.oldest_pending_days !== null, true);
+  assert.equal(report.stale_withheld, 1); // billing.ts changed under Grace's gotcha
+  assert.equal(report.conflicts_preserved, 1);
+  // Neither packet has been through reverifyMemory, so freshness_rate must be 0 —
+  // a plain capture is not the same as a verified-fresh claim.
+  assert.equal(report.freshness_rate, 0);
+
+  // Now Ada reverifies her own packet with evidence; freshness_rate must reflect it.
+  const reverified = reverifyMemory(project, adaPacket.packet!.id, { evidence: "Re-read src/auth.ts, login() is still idempotent.", verifiedBy: "manual read" });
+  assert.equal(reverified.ok, true);
+  const afterReverify = teamMemoryReport(project);
+  assert.equal(afterReverify.freshness_rate, 0.5);
+});
+
 test("kage merge-packet CLI follows the git merge-driver exit convention", () => {
   const dir = mkdtempSync(join(tmpdir(), "kage-merge-cli-"));
   const basePacket = { id: "gotcha-merge-2", title: "base", updated_at: "2026-01-01T00:00:00.000Z" };
@@ -5474,14 +5588,17 @@ test("kage merge-packet CLI follows the git merge-driver exit convention", () =>
   writeFileSync(oursPath, JSON.stringify({ ...basePacket, title: "ours", updated_at: "2026-02-01T00:00:00.000Z" }, null, 2), "utf8");
   writeFileSync(theirsPath, JSON.stringify({ ...basePacket, title: "theirs", updated_at: "2026-03-01T00:00:00.000Z" }, null, 2), "utf8");
   const cli = join(__dirname, "cli.js");
-
-  const okRun = spawnSync(process.execPath, [cli, "merge-packet", oursPath, basePath, theirsPath]);
+  // Pin cwd to the temp dir: the merge driver resolves conflict-preservation output
+  // relative to process.cwd() (the real repo root during an actual git merge). Without
+  // this, the child inherits whatever directory the test runner happened to be
+  // launched from and leaks a stray .agent_memory/ next to the source tree.
+  const okRun = spawnSync(process.execPath, [cli, "merge-packet", oursPath, basePath, theirsPath], { cwd: dir });
   assert.equal(okRun.status, 0);
   assert.equal(JSON.parse(readFileSync(oursPath, "utf8")).title, "theirs");
 
   writeFileSync(oursPath, "garbage", "utf8");
   writeFileSync(theirsPath, "garbage", "utf8");
-  const conflict = spawnSync(process.execPath, [cli, "merge-packet", oursPath, basePath, theirsPath]);
+  const conflict = spawnSync(process.execPath, [cli, "merge-packet", oursPath, basePath, theirsPath], { cwd: dir });
   assert.equal(conflict.status, 1);
 });
 

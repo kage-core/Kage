@@ -59,6 +59,9 @@ export interface MemoryPacket {
   created_at: string;
   updated_at: string;
   author_branch?: string | null;
+  // Git user.name at capture time — who on the team wrote this, surfaced in recall
+  // and `kage review` so teammates see whose claim they're trusting, not just when.
+  author_name?: string | null;
 }
 
 // Per-symbol content fingerprint. Anchors a memory to the SPECIFIC symbols it is
@@ -2436,6 +2439,15 @@ export function pendingDir(projectDir: string): string {
 
 export function publicCandidatesDir(projectDir: string): string {
   return join(memoryRoot(projectDir), "public-candidates");
+}
+
+// Where the packet merge driver preserves a losing side instead of discarding it.
+// The driver is last-write-wins by self-reported updated_at, not a field-level
+// three-way merge — so when two teammates concurrently edit the SAME packet file
+// (e.g. both reverify it, or one approves while the other supersedes), one side's
+// work would otherwise vanish with no trace. See mergePacketFiles().
+export function conflictsDir(projectDir: string): string {
+  return join(memoryRoot(projectDir), "conflicts");
 }
 
 export function indexesDir(projectDir: string): string {
@@ -5027,6 +5039,10 @@ function safeReadText(path: string): string | null {
 
 function gitBranch(projectDir: string): string | null {
   return readGit(projectDir, ["branch", "--show-current"]) || readGit(projectDir, ["rev-parse", "--short", "HEAD"]);
+}
+
+function gitUserName(projectDir: string): string | null {
+  return readGit(projectDir, ["config", "user.name"]) || null;
 }
 
 function gitDefaultBranch(projectDir: string): string | null {
@@ -10787,7 +10803,8 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
         : entry.packet.type === "convention" ? "convention since"
         : "noted";
       const cited = entry.packet.paths.slice(0, 3).join(", ");
-      const meta = `${verb}${when ? ` ${when}` : ""}${cited ? ` · ${cited}` : ""}`;
+      const author = entry.packet.author_name ? ` by ${entry.packet.author_name}` : "";
+      const meta = `${verb}${when ? ` ${when}` : ""}${author}${cited ? ` · ${cited}` : ""}`;
       return [
         "",
         `${index + 1}. Team memory: ${entry.packet.title}`,
@@ -16415,6 +16432,84 @@ export function benchmarkSavings(projectDir: string, options: { queries?: number
   };
 }
 
+export interface TeamMemoryReport {
+  schema_version: 1;
+  project_dir: string;
+  generated_at: string;
+  approved_packets: number;
+  contributors: Array<{ name: string; packets: number }>;
+  unattributed_packets: number;
+  pending_review: number;
+  oldest_pending_days: number | null;
+  stale_withheld: number;
+  contradictions: number;
+  conflicts_preserved: number;
+  freshness_rate: number;
+  caveats: string[];
+}
+
+// The team-facing receipt: not "how much did Kage save me" (that's `savings`) but
+// "is this team's shared memory actually trustworthy right now" — the number a team
+// lead can screenshot. Every field here maps to a real, enforced mechanism audited
+// elsewhere in this file (capture, recall staleness gate, contradiction detection,
+// the merge-driver preservation log) — nothing here is aspirational.
+export function teamMemoryReport(projectDir: string): TeamMemoryReport {
+  ensureMemoryDirs(projectDir);
+  const approved = loadApprovedPackets(projectDir);
+  const pending = loadPendingPackets(projectDir);
+
+  const contributorCounts = new Map<string, number>();
+  let unattributed = 0;
+  for (const packet of approved) {
+    const name = packet.author_name?.trim();
+    if (name) contributorCounts.set(name, (contributorCounts.get(name) ?? 0) + 1);
+    else unattributed += 1;
+  }
+  const contributors = [...contributorCounts.entries()]
+    .map(([name, packets]) => ({ name, packets }))
+    .sort((a, b) => b.packets - a.packets || a.name.localeCompare(b.name));
+
+  const now = Date.now();
+  const pendingAges = pending
+    .map((packet) => Date.parse(packet.created_at || packet.updated_at || ""))
+    .filter((ts) => Number.isFinite(ts))
+    .map((ts) => (now - ts) / 86_400_000);
+  const oldestPendingDays = pendingAges.length ? Math.round(Math.max(...pendingAges)) : null;
+
+  const fingerprintCache = new Map<string, MemoryPathFingerprint | null>();
+  const staleWithheld = approved.filter((packet) => recallStaleReason(projectDir, packet, fingerprintCache) !== null).length;
+
+  const conflicts = kageConflicts(projectDir);
+
+  const conflictsPreservedDir = conflictsDir(projectDir);
+  const conflictsPreserved = existsSync(conflictsPreservedDir)
+    ? readdirSync(conflictsPreservedDir).filter((name) => name.endsWith(".md") || name.endsWith(".json")).length
+    : 0;
+
+  const verifiedCount = approved.filter((packet) => packetVerificationLabel(packet) === "verified").length;
+  const freshnessRate = approved.length ? Number((verifiedCount / approved.length).toFixed(2)) : 0;
+
+  return {
+    schema_version: 1,
+    project_dir: projectDir,
+    generated_at: nowIso(),
+    approved_packets: approved.length,
+    contributors,
+    unattributed_packets: unattributed,
+    pending_review: pending.length,
+    oldest_pending_days: oldestPendingDays,
+    stale_withheld: staleWithheld,
+    contradictions: conflicts.count,
+    conflicts_preserved: conflictsPreserved,
+    freshness_rate: freshnessRate,
+    caveats: [
+      "Contributors are keyed by git user.name at capture time — packets from before this feature, or captured with no git identity set, count as unattributed.",
+      "stale_withheld mirrors the live recall gate (recallStaleReason): a packet counted here is invisible to every agent right now, not merely flagged.",
+      "conflicts_preserved counts merge-driver conflict artifacts ever written; it does not know which have already been manually reconciled.",
+    ],
+  };
+}
+
 function kageMetricsShallow(
   projectDir: string,
   inputs: { codeGraph?: CodeGraph; knowledgeGraph?: KnowledgeGraph; validation?: ValidationResult } = {}
@@ -16758,6 +16853,7 @@ export function capture(input: CaptureInput): CaptureResult {
     created_at: createdAt,
     updated_at: createdAt,
     author_branch: gitBranch(input.projectDir),
+    author_name: gitUserName(input.projectDir),
   };
   packet.edges = graphEdges;
 
@@ -17793,7 +17889,7 @@ export function observe(projectDir: string, event: ObservationEvent): ObserveRes
   return { ok: true, stored: true, duplicate: false, record, path, errors: [] };
 }
 
-function loadObservations(projectDir: string, sessionId?: string): ObservationRecord[] {
+export function loadObservations(projectDir: string, sessionId?: string): ObservationRecord[] {
   ensureMemoryDirs(projectDir);
   return walkFiles(observationsDir(projectDir), (path) => path.endsWith(".json"))
     .map((path) => readJson<ObservationRecord>(path))
@@ -19830,9 +19926,10 @@ export interface MergePacketResult {
   ok: boolean;
   winner: "ours" | "theirs" | null;
   detail: string;
+  preserved_path?: string;
 }
 
-export function mergePacketFiles(oursPath: string, basePath: string, theirsPath: string): MergePacketResult {
+export function mergePacketFiles(oursPath: string, basePath: string, theirsPath: string, projectDir?: string): MergePacketResult {
   void basePath; // Reserved for a future field-level three-way merge.
   const readSide = (path: string): { raw: string; packet: Partial<MemoryPacket> } | null => {
     const raw = safeReadText(path);
@@ -19872,16 +19969,36 @@ export function mergePacketFiles(oursPath: string, basePath: string, theirsPath:
     winner = ours ? "ours" : "theirs";
   }
   const winning = winner === "ours" ? ours! : theirs!;
+  const losing = winner === "ours" ? theirs : ours;
   try {
     writeFileSync(oursPath, winning.raw, "utf8");
   } catch (error) {
     return { ok: false, winner: null, detail: `kage merge-packet: failed to write merge result: ${error instanceof Error ? error.message : String(error)}` };
   }
   const recency = packetRecency(winning.packet);
+  // This driver is last-write-wins by self-reported updated_at, NOT a field-level
+  // three-way merge — so when both sides genuinely diverge (not just a race where
+  // one side is a stale copy of the other), the losing side's edits would otherwise
+  // vanish with no trace. Preserve it as a review artifact instead of discarding it;
+  // best-effort only, and never blocks the merge if writing it fails.
+  let preservedPath: string | undefined;
+  if (losing && losing.raw !== winning.raw && projectDir) {
+    try {
+      const dir = conflictsDir(projectDir);
+      mkdirSync(dir, { recursive: true });
+      const id = String(winning.packet.id ?? basename(oursPath)).replace(/[^a-z0-9._-]/gi, "-");
+      const stamp = nowIso().replace(/[^0-9]/g, "");
+      const file = join(dir, `${id}-lost-${stamp}.md`);
+      writeFileSync(file, losing.raw, "utf8");
+      preservedPath = file;
+    } catch { /* best-effort preservation; a failure here must not fail the merge */ }
+  }
   return {
     ok: true,
     winner,
-    detail: `kage merge-packet: kept ${winner} side (newest updated_at${recency ? ` ${recency}` : ""}).`,
+    detail: `kage merge-packet: kept ${winner} side (newest updated_at${recency ? ` ${recency}` : ""}).`
+      + (preservedPath ? ` Losing side diverged and was preserved for review: ${preservedPath}` : ""),
+    ...(preservedPath ? { preserved_path: preservedPath } : {}),
   };
 }
 

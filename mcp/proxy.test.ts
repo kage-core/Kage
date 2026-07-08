@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { capture } from "./kernel.js";
-import { injectMemory, isCompletionsRequest } from "./proxy.js";
+import { createServer, request as httpRequest, type Server } from "node:http";
+import { capture, loadObservations } from "./kernel.js";
+import { injectMemory, isCompletionsRequest, startProxy } from "./proxy.js";
 
 if (!process.env.KAGE_HOME) process.env.KAGE_HOME = mkdtempSync(join(tmpdir(), "kage-proxy-home-"));
 
@@ -93,6 +94,62 @@ test("only POST /v1/messages is a completion — count_tokens and non-POST are e
   assert.equal(isCompletionsRequest("POST", "/v1/messages/count_tokens?beta=true"), false);
   assert.equal(isCompletionsRequest("GET", "/v1/messages"), false);
   assert.equal(isCompletionsRequest("POST", "/v1/models"), false);
+});
+
+// End-to-end: a real startProxy() server, a fake upstream, and a real HTTP client —
+// proves observe() is called with a stable per-process session id, not the literal
+// string "default" (the bug: every proxy run ever, on the same repo, shared one
+// observation-dedup bucket and could silently collide with hook-driven captures).
+function withFakeUpstream(handler: (req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse) => void): Promise<{ server: Server; url: string }> {
+  return new Promise((resolve) => {
+    const server = createServer(handler);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      const port = typeof address === "object" && address ? address.port : 0;
+      resolve({ server, url: `http://127.0.0.1:${port}` });
+    });
+  });
+}
+
+test("proxy observations carry a stable per-process session id, not the literal 'default'", async () => {
+  const project = tempProject();
+  const { server: fakeUpstream, url: upstreamUrl } = await withFakeUpstream((req, res) => {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ content: [{ type: "text", text: "ok" }], usage: { input_tokens: 10, output_tokens: 5 } }));
+    });
+  });
+
+  const proxyServer = startProxy(project, { port: 0, upstream: upstreamUrl });
+  await new Promise<void>((resolve) => proxyServer.on("listening", resolve));
+  const proxyAddress = proxyServer.address();
+  const proxyPort = typeof proxyAddress === "object" && proxyAddress ? proxyAddress.port : 0;
+
+  try {
+    const requestBody = JSON.stringify({
+      model: "claude-x",
+      system: "You are Claude Code, Anthropic's official CLI for Claude.",
+      messages: [{ role: "user", content: "does the proxy tag its own observations correctly?" }],
+    });
+    await new Promise<void>((resolve, reject) => {
+      const req = httpRequest(
+        { hostname: "127.0.0.1", port: proxyPort, path: "/v1/messages", method: "POST", headers: { "content-type": "application/json", "content-length": Buffer.byteLength(requestBody) } },
+        (res) => { res.on("data", () => {}); res.on("end", resolve); }
+      );
+      req.on("error", reject);
+      req.end(requestBody);
+    });
+
+    const observations = loadObservations(project).filter((record) => record.agent === "kage-proxy");
+    assert.equal(observations.length, 1);
+    assert.notEqual(observations[0].session_id, "default");
+    assert.match(observations[0].session_id ?? "", /^proxy-/);
+  } finally {
+    proxyServer.close();
+    fakeUpstream.close();
+  }
 });
 
 test("proxy leaves the request untouched when nothing relevant is recalled", () => {

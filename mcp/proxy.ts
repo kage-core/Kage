@@ -15,6 +15,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { request as httpsRequest } from "node:https";
 import { request as httpRequest } from "node:http";
 import { existsSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { memoryRoot, observe, recall, type MemoryPacket } from "./kernel.js";
 
 const MEMORY_HEADER = "# Verified repo memory (injected by Kage — follow it, it is checked against this code)";
@@ -156,6 +157,15 @@ export function startProxy(projectDir: string, options: { port?: number; upstrea
   const upstreamUrl = new URL(options.upstream ?? process.env.KAGE_PROXY_UPSTREAM ?? "https://api.anthropic.com");
   const stats: ProxyStats = { requests: 0, injected: 0, captured: 0, input_tokens: 0, output_tokens: 0 };
   const hasMemory = existsSync(memoryRoot(projectDir));
+  // A stable per-process id, NOT the literal string "default": without this every proxy
+  // run ever, across restarts, shared one observation-dedup bucket, and diverged from any
+  // real Claude Code session id a hook might be recording under — so the same prompt could
+  // be captured twice (once via the proxy tap, once via a UserPromptSubmit hook) with no
+  // way for the hash-based dedup to ever catch it. Scoping to one id per run doesn't erase
+  // that hook/proxy overlap risk (the proxy has no visibility into Claude Code's own session
+  // id), but it does make repeat requests within one run correctly dedupe, and makes
+  // proxy-captured observations clearly attributable in `.agent_memory/observations`.
+  const sessionId = `proxy-${randomUUID()}`;
 
   const server = createServer((clientReq, clientRes) => {
     void handle(clientReq, clientRes);
@@ -233,7 +243,7 @@ export function startProxy(projectDir: string, options: { port?: number; upstrea
             stats.output_tokens += output;
             // Capture the exchange into the memory loop — no hook required, agent-agnostic.
             if (status < 300 && userPrompt.trim()) {
-              observe(projectDir, { type: "user_prompt", agent: "kage-proxy", text: userPrompt.slice(0, 4000), summary: userPrompt.slice(0, 200) });
+              observe(projectDir, { type: "user_prompt", agent: "kage-proxy", session_id: sessionId, text: userPrompt.slice(0, 4000), summary: userPrompt.slice(0, 200) });
               stats.captured += 1;
             }
           } catch { /* receipt/capture is best-effort; never affect the client */ }

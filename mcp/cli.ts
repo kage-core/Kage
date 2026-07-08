@@ -14,6 +14,7 @@ import {
   renderClaudeMemAuditReceipt,
   benchmarkTaskComparison,
   benchmarkSavings,
+  teamMemoryReport,
   benchmarkCodingMemoryQuality,
   benchmarkMemoryScale,
   benchmarkTrust,
@@ -141,6 +142,7 @@ Core commands:
   kage recall "<query>" --project <dir>      grounded recall from repo memory
   kage learn --project <dir> ...             capture a learning as a memory packet
   kage gains --project <dir>                 what Kage saved you (tokens, cost, stale blocks)
+  kage team --project <dir>                  team memory health: contributors, pending review, stale, contradictions
   kage verify --project <dir>                check memory citations against code
   kage setup <agent> --project <dir> --write wire your agent (claude-code, codex, cursor, ...)
   kage doctor --project <dir>                health check
@@ -186,6 +188,9 @@ Usage:
   kage branch --project <dir> [--json]
   kage metrics --project <dir> [--json]
   kage gains --project <dir> [--json]
+  kage savings --project <dir> [--queries <n>] [--json]   deterministic token-reduction receipt (no LLM on the measurement path)
+  kage team --project <dir> [--json]   team memory health: contributors, pending review, stale-withheld, contradictions
+  kage proxy --project <dir> [--port 8788] [--upstream <url>] [--no-inject] [--verbose]   drop-in proxy: inject memory outbound, capture exchanges inbound
   kage memory-access --project <dir> [--json]
   kage activity --project <dir> [--json]
   kage memory-audit --project <dir> [--limit <n>] [--json]
@@ -325,6 +330,7 @@ async function review(projectDir: string): Promise<void> {
       console.log(`Title: ${packet.title}`);
       console.log(`Type:  ${packet.type}`);
       console.log(`ID:    ${packet.id}`);
+      console.log(`By:    ${packet.author_name ?? "(unknown)"}${packet.author_branch ? ` on ${packet.author_branch}` : ""}`);
       console.log(`Tags:  ${packet.tags.join(", ") || "(none)"}`);
       console.log(`Paths: ${packet.paths.join(", ") || "(none)"}`);
       console.log("\n" + packet.body);
@@ -363,7 +369,7 @@ async function main(): Promise<void> {
       console.error(`Enable once per clone: ${PACKET_MERGE_DRIVER_CONFIG}`);
       process.exit(1);
     }
-    const result = mergePacketFiles(ours, base, theirs);
+    const result = mergePacketFiles(ours, base, theirs, process.cwd());
     console.error(result.detail);
     process.exit(result.ok ? 0 : 1);
   }
@@ -2112,6 +2118,32 @@ async function main(): Promise<void> {
     console.log(`  Reproduce:  npx -y @kage-core/kage-graph-mcp savings --project . --json`);
     console.log("");
     console.log(`  ${result.caveats[0]}`);
+    return;
+  }
+
+  if (command === "team") {
+    const result = teamMemoryReport(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    const freshPct = Math.round(result.freshness_rate * 100);
+    const bars = Math.round(freshPct / 10);
+    const bar = "▰".repeat(bars) + "▱".repeat(Math.max(0, 10 - bars));
+    console.log("");
+    console.log(`  Team memory health  ${bar}  ${freshPct}% verified fresh`);
+    console.log("");
+    console.log(`  ${result.approved_packets} approved packets` + (result.unattributed_packets ? `  (${result.unattributed_packets} unattributed)` : ""));
+    if (result.contributors.length) {
+      console.log(`  Contributors: ${result.contributors.map((c) => `${c.name} (${c.packets})`).join(", ")}`);
+    }
+    console.log(`  ${"─".repeat(46)}`);
+    console.log(`  Pending review     ${result.pending_review}${result.oldest_pending_days !== null ? `  (oldest ${result.oldest_pending_days}d)` : ""}`);
+    console.log(`  Stale, withheld    ${result.stale_withheld}`);
+    console.log(`  Contradictions     ${result.contradictions}`);
+    console.log(`  Conflicts saved    ${result.conflicts_preserved}  (concurrent edits preserved, not dropped)`);
+    console.log("");
+    console.log(`  Reproduce:  npx -y @kage-core/kage-graph-mcp team --project . --json`);
     return;
   }
 
