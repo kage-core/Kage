@@ -5,7 +5,18 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createServer, request as httpRequest, type Server } from "node:http";
 import { capture, loadObservations } from "./kernel.js";
-import { injectMemory, isCompletionsRequest, startProxy } from "./proxy.js";
+import { injectMemory, isCompletionsRequest, resolveRequestProjectDir, startProxy } from "./proxy.js";
+
+// The literal shape Claude Code 2.1.202 actually sends (confirmed via a live captured
+// request, not guessed): a multi-block system array with an Environment section naming
+// "Primary working directory: <path>".
+function claudeCodeSystemBlocks(workingDir: string): Array<{ type: string; text: string }> {
+  return [
+    { type: "text", text: "x-anthropic-billing-header: cc_version=2.1.202.07c; cc_entrypoint=claude-desktop;" },
+    { type: "text", text: "You are a Claude agent, built on Anthropic's Claude Agent SDK." },
+    { type: "text", text: `You are an interactive agent...\n\n# Environment\nYou have been invoked in the following environment: \n - Primary working directory: ${workingDir}\n - Is a git repository: true\n` },
+  ];
+}
 
 if (!process.env.KAGE_HOME) process.env.KAGE_HOME = mkdtempSync(join(tmpdir(), "kage-proxy-home-"));
 
@@ -85,6 +96,101 @@ test("top hit injects its full body, not just the summary", () => {
   // The body's actual formula must be present — the point of body-aware injection.
   assert.match(injectedText, /baselineTotal - kageTotal/);
   assert.match(injectedText, /SUM-RATIO/);
+});
+
+test("resolveRequestProjectDir stays pinned to the default project when no --workspace is set", () => {
+  const workspace = mkdtempSync(join(tmpdir(), "kage-workspace-"));
+  const repoA = join(workspace, "repo-a");
+  mkdirSync(repoA, { recursive: true });
+  const body = { system: claudeCodeSystemBlocks(repoA) };
+  // No workspaceRoot passed: multi-repo routing is off, always the fixed default — the
+  // exact single-repo behavior every proxy user had before this feature existed.
+  assert.equal(resolveRequestProjectDir("/some/fixed/project", undefined, body), "/some/fixed/project");
+});
+
+test("resolveRequestProjectDir routes to the client's reported working directory when it's inside --workspace", () => {
+  const workspace = mkdtempSync(join(tmpdir(), "kage-workspace-"));
+  const repoA = join(workspace, "repo-a");
+  const repoB = join(workspace, "repo-b");
+  mkdirSync(repoA, { recursive: true });
+  mkdirSync(repoB, { recursive: true });
+
+  assert.equal(resolveRequestProjectDir(repoA, workspace, { system: claudeCodeSystemBlocks(repoA) }), repoA);
+  assert.equal(resolveRequestProjectDir(repoA, workspace, { system: claudeCodeSystemBlocks(repoB) }), repoB);
+});
+
+test("resolveRequestProjectDir refuses to route outside --workspace even if a client claims to be there", () => {
+  const workspace = mkdtempSync(join(tmpdir(), "kage-workspace-"));
+  const repoA = join(workspace, "repo-a");
+  mkdirSync(repoA, { recursive: true });
+  const outside = mkdtempSync(join(tmpdir(), "kage-outside-workspace-"));
+
+  // A client claiming a working directory outside the declared workspace must NOT redirect
+  // the proxy there — this is the safety boundary, not an incidental default.
+  assert.equal(resolveRequestProjectDir(repoA, workspace, { system: claudeCodeSystemBlocks(outside) }), repoA);
+});
+
+test("resolveRequestProjectDir falls back to default for a nonexistent path or a client that reports none", () => {
+  const workspace = mkdtempSync(join(tmpdir(), "kage-workspace-"));
+  const repoA = join(workspace, "repo-a");
+  mkdirSync(repoA, { recursive: true });
+
+  assert.equal(resolveRequestProjectDir(repoA, workspace, { system: claudeCodeSystemBlocks(join(workspace, "never-created")) }), repoA);
+  assert.equal(resolveRequestProjectDir(repoA, workspace, { system: "a plain string system prompt, no working directory line" }), repoA);
+  assert.equal(resolveRequestProjectDir(repoA, workspace, {}), repoA);
+});
+
+// End-to-end: ONE real startProxy() process, TWO different repos, each with its own distinct
+// memory — proves --workspace actually routes each request by the client's reported cwd,
+// not just at the unit level.
+test("one proxy process serves two different repos under --workspace, each getting its own memory", async () => {
+  const workspace = mkdtempSync(join(tmpdir(), "kage-workspace-e2e-"));
+  const repoA = join(workspace, "repo-a");
+  const repoB = join(workspace, "repo-b");
+  mkdirSync(join(repoA, ".agent_memory", "packets"), { recursive: true });
+  mkdirSync(join(repoB, ".agent_memory", "packets"), { recursive: true });
+  capture({ projectDir: repoA, title: "Repo A uses Redis for caching", body: "Repo A's session store is Redis, not Memcached. Verified by: npm test.", type: "decision", allowMissingPaths: true });
+  capture({ projectDir: repoB, title: "Repo B uses Postgres for caching", body: "Repo B's session store is Postgres, not Redis. Verified by: npm test.", type: "decision", allowMissingPaths: true });
+
+  const captured: string[] = [];
+  const { server: fakeUpstream, url: upstreamUrl } = await withFakeUpstream((req, res) => {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      captured.push(body);
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ content: [{ type: "text", text: "ok" }], usage: { input_tokens: 1, output_tokens: 1 } }));
+    });
+  });
+  const proxyServer = startProxy(repoA, { port: 0, upstream: upstreamUrl, workspace });
+  await new Promise<void>((resolve) => proxyServer.on("listening", resolve));
+  const proxyAddress = proxyServer.address();
+  const proxyPort = typeof proxyAddress === "object" && proxyAddress ? proxyAddress.port : 0;
+
+  const askAs = (workingDir: string, question: string): Promise<void> => new Promise((resolve, reject) => {
+    const requestBody = JSON.stringify({ system: claudeCodeSystemBlocks(workingDir), messages: [{ role: "user", content: question }] });
+    const req = httpRequest(
+      { hostname: "127.0.0.1", port: proxyPort, path: "/v1/messages", method: "POST", headers: { "content-type": "application/json", "content-length": Buffer.byteLength(requestBody) } },
+      (res) => { res.on("data", () => {}); res.on("end", () => resolve()); }
+    );
+    req.on("error", reject);
+    req.end(requestBody);
+  });
+
+  try {
+    await askAs(repoA, "which cache does this repo use?");
+    await askAs(repoB, "which cache does this repo use?");
+    assert.equal(captured.length, 2);
+    // Each repo's own packet TITLE is the unambiguous per-repo signal (packet bodies both
+    // mention "Redis" and "Postgres" in their compare-and-contrast sentences by design).
+    assert.match(captured[0], /Repo A uses Redis for caching/);
+    assert.doesNotMatch(captured[0], /Repo B uses Postgres for caching/);
+    assert.match(captured[1], /Repo B uses Postgres for caching/);
+    assert.doesNotMatch(captured[1], /Repo A uses Redis for caching/);
+  } finally {
+    proxyServer.close();
+    fakeUpstream.close();
+  }
 });
 
 test("only POST /v1/messages is a completion — count_tokens and non-POST are excluded", () => {

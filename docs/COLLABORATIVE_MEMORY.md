@@ -118,7 +118,33 @@ proof that concurrent edits don't vanish. That is what turns memory from a
 vibe into something a team can be accountable to — and it costs zero new
 infrastructure, because git already is the sync layer.
 
-## What this does not solve
+## Update: the proxy now spans a whole workspace, and a real hosted tier exists
+
+Two things below were true when this doc was first written and no longer are.
+
+**The proxy is no longer pinned to one repo.** `kage proxy --workspace <dir>`
+reads the "Primary working directory" Claude Code actually sends in its
+system prompt (confirmed against a live captured request, not guessed) and
+routes each request to that repo's own memory — one proxy process, an entire
+workspace of repos, each getting its own recall/injection/capture. A
+candidate directory outside `--workspace` is never honored; without
+`--workspace` at all, behavior is byte-for-byte what it always was. Proven
+end-to-end: one proxy instance served two different repos in the same test
+run, each getting only its own memory injected (`mcp/proxy.test.ts`).
+
+**A real, tested, self-hostable team server now exists** — `kage cloud`, see
+`docs/CLOUD.md`'s "v1.5" section. It does not replace the honest limitation
+below about the *managed* hosted tier (nobody has deployed this publicly; the
+v2 SaaS waitlist gate is unchanged), but "there is no hosted team tier" is no
+longer accurate — there is one, self-run. `kage cloud push`/`pull` moves
+packets through a review gate (a submitter cannot approve their own packet)
+into a new "Team Memory" recall section, and every pulled packet is
+re-verified against the pulling machine's own checkout before an agent sees
+it — the same client-side trust boundary as everything else in this doc, now
+proven to hold across a real network hop, not just within one repo's git
+history.
+
+## What this still does not solve
 
 Said plainly, so it isn't oversold:
 
@@ -131,11 +157,14 @@ Said plainly, so it isn't oversold:
   are active for one session — the proxy has no visibility into Claude
   Code's own session id at the HTTP layer, so a stable per-process id closes
   the "default" bucket-collision risk but doesn't unify the two capture
-  paths. A shared session-id header would need cooperation from the client
-  side (Claude Code itself), which is out of Kage's control.
-- **There is still no real-time collaboration or hosted team tier.** This is
-  git-native and pull-based: teammates see each other's memory the moment
-  they pull. That's the honest tradeoff for zero infrastructure. If demand
-  shows up (see `docs/CLOUD.md`'s waitlist gate), the hosted v2 is where
-  true real-time/cross-repo team sharing would live — not invented here
-  ahead of signal.
+  paths. Confirmed live, not just theorized: a real proxied request produced
+  two independent observations, one from the proxy's own tap and one from
+  Claude Code's own ambient hooks firing under their real session id. A
+  shared session-id header would need cooperation from the client side
+  (Claude Code itself), which is out of Kage's control.
+- **The hosted server is unhardened and undeployed.** No TLS, no rate
+  limiting, bearer tokens instead of real SSO, no horizontal scaling story —
+  fine for a self-hosted internal tool behind your own proxy/VPN, not fine as
+  a public multi-tenant service. That gap, and the managed-SaaS business
+  decision itself, is exactly what the v2 waitlist gate in `docs/CLOUD.md`
+  still exists to test before anyone builds it.

@@ -130,6 +130,8 @@ import { buildGraphRegistryManifest } from "./graph-registry.js";
 import { checkReportMarkdown, driftCheck, formatCheckReport, kageCheckWorkflowYaml, writeCheckBaseline } from "./check.js";
 import { lintOkfBundle, loadOkfConcepts, migratePacketsToOkf, okfBundleDir, okfViewerHtml } from "./okf.js";
 import { startProxy } from "./proxy.js";
+import { startCloudServer } from "./cloud-server.js";
+import { cloudCreateTeam, cloudInvite, cloudPush, cloudPull, cloudList, cloudReview } from "./cloud-client.js";
 
 const CORE_USAGE = `Kage — code-grounded memory for coding agents
 
@@ -190,7 +192,7 @@ Usage:
   kage gains --project <dir> [--json]
   kage savings --project <dir> [--queries <n>] [--json]   deterministic token-reduction receipt (no LLM on the measurement path)
   kage team --project <dir> [--json]   team memory health: contributors, pending review, stale-withheld, contradictions
-  kage proxy --project <dir> [--port 8788] [--upstream <url>] [--no-inject] [--verbose]   drop-in proxy: inject memory outbound, capture exchanges inbound
+  kage proxy --project <dir> [--port 8788] [--upstream <url>] [--workspace <dir>] [--no-inject] [--verbose]   drop-in proxy: inject memory outbound, capture exchanges inbound (one proxy per repo, or --workspace for many)
   kage memory-access --project <dir> [--json]
   kage activity --project <dir> [--json]
   kage memory-audit --project <dir> [--limit <n>] [--json]
@@ -251,6 +253,13 @@ Usage:
   kage sync setup --remote <git-url>            init ~/.kage/memory as a git repo wired to your private remote
   kage sync [--json]                            commit + pull --rebase + push personal memory (newest-wins conflicts)
   kage sync --status [--json]                   ahead/behind/dirty for the personal store (fetch only)
+  kage cloud serve [--port 8790] [--db <path>] [--verbose]   run a Kage Cloud server (self-host behind your own proxy/VPN)
+  kage cloud create-team --server <url> --name <name> [--json]   creates a team + owner token (shown once)
+  kage cloud invite --server <url> --team <id> --token <token> --label <name> [--json]   issue another teammate's token
+  kage cloud push --project <dir> --server <url> --team <id> --token <token> [--json]   submit local approved packets (lands pending)
+  kage cloud pull --project <dir> --server <url> --team <id> --token <token> [--json]   pull team-approved packets (re-verified locally on recall)
+  kage cloud list --server <url> --team <id> --token <token> [--status pending|approved|rejected] [--json]
+  kage cloud approve|reject --server <url> --team <id> --token <token> --packet <id> [--json]   review gate: a submitter cannot approve their own packet
   kage feedback --project <dir> --packet <packet-id> --kind helpful|wrong|stale
   kage capture --project <dir> --title <title> --body <body> [--type <type>] [--summary <summary>] [--tags a,b] [--paths a,b] [--stack a,b] [--graph-nodes a,b] [--allow-missing-paths]
   kage propose --project <dir> --from-diff
@@ -427,6 +436,88 @@ async function main(): Promise<void> {
       console.log(`Conflict losers preserved:\n${result.conflict_backups.map((path) => `  - ${path}`).join("\n")}`);
     }
     return;
+  }
+
+  if (command === "cloud") {
+    const sub = args[1];
+
+    if (sub === "serve") {
+      const port = args.includes("--port") ? numberArg(args, "--port", 8790) : 8790;
+      const dbPath = takeArg(args, "--db");
+      startCloudServer({ port, dbPath: dbPath ?? undefined, verbose: args.includes("--verbose") });
+      return;
+    }
+
+    const server = takeArg(args, "--server");
+    if (!server && sub !== undefined) {
+      console.error("Usage: kage cloud <create-team|invite|push|pull|list|approve|reject> --server <url> ...");
+      process.exit(2);
+    }
+
+    if (sub === "create-team") {
+      const name = takeArg(args, "--name");
+      if (!name) { console.error("Usage: kage cloud create-team --server <url> --name <name>"); process.exit(2); }
+      const result = await cloudCreateTeam(server!, name);
+      if (args.includes("--json")) { console.log(JSON.stringify(result, null, 2)); return; }
+      console.log(`Team created: ${result.name} (${result.team_id})`);
+      console.log(`Owner token (save this — it is shown once): ${result.token}`);
+      console.log(`\nNext: kage cloud push --project . --server ${server} --team ${result.team_id} --token ${result.token}`);
+      return;
+    }
+
+    const teamId = takeArg(args, "--team");
+    const token = takeArg(args, "--token");
+    if (sub && sub !== "create-team" && (!teamId || !token)) {
+      console.error("Usage: kage cloud <subcommand> --server <url> --team <team-id> --token <token> ...");
+      process.exit(2);
+    }
+
+    if (sub === "invite") {
+      const label = takeArg(args, "--label") ?? "teammate";
+      const result = await cloudInvite(server!, teamId!, token!, label);
+      if (args.includes("--json")) { console.log(JSON.stringify(result, null, 2)); return; }
+      console.log(`New token for "${result.label}" (save this — it is shown once): ${result.token}`);
+      return;
+    }
+
+    if (sub === "push") {
+      const result = await cloudPush(server!, teamId!, token!, projectArg(args));
+      if (args.includes("--json")) { console.log(JSON.stringify(result, null, 2)); return; }
+      console.log(`Submitted ${result.submitted} packet(s) for review.`);
+      if (result.failed.length) console.log(`Failed:\n${result.failed.map((f) => `  - ${f.title}: ${f.reason}`).join("\n")}`);
+      return;
+    }
+
+    if (sub === "pull") {
+      const result = await cloudPull(server!, teamId!, token!, projectArg(args));
+      if (args.includes("--json")) { console.log(JSON.stringify(result, null, 2)); return; }
+      console.log(`Pulled ${result.pulled} team-approved packet(s). They'll surface in recall's "Team Memory" section, re-verified against this checkout.`);
+      return;
+    }
+
+    if (sub === "list") {
+      const status = takeArg(args, "--status") ?? "pending";
+      const result = await cloudList(server!, teamId!, token!, status);
+      if (args.includes("--json")) { console.log(JSON.stringify(result, null, 2)); return; }
+      if (!result.length) { console.log(`No ${status} packets.`); return; }
+      for (const entry of result) {
+        console.log(`[${entry.packet.id}] ${entry.packet.title}`);
+        console.log(`  submitted by ${entry.submitted_by}${entry.approved_by ? `, approved by ${entry.approved_by}` : ""}`);
+      }
+      return;
+    }
+
+    if (sub === "approve" || sub === "reject") {
+      const packetId = takeArg(args, "--packet");
+      if (!packetId) { console.error(`Usage: kage cloud ${sub} --server <url> --team <team-id> --token <token> --packet <packet-id>`); process.exit(2); }
+      const result = await cloudReview(server!, teamId!, token!, packetId, sub);
+      if (args.includes("--json")) { console.log(JSON.stringify(result, null, 2)); return; }
+      console.log(`Packet ${packetId}: ${result.status}`);
+      return;
+    }
+
+    console.error("Usage: kage cloud <serve|create-team|invite|push|pull|list|approve|reject> ...");
+    process.exit(2);
   }
 
   await ensureTreeSitterLanguages();
@@ -2093,7 +2184,14 @@ async function main(): Promise<void> {
     const project = projectArg(args);
     const port = args.includes("--port") ? numberArg(args, "--port", 8788) : 8788;
     const upstream = takeArg(args, "--upstream");
-    startProxy(project, { port, upstream: upstream ?? undefined, verbose: args.includes("--verbose"), noInject: args.includes("--no-inject") });
+    const workspace = takeArg(args, "--workspace");
+    startProxy(project, {
+      port,
+      upstream: upstream ?? undefined,
+      verbose: args.includes("--verbose"),
+      noInject: args.includes("--no-inject"),
+      workspace: workspace ?? undefined,
+    });
     return;
   }
 

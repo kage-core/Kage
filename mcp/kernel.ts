@@ -211,6 +211,9 @@ export interface RecallResult {
   // Personal-memory section (~/.kage/memory): kept OUT of `results` so repo flows
   // (pr-check, stale-catch, refresh, access tracking) never see personal packets.
   personal?: PersonalRecallEntry[];
+  // Team-memory section (Kage Cloud pull cache, .agent_memory/team/): same reasoning —
+  // kept out of `results` so repo-only flows never see server-sourced packets.
+  team?: TeamRecallEntry[];
 }
 
 export interface RecallScoreBreakdown {
@@ -2441,6 +2444,16 @@ export function publicCandidatesDir(projectDir: string): string {
   return join(memoryRoot(projectDir), "public-candidates");
 }
 
+// Local cache of packets pulled from a Kage Cloud team namespace (`kage cloud pull`).
+// Deliberately NOT the same directory as repo packets (packetsDir): this is server-sourced
+// state, not something a contributor authored and reviewed via this repo's own PR flow, so
+// it must never be git-committed or touched by gc/refresh/the merge driver's repo-packet
+// assumptions. Verification stays entirely client-side (see teamRecallEntries): the server
+// only ever stores packets + fingerprints, never re-derives trust itself.
+export function teamPacketsDir(projectDir: string): string {
+  return join(memoryRoot(projectDir), "team", "packets");
+}
+
 // Where the packet merge driver preserves a losing side instead of discarding it.
 // The driver is last-write-wins by self-reported updated_at, not a field-level
 // three-way merge — so when two teammates concurrently edit the SAME packet file
@@ -2565,7 +2578,7 @@ export function slugify(input: string): string {
   return slug || "memory";
 }
 
-function packetFileName(packet: Pick<MemoryPacket, "type" | "title" | "id">): string {
+export function packetFileName(packet: Pick<MemoryPacket, "type" | "title" | "id">): string {
   const idHash = createHash("sha256").update(packet.id).digest("hex").slice(0, 8);
   return `${packet.type}-${slugify(packet.title)}-${idHash}.md`;
 }
@@ -10754,6 +10767,10 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
       return true;
     })
     .slice(0, 3);
+  // Team memory (Kage Cloud pull cache): reviewed by a second teammate before it ever
+  // reached this machine, so it ranks above personal notes but still after repo memory —
+  // repo memory is reviewed via this repo's own PR flow, which outranks a remote team's.
+  const teamEntries = teamRecallEntries(projectDir, terms, 3);
   // Personal memory (~/.kage/memory): a clearly separated, lower-trust section
   // appended AFTER every repo section — repo memory always ranks first. Cited
   // personal packets are re-verified against this checkout (hard-stale ones are
@@ -10835,6 +10852,19 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
           ...suppressed.slice(0, 5).map((s) => `- ${s.title} — ${s.reason} (kage reverify --packet ${s.id})`),
         ]
       : []),
+    ...(teamEntries.length
+      ? [
+          "",
+          "## Team Memory",
+          "_Pulled from a Kage Cloud team namespace (review-gated: a second teammate approved each of these). Re-verified against THIS checkout — a packet approved on the team can still be withheld here if the local code has diverged._",
+          ...teamEntries.flatMap((entry, index) => [
+            "",
+            `${index + 1}. [team] [${entry.packet.type}] ${entry.packet.title}${entry.packet.author_name ? ` (by ${entry.packet.author_name})` : ""}`,
+            `   [team] Summary: ${entry.packet.summary}`,
+            `   [team] Why matched: ${entry.why_matched.join(", ") || "text relevance"}`,
+          ]),
+        ]
+      : []),
     ...(personalEntries.length
       ? [
           "",
@@ -10857,6 +10887,7 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
     context_block: inputs.maxContextTokens ? boundContextBlock(assembledBlock, inputs.maxContextTokens) : assembledBlock,
     results: scored,
     suppressed: suppressed.length ? suppressed : undefined,
+    team: teamEntries.length ? teamEntries : undefined,
     personal: personalEntries.length ? personalEntries : undefined,
     explanations: explain
       ? scored.map((entry) => ({
@@ -21101,6 +21132,57 @@ function personalRecallEntries(projectDir: string, terms: string[], limit = 3): 
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score || a.packet.title.localeCompare(b.packet.title))
     .slice(0, Math.max(1, limit));
+}
+
+export interface TeamRecallEntry {
+  packet: MemoryPacket;
+  score: number;
+  why_matched: string[];
+}
+
+// Team-memory candidates pulled from a Kage Cloud namespace (`kage cloud pull`, see
+// cloud-server.ts). Same "verified sync" discipline as personalRecallEntries: the server
+// only ever hands over packets + fingerprints, and it is THIS check — re-verifying every
+// cited path's fingerprint against the local checkout — that decides whether a teammate's
+// claim is trusted here. A packet approved on a review-gated team could still be withheld
+// on a machine whose checkout has since diverged; the server has no way to know that, and
+// is never asked to.
+function teamRecallEntries(projectDir: string, terms: string[], limit = 3): TeamRecallEntry[] {
+  const packets = loadPacketsFromDir(teamPacketsDir(projectDir));
+  if (!packets.length) return [];
+  const cache = new Map<string, MemoryPathFingerprint | null>();
+  const eligible = packets.filter((packet) => recallStaleReason(projectDir, packet, cache) === null);
+  if (!eligible.length) return [];
+  const scores = scorePacketsBm25(terms, eligible);
+  return eligible
+    .map((packet) => {
+      const { score, why } = scores.get(packet.id) ?? { score: 0, why: [] };
+      return { packet, score, why_matched: why };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || a.packet.title.localeCompare(b.packet.title))
+    .slice(0, Math.max(1, limit));
+}
+
+// Write one packet pulled from a Kage Cloud team namespace into the local pull cache.
+// Exported for cloud-client.ts (`kage cloud pull`) — kept separate from writePacket() so
+// the repo-packet write path's statusDir type ("packets" | "pending") is untouched.
+export function writeTeamPacket(projectDir: string, packet: MemoryPacket): string {
+  const dir = teamPacketsDir(projectDir);
+  ensureDir(dir);
+  const path = join(dir, packetFileName(packet));
+  writePacketToDisk(path, packet);
+  return path;
+}
+
+// `kage cloud pull` calls this before rewriting the cache, so a packet the server no longer
+// considers approved (superseded, rejected after the fact) does not linger locally forever.
+export function clearTeamPackets(projectDir: string): void {
+  const dir = teamPacketsDir(projectDir);
+  if (!existsSync(dir)) return;
+  for (const name of readdirSync(dir)) {
+    if (isPacketFile(name)) rmSync(join(dir, name), { force: true });
+  }
 }
 
 // --- kage sync: git-remote transport for the personal store ---------------

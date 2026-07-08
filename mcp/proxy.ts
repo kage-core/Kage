@@ -14,8 +14,9 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { request as httpRequest } from "node:http";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { resolve as resolvePath, sep } from "node:path";
 import { memoryRoot, observe, recall, type MemoryPacket } from "./kernel.js";
 
 const MEMORY_HEADER = "# Verified repo memory (injected by Kage — follow it, it is checked against this code)";
@@ -60,6 +61,43 @@ function lastUserText(body: Record<string, unknown>): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function systemToText(system: unknown): string {
+  if (typeof system === "string") return system;
+  if (Array.isArray(system)) {
+    return system
+      .filter((block): block is { text: string } => isRecord(block) && typeof block.text === "string")
+      .map((block) => block.text)
+      .join("\n");
+  }
+  return "";
+}
+
+// Claude Code's real system prompt (confirmed against a live 2.1.202 request, not guessed)
+// includes an Environment block with a literal "Primary working directory: <path>" line.
+// Reading it (never writing it — `system` stays byte-identical, see injectMemory) lets one
+// proxy process serve every repo in a workspace instead of being pinned to one --project.
+const WORKING_DIR_RE = /Primary working directory:\s*(\S+)/;
+
+// Pure + exported for testing. workspaceRoot is the opt-in safety boundary: multi-repo
+// routing is OFF (always defaultProjectDir) unless --workspace was passed, and even then a
+// parsed candidate is only honored if it resolves to workspaceRoot itself or a real
+// descendant of it — an untrusted client claiming an arbitrary "working directory" can never
+// redirect the proxy to read/write memory outside the directory tree the operator chose.
+export function resolveRequestProjectDir(defaultProjectDir: string, workspaceRoot: string | undefined, body: Record<string, unknown>): string {
+  if (!workspaceRoot) return defaultProjectDir;
+  const match = systemToText(body.system).match(WORKING_DIR_RE);
+  if (!match) return defaultProjectDir;
+  const candidate = resolvePath(match[1]);
+  const root = resolvePath(workspaceRoot);
+  if (candidate !== root && !candidate.startsWith(root + sep)) return defaultProjectDir;
+  try {
+    if (!statSync(candidate).isDirectory()) return defaultProjectDir;
+  } catch {
+    return defaultProjectDir;
+  }
+  return candidate;
 }
 
 // Only a POST to exactly /v1/messages is a completion we inject into. IMPORTANT: the
@@ -152,11 +190,10 @@ function extractUsageAndText(raw: string): { input: number; output: number; text
   return { input, output, text };
 }
 
-export function startProxy(projectDir: string, options: { port?: number; upstream?: string; verbose?: boolean; noInject?: boolean } = {}): Server {
+export function startProxy(projectDir: string, options: { port?: number; upstream?: string; verbose?: boolean; noInject?: boolean; workspace?: string } = {}): Server {
   const port = options.port ?? 8788;
   const upstreamUrl = new URL(options.upstream ?? process.env.KAGE_PROXY_UPSTREAM ?? "https://api.anthropic.com");
   const stats: ProxyStats = { requests: 0, injected: 0, captured: 0, input_tokens: 0, output_tokens: 0 };
-  const hasMemory = existsSync(memoryRoot(projectDir));
   // A stable per-process id, NOT the literal string "default": without this every proxy
   // run ever, across restarts, shared one observation-dedup bucket, and diverged from any
   // real Claude Code session id a hook might be recording under — so the same prompt could
@@ -178,15 +215,22 @@ export function startProxy(projectDir: string, options: { port?: number; upstrea
     let outBody = raw;
     let injected = 0;
     let userPrompt = "";
+    // Resolved once per request so --workspace can route each request to the right repo
+    // (see resolveRequestProjectDir); with no --workspace this is always the fixed projectDir,
+    // identical to pre-multi-repo behavior.
+    let requestProjectDir = projectDir;
     // --no-inject forwards the exact original bytes (diagnostic: proves whether the proxy can
     // carry subscription traffic at all, independent of any memory injection).
-    if (isMessages && hasMemory && raw.length && !options.noInject) {
+    if (isMessages && raw.length && !options.noInject) {
       try {
         const parsed = JSON.parse(raw.toString("utf8")) as Record<string, unknown>;
-        userPrompt = lastUserText(parsed);
-        const result = injectMemory(projectDir, parsed);
-        injected = result.injected;
-        outBody = Buffer.from(JSON.stringify(result.body), "utf8");
+        requestProjectDir = resolveRequestProjectDir(projectDir, options.workspace, parsed);
+        if (existsSync(memoryRoot(requestProjectDir))) {
+          userPrompt = lastUserText(parsed);
+          const result = injectMemory(requestProjectDir, parsed);
+          injected = result.injected;
+          outBody = Buffer.from(JSON.stringify(result.body), "utf8");
+        }
       } catch { /* not JSON we understand — pass through untouched */ }
     }
 
@@ -243,7 +287,7 @@ export function startProxy(projectDir: string, options: { port?: number; upstrea
             stats.output_tokens += output;
             // Capture the exchange into the memory loop — no hook required, agent-agnostic.
             if (status < 300 && userPrompt.trim()) {
-              observe(projectDir, { type: "user_prompt", agent: "kage-proxy", session_id: sessionId, text: userPrompt.slice(0, 4000), summary: userPrompt.slice(0, 200) });
+              observe(requestProjectDir, { type: "user_prompt", agent: "kage-proxy", session_id: sessionId, text: userPrompt.slice(0, 4000), summary: userPrompt.slice(0, 200) });
               stats.captured += 1;
             }
           } catch { /* receipt/capture is best-effort; never affect the client */ }
@@ -263,13 +307,19 @@ export function startProxy(projectDir: string, options: { port?: number; upstrea
   }
 
   server.listen(port, () => {
+    const hasMemory = existsSync(memoryRoot(projectDir));
     console.log(`Kage proxy listening on http://localhost:${port}  →  upstream ${upstreamUrl.origin}`);
     console.log(`\nPoint your agent at it (one line, no other setup):`);
     console.log(`  export ANTHROPIC_BASE_URL=http://localhost:${port}`);
-    console.log(`\nThen use Claude Code normally in ${projectDir}.`);
-    console.log(hasMemory
-      ? `Kage will inject verified memory outbound and capture the exchange inbound. Ctrl-C to stop.`
-      : `No .agent_memory here yet — run \`kage init\` first, or the proxy is a plain passthrough. Ctrl-C to stop.`);
+    if (options.workspace) {
+      console.log(`\nMulti-repo mode: routing each request to its Claude Code "Primary working directory" under ${options.workspace}.`);
+      console.log(`Falls back to ${projectDir} for clients that don't report one (e.g. aider, codex) or report one outside the workspace.`);
+    } else {
+      console.log(`\nThen use Claude Code normally in ${projectDir}.`);
+      console.log(hasMemory
+        ? `Kage will inject verified memory outbound and capture the exchange inbound. Ctrl-C to stop.`
+        : `No .agent_memory here yet — run \`kage init\` first, or the proxy is a plain passthrough. Ctrl-C to stop.`);
+    }
   });
   return server;
 }
