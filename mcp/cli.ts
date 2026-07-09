@@ -189,7 +189,7 @@ Usage:
   kage staleguard --project <dir> [--json]
   kage upgrade [--dry-run]
   kage branch --project <dir> [--json]
-  kage metrics --project <dir> [--json]
+  kage metrics --project <dir> [--json]   raw counts: code graph size, memory graph size, harness readiness
   kage gains --project <dir> [--json]
   kage savings --project <dir> [--queries <n>] [--json]   deterministic token-reduction receipt (no LLM on the measurement path)
   kage team --project <dir> [--json]   team memory health: contributors, pending review, stale-withheld, contradictions
@@ -211,18 +211,18 @@ Usage:
   kage conflicts --project <dir> [--json]
   kage skills --project <dir> [--dir <path>] [--dry-run] [--json]
   kage contributors --project <dir> [--json]
-  kage profile --project <dir> [--json]
-  kage xray --project <dir> [--json]
-  kage capabilities --project <dir> [--json]
-  kage decisions --project <dir> [--json]
-  kage module-health --project <dir> [--json]
-  kage graph-insights --project <dir> [--json]
+  kage profile --project <dir> [--json]   repo concepts, key files, and memory focus in one summary
+  kage xray --project <dir> [--json]   first-use code structure map: layers, entry points, what to read first
+  kage capabilities --project <dir> [--json]   maps memory/benchmark/dashboard/viewer readiness to evidence
+  kage decisions --project <dir> [--json]   why-memory coverage: which decisions are captured, which are missing
+  kage module-health --project <dir> [--json]   rolls up graph, test, cleanup, and git signals per module
+  kage graph-insights --project <dir> [--json]   central files, cycles, communities, and entry flows in the code graph
   kage workspace --project <workspace-dir> [--json]
   kage workspace recall "<query>" --project <workspace-dir> [--json]
-  kage audit --project <dir> [--json]
-  kage audit-claude-mem [--store <path>] [--project <dir>] [--json]
+  kage audit --project <dir> [--json]   trust score plus concrete memory/code-graph recommendations
+  kage audit-claude-mem [--store <path>] [--project <dir>] [--json]   classifies a claude-mem store's memory against this repo
   kage inbox --project <dir> [--json]
-  kage quality --project <dir> [--json]
+  kage quality --project <dir> [--json]   useful-memory ratio, duplicate burden, evidence + path grounding coverage
   kage benchmark --project <dir> [--json]
   kage benchmark --trust --project <dir> [--json]
   kage benchmark --memory-quality [--json]

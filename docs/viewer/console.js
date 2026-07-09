@@ -10,6 +10,7 @@
     metrics: src("metrics", "./data/kage/metrics.json"),
     activity: src("activity", root + "activity.json"),
     value: src("value", root + "value.json"),
+    teamLink: src("teamLink", root + "team-link.json"),
   };
   var state = { items: [], filter: "all", q: "", metrics: null, graphReady: false, showAll: false };
 
@@ -67,7 +68,7 @@
   // ---- nav ----
   var META = {
     dashboard: ["kage://dashboard", "Dashboard", "Your team's captured knowledge — decisions, runbooks, and fixes — at a glance."],
-    gains: ["kage://gains", "What Kage saved you", "Tokens, dollars, and bad memories caught — receipts, not vibes."],
+    gains: ["kage://gains", "What Kage saved you", "Tokens saved and bad memories caught — receipts, not vibes."],
     overview: ["kage://trust", "Memory trust", "Whether this repo's agent memory can be trusted — at a glance."],
     graph: ["kage://memory-map", "Memory ↔ code map", "Each packet anchored to the files it's grounded in. Hover a node to inspect."],
     memory: ["kage://memory", "Memory", "Every packet Kage has stored, with health and grounding."],
@@ -116,6 +117,16 @@
     .then(function (r) { rebaseShowcase(r[4], r[5]); render(r[0], r[1], r[2], r[3], r[4], r[5]); })
     .catch(function () { render(null, null, null, null, null, null); });
 
+  // Independent of the main render pipeline: absent when this repo has no `kage cloud link`
+  // configured (the common case), so it must never block or fail the rest of the dashboard.
+  getJSON(paths.teamLink).then(function (link) {
+    if (!link || !link.server || !link.team_id || !link.token) return;
+    var a = document.getElementById("team-link");
+    if (!a) return;
+    a.href = link.server + "/dashboard?team=" + encodeURIComponent(link.team_id) + "&token=" + encodeURIComponent(link.token);
+    a.style.display = "";
+  });
+
   function render(trust, suppressed, lifecycle, metrics, activity, value) {
     state.items = (lifecycle && lifecycle.items) || [];
     state.metrics = metrics || {};
@@ -137,12 +148,6 @@
   // value.json is the raw ledger written by recall: { totals, events[] }. Windows are
   // recomputed here with the same rules as `kage gains` (today = local midnight,
   // 7d = rolling, all-time = totals so trimmed events never lose history).
-  var DOLLARS_PER_MILLION_TOKENS = 15;
-  function dollars(tokens) { return (tokens / 1e6) * DOLLARS_PER_MILLION_TOKENS; }
-  function fmtDollars(tokens) {
-    var d = dollars(tokens);
-    return "$" + (d >= 100 ? Math.round(d) : d.toFixed(2));
-  }
   function summarizeWindow(events, cutoff) {
     var w = { tokens_saved: 0, stale_withheld: 0, recalls: 0, caller_answers: 0 };
     events.forEach(function (e) {
@@ -175,7 +180,6 @@
     var big = el("div", "big");
     big.appendChild(el("b", null, all.tokens_saved ? "0" : "—"));
     big.appendChild(el("span", "unit", "tokens saved, all time"));
-    if (all.tokens_saved) big.appendChild(el("span", "dollars", "≈ " + fmtDollars(all.tokens_saved)));
     hh.appendChild(big);
     hh.appendChild(el("p", "sub", all.tokens_saved
       ? "Context your agents did not have to re-read from source, because Kage served grounded memory instead."
@@ -186,7 +190,6 @@
       var w = el("div", "r-win");
       w.appendChild(el("div", "k", p[0]));
       w.appendChild(el("div", "v", fmt(p[1].tokens_saved) + " tok"));
-      w.appendChild(el("div", "d", "≈ " + fmtDollars(p[1].tokens_saved)));
       wins.appendChild(w);
     });
     hero.appendChild(wins);
@@ -203,13 +206,13 @@
       lines.appendChild(row);
     });
     hero.appendChild(lines);
-    hero.appendChild(el("div", "r-foot", "estimated at $" + DOLLARS_PER_MILLION_TOKENS + " per 1M input tokens · ledger: .agent_memory/reports/value.json · verify: kage gains"));
+    hero.appendChild(el("div", "r-foot", "ledger: .agent_memory/reports/value.json · verify: kage gains"));
     if (all.tokens_saved) countUp(big.querySelector("b"), all.tokens_saved, 900);
 
     if (tiles) {
       tiles.textContent = "";
       [
-        { k: "Saved (7 days)", v: fmt(week.tokens_saved), s: "≈ " + fmtDollars(week.tokens_saved) + " of context not re-read", cls: "green" },
+        { k: "Saved (7 days)", v: fmt(week.tokens_saved), s: "tokens of context not re-read", cls: "green" },
         { k: "Recalls served (7d)", v: fmt(week.recalls), s: fmt(all.recalls) + " all-time", cls: "green" },
         { k: "Stale caught", v: fmt(all.stale_withheld), s: all.stale_withheld ? "withheld before they misled an agent" : "nothing withheld yet", cls: all.stale_withheld ? "warn" : "" },
         { k: "Graph answers", v: fmt(all.caller_answers), s: "caller questions answered from the code graph", cls: "code" },

@@ -1,5 +1,11 @@
 # Kage Memory Ablation on SWE-bench Verified
 
+> Not to be confused with [`benchmarks/`](../benchmarks/README.md) (plural) —
+> this directory (singular) is the Python **task-performance ablation**
+> (memory on vs. off, scored on real SWE-bench Verified task completion).
+> `benchmarks/` is the JS **retrieval/scale/staleness** suite (LongMemEval,
+> MemoryArena, LoCoMo, synthetic scale). Different substrate, different question.
+
 A reproducible, **controlled ablation** that measures the effect of Kage's repo
 memory on coding-agent task performance using a recognized industry substrate —
 not a homegrown metric.

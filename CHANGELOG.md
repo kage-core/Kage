@@ -600,6 +600,11 @@ by a two-session sandbox test through the real installed hooks.
 - **README/site:** quick start leads with the one-command install; new honest
   comparison table (Kage vs claude-mem vs mem0/Zep) centered on verification.
 
+## v2.0.1
+
+- `kage scan` doc-lie checks are fence-aware: paths quoted inside code fences are sample output, not claims; `npm run`/CLI claims still verified inside shell-typed fences.
+- npm package declares `mcpName: com.kage-core/kage` for the official MCP registry.
+
 ## v2.0.0 - verified repo knowledge, receipts, and the Truth Report
 
 The 2.0 release reframes Kage around one story: every claim cited against your
@@ -987,9 +992,4 @@ current code, and you see exactly what it saves you. (PRs #56–#65.)
 
 ## v1.0.0
 
-- Initial local-first Kage MCP package with repo memory packets, recall, graph indexing, code graph, review gates, metrics, daemon, and setup helpers.## 2.0.1
-
-- `kage scan` doc-lie checks are fence-aware: paths quoted inside code fences are sample output, not claims; `npm run`/CLI claims still verified inside shell-typed fences.
-- npm package declares `mcpName: com.kage-core/kage` for the official MCP registry.
-
-
+- Initial local-first Kage MCP package with repo memory packets, recall, graph indexing, code graph, review gates, metrics, daemon, and setup helpers.

@@ -1,5 +1,11 @@
 # Kage External Benchmarks
 
+> Not to be confused with [`benchmark/`](../benchmark/README.md) (singular) —
+> this directory (plural) is the JS **retrieval/scale/staleness** suite
+> (LongMemEval, MemoryArena, LoCoMo, synthetic scale). `benchmark/` is the
+> Python **task-performance ablation** on real SWE-bench Verified tasks
+> (memory on vs. off). Different substrate, different question.
+
 This directory contains reproducible external benchmark harnesses for Kage.
 
 Kage should not claim a generic memory win unless the benchmark proves it. These

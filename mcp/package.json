@@ -33,9 +33,21 @@
     "codex",
     "claude",
     "ai-agents",
-    "code-graph"
+    "code-graph",
+    "okf",
+    "agent-memory"
   ],
   "license": "GPL-3.0-only",
+  "author": "Kage Core",
+  "homepage": "https://kage-core.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kage-core/Kage.git",
+    "directory": "mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/kage-core/Kage/issues"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.10.2",
     "three": "^0.184.0",

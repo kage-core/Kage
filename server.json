@@ -1,19 +1,19 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "com.kage-core/kage",
-  "description": "Git-native, verified memory for coding agents: shared via git, kept true to your code.",
+  "description": "Verified OKF memory for coding agents: git-native, team-shared, and checked against the code it cites — kept true, not just remembered.",
   "repository": {
     "url": "https://github.com/kage-core/Kage",
     "source": "github"
   },
-  "version": "2.3.3",
+  "version": "3.3.0",
   "websiteUrl": "https://kage-core.com",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@kage-core/kage-graph-mcp",
-      "version": "2.3.3",
+      "version": "3.3.0",
       "transport": {
         "type": "stdio"
       }

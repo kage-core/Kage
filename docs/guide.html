@@ -512,8 +512,18 @@ kage sync setup --remote git@github.com:you/kage-memory.git   # once per machine
 kage sync            # pushed/pulled/resolved receipt; conflicts keep both versions
 kage sync --status   # ahead/behind/dirty, no network mutation</pre></div>
 
+          <h3 class="section-sub">Team memory &amp; distribution</h3>
+          <div class="method"><h3><code>kage proxy</code> Zero-install memory for any agent</h3><p>A local HTTP proxy between your agent and the Anthropic API: injects verified memory into outbound requests, captures exchanges inbound &mdash; no MCP setup, no hooks. Point any Anthropic-API client at it with one environment variable. <code>--workspace</code> lets one proxy serve every repo under a directory, routed by the agent's own working directory.</p><pre>kage proxy --project . --port 8788
+export ANTHROPIC_BASE_URL=http://localhost:8788   # then use your agent normally</pre></div>
+          <div class="method"><h3><code>kage team</code> Team memory health</h3><p>The team-facing receipt: contributors and their packet counts, pending-review backlog and its age, how much memory is currently withheld as stale, open contradictions, and merge conflicts caught and preserved rather than dropped.</p><pre>kage team --project . [--json]</pre></div>
+          <div class="method"><h3><code>kage cloud</code> Self-hosted team server</h3><p>A real, self-hostable packet exchange for team namespaces: submit memory for review, a real gate blocks a submitter from approving their own packet, and every pulled packet is re-verified against the pulling machine's own checkout before it's ever recalled. Includes a server-rendered review dashboard.</p><pre>kage cloud serve --port 8790 --db ./kage-cloud.db
+kage cloud create-team --server http://localhost:8790 --name "Payments"
+kage cloud push --project . --server http://localhost:8790 --team &lt;id&gt; --token &lt;token&gt;
+kage cloud pull --project . --server http://localhost:8790 --team &lt;id&gt; --token &lt;token&gt;</pre></div>
+          <div class="method"><h3><code>kage savings</code> Deterministic token-reduction receipt</h3><p>Auto-derives queries from the repo's own code graph and measures compact recall+code-graph context against a full-file-read baseline. No LLM on the measurement path &mdash; the same commit reproduces the same percent every time.</p><pre>kage savings --project . [--queries 12] [--json]</pre></div>
+
           <h3 class="section-sub">Viewer</h3>
-          <div class="method"><h3><code>kage viewer</code></h3><p>Starts the local viewer with repo graph, code graph, metrics, review queue, pending memory, and reports preloaded.</p><pre>kage viewer --project . --port 3113</pre></div>
+          <div class="method"><h3><code>kage viewer</code></h3><p>Starts the local viewer with repo graph, code graph, metrics, review queue, pending memory, and reports preloaded. Run <code>kage cloud link</code> first to surface a Team sidebar link straight to a linked <code>kage cloud</code> dashboard.</p><pre>kage viewer --project . --port 3113</pre></div>
         </section>
 
         <section id="mcp">
