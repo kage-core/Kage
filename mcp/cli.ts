@@ -665,8 +665,7 @@ async function main(): Promise<void> {
       console.log(JSON.stringify(result, null, 2));
       return;
     }
-    console.log("Kage demo — a live experiment in a sandbox repo. Nothing here is canned:");
-    console.log(`every step below ran for real, just now, in ${result.project_dir}\n`);
+    console.log(`Running the Kage demo in a sandbox repo: ${result.project_dir}\n`);
     console.log("  Created a small repo: src/auth.ts, src/payments.ts, src/legacy-retry.ts");
     console.log(`  Captured ${result.captured.length} memories, each citing real files — accepted and fingerprinted.\n`);
     console.log("1. Then we tried to save a memory citing a file that does NOT exist:");
@@ -678,7 +677,6 @@ async function main(): Promise<void> {
     for (const w of result.withheld) console.log(`   ⊘ "${w.title}" — WITHHELD\n     ${w.reason}`);
     console.log("\n3. What recall actually returns now — only memory that still checks out:");
     for (const t of result.recalled) console.log(`   ✓ ${t}`);
-    console.log("\n  Checks: write-time rejection ✓ · stale withholding ✓ · grounded recall ✓");
 
     // The sandbox proves the mechanism; the runner's own repo makes it matter.
     const here = process.cwd();
@@ -1100,7 +1098,7 @@ async function main(): Promise<void> {
     }
     if (result.deleted.length) {
       console.log(`\nDeleted (${result.deleted.length}):`);
-      for (const p of result.deleted) console.log(`  🗑  ${p.title}`);
+      for (const p of result.deleted) console.log(`  ✗ ${p.title}`);
     }
     if (!result.deprecated.length && !result.deleted.length) {
       console.log("No stale packets found — memory is clean.");
@@ -1120,7 +1118,7 @@ async function main(): Promise<void> {
     console.log(`Kage compact${label} — scanned ${result.total_scanned} packets`);
     if (result.pruned_citations.length) {
       console.log(`\nPruned dead citations (${result.pruned_citations.length}):`);
-      for (const p of result.pruned_citations) console.log(`  ✂  ${p.title} — removed ${p.removed_paths.join(", ")}`);
+      for (const p of result.pruned_citations) console.log(`  ✗ ${p.title} — removed ${p.removed_paths.join(", ")}`);
     }
     if (result.deprecated.length) {
       console.log(`\nDeprecated stale (${result.deprecated.length}):`);
@@ -2211,14 +2209,11 @@ async function main(): Promise<void> {
       return;
     }
     const pct = result.reduction_percent;
-    const bars = Math.round(pct / 10);
-    const bar = "▰".repeat(bars) + "▱".repeat(Math.max(0, 10 - bars));
     console.log("");
-    console.log(`  Kage cut context by  ${bar}  ${pct}%`);
+    console.log(`  Kage cut context by ${pct}%`);
     console.log("");
     console.log(`  Baseline (read the files)   ${formatTokenCount(result.baseline_tokens_avg)} tokens / query`);
     console.log(`  With Kage (recall + graph)  ${formatTokenCount(result.kage_tokens_avg)} tokens / query`);
-    console.log(`  ${"─".repeat(46)}`);
     console.log(`  Saved                       ${formatTokenCount(result.baseline_tokens_avg - result.kage_tokens_avg)} tokens / query  (${result.queries} queries, recall hit ${Math.round(result.recall_hit_rate * 100)}%)`);
     console.log("");
     console.log(`  Deterministic · no LLM · rerun on this commit = identical ${pct}%`);
@@ -2235,16 +2230,13 @@ async function main(): Promise<void> {
       return;
     }
     const freshPct = Math.round(result.freshness_rate * 100);
-    const bars = Math.round(freshPct / 10);
-    const bar = "▰".repeat(bars) + "▱".repeat(Math.max(0, 10 - bars));
     console.log("");
-    console.log(`  Team memory health  ${bar}  ${freshPct}% verified fresh`);
+    console.log(`  Team memory health: ${freshPct}% verified fresh`);
     console.log("");
     console.log(`  ${result.approved_packets} approved packets` + (result.unattributed_packets ? `  (${result.unattributed_packets} unattributed)` : ""));
     if (result.contributors.length) {
       console.log(`  Contributors: ${result.contributors.map((c) => `${c.name} (${c.packets})`).join(", ")}`);
     }
-    console.log(`  ${"─".repeat(46)}`);
     console.log(`  Pending review     ${result.pending_review}${result.oldest_pending_days !== null ? `  (oldest ${result.oldest_pending_days}d)` : ""}`);
     console.log(`  Stale, withheld    ${result.stale_withheld}`);
     console.log(`  Contradictions     ${result.contradictions}`);

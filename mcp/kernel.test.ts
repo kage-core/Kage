@@ -4323,7 +4323,7 @@ test("recall assembles a bounded structural blast radius from the recalled memor
   assert.match(traversed.context_block, /src\/app\.js/); // app.js depends on the recalled core.js
 });
 
-test("kage demo proves the trust wedge: reject, withhold, recall", () => {
+test("kage demo: rejects hallucinated citations, withholds stale memory, recalls grounded memory", () => {
   const project = tempProject();
   const r = runDemo(join(project, "demo"));
   assert.equal(r.ok, true);
@@ -4932,8 +4932,6 @@ test("claude-mem audit classifies a fixture store against a temp git repo", (t) 
   assert.match(receipt, /Worst offenders:/);
   assert.match(receipt, /src\/deleted\.ts — file no longer exists/);
   assert.match(receipt, /src\/moving\.ts — changed 2026-03-01/);
-  assert.match(receipt, /claude-mem remembers everything\. Kage tells you what's still true\./);
-  assert.match(receipt, /Import coming soon — https:\/\/kage-core\.github\.io\/Kage\//);
 });
 
 test("claude-mem audit reports a friendly error for a missing store and warns on a project-key miss", (t) => {

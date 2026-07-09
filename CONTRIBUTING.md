@@ -1,8 +1,8 @@
 # Contributing to Kage
 
 Thanks for your interest in Kage! Kage is git-native, verified memory for coding
-agents — zero dependencies, no account, no cloud, everything stays in your repo.
-We'd love your help making it better.
+agents — no account, no cloud, everything stays in your repo. We'd love your help
+making it better.
 
 This guide is short and practical. If anything here is unclear or out of date,
 that itself is a great first contribution — open an issue or PR.
@@ -26,8 +26,9 @@ npm test --prefix mcp
 Requirements:
 
 - **Node.js 18+**
-- That's it. Kage has **zero runtime dependencies** and we intend to keep it
-  that way (see [The zero-dependency rule](#the-zero-dependency-rule)).
+- A small, deliberate set of runtime dependencies (see
+  [Dependencies](#dependencies)) — no build-tool sprawl, nothing pulled in
+  casually.
 
 ## Project structure
 
@@ -60,16 +61,19 @@ npm run build     # build only
 
 Please make sure `npm test` passes before opening a PR.
 
-## The zero-dependency rule
+## Dependencies
 
-Zero runtime dependencies is a core project value, not an accident. It keeps
-Kage fast to install, easy to audit, and safe to run anywhere — no supply chain
-to worry about, no surprise network calls.
+Kage currently has five runtime dependencies, each load-bearing and deliberately
+added: `@modelcontextprotocol/sdk` (the MCP protocol itself), `tree-sitter-wasms`
++ `web-tree-sitter` (multi-language code parsing for the code graph), `three`
+(the viewer's graph visualization), and `typescript` (used for its compiler API,
+not just as a build tool). Nothing is pulled in casually, and the bar for adding
+a sixth is high — it keeps Kage fast to install, easy to audit, and safe to run
+anywhere.
 
-**PRs that add a runtime dependency will be rejected.** If you think you need
-one, open an issue first and let's talk through it — there's almost always a way
-to do it with the standard library. (Dev-only tooling is a separate
-conversation; still, prefer the minimum.)
+If you think a PR needs a new runtime dependency, open an issue first and let's
+talk through it — there's often a way to do it with the standard library. (Dev-only
+tooling is a separate, lower-stakes conversation; still, prefer the minimum.)
 
 ## Coding conventions
 

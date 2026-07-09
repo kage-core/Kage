@@ -13166,9 +13166,6 @@ export function renderClaudeMemAuditReceipt(report: ClaudeMemAuditReport): strin
     lines.push("");
     for (const warning of report.warnings) lines.push(`Warning: ${warning}`);
   }
-  lines.push("");
-  lines.push("claude-mem remembers everything. Kage tells you what's still true.");
-  lines.push("Import coming soon — https://kage-core.github.io/Kage/");
   return lines.join("\n");
 }
 
@@ -15646,10 +15643,10 @@ export interface DemoResult {
   viewer_command: string;
 }
 
-// `kage demo`: a self-contained 60-second proof of the trust wedge. Seeds a tiny
-// repo with grounded memory, then shows Kage (1) reject a hallucinated citation,
-// (2) withhold a memory whose cited file was deleted, and (3) recall only grounded
-// memory — the three things that make agent memory trustworthy.
+// `kage demo`: a self-contained 60-second proof that agent memory can be trusted.
+// Seeds a tiny repo with grounded memory, then shows Kage (1) reject a hallucinated
+// citation, (2) withhold a memory whose cited file was deleted, and (3) recall only
+// grounded memory — the three things that make agent memory trustworthy.
 export function runDemo(demoDir: string): DemoResult {
   rmSync(demoDir, { recursive: true, force: true });
   mkdirSync(join(demoDir, "src"), { recursive: true });
@@ -17972,9 +17969,8 @@ export const AUTO_DISTILL_SIGNAL_THRESHOLD = 0.4;
 // Auto-promote gate: a distilled draft jumps straight to trusted (approved, recallable)
 // memory — instead of waiting in the pending inbox — only when it is clearly-good AND
 // code-grounded AND not a duplicate. Everything else still goes to review. This is what
-// makes the capture flywheel actually spin; KAGE_AUTO_PROMOTE=0 disables it. Grounding keeps
-// the verification wedge intact: a promoted memory is still checked against the code, just
-// not gated on a human.
+// makes the capture flywheel actually spin; KAGE_AUTO_PROMOTE=0 disables it. Grounding
+// still keeps every promoted memory checked against the code — just not gated on a human.
 const AUTO_PROMOTE_ENABLED = process.env.KAGE_AUTO_PROMOTE !== "0";
 
 // Markers of hook/system plumbing payloads that sometimes leak into observation text

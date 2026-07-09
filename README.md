@@ -2,13 +2,6 @@
 
 <img src="docs/assets/kage-banner.svg" alt="Kage" width="150%">
 
-
-### Google shipped OKF. Kage keeps it true.
-
-<img src="docs/assets/kage-viewer-walkthrough.gif" alt="kage viewer: a team's captured decisions, runbooks, and bug fixes mapped to the code they're grounded in, with trust and savings — a live walkthrough" width="760">
-
-<sub>`kage viewer`: your team's decisions, runbooks, and bug fixes (purple), kept in the repo and linked to the code they are about (blue).</sub>
-
 In June 2026 Google shipped [**OKF (Open Knowledge Format)**](https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf):
 a standard for keeping knowledge as plain Markdown concept files in your repo, vendor-neutral, no
 lock-in. It standardizes the store and stops there. Verification, freshness, and staleness are
@@ -26,7 +19,6 @@ npx -y @kage-core/kage-graph-mcp install
   <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp"><img src="https://img.shields.io/npm/v/@kage-core/kage-graph-mcp?color=41ff8f&label=npm" alt="npm version"></a>
   <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp"><img src="https://img.shields.io/npm/dm/@kage-core/kage-graph-mcp?color=41ff8f" alt="downloads"></a>
   <img src="https://img.shields.io/npm/l/@kage-core/kage-graph-mcp?color=41ff8f" alt="license">
-  <img src="https://img.shields.io/badge/deps-0-41ff8f" alt="zero dependencies">
   <img src="https://img.shields.io/badge/account-not%20required-41ff8f" alt="no account">
   <a href="https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf"><img src="https://img.shields.io/badge/built%20on-Open%20Knowledge%20Format-41ff8f" alt="Built on Google Open Knowledge Format"></a>
 </p>
@@ -35,8 +27,7 @@ npx -y @kage-core/kage-graph-mcp install
   <a href="https://kage-core.com/">Website</a> ·
   <a href="https://kage-core.com/guide.html">Docs</a> ·
   <a href="https://kage-core.com/viewer/">Live viewer</a> ·
-  <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a> ·
-  <a href="https://kage-core.com/demo.html"><b>Book a demo</b></a>
+  <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a>
 </p>
 
 **Works with** Claude Code · Codex · Cursor · Windsurf · Gemini CLI · Cline · Goose ·
@@ -192,7 +183,7 @@ repo and verifies it, so it stays your team's and stays true as the code changes
 
 ## Features
 
-- **Truth Report.** `kage scan` reads any repo in ~60s and surfaces its highest-risk
+- **Truth Report.** `kage scan` reads any repo in seconds and surfaces its highest-risk
   knowledge gaps: undocumented hot files, untested hot paths, complexity hotspots,
   unresolved code debt, and bus-factor-1 files, plus duplicate implementations, dead
   exports, and doc lies when they exist. Every finding cited to `file:line`. Zero setup,
