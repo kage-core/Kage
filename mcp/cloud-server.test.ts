@@ -3,10 +3,22 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { type Server } from "node:http";
+import { type Server, request as httpRequest } from "node:http";
 import { capture, recall } from "./kernel.js";
 import { startCloudServer } from "./cloud-server.js";
 import { cloudCreateTeam, cloudInvite, cloudPush, cloudPull, cloudList, cloudReview } from "./cloud-client.js";
+
+function getText(url: string): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(url, (res) => {
+      let body = "";
+      res.on("data", (c) => { body += c; });
+      res.on("end", () => resolve({ status: res.statusCode ?? 0, body }));
+    });
+    req.on("error", reject);
+    req.end();
+  });
+}
 
 function tempProject(): string {
   const dir = mkdtempSync(join(tmpdir(), "kage-cloud-test-"));
@@ -126,5 +138,31 @@ test("kage cloud: a stale pull is re-verified locally, not trusted from the serv
     const recalled = recall(puller, "does login require 2fa for admins?", 5, false);
     // Must NOT surface: the server approved it, but this checkout can't verify it, so it's withheld.
     assert.equal((recalled.team ?? []).length, 0);
+  });
+});
+
+test("kage cloud: GET /dashboard renders pending + approved packets and rejects a bad token", async () => {
+  await withServer(async (url) => {
+    const team = await cloudCreateTeam(url, "Dashboard Team");
+    const project = tempProject();
+    capture({ projectDir: project, title: "Widget uses shadow DOM", body: "The widget renders inside a shadow root. Verified by: npm test.", type: "decision", allowMissingPaths: true });
+    await cloudPush(url, team.team_id, team.token, project);
+    const pending = await cloudList(url, team.team_id, team.token, "pending");
+    const reviewer = await cloudInvite(url, team.team_id, team.token, "reviewer");
+    await cloudReview(url, team.team_id, reviewer.token, pending[0].packet.id, "approve");
+
+    const page = await getText(`${url}/dashboard?team=${team.team_id}&token=${encodeURIComponent(team.token)}`);
+    assert.equal(page.status, 200);
+    assert.match(page.body, /Dashboard Team/);
+    assert.match(page.body, /Widget uses shadow DOM/);
+    assert.match(page.body, /Approved \(1\)/);
+    assert.match(page.body, /Pending review \(0\)/);
+
+    const noParams = await getText(`${url}/dashboard`);
+    assert.equal(noParams.status, 200);
+    assert.match(noParams.body, /Team ID/);
+
+    const badToken = await getText(`${url}/dashboard?team=${team.team_id}&token=kct_not-real`);
+    assert.equal(badToken.status, 401);
   });
 });

@@ -75,6 +75,15 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.end(payload);
 }
 
+function sendHtml(res: ServerResponse, status: number, html: string): void {
+  res.writeHead(status, { "content-type": "text/html; charset=utf-8", "content-length": Buffer.byteLength(html) });
+  res.end(html);
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
+}
+
 function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -105,6 +114,90 @@ function authenticate(db: DatabaseSync, req: IncomingMessage, teamId: string): A
   return { teamId, tokenHash, label: row.label };
 }
 
+interface DashboardPacketRow {
+  packet_json: string;
+  submitted_by_label: string;
+  approved_by_label: string | null;
+  updated_at: string;
+}
+
+// Server-rendered — no build step, no frontend framework, consistent with the rest of this
+// package's zero-dependency ethos. The token travels in the URL query string, same trust
+// boundary as passing it on the CLI: fine for a self-hosted internal tool behind your own
+// VPN/reverse proxy, not something to expose publicly without adding real auth in front of it.
+function renderDashboard(teamName: string, teamId: string, token: string, pending: DashboardPacketRow[], approved: DashboardPacketRow[], label: string): string {
+  const packetRow = (row: DashboardPacketRow, actions: boolean): string => {
+    const packet = JSON.parse(row.packet_json) as MemoryPacket;
+    const meta = actions
+      ? `submitted by <b>${escapeHtml(row.submitted_by_label)}</b>`
+      : `submitted by <b>${escapeHtml(row.submitted_by_label)}</b> · approved by <b>${escapeHtml(row.approved_by_label ?? "?")}</b>`;
+    return `
+      <div class="packet" data-id="${escapeHtml(packet.id)}">
+        <div class="packet-head">
+          <span class="type">${escapeHtml(packet.type)}</span>
+          <span class="title">${escapeHtml(packet.title)}</span>
+        </div>
+        <div class="summary">${escapeHtml(packet.summary || packet.body.slice(0, 160))}</div>
+        <div class="meta">${meta}</div>
+        ${actions ? `
+        <div class="actions">
+          <button class="approve" onclick="review('${escapeHtml(packet.id)}','approve')">Approve</button>
+          <button class="reject" onclick="review('${escapeHtml(packet.id)}','reject')">Reject</button>
+        </div>` : ""}
+        <div class="error" id="err-${escapeHtml(packet.id).replace(/[^a-z0-9]/gi, "_")}"></div>
+      </div>`;
+  };
+
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Kage Cloud — ${escapeHtml(teamName)}</title>
+<style>
+  :root { color-scheme: dark; }
+  body { background: #0d0d0f; color: #e8e6e3; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 32px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: #8a8a8f; font-size: 13px; margin-bottom: 28px; }
+  .you { color: #7cc4ff; }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; color: #8a8a8f; border-bottom: 1px solid #232326; padding-bottom: 8px; margin: 28px 0 12px; }
+  .packet { background: #16161a; border: 1px solid #232326; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
+  .packet-head { display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; }
+  .type { font-size: 11px; text-transform: uppercase; color: #9b8cff; background: #1e1a2e; padding: 2px 6px; border-radius: 4px; }
+  .title { font-weight: 600; }
+  .summary { color: #b7b5b0; font-size: 13px; margin: 6px 0; }
+  .meta { color: #8a8a8f; font-size: 12px; }
+  .meta b { color: #cfcdc9; font-weight: 600; }
+  .actions { margin-top: 10px; display: flex; gap: 8px; }
+  button { border: none; border-radius: 6px; padding: 6px 14px; font-size: 13px; cursor: pointer; }
+  .approve { background: #1f7a4d; color: #fff; }
+  .reject { background: #232326; color: #cfcdc9; }
+  .empty { color: #6b6b70; font-size: 13px; font-style: italic; }
+  .error { color: #ff8c8c; font-size: 12px; margin-top: 8px; }
+</style></head>
+<body>
+  <h1>Kage Cloud · ${escapeHtml(teamName)}</h1>
+  <div class="sub">signed in as <span class="you">${escapeHtml(label)}</span> · team ${escapeHtml(teamId)}</div>
+
+  <h2>Pending review (${pending.length})</h2>
+  ${pending.length ? pending.map((r) => packetRow(r, true)).join("") : `<div class="empty">Nothing pending.</div>`}
+
+  <h2>Approved (${approved.length})</h2>
+  ${approved.length ? approved.map((r) => packetRow(r, false)).join("") : `<div class="empty">Nothing approved yet.</div>`}
+
+  <script>
+    const TOKEN = ${JSON.stringify(token)};
+    const TEAM = ${JSON.stringify(teamId)};
+    async function review(packetId, action) {
+      const errBox = document.getElementById("err-" + packetId.replace(/[^a-z0-9]/gi, "_"));
+      errBox.textContent = "";
+      const res = await fetch(\`/v1/teams/\${TEAM}/packets/\${encodeURIComponent(packetId)}/\${action}\`, {
+        method: "POST",
+        headers: { authorization: "Bearer " + TOKEN },
+      });
+      if (res.ok) { window.location.reload(); return; }
+      const body = await res.json().catch(() => ({}));
+      errBox.textContent = body.message || body.error || ("failed: " + res.status);
+    }
+  </script>
+</body></html>`;
+}
+
 export function startCloudServer(options: { port?: number; dbPath?: string; verbose?: boolean } = {}): Server {
   const port = options.port ?? 8790;
   const dbPath = options.dbPath ?? process.env.KAGE_CLOUD_DB_PATH ?? "./kage-cloud.db";
@@ -123,6 +216,34 @@ export function startCloudServer(options: { port?: number; dbPath?: string; verb
 
     if (req.method === "GET" && url.pathname === "/v1/health") {
       return sendJson(res, 200, { ok: true });
+    }
+
+    // GET /dashboard?team=<id>&token=<token> — a real, clickable view of the review gate.
+    // Server-rendered, no separate frontend build; the API endpoints above remain the
+    // source of truth (the page's Approve/Reject buttons call them, they don't bypass them).
+    if (req.method === "GET" && url.pathname === "/dashboard") {
+      const teamId = url.searchParams.get("team");
+      const token = url.searchParams.get("token");
+      if (!teamId || !token) {
+        return sendHtml(res, 200, `<!doctype html><html><body style="background:#0d0d0f;color:#e8e6e3;font-family:sans-serif;padding:32px">
+          <h1>Kage Cloud dashboard</h1>
+          <form>
+            <p>Team ID <input name="team" style="width:320px"></p>
+            <p>Token <input name="token" style="width:320px"></p>
+            <button>Open</button>
+          </form>
+        </body></html>`);
+      }
+      // Browser navigation never sends an Authorization header, so the token travels in the
+      // query string instead — looked up against the SAME token table authenticate() uses.
+      const tokenRow = db.prepare("SELECT team_id, label FROM tokens WHERE token_hash = ?").get(hashToken(token)) as { team_id: string; label: string } | undefined;
+      if (!tokenRow || tokenRow.team_id !== teamId) return sendHtml(res, 401, `<body style="background:#0d0d0f;color:#ff8c8c;font-family:sans-serif;padding:32px">Invalid team/token.</body>`);
+      const label = tokenRow.label;
+      const team = db.prepare("SELECT name FROM teams WHERE id = ?").get(teamId) as { name: string } | undefined;
+      if (!team) return sendHtml(res, 404, `<body style="background:#0d0d0f;color:#ff8c8c;font-family:sans-serif;padding:32px">Team not found.</body>`);
+      const pending = db.prepare("SELECT packet_json, submitted_by_label, approved_by_label, updated_at FROM packets WHERE team_id = ? AND status = 'pending' ORDER BY updated_at DESC").all(teamId) as unknown as DashboardPacketRow[];
+      const approved = db.prepare("SELECT packet_json, submitted_by_label, approved_by_label, updated_at FROM packets WHERE team_id = ? AND status = 'approved' ORDER BY updated_at DESC").all(teamId) as unknown as DashboardPacketRow[];
+      return sendHtml(res, 200, renderDashboard(team.name, teamId, token, pending, approved, label));
     }
 
     // POST /v1/teams — create a team + its first (owner) token. No auth: this IS the
