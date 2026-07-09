@@ -42,6 +42,7 @@ import {
   qualityReport,
   benchmarkTrust,
   kageSuppressedMemory,
+  readTeamLink,
   queryGraph,
   recall,
   recordFeedback,
@@ -197,6 +198,7 @@ export function viewerReportPaths(projectRoot: string): Record<string, string> {
     trust: join(reportsDir, "trust.json"),
     suppressed: join(reportsDir, "suppressed.json"),
     value: join(reportsDir, "value.json"),
+    teamLink: join(reportsDir, "team-link.json"),
   };
 }
 
@@ -886,6 +888,10 @@ export async function startViewer(projectDir: string, options: { host?: string; 
     writeFileSync(reports.setup, JSON.stringify(setupDoctor(projectDir), null, 2));
     writeFileSync(reports.trust, JSON.stringify(benchmarkTrust(projectDir), null, 2));
     writeFileSync(reports.suppressed, JSON.stringify(kageSuppressedMemory(projectDir), null, 2));
+    // `kage cloud link` (optional) — surface a Team sidebar link when this repo is linked
+    // to a Kage Cloud team; absent link.json means no team, and the frontend just hides it.
+    const teamLink = readTeamLink(projectDir);
+    writeFileSync(reports.teamLink, JSON.stringify(teamLink ?? {}, null, 2));
   } catch {
     // non-fatal: viewer will show 404 for reports if generation fails
   }

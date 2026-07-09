@@ -32,11 +32,15 @@ test("viewer url serves every report param including the value ledger", () => {
   assert.equal(reports.value, "/repo/.agent_memory/reports/value.json");
   assert.equal(reports.trust, "/repo/.agent_memory/reports/trust.json");
   assert.equal(reports.metrics, "/repo/.agent_memory/metrics.json");
+  // kage cloud link surfaces via this report; absent link.json means the sidebar Team
+  // link just stays hidden, so this MUST be in the same report set as everything else.
+  assert.equal(reports.teamLink, "/repo/.agent_memory/reports/team-link.json");
 
   const url = viewerUrl("127.0.0.1", 3113, "/repo");
   assert.match(url, /^http:\/\/127\.0\.0\.1:3113\/viewer\/index\.html\?/);
   assert.match(url, /graph=%2Frepo%2F\.agent_memory%2Fgraph%2Fgraph\.json/);
   assert.match(url, /value=%2Frepo%2F\.agent_memory%2Freports%2Fvalue\.json/);
+  assert.match(url, /teamLink=%2Frepo%2F\.agent_memory%2Freports%2Fteam-link\.json/);
   assert.match(url, /&view=code$/);
 });
 

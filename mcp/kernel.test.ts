@@ -88,6 +88,8 @@ import {
   mergePacketFiles,
   conflictsDir,
   teamMemoryReport,
+  readTeamLink,
+  writeTeamLink,
   ensurePacketMergeAttributes,
   PACKET_MERGE_ATTRIBUTE_LINE,
   observe,
@@ -5576,6 +5578,22 @@ test("teamMemoryReport gives an accurate receipt for a simulated multi-contribut
   assert.equal(reverified.ok, true);
   const afterReverify = teamMemoryReport(project);
   assert.equal(afterReverify.freshness_rate, 0.5);
+});
+
+test("readTeamLink is null until kage cloud link writes one, then round-trips exactly", () => {
+  const project = tempProject();
+  assert.equal(readTeamLink(project), null);
+
+  const written = writeTeamLink(project, { server: "http://localhost:8790", team_id: "team-abc", token: "kct_secret" });
+  assert.equal(written.server, "http://localhost:8790");
+  assert.equal(typeof written.linked_at, "string");
+
+  const read = readTeamLink(project);
+  assert.deepEqual(read, written);
+
+  // Re-linking (e.g. a rotated token) overwrites in place, not appends.
+  writeTeamLink(project, { server: "http://localhost:8790", team_id: "team-abc", token: "kct_rotated" });
+  assert.equal(readTeamLink(project)!.token, "kct_rotated");
 });
 
 test("kage merge-packet CLI follows the git merge-driver exit convention", () => {

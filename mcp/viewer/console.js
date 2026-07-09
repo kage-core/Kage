@@ -10,6 +10,7 @@
     metrics: src("metrics", "./data/kage/metrics.json"),
     activity: src("activity", root + "activity.json"),
     value: src("value", root + "value.json"),
+    teamLink: src("teamLink", root + "team-link.json"),
   };
   var state = { items: [], filter: "all", q: "", metrics: null, graphReady: false, showAll: false };
 
@@ -115,6 +116,16 @@
   Promise.all([getJSON(paths.trust), getJSON(paths.suppressed), getJSON(paths.lifecycle), getJSON(paths.metrics), getJSON(paths.activity), getJSON(paths.value)])
     .then(function (r) { rebaseShowcase(r[4], r[5]); render(r[0], r[1], r[2], r[3], r[4], r[5]); })
     .catch(function () { render(null, null, null, null, null, null); });
+
+  // Independent of the main render pipeline: absent when this repo has no `kage cloud link`
+  // configured (the common case), so it must never block or fail the rest of the dashboard.
+  getJSON(paths.teamLink).then(function (link) {
+    if (!link || !link.server || !link.team_id || !link.token) return;
+    var a = document.getElementById("team-link");
+    if (!a) return;
+    a.href = link.server + "/dashboard?team=" + encodeURIComponent(link.team_id) + "&token=" + encodeURIComponent(link.token);
+    a.style.display = "";
+  });
 
   function render(trust, suppressed, lifecycle, metrics, activity, value) {
     state.items = (lifecycle && lifecycle.items) || [];

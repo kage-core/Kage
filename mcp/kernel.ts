@@ -2454,6 +2454,39 @@ export function teamPacketsDir(projectDir: string): string {
   return join(memoryRoot(projectDir), "team", "packets");
 }
 
+function teamLinkPath(projectDir: string): string {
+  return join(memoryRoot(projectDir), "team", "link.json");
+}
+
+export interface TeamLink {
+  server: string;
+  team_id: string;
+  token: string;
+  linked_at: string;
+}
+
+// Persists which Kage Cloud team this repo talks to (`kage cloud link`), so `kage viewer`
+// can surface a one-click "Team" link instead of every command needing --server/--team/--token
+// spelled out. Not a secret vault: the token sits in the SAME trust tier it already lives in
+// everywhere else in this codebase (CLI args, the dashboard URL query string) — this file is
+// gitignored (.agent_memory/team/ is not on the packets allowlist) and never committed.
+export function writeTeamLink(projectDir: string, link: Omit<TeamLink, "linked_at">): TeamLink {
+  ensureDir(join(memoryRoot(projectDir), "team"));
+  const stamped: TeamLink = { ...link, linked_at: nowIso() };
+  writeJson(teamLinkPath(projectDir), stamped);
+  return stamped;
+}
+
+export function readTeamLink(projectDir: string): TeamLink | null {
+  const path = teamLinkPath(projectDir);
+  if (!existsSync(path)) return null;
+  try {
+    return readJson<TeamLink>(path);
+  } catch {
+    return null;
+  }
+}
+
 // Where the packet merge driver preserves a losing side instead of discarding it.
 // The driver is last-write-wins by self-reported updated_at, not a field-level
 // three-way merge — so when two teammates concurrently edit the SAME packet file

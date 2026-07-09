@@ -15,6 +15,7 @@ import {
   benchmarkTaskComparison,
   benchmarkSavings,
   teamMemoryReport,
+  writeTeamLink,
   benchmarkCodingMemoryQuality,
   benchmarkMemoryScale,
   benchmarkTrust,
@@ -256,6 +257,7 @@ Usage:
   kage cloud serve [--port 8790] [--db <path>] [--verbose]   run a Kage Cloud server (self-host behind your own proxy/VPN)
   kage cloud create-team --server <url> --name <name> [--json]   creates a team + owner token (shown once)
   kage cloud invite --server <url> --team <id> --token <token> --label <name> [--json]   issue another teammate's token
+  kage cloud link --project <dir> --server <url> --team <id> --token <token> [--json]   remember this team so kage viewer shows a Team link
   kage cloud push --project <dir> --server <url> --team <id> --token <token> [--json]   submit local approved packets (lands pending)
   kage cloud pull --project <dir> --server <url> --team <id> --token <token> [--json]   pull team-approved packets (re-verified locally on recall)
   kage cloud list --server <url> --team <id> --token <token> [--status pending|approved|rejected] [--json]
@@ -470,6 +472,13 @@ async function main(): Promise<void> {
     if (sub && sub !== "create-team" && (!teamId || !token)) {
       console.error("Usage: kage cloud <subcommand> --server <url> --team <team-id> --token <token> ...");
       process.exit(2);
+    }
+
+    if (sub === "link") {
+      const linked = writeTeamLink(projectArg(args), { server: server!, team_id: teamId!, token: token! });
+      if (args.includes("--json")) { console.log(JSON.stringify(linked, null, 2)); return; }
+      console.log(`Linked. \`kage viewer\` will now show a Team link to ${server}.`);
+      return;
     }
 
     if (sub === "invite") {
