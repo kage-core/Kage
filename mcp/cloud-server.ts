@@ -129,15 +129,20 @@ function renderDashboard(teamName: string, teamId: string, token: string, pendin
   const packetRow = (row: DashboardPacketRow, actions: boolean): string => {
     const packet = JSON.parse(row.packet_json) as MemoryPacket;
     const meta = actions
-      ? `submitted by <b>${escapeHtml(row.submitted_by_label)}</b>`
+      ? `submitted by <b>${escapeHtml(row.submitted_by_label)}</b> · captured ${escapeHtml((packet.created_at ?? "").slice(0, 10))}`
       : `submitted by <b>${escapeHtml(row.submitted_by_label)}</b> · approved by <b>${escapeHtml(row.approved_by_label ?? "?")}</b>`;
+    const paths = packet.paths ?? [];
+    const tags = packet.tags ?? [];
     return `
       <div class="packet" data-id="${escapeHtml(packet.id)}">
         <div class="packet-head">
           <span class="type">${escapeHtml(packet.type)}</span>
           <span class="title">${escapeHtml(packet.title)}</span>
         </div>
-        <div class="summary">${escapeHtml(packet.summary || packet.body.slice(0, 160))}</div>
+        ${packet.summary && packet.summary !== packet.body ? `<div class="summary">${escapeHtml(packet.summary)}</div>` : ""}
+        <div class="body">${escapeHtml(packet.body)}</div>
+        ${paths.length ? `<div class="paths"><b>Cites:</b> ${paths.map((p) => `<code>${escapeHtml(p)}</code>`).join(" ")}</div>` : `<div class="paths no-paths">No cited paths — cannot be re-verified against a checkout's code.</div>`}
+        ${tags.length ? `<div class="tags">${tags.map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
         <div class="meta">${meta}</div>
         ${actions ? `
         <div class="actions">
@@ -160,7 +165,13 @@ function renderDashboard(teamName: string, teamId: string, token: string, pendin
   .packet-head { display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; }
   .type { font-size: 11px; text-transform: uppercase; color: #9b8cff; background: #1e1a2e; padding: 2px 6px; border-radius: 4px; }
   .title { font-weight: 600; }
-  .summary { color: #b7b5b0; font-size: 13px; margin: 6px 0; }
+  .summary { color: #b7b5b0; font-size: 13px; margin: 6px 0; font-style: italic; }
+  .body { color: #d8d6d2; font-size: 13px; margin: 8px 0; white-space: pre-wrap; line-height: 1.6; }
+  .paths { font-size: 12px; margin: 8px 0; color: #8a8a8f; }
+  .paths code { background: #1c1c20; color: #7cc4ff; padding: 1px 5px; border-radius: 4px; margin-right: 4px; font-size: 12px; }
+  .paths.no-paths { color: #cc8a6b; }
+  .tags { margin: 6px 0; display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag { font-size: 11px; color: #8a8a8f; background: #1c1c20; padding: 1px 7px; border-radius: 10px; }
   .meta { color: #8a8a8f; font-size: 12px; }
   .meta b { color: #cfcdc9; font-weight: 600; }
   .actions { margin-top: 10px; display: flex; gap: 8px; }

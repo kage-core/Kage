@@ -155,6 +155,12 @@ test("kage cloud: GET /dashboard renders pending + approved packets and rejects 
     assert.equal(page.status, 200);
     assert.match(page.body, /Dashboard Team/);
     assert.match(page.body, /Widget uses shadow DOM/);
+    // A reviewer must see the FULL claim, not just the title — the whole point of showing
+    // more than a summary is that "approve" is a trust decision, not a rubber stamp.
+    assert.match(page.body, /The widget renders inside a shadow root\. Verified by: npm test\./);
+    // No cited paths on this packet: the reviewer must be warned it can't be re-verified,
+    // not left to assume citations exist because the card looks the same either way.
+    assert.match(page.body, /No cited paths/);
     assert.match(page.body, /Approved \(1\)/);
     assert.match(page.body, /Pending review \(0\)/);
 
@@ -164,5 +170,28 @@ test("kage cloud: GET /dashboard renders pending + approved packets and rejects 
 
     const badToken = await getText(`${url}/dashboard?team=${team.team_id}&token=kct_not-real`);
     assert.equal(badToken.status, 401);
+  });
+});
+
+test("kage cloud: dashboard shows cited paths for a grounded packet, not just its title", async () => {
+  await withServer(async (url) => {
+    const team = await cloudCreateTeam(url, "Grounded Team");
+    const project = tempProject();
+    mkdirSync(join(project, "src"), { recursive: true });
+    const { writeFileSync } = await import("node:fs");
+    writeFileSync(join(project, "src", "checkout.ts"), "export function checkout() { return true; }\n", "utf8");
+    capture({
+      projectDir: project,
+      title: "checkout() validates cart total server-side",
+      body: "checkout() must re-validate the cart total server-side, never trust the client-sent amount. Verified by: npm test.",
+      type: "decision",
+      paths: ["src/checkout.ts"],
+    });
+    await cloudPush(url, team.team_id, team.token, project);
+    const page = await getText(`${url}/dashboard?team=${team.team_id}&token=${encodeURIComponent(team.token)}`);
+    assert.equal(page.status, 200);
+    assert.match(page.body, /Cites:/);
+    assert.match(page.body, /src\/checkout\.ts/);
+    assert.doesNotMatch(page.body, /No cited paths/);
   });
 });
