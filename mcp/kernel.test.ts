@@ -4832,6 +4832,39 @@ test("truth report surfaces untested hot paths, complexity hotspots, and debt ma
   assert.doesNotMatch(report.headline, /\b0 /);
 });
 
+test("debt marker detector ignores a listing/description of the keywords, not a real marker", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "listing-demo", scripts: { build: "tsc" } }), "utf8");
+  // A file whose only "markers" are a code comment and a string DESCRIBING the
+  // TODO/FIXME/HACK convention (e.g. a linter or detector implementation) — this
+  // must not itself be flagged as having unresolved debt.
+  writeFileSync(
+    join(project, "src", "detector.ts"),
+    [
+      "// Detects TODO/FIXME/HACK/XXX markers left in code.",
+      'export function describeDebt(): string {',
+      '  return "Found a TODO, FIXME, or HACK note — flag it.";',
+      "}",
+      "",
+    ].join("\n"),
+    "utf8"
+  );
+  for (let i = 0; i < 6; i += 1) {
+    writeFileSync(
+      join(project, "src", `consumer${i}.ts`),
+      `import { describeDebt } from "./detector.js";\nexport const v${i} = describeDebt();\n`,
+      "utf8"
+    );
+  }
+  commitAll(project, "initial");
+
+  const report = truthReport(project);
+  const debt = report.findings.find((finding) => finding.kind === "debt_marker" && finding.title.includes("src/detector.ts"));
+  assert.equal(debt, undefined, "a listing of marker keywords must not count as a real debt marker");
+});
+
 test("truth report doc-lie scan skips paths quoted inside fenced code blocks", () => {
   const project = tempProject();
   execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });

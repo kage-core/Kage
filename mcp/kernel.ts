@@ -9,6 +9,7 @@ import * as ts from "typescript";
 import { createPublicCandidateBundleManifest, createSignedManifest, generateOrgRegistryManifest } from "./registry/index.js";
 import { okfConceptToPacket, packetToOkfConcept } from "./okf.js";
 import { averageNumber, codingMrr, codingNdcgAt, codingPrecisionAt, codingRecallAt, countByKey, percentileNumber, roundDecimal, titleCase } from "./metrics-math.js";
+import { isRecord } from "./type-guards.js";
 
 export const PACKET_SCHEMA_VERSION = 2;
 
@@ -9953,10 +9954,6 @@ function unique<T>(values: T[]): T[] {
   return [...new Set(values)];
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function countBy<T>(values: T[], key: (value: T) => string): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const value of values) {
@@ -12464,13 +12461,19 @@ export function truthReport(projectDir: string): TruthReport {
     ghostCandidates.push(symbol);
   }
   // Graph edges miss dynamic/property references, so a ghost claim must survive a raw-text
-  // check: the name may appear nowhere in the repo outside its own file.
+  // check: the name may appear nowhere in the repo outside its own file. Cap is generous
+  // (not MAX_CODE_FILE_BYTES, which gates far more expensive AST parsing elsewhere) — this
+  // is one cheap, memoized read, and single hand-written source files legitimately exceed
+  // 512KB (this repo's own mcp/kernel.ts is ~900KB); a tight cap here silently disables the
+  // safety net for exactly the largest, most central files, producing false ghost-export
+  // positives for symbols only ever used from within them.
+  const TRUTH_TEXT_MAX_FILE_BYTES = 5 * 1024 * 1024;
   const truthTextCache = new Map<string, string>();
   const truthFileText = (path: string): string => {
     const cached = truthTextCache.get(path);
     if (cached !== undefined) return cached;
     const file = fileByPath.get(path);
-    const text = file && file.size_bytes <= 512 * 1024 ? safeReadText(join(projectDir, path)) ?? "" : "";
+    const text = file && file.size_bytes <= TRUTH_TEXT_MAX_FILE_BYTES ? safeReadText(join(projectDir, path)) ?? "" : "";
     truthTextCache.set(path, text);
     return text;
   };
@@ -12666,14 +12669,33 @@ export function truthReport(projectDir: string): TruthReport {
   // bound the walk so a huge repo stays fast.
   const debtFindings: TruthFinding[] = [];
   const DEBT_RE = /(?:^|[^A-Za-z0-9_])(TODO|FIXME|HACK|XXX|@deprecated|@todo)(?:[^A-Za-z0-9_]|$)/gi;
+  // Two+ DIFFERENT marker keywords sitting immediately next to each other (only a
+  // punctuation char apart, e.g. "TODO/FIXME/HACK" or "TODO, FIXME") is code or prose
+  // describing the convention itself, not a real marker at that spot — a genuine
+  // comment only ever uses one keyword. Distinct real markers are always separated by
+  // actual comment content (their own sentence, usually a different line), which is
+  // far more than a few characters. Caught dogfooding this exact detector on kernel.ts
+  // itself: this file's own debt-marker code (the regex literal, its comments) was
+  // flagging as 8 "debt markers" of its own name-dropping the keywords it detects.
+  const DEBT_LISTING_GAP = 15;
+  const isDebtListingMention = (matches: RegExpMatchArray[], index: number): boolean => {
+    const current = matches[index];
+    const currentEnd = (current.index ?? 0) + current[0].length;
+    return matches.some((other, otherIndex) => {
+      if (otherIndex === index || other[1].toLowerCase() === current[1].toLowerCase()) return false;
+      const otherStart = other.index ?? 0;
+      const otherEnd = otherStart + other[0].length;
+      return Math.abs(otherStart - currentEnd) <= DEBT_LISTING_GAP || Math.abs((current.index ?? 0) - otherEnd) <= DEBT_LISTING_GAP;
+    });
+  };
   const debtScanTargets = [...sourceFiles]
     .sort((a, b) => (centrality.get(b.path) ?? 0) - (centrality.get(a.path) ?? 0))
     .slice(0, 400);
   for (const file of debtScanTargets) {
     const text = truthFileText(file.path);
     if (!text) continue;
-    const matches = text.match(DEBT_RE);
-    const count = matches ? matches.length : 0;
+    const allMatches = [...text.matchAll(DEBT_RE)];
+    const count = allMatches.filter((_match, index) => !isDebtListingMention(allMatches, index)).length;
     if (count < 1) continue;
     const fileCentrality = centrality.get(file.path) ?? 0;
     // A lone marker in a leaf file is noise; require either repetition or reach.

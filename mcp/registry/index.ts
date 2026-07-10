@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isRecord } from "../type-guards.js";
 
 export const REGISTRY_MANIFEST_SCHEMA_VERSION = 1;
 export const PUBLIC_CANDIDATE_BUNDLE_SCHEMA_VERSION = 1;
@@ -512,10 +513,6 @@ function sanitizeSourceRefs(value: unknown, warnings: string[]): Array<Record<st
     }
   }
   return refs;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isNonEmptyString(value: unknown): value is string {

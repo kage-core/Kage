@@ -18,6 +18,7 @@ import { existsSync, statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { resolve as resolvePath, sep } from "node:path";
 import { memoryRoot, observe, recall, type MemoryPacket } from "./kernel.js";
+import { isRecord } from "./type-guards.js";
 
 const MEMORY_HEADER = "# Verified repo memory (injected by Kage — follow it, it is checked against this code)";
 const MAX_MEMORY_CHARS = 6000; // ~1.5k tokens, so injection never dominates the prompt
@@ -57,10 +58,6 @@ function lastUserText(body: Record<string, unknown>): string {
     }
   }
   return "";
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function systemToText(system: unknown): string {
