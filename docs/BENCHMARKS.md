@@ -5,7 +5,7 @@ head-to-head tables against other tools — scores are only meaningful relative 
 the harness that produced them, so cross-tool numbers measured on different
 harnesses aren't a fair comparison. Run these yourself.
 
-## 1. Trust Benchmark — the one that matters (and that we lead on)
+## 1. Trust Benchmark — the one that matters (and the one no one else measures)
 
 The question retrieval benchmarks never ask: **can you trust what the memory
 returns?** An agent acting on stale or hallucinated memory is worse than one with

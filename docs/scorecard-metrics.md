@@ -1,6 +1,6 @@
 # What the Truth Report scorecard means
 
-`kage scan` reads your repo's code graph + git history in ~60 seconds and surfaces
+`kage scan` reads your repo's code graph + git history in seconds and surfaces
 **where knowledge has leaked out of the code** — places where what the code does,
 or why, lives only in someone's head, in a stale doc, or nowhere. That's exactly
 the knowledge a coding agent re-derives from scratch every session and a new hire
@@ -27,8 +27,7 @@ means that signal didn't fire.
 zero** mention in the README/`docs/`.
 **Why you care:** this is a file that is important *and* frequently changed, yet
 nothing anywhere captures why. Every agent and every new hire flies blind here and
-re-learns it the hard way. **This is the #1 thing memory should cover** — and the
-single best argument for installing Kage.
+re-learns it the hard way. **This is the #1 thing memory should cover.**
 
 ### 🧪 Untested hot paths
 **Detects:** a non-entrypoint source file with centrality **≥5**, changed **≥2×**,

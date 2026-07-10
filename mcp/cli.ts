@@ -139,7 +139,7 @@ const CORE_USAGE = `Kage — code-grounded memory for coding agents
 Core commands:
   kage install [--project <dir>]             one-shot: init + index + auto-wire detected agents
   kage check [--project <dir>]               verify CLAUDE.md/AGENTS.md/docs claims against the code — counted, not estimated
-  kage scan --project <dir>                  60-second truth report on any repo (zero setup)
+  kage scan --project <dir>                  truth report on any repo, in seconds (zero setup)
   kage init --project <dir>                  create repo memory (.agent_memory only)
   kage index --project <dir> [--full]        build/refresh code graph + indexes
   kage recall "<query>" --project <dir>      grounded recall from repo memory
@@ -647,7 +647,7 @@ async function main(): Promise<void> {
         console.log(`Nothing alarming found — though ${small ? "a repo this small" : "a repo without git history"} gives these signals little to work with.`);
         console.log("Where Kage pays off here is the memory loop: what you and your agents learn while building this gets kept, verified, and recalled.\n");
       } else {
-        console.log("No surprising findings — this repo's knowledge is unusually well distributed.\n");
+        console.log("No findings across 8 checks — this repo's knowledge is well distributed.\n");
       }
     }
     if (result.warnings.length) console.log(`Warnings:\n${result.warnings.map((warning) => `  - ${warning}`).join("\n")}\n`);
@@ -867,8 +867,14 @@ async function main(): Promise<void> {
       vcDone = true;
     } catch { /* not a git repo or no git — fall back to a hint */ }
     console.log(`  Git         ${vcDone ? ".gitignore + packet merge driver configured" : "skipped (not a git repo)"}`);
-    console.log("\nNext:  restart your agent — Kage then recalls automatically every session.");
-    console.log("       kage scan      a 60-second Truth Report on this repo");
+    if (skipAgents || !wired.some((w) => w.ok)) {
+      console.log("\nNext:  wire an agent — kage setup <agent> --project . --write");
+    } else if (wired.some((w) => w.agent === "claude-code" && w.ok)) {
+      console.log("\nNext:  restart your agent — Kage then recalls automatically every session.");
+    } else {
+      console.log("\nNext:  restart your agent — its policy file now instructs it to call Kage each session.");
+    }
+    console.log("       kage scan      a Truth Report on this repo");
     if (!vcDone) console.log(`\nWhen this becomes a git repo, run once: ${PACKET_MERGE_DRIVER_CONFIG}`);
     if (!init.validation.ok) process.exit(2);
     return;
@@ -1628,7 +1634,7 @@ async function main(): Promise<void> {
       console.log("Every recall logs the tokens it saved (by not re-reading cited files) and every");
       console.log("stale memory it withheld. Come back after a session and you'll see a receipt here.\n");
       console.log("Start now:");
-      console.log("  kage scan --project .                  a 60-second Truth Report on this repo");
+      console.log("  kage scan --project .                  a Truth Report on this repo");
       console.log("  kage scan --project . --scorecard      a shareable scorecard you can post");
       console.log("  then just work — your agent captures and recalls, verified against this code.");
       return;
@@ -1646,6 +1652,9 @@ async function main(): Promise<void> {
       `${window.caller_answers} caller ${plural(window.caller_answers, "answer", "answers")}`;
     console.log(windowLine("Today:   ", summary.today));
     console.log(windowLine("All time:", summary.all_time));
+    if (summary.all_time.caller_answers > 0) {
+      console.log("  (caller answers: \"who calls this\" code-graph questions answered from the call-edge index)");
+    }
     if (summary.all_time.replay_tokens > 0) {
       console.log(
         `Knowledge replay value: ~${formatTokenCount(week.replay_tokens)} tokens this week · ` +

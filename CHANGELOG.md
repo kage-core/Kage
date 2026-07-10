@@ -146,7 +146,9 @@ by a two-session sandbox test through the real installed hooks.
   for the file you're touching" behavior is already delivered by the
   `file-context` hook injecting the packets that cite the file — the nudge
   channel was redundant for that case, and had no generator for the rest
-  (nothing auto-runs the `kage-watcher`). Recall, file-context, capture, and the
+  (nothing auto-runs `kage-watcher`, a maintainer-only local Claude Code
+  subagent that was never part of the npm package or `kage setup`/`install`,
+  and has since been deleted). Recall, file-context, capture, and the
   shell-paste capture guard are unchanged; the `normalizeRepoPath` /
   trailing-slash cleanup to `file-context` path matching is kept.
 
@@ -165,11 +167,11 @@ by a two-session sandbox test through the real installed hooks.
 ## v2.5.2 — nudges become felt; capture leak closed
 
 - **Watcher nudges surface to the agent.** `surfacePendingNudges` reads the
-  nudge inbox the `kage-watcher` writes (`.agent_memory/nudges/pending.jsonl`),
+  nudge inbox `kage-watcher` writes (`.agent_memory/nudges/pending.jsonl`),
   injects the unsurfaced ones as a prominent "⚠ Kage nudges — act on these"
   block via the `UserPromptSubmit` hook (`kage prompt-context`), and marks each
-  surfaced so it shows exactly once. This is what turns recall/nudges from
-  silent context into *felt* behavior. Nudges now surface even when a prompt has
+  surfaced so it shows exactly once, on sessions where the local `kage-watcher`
+  subagent is populating that inbox. Nudges now surface even when a prompt has
   no other relevant memory.
 - **Capture leak closed.** The serialized-dump guard now also rejects
   shell-prompt / terminal-paste titles (`user@host dir % cmd`) — the one class

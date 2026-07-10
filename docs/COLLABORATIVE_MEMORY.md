@@ -96,7 +96,7 @@ quietly lying to them or losing their teammates' work.
   and `kage proxy` (both shipped earlier and never added to `kage help
   --all`) are now documented alongside `kage team`.
 
-Full suite: 391/391 passing, including a simulated two-contributor,
+Full suite passing, including a simulated two-contributor,
 one-pending-review, one-stale-drift, one-preserved-conflict scenario that
 exercises the whole loop end to end and asserts on the receipt's exact
 numbers before and after a reverify.

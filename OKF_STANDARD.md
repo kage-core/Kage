@@ -109,8 +109,9 @@ Unknown OKF types (from a third-party bundle) import to the safe `reference` typ
 `kage-state` block carries the exact packet, so no field is lost. Concepts *without*
 a `kage-state` block (hand-authored, or produced by another OKF tool) are imported
 best-effort from their frontmatter + body — which is what lets Kage **consume any
-OKF bundle**, not just its own. Verified on this repo: 200/200 concepts round-trip
-byte-exact (`mcp/okf.test.ts` plus `kage okf import`).
+OKF bundle**, not just its own. `mcp/okf.test.ts` covers this losslessness at the
+single-packet level; at time of migration to OKF, every concept in this repo's own
+bundle (200 at the time) round-tripped byte-exact via `kage okf import`.
 
 ## Commands
 

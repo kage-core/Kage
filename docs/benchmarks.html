@@ -57,7 +57,9 @@
       <h2>1. The Trust Benchmark — the one that matters</h2>
       <p class="bm-note">The question retrieval benchmarks never ask: <strong>can you trust what the
       memory returns?</strong> An agent acting on stale or hallucinated memory is worse than one with
-      none. This is what Kage is built for, and what no other tool measures.</p>
+      none. This is what Kage is built for — a property tools that auto-capture everything into a
+      vector store structurally can't measure, because they have no rejection or staleness gate to
+      score. See <a href="https://github.com/kage-core/Kage/blob/master/docs/TRUST.md">docs/TRUST.md</a> for why.</p>
       <code class="bm-cmd">kage benchmark --trust --project .</code>
       <table class="bm-table">
         <tr><th>Metric</th><th class="num">Result</th></tr>

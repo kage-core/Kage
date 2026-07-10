@@ -39,16 +39,20 @@ the run; your repo memory is never modified.
 
 The trust score is the mean of the three gate rates.
 
-## Reference result (this repository)
+## Reference result (this repository, as of commit 57a18a3)
 
 ```
 Kage Trust Benchmark — can this memory be trusted?
-Trust score: 100/100  (PASS)
+Trust score: 99/100  (PASS)
   Hallucinated-citation rejection: 100%  (8/8)
   Stale-memory exclusion:          100%  (8/8)
-  Live grounding rate:             99%   (194/196 packets)
+  Live grounding rate:             97%  (211/217 packets)
   Wrong-advice prevented:          100%
 ```
+
+The packet count grows as this repo captures more memory, so the exact fraction
+above will drift — that's expected. `kage benchmark --trust --project .` is the
+same command that produced it; run it to see the current number.
 
 ## Why no one else reports this
 

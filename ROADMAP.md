@@ -17,9 +17,10 @@ for contributors.
 
 The current focus.
 
-- **Public docs catching up to the product.** `kage proxy`, `kage cloud`, and
-  `kage team` shipped as real, tested features — the guide and site need to
-  say so as clearly as the design notes in `docs/` already do.
+- **README.md catching up to the product.** `kage proxy`, `kage cloud`, and
+  `kage team` shipped as real, tested features and are already documented in
+  `docs/guide.html` — README.md doesn't mention any of the three yet, and
+  `docs/index.html` is silent on `proxy` and `team`.
 - **A real design partner for Kage Cloud.** The self-hosted team server
   (`kage cloud`) is built and tested; the open question isn't more code, it's
   whether a real team wants to run it. Finding one design partner outranks

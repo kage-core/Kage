@@ -613,7 +613,7 @@
     var cold = c.cold || 0;
     var facts = [];
     facts.push(["💾", "Every recall pulls grounded memory instead of re-reading source — saving about <b>" + fmt(sv.estimated_tokens_saved_per_recall) + " tokens</b> each time."]);
-    if (mg.evidence_coverage_percent != null) facts.push(["🔗", "<b>" + mg.evidence_coverage_percent + "%</b> of " + fmt(mg.edges) + " memory edges are backed by evidence — nothing in the graph is a guess."]);
+    if (mg.evidence_coverage_percent != null) facts.push(["🔗", "<b>" + mg.evidence_coverage_percent + "%</b> of " + fmt(mg.edges) + " memory edges trace back to an observed session, not an ungrounded guess."]);
     if (hot) facts.push(["🔥", "Most-recalled memory: <b>" + escapeHtml(hot.title) + "</b>" + (hot.total_uses ? " (used " + hot.total_uses + "×)." : ".")]);
     if (cold) facts.push(["🧊", "<b>" + cold + "</b> packets haven't been recalled recently — run <code>kage refresh</code> to keep them grounded, or let them age out."]);
     if (mg.average_quality_score != null) facts.push(["⭐", "Average packet quality score is <b>" + mg.average_quality_score + "/100</b> across the repo."]);

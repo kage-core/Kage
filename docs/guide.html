@@ -180,7 +180,7 @@
 
       <main>
         <header class="hero" id="overview">
-          <span class="eyebrow">kage://docs · v2.2</span>
+          <span class="eyebrow">kage://docs</span>
           <h1>Kage docs.</h1>
           <p class="lede">
             Kage is a <strong>framework for collaborative agent memory</strong>: git-native memory your team's
@@ -423,7 +423,7 @@ kage staleguard --project .</pre>
 
           <h3 class="section-sub">Setup and verification</h3>
           <div class="method"><h3><code>kage install</code> One-shot setup</h3><p>Init + index + auto-detects installed agents (Claude Code, Codex, Cursor, Windsurf, Gemini CLI, OpenCode, Goose, Aider) and wires them. The fastest path from zero to live memory.</p><pre>npx -y @kage-core/kage-graph-mcp install</pre></div>
-          <div class="method"><h3><code>kage scan</code> Truth Report</h3><p>Zero-setup, ~60-second report on any repo: undocumented hot files, untested hot paths, complexity hotspots, unresolved code debt, bus-factor-1 files, plus duplicate implementations, dead exports, and doc lies when present. Every finding cites <code>file:line</code> evidence.</p><pre>kage scan --project . [--json]</pre></div>
+          <div class="method"><h3><code>kage scan</code> Truth Report</h3><p>Zero-setup report on any repo, in seconds: undocumented hot files, untested hot paths, complexity hotspots, unresolved code debt, bus-factor-1 files, plus duplicate implementations, dead exports, and doc lies when present. Every finding cites <code>file:line</code> evidence.</p><pre>kage scan --project . [--json]</pre></div>
           <div class="method"><h3><code>kage gains</code> Savings receipt</h3><p>What the memory harness actually did: tokens and dollars saved (measured, per-packet replay value), stale memories blocked, stale knowledge caught at change-time.</p><pre>kage gains --project .</pre></div>
           <div class="method"><h3><code>kage resume</code> Session continuity</h3><p>The "previously…" digest: last session's work, distilled learnings, drafts awaiting review, unresolved reconciliation, and a compact timeline of recent memory. Injected automatically at session start.</p><pre>kage resume --project . [--json]</pre></div>
           <div class="method"><h3><code>kage repair</code> One-command recovery</h3><p>Backs up and fixes broken packet JSON (including committed merge-conflict markers), rebuilds missing indexes, cleans stale locks, and re-wires agents that lost their hooks. Prints a receipt of every step.</p><pre>kage repair --project . [--json]</pre></div>
@@ -636,7 +636,7 @@ kage audit --project . --json</pre></div>
         <span id="gh-stars">6</span>
       </a><br />
           <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a><br />
-          <a href="https://github.com/kage-core/Kage/issues/74">Cloud waitlist</a><br />
+          <a href="https://github.com/kage-core/Kage/issues/74">Hosted Cloud waitlist</a><br />
           <a href="demo.html">Book a demo</a>
         </span>
       </div>
