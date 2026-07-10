@@ -46,6 +46,7 @@ function argsFor(name: string): Record<string, unknown> {
     kage_learn: { ...base, title: "Coverage learn", learning: "A reusable fact about src/app.js captured for coverage.", paths: ["src/app.js"] },
     kage_capture: { ...base, title: "Coverage capture", body: "A reusable note about src/app.js for coverage testing here.", paths: ["src/app.js"] },
     kage_feedback: { ...base, packet_id: ids.a, kind: "helpful" },
+    kage_reverify: { ...base, packet_id: ids.a, evidence: "Coverage check confirms src/app.js still exists and the packet's claim is unaffected.", verified_by: "tool-coverage.test.ts" },
     kage_supersede: { ...base, packet_id: ids.b, replacement_packet_id: ids.c },
     kage_setup_agent: { ...base, agent: "generic-mcp" },
     kage_verify_agent: { ...base, agent: "claude-code" },

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, unlinkSync, utimesSync, writeFileSync } from "node:fs";
-import { basename, delimiter, join } from "node:path";
+import { basename, delimiter, dirname, join } from "node:path";
 import { availableParallelism, tmpdir } from "node:os";
 import vm from "node:vm";
 import {
@@ -2303,7 +2303,15 @@ esac
   assert.equal(cliVerify.checks.recall_works, true);
   const claudeVerify = verifyAgentActivation("claude-code", project, { homeDir: home });
   assert.equal(claudeVerify.checks.ambient_hooks_present, true);
+  assert.equal(claudeVerify.checks.ambient_hooks_supported, true);
   assert.equal(claudeVerify.hook_summary?.missing.length, 0);
+
+  // Cursor has no hook mechanism at all — ambient_hooks_present is vacuously true
+  // (nothing was required), but ambient_hooks_supported must say so isn't the same
+  // as claude-code's real, checked automation.
+  const cursorVerify = verifyAgentActivation("cursor", project, { homeDir: home });
+  assert.equal(cursorVerify.checks.ambient_hooks_present, true);
+  assert.equal(cursorVerify.checks.ambient_hooks_supported, false);
 
   const brokenClaudeHome = mkdtempSync(join(tmpdir(), "kage-broken-claude-home-"));
   mkdirSync(brokenClaudeHome, { recursive: true });
@@ -2322,6 +2330,56 @@ esac
 
   const mcpVerify = verifyAgentActivation("codex", project, { homeDir: home, mcpToolReachable: true });
   assert.equal(mcpVerify.status, "ready");
+});
+
+test("setup --write actually writes config for JSON-config agents, not just codex/claude-code", () => {
+  const project = tempProject();
+  const home = mkdtempSync(join(tmpdir(), "kage-home-"));
+
+  // Home-scoped JSON agents: merge into ~/... without clobbering pre-existing content.
+  const claudeDesktopPath = join(home, ".config", "claude", "claude_desktop_config.json");
+  mkdirSync(dirname(claudeDesktopPath), { recursive: true });
+  writeFileSync(claudeDesktopPath, JSON.stringify({ mcpServers: { "other-tool": { command: "foo" } }, unrelatedSetting: true }), "utf8");
+  const claudeDesktop = setupAgent("claude-desktop", project, { serverPath: "/tmp/kage/dist/index.js", homeDir: home, write: true });
+  assert.equal(claudeDesktop.write_supported, true);
+  assert.equal(claudeDesktop.wrote, true);
+  const claudeDesktopConfig = JSON.parse(readFileSync(claudeDesktopPath, "utf8"));
+  assert.equal(claudeDesktopConfig.mcpServers.kage.command, "node");
+  assert.equal(claudeDesktopConfig.mcpServers["other-tool"].command, "foo", "must not clobber a pre-existing MCP server entry");
+  assert.equal(claudeDesktopConfig.unrelatedSetting, true, "must not clobber unrelated top-level config");
+
+  for (const agent of ["cursor", "windsurf", "cline", "roo-code", "kilo-code", "openclaw", "copilot", "hermes"] as const) {
+    const r = setupAgent(agent, project, { serverPath: "/tmp/kage/dist/index.js", homeDir: home, write: true });
+    assert.equal(r.write_supported, true, `${agent} should be write-capable`);
+    assert.equal(r.wrote, true, `${agent} should report wrote:true`);
+    assert.equal(r.config_path !== null, true);
+    const written = JSON.parse(readFileSync(r.config_path as string, "utf8"));
+    assert.equal(written.mcpServers.kage.command, "node", `${agent} config missing kage server entry`);
+  }
+
+  // Project-scoped: opencode uses a different top-level key (`mcp`, not `mcpServers`).
+  const opencode = setupAgent("opencode", project, { serverPath: "/tmp/kage/dist/index.js", homeDir: home, write: true });
+  assert.equal(opencode.wrote, true);
+  const opencodeConfig = JSON.parse(readFileSync(join(project, "opencode.json"), "utf8"));
+  assert.equal(opencodeConfig.mcp.kage.type, "stdio");
+  assert.equal(opencodeConfig.mcp.kage.command, "node");
+
+  // Deliberately excluded: goose (real YAML, no safe writer) and generic-mcp (no known path).
+  const goose = setupAgent("goose", project, { serverPath: "/tmp/kage/dist/index.js", homeDir: home, write: true });
+  assert.equal(goose.write_supported, false);
+  assert.equal(goose.wrote, false);
+  assert.equal(existsSync(join(home, ".config", "goose", "config.yaml")), false);
+  const genericMcp = setupAgent("generic-mcp", project, { serverPath: "/tmp/kage/dist/index.js", homeDir: home, write: true });
+  assert.equal(genericMcp.write_supported, false);
+  assert.equal(genericMcp.wrote, false);
+
+  // gemini-cli: writes by invoking the `gemini` CLI itself, not a config file. In this
+  // sandboxed test env `gemini` is not on PATH, so it must fail gracefully with a
+  // warning rather than throwing — write_supported still reflects the mechanism exists.
+  const geminiCli = setupAgent("gemini-cli", project, { serverPath: "/tmp/kage/dist/index.js", homeDir: home, write: true });
+  assert.equal(geminiCli.write_supported, true);
+  assert.equal(geminiCli.wrote, false);
+  assert.equal(geminiCli.warnings.some((w) => w.includes("gemini")), true);
 });
 
 test("git hook manager installs status and uninstall while preserving existing hooks", () => {
@@ -3076,6 +3134,29 @@ test("learn captures actual session learning with inferred type", () => {
   assert.match(result.packet?.body ?? "", /Verified by: npm test/);
   assert.match(result.packet?.context?.why ?? "", /cause and rationale/);
   assert.equal(result.packet?.context?.verification, "npm test");
+});
+
+test("learn infers the proposal type from prospective feature-idea language, distinct from decision", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "mcp"), { recursive: true });
+  writeFileSync(join(project, "mcp", "index.ts"), "", "utf8");
+  const result = learn({
+    projectDir: project,
+    learning: "Feature proposal: we should add a lightweight webhook-retry queue to mcp/index.ts so failed deliveries are replayed instead of dropped.",
+    paths: ["mcp/index.ts"],
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.packet?.type, "proposal");
+
+  // "diff proposal" (referring to the existing propose-from-diff mechanism) must
+  // not false-positive into type:proposal — this is the same text the sibling
+  // "learn captures actual session learning with inferred type" test above uses.
+  const decisionResult = learn({
+    projectDir: project,
+    learning: "Decision: agents should use kage_learn for actual session discoveries and diff proposal only as a fallback. Why: session learnings can capture cause and rationale that raw diffs cannot.",
+    paths: ["mcp/index.ts"],
+  });
+  assert.equal(decisionResult.packet?.type, "decision");
 });
 
 test("graph command extraction ignores prose and file references", () => {

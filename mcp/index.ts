@@ -25,8 +25,13 @@ import {
   installAgentPolicy,
   kageCleanupCandidates,
   kageCapabilityAudit,
+  kageContext,
   kageContributors,
   kageContextSlots,
+  kageFetchPublicGraphNode,
+  kageListPublicDomains,
+  kageSearchPublicGraph,
+  KAGE_WORKFLOW_TEXT,
   kageDecisionIntelligence,
   kageDependencyPath,
   kageGraphInsights,
@@ -70,6 +75,7 @@ import {
   generateSkills,
   refreshProject,
   registryRecommendations,
+  reverifyMemory,
   setupAgent,
   setupDoctor,
   setContextSlot,
@@ -85,116 +91,16 @@ import {
 import { driftCheck, formatCheckReport } from "./check.js";
 import { buildGraphRegistryManifest } from "./graph-registry.js";
 
-const BASE_URL = "https://raw.githubusercontent.com/kage-core/kage-graph/master";
-
-async function fetchText(url: string): Promise<string> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`);
-  return res.text();
-}
-
-async function fetchJSON<T>(url: string): Promise<T> {
-  const text = await fetchText(url);
-  return JSON.parse(text) as T;
-}
-
-interface CatalogDomain {
-  nodes?: number;
-  node_count?: number;
-  top_tags?: string[];
-}
-
-interface Catalog {
-  domains: Record<string, CatalogDomain>;
-}
-
-interface IndexNode {
-  id: string;
-  title: string;
-  type: string;
-  tags: string[];
-  summary: string;
-  score: number;
-  updated: string;
-}
-
-interface DomainIndex {
-  nodes: IndexNode[];
-}
-
-function domainNodeCount(domain: CatalogDomain): number {
-  return catalogDomainNodeCount(domain);
-}
-
-function domainTopTags(domain: CatalogDomain): string[] {
-  return domain.top_tags ?? [];
-}
-
-function scoreMatch(query: string, node: IndexNode): number {
-  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-  let score = 0;
-  const title = node.title.toLowerCase();
-  const summary = (node.summary || "").toLowerCase();
-  const tags = (node.tags ?? []).map((t) => t.toLowerCase());
-
-  for (const term of terms) {
-    if (title.includes(term)) score += 3;
-    if (tags.some((t) => t.includes(term))) score += 2;
-    if (summary.includes(term)) score += 1;
-  }
-  return score;
-}
-
-function scoreDomainMatch(query: string, domain: CatalogDomain): number {
-  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const tags = domainTopTags(domain);
-  return terms.reduce((sum, term) => {
-    return sum + tags.filter((t) => t.includes(term)).length;
-  }, 0);
-}
-
 function arrayArg(value: unknown): string[] {
   if (Array.isArray(value)) return value.map(String);
   if (typeof value === "string") return value.split(",").map((item) => item.trim()).filter(Boolean);
   return [];
 }
 
-function filePathHints(query: string): string[] {
-  const matches = query.match(/[A-Za-z0-9_./@-]+\.(?:ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|kt|kts|rb|php|cs|c|h|cc|cpp|hpp|swift|json|md)\b/g) ?? [];
-  return [...new Set(matches.map((match) => match.replace(/^\.\//, "")).filter((match) => !/^https?:\/\//.test(match)))];
-}
-
-function wantsDependencyPath(query: string): boolean {
-  return /\b(connect|connected|dependency|depend|depends|path|impact|flow|trace)\b/i.test(query);
-}
-
-function riskContextBlock(result: ReturnType<typeof kageRisk>): string {
-  const targets = Object.values(result.targets);
-  if (!targets.length) return "";
-  const lines = targets.slice(0, 5).map((item) => {
-    const coChange = item.git.co_change_partners.length
-      ? ` Co-change: ${item.git.co_change_partners.slice(0, 3).map((partner) => `${partner.file_path} (${partner.count})`).join(", ")}.`
-      : "";
-    return `- ${item.risk_summary}${coChange}`;
-  });
-  return `\n## Risk Signals\n${lines.join("\n")}`;
-}
-
 const server = new Server(
   { name: "kage-graph", version: "3.3.0" },
   { capabilities: { tools: {} } }
 );
-
-// Workflow pseudo-tool: the description itself is the documentation, so agents
-// absorb the loop just by listing tools. The handler returns the same text.
-const KAGE_WORKFLOW_TEXT =
-  "Kage memory workflow (this tool performs no action; it returns this loop). " +
-  "1) Start every task with kage_context (project_dir + the task as query): it validates memory, recalls relevant packets, and queries the code and knowledge graphs in one call. " +
-  "2) Do the work, preferring repo memory over public context. " +
-  "3) Capture reusable learnings with kage_learn — bug causes and verified fixes, conventions, decisions, gotchas, run/test/build commands. Wrap anything that must never leave the repo in <private>...</private> tags; private spans are stripped before sharing. " +
-  "4) After meaningful file changes, call kage_refresh so indexes, graphs, and stale-memory checks stay current. " +
-  "5) Before finishing a branch, call kage_pr_summarize then kage_pr_check. " +
-  "Recall receipts show estimated tokens saved versus rediscovery; report memory quality with kage_feedback (helpful/wrong/stale).";
 
 // Agent-facing core: the verbs an agent actually uses in the loop (recall,
 // capture, stay-honest, refresh, codify). Everything else is operator/diagnostic
@@ -801,6 +707,22 @@ export function listTools() {
       },
     },
     {
+      name: "kage_reverify",
+      description:
+        "Re-verify a still-true repo-local memory packet in place: re-checks its cited paths, refreshes fingerprints and last_verified_at, and clears any stale flag. Use this instead of kage_supersede when the code a packet cites changed but the packet's actual claim is still correct — e.g. a cited file was edited for an unrelated reason. Refuses when every cited path is gone; that needs kage_supersede or marking the packet stale instead.",
+      annotations: { title: "Re-verify a memory packet against current code", readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string", description: "Absolute path to the repository root." },
+          packet_id: { type: "string", description: "Id of the packet to re-verify." },
+          evidence: { type: "string", description: "What you checked and why the packet's claim still holds (e.g. what changed in the cited file and why it's unrelated)." },
+          verified_by: { type: "string", description: "How you verified it, e.g. a test command and its result." },
+        },
+        required: ["project_dir", "packet_id"],
+      },
+    },
+    {
       name: "kage_conflicts",
       description:
         "List repo-local memory packet pairs that contradict each other (same cited path, same subject, opposing claim). Resolve each with kage_supersede, or keep both intentionally.",
@@ -1153,177 +1075,30 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 export async function callTool(name: string, args: Record<string, unknown> | undefined) {
   await ensureTreeSitterLanguages();
   if (name === "kage_list_domains") {
-    const catalog = await fetchJSON<Catalog>(`${BASE_URL}/catalog.json`);
-    const lines = Object.entries(catalog.domains)
-      .filter(([, d]) => domainNodeCount(d) > 0)
-      .sort(([, a], [, b]) => domainNodeCount(b) - domainNodeCount(a))
-      .map(
-        ([domain, d]) =>
-          `**${domain}** — ${domainNodeCount(d)} nodes | tags: ${domainTopTags(d).slice(0, 5).join(", ")}`
-      );
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: `# kage-graph Domains\n\n${lines.join("\n")}`,
-        },
-      ],
-    };
+    return { content: [{ type: "text", text: await kageListPublicDomains() }] };
   }
 
   if (name === "kage_search") {
     const query = String(args?.query ?? "");
     const domainFilter = args?.domain ? String(args.domain) : null;
-
-    const catalog = await fetchJSON<Catalog>(`${BASE_URL}/catalog.json`);
-
-    let domainsToSearch: string[];
-    if (domainFilter) {
-      domainsToSearch = [domainFilter];
-    } else {
-      domainsToSearch = Object.entries(catalog.domains)
-        .filter(([, d]) => domainNodeCount(d) > 0)
-        .map(([name, d]) => ({ name, score: scoreDomainMatch(query, d) }))
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 3)
-        .filter((d) => d.score > 0)
-        .map((d) => d.name);
-
-      if (domainsToSearch.length === 0) {
-        domainsToSearch = Object.entries(catalog.domains)
-          .filter(([, d]) => domainNodeCount(d) > 0)
-          .map(([name]) => name);
-      }
-    }
-
-    const indexResults = await Promise.allSettled(
-      domainsToSearch.map(async (domain) => {
-        const index = await fetchJSON<DomainIndex>(
-          `${BASE_URL}/domains/${domain}/index.json`
-        );
-        return { domain, nodes: index.nodes };
-      })
-    );
-
-    const scored: Array<{ domain: string; node: IndexNode; score: number }> = [];
-    for (const result of indexResults) {
-      if (result.status === "fulfilled") {
-        const { domain, nodes } = result.value;
-        for (const node of nodes) {
-          const s = scoreMatch(query, node);
-          if (s > 0) scored.push({ domain, node, score: s });
-        }
-      }
-    }
-
-    scored.sort((a, b) => b.score - a.score || b.node.score - a.node.score);
-    const top = scored.slice(0, 5);
-
-    if (top.length === 0) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `No nodes found matching "${query}". Try kage_list_domains to see what's available.`,
-          },
-        ],
-      };
-    }
-
-    const lines = top.map((r, i) => {
-      const n = r.node;
-      return [
-        `### [${i + 1}] ${n.title}`,
-        `**Domain:** ${r.domain} | **Type:** ${n.type} | **Score:** ${n.score} | **Updated:** ${n.updated}`,
-        `**Tags:** ${(n.tags ?? []).join(", ")}`,
-        n.summary ? `**Summary:** ${n.summary}` : "",
-        `**Fetch:** domain="${r.domain}" node_id="${n.id}"`,
-      ]
-        .filter(Boolean)
-        .join("\n");
-    });
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: `# kage-graph results for "${query}"\n\n${lines.join("\n\n---\n\n")}`,
-        },
-      ],
-    };
+    return { content: [{ type: "text", text: await kageSearchPublicGraph(query, domainFilter) }] };
   }
 
   if (name === "kage_fetch") {
     const domain = String(args?.domain ?? "");
     const nodeId = String(args?.node_id ?? "");
-    const content = await fetchText(
-      `${BASE_URL}/domains/${domain}/nodes/${nodeId}.md`
-    );
-    return {
-      content: [{ type: "text", text: content }],
-    };
+    return { content: [{ type: "text", text: await kageFetchPublicGraphNode(domain, nodeId) }] };
   }
 
   if (name === "kage_context") {
-    const projectDir = String(args?.project_dir ?? "");
-    const query = String(args?.query ?? "");
-    const limit = Number(args?.limit ?? 5);
-    // validate
-    const validation = validateProject(projectDir);
-    const validationText = validation.ok
-      ? "Memory healthy."
-      : `Warnings: ${validation.warnings.join("; ")}`;
-    // recall already includes the code graph + knowledge-graph facts (its "## Related Graph
-    // Facts" section). We deliberately do NOT query the graph a second time here: doing so
-    // emitted a near-duplicate dump of the same edges which, with no size cap, blew
-    // kage_context past 270k chars and overflowed the response.
-    const recallResult = recall(projectDir, query, limit, false);
-    const explicitTargets = [...arrayArg(args?.targets), ...filePathHints(query)];
-    const changedFiles = arrayArg(args?.changed_files);
-    const riskResult = explicitTargets.length || changedFiles.length ? kageRisk(projectDir, explicitTargets, changedFiles) : null;
-    const pathHints = filePathHints(query);
-    const dependencyResult = wantsDependencyPath(query) && pathHints.length >= 2
-      ? kageDependencyPath(projectDir, pathHints[0], pathHints[1])
-      : null;
-    const reconciliation = kageMemoryReconciliation(projectDir, {
+    const result = kageContext(String(args?.project_dir ?? ""), String(args?.query ?? ""), {
+      limit: Number(args?.limit ?? 5),
+      targets: arrayArg(args?.targets),
+      changedFiles: arrayArg(args?.changed_files),
       sessionId: typeof args?.session_id === "string" ? args.session_id : undefined,
-      limit: 5,
     });
-    const teammateBrief = kageTeammateBrief(projectDir, {
-      query,
-      targets: explicitTargets,
-      changedFiles,
-      recallResult,
-      riskResult,
-      reconciliation,
-    });
-    const learningLedger = typeof args?.session_id === "string" && args.session_id.trim()
-      ? kageSessionLearningLedger(projectDir, { sessionId: args.session_id, limit: 20 })
-      : null;
-    const body = [
-      recallResult.context_block,
-      teammateBrief.context_block,
-      learningLedger ? learningLedger.context_block : "",
-      riskResult ? riskContextBlock(riskResult) : "",
-      dependencyResult ? `\n## Dependency Path\n${dependencyResult.summary}${dependencyResult.path.length ? `\nPath: ${dependencyResult.path.join(" -> ")}` : ""}` : "",
-      reconciliation.unresolved_count ? `\n## Memory Reconciliation\n${reconciliation.agent_instruction}` : "",
-      `\n_${validationText}_`,
-    ].filter(Boolean).join("");
-    // Receipt of counts only: served/withheld are observable events; token or
-    // dollar "savings" were estimates with no counterfactual and do not ship.
-    const gains = valueSummary(projectDir).today;
-    const gainsLine = gains.stale_withheld > 0
-      ? `\n\n_${gains.stale_withheld} stale memor${gains.stale_withheld === 1 ? "y" : "ies"} withheld today (cited code changed; run \`kage doctor\` to review)._`
-      : "";
-    // Backstop: per-field clamping + graph dedup keep this compact in practice, but never
-    // let a pathological repo overflow the MCP response again. ~24k chars ≈ 6k tokens.
-    const MAX_CONTEXT_CHARS = 24000;
-    const cappedBody = body.length > MAX_CONTEXT_CHARS
-      ? `${body.slice(0, MAX_CONTEXT_CHARS)}\n\n_…kage_context truncated to keep the response within limits; narrow your query for more specific memory._`
-      : body;
     return {
-      content: [{ type: "text", text: `${cappedBody}${gainsLine}` }],
+      content: [{ type: "text", text: result.context_block }],
     };
   }
 
@@ -1547,6 +1322,17 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     );
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_reverify") {
+    const result = reverifyMemory(String(args?.project_dir ?? ""), String(args?.packet_id ?? ""), {
+      evidence: typeof args?.evidence === "string" ? args.evidence : undefined,
+      verifiedBy: typeof args?.verified_by === "string" ? args.verified_by : undefined,
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      isError: !result.ok,
     };
   }
 

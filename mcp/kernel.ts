@@ -17,6 +17,7 @@ export const MEMORY_TYPES = [
   "runbook",
   "bug_fix",
   "decision",
+  "proposal",
   "rationale",
   "convention",
   "workflow",
@@ -159,6 +160,10 @@ export interface AgentActivationReport {
     code_graph_works: boolean;
     mcp_tool_reachable: boolean;
     ambient_hooks_present: boolean;
+    /** False for every agent except claude-code — the others have no hook mechanism
+     *  at all, so ambient_hooks_present being vacuously true for them does not mean
+     *  automation exists; it means there was nothing to check. */
+    ambient_hooks_supported: boolean;
   };
   hook_summary?: AgentHookSummary;
   config_path: string | null;
@@ -3857,7 +3862,7 @@ function recallQualityScore(packet: MemoryPacket): number {
   const stored = Number(((packet.quality ?? {}) as Record<string, unknown>).score);
   if (Number.isFinite(stored)) return Math.max(0, Math.min(10, stored / 10));
   let score = 45;
-  if (["runbook", "bug_fix", "decision", "rationale", "convention", "workflow", "gotcha", "policy", "issue_context", "code_explanation", "negative_result", "constraint"].includes(packet.type)) score += 14;
+  if (["runbook", "bug_fix", "decision", "proposal", "rationale", "convention", "workflow", "gotcha", "policy", "issue_context", "code_explanation", "negative_result", "constraint"].includes(packet.type)) score += 14;
   if (packet.source_refs.length) score += 12;
   if (packet.paths.length) score += 10;
   if (packet.tags.length) score += 5;
@@ -4319,7 +4324,7 @@ function evaluateMemoryQuality(projectDir: string, packet: MemoryPacket, context
   const bodyTokens = tokenize(packet.body);
   const hasEvidence = packet.source_refs.length > 0;
   const hasPaths = packet.paths.length > 0;
-  const highValueType = ["runbook", "bug_fix", "decision", "rationale", "convention", "workflow", "gotcha", "policy", "issue_context", "code_explanation", "negative_result", "constraint"].includes(packet.type);
+  const highValueType = ["runbook", "bug_fix", "decision", "proposal", "rationale", "convention", "workflow", "gotcha", "policy", "issue_context", "code_explanation", "negative_result", "constraint"].includes(packet.type);
 
   if (highValueType) {
     score += 14;
@@ -4386,7 +4391,7 @@ export function evaluateMemoryAdmission(projectDir: string, packet: MemoryPacket
   const text = `${packet.title}\n${packet.summary}\n${packet.body}`.toLowerCase();
   let score = 0;
 
-  if (["runbook", "bug_fix", "decision", "rationale", "convention", "workflow", "gotcha", "policy", "issue_context", "code_explanation", "negative_result", "constraint"].includes(packet.type)) {
+  if (["runbook", "bug_fix", "decision", "proposal", "rationale", "convention", "workflow", "gotcha", "policy", "issue_context", "code_explanation", "negative_result", "constraint"].includes(packet.type)) {
     score += 18;
     reasons.push("durable memory type");
   }
@@ -4609,6 +4614,134 @@ function stripPrivateFromContext(context: EngineeringMemoryContext): Engineering
 
 export function catalogDomainNodeCount(domain: PublicCatalogDomainShape): number {
   return domain.nodes ?? domain.node_count ?? 0;
+}
+
+const PUBLIC_GRAPH_BASE_URL = "https://raw.githubusercontent.com/kage-core/kage-graph/master";
+
+export interface PublicGraphCatalogDomain {
+  nodes?: number;
+  node_count?: number;
+  top_tags?: string[];
+}
+
+export interface PublicGraphCatalog {
+  domains: Record<string, PublicGraphCatalogDomain>;
+}
+
+export interface PublicGraphIndexNode {
+  id: string;
+  title: string;
+  type: string;
+  tags: string[];
+  summary: string;
+  score: number;
+  updated: string;
+}
+
+interface PublicGraphDomainIndex {
+  nodes: PublicGraphIndexNode[];
+}
+
+async function fetchPublicGraphText(url: string): Promise<string> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`);
+  return res.text();
+}
+
+async function fetchPublicGraphJSON<T>(url: string): Promise<T> {
+  return JSON.parse(await fetchPublicGraphText(url)) as T;
+}
+
+function publicGraphDomainTopTags(domain: PublicGraphCatalogDomain): string[] {
+  return domain.top_tags ?? [];
+}
+
+function scorePublicGraphNodeMatch(query: string, node: PublicGraphIndexNode): number {
+  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+  let score = 0;
+  const title = node.title.toLowerCase();
+  const summary = (node.summary || "").toLowerCase();
+  const tags = (node.tags ?? []).map((t) => t.toLowerCase());
+  for (const term of terms) {
+    if (title.includes(term)) score += 3;
+    if (tags.some((t) => t.includes(term))) score += 2;
+    if (summary.includes(term)) score += 1;
+  }
+  return score;
+}
+
+function scorePublicGraphDomainMatch(query: string, domain: PublicGraphCatalogDomain): number {
+  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const tags = publicGraphDomainTopTags(domain);
+  return terms.reduce((sum, term) => sum + tags.filter((t) => t.includes(term)).length, 0);
+}
+
+// Community graph tools: untrusted, advisory-only public content (see CLAUDE.md's
+// Safety section) — separate from repo-local memory. Shared by the MCP tools and
+// their `kage graph-*` CLI equivalents so both surfaces read the same catalog.
+export async function kageListPublicDomains(): Promise<string> {
+  const catalog = await fetchPublicGraphJSON<PublicGraphCatalog>(`${PUBLIC_GRAPH_BASE_URL}/catalog.json`);
+  const lines = Object.entries(catalog.domains)
+    .filter(([, d]) => catalogDomainNodeCount(d) > 0)
+    .sort(([, a], [, b]) => catalogDomainNodeCount(b) - catalogDomainNodeCount(a))
+    .map(([domain, d]) => `**${domain}** — ${catalogDomainNodeCount(d)} nodes | tags: ${publicGraphDomainTopTags(d).slice(0, 5).join(", ")}`);
+  return `# kage-graph Domains\n\n${lines.join("\n")}`;
+}
+
+export async function kageSearchPublicGraph(query: string, domainFilter: string | null = null): Promise<string> {
+  const catalog = await fetchPublicGraphJSON<PublicGraphCatalog>(`${PUBLIC_GRAPH_BASE_URL}/catalog.json`);
+  let domainsToSearch: string[];
+  if (domainFilter) {
+    domainsToSearch = [domainFilter];
+  } else {
+    domainsToSearch = Object.entries(catalog.domains)
+      .filter(([, d]) => catalogDomainNodeCount(d) > 0)
+      .map(([name, d]) => ({ name, score: scorePublicGraphDomainMatch(query, d) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .filter((d) => d.score > 0)
+      .map((d) => d.name);
+    if (domainsToSearch.length === 0) {
+      domainsToSearch = Object.entries(catalog.domains).filter(([, d]) => catalogDomainNodeCount(d) > 0).map(([name]) => name);
+    }
+  }
+
+  const indexResults = await Promise.allSettled(
+    domainsToSearch.map(async (domain) => {
+      const index = await fetchPublicGraphJSON<PublicGraphDomainIndex>(`${PUBLIC_GRAPH_BASE_URL}/domains/${domain}/index.json`);
+      return { domain, nodes: index.nodes };
+    })
+  );
+
+  const scored: Array<{ domain: string; node: PublicGraphIndexNode; score: number }> = [];
+  for (const result of indexResults) {
+    if (result.status === "fulfilled") {
+      const { domain, nodes } = result.value;
+      for (const node of nodes) {
+        const s = scorePublicGraphNodeMatch(query, node);
+        if (s > 0) scored.push({ domain, node, score: s });
+      }
+    }
+  }
+  scored.sort((a, b) => b.score - a.score || b.node.score - a.node.score);
+  const top = scored.slice(0, 5);
+  if (top.length === 0) return `No nodes found matching "${query}". Try listing domains to see what's available.`;
+
+  const lines = top.map((r, i) => {
+    const n = r.node;
+    return [
+      `### [${i + 1}] ${n.title}`,
+      `**Domain:** ${r.domain} | **Type:** ${n.type} | **Score:** ${n.score} | **Updated:** ${n.updated}`,
+      `**Tags:** ${(n.tags ?? []).join(", ")}`,
+      n.summary ? `**Summary:** ${n.summary}` : "",
+      `**Fetch:** domain="${r.domain}" node_id="${n.id}"`,
+    ].filter(Boolean).join("\n");
+  });
+  return `# kage-graph results for "${query}"\n\n${lines.join("\n\n---\n\n")}`;
+}
+
+export async function kageFetchPublicGraphNode(domain: string, nodeId: string): Promise<string> {
+  return fetchPublicGraphText(`${PUBLIC_GRAPH_BASE_URL}/domains/${domain}/nodes/${nodeId}.md`);
 }
 
 export function ensureMemoryDirs(projectDir: string): void {
@@ -13871,6 +14004,7 @@ const DECISION_INTELLIGENCE_TYPES = new Set<MemoryType>([
   "gotcha",
   "negative_result",
   "policy",
+  "proposal",
   "rationale",
   "runbook",
   "workflow",
@@ -16653,6 +16787,11 @@ function kageMetricsShallow(
 function inferLearningType(input: LearnInput): MemoryType {
   if (input.type) return input.type;
   const text = `${input.title ?? ""} ${input.learning}`.toLowerCase();
+  // Checked early and specifically: proposal language ("we should add retry logic
+  // because requests currently fail silently") legitimately co-occurs with bug/fail
+  // words describing what the proposed work addresses, so it must not lose to the
+  // bug_fix check below just because both patterns happen to match.
+  if (/(feature idea|feature proposal|proposing (a|to)|we should (build|add|create)|rfc:)/.test(text)) return "proposal";
   if (/(issue context|issue|hypothesis|blocked|unresolved|attempted fix)/.test(text)) return "issue_context";
   if (/(bug|fix|error|fail|failure|broken|regression)/.test(text)) return "bug_fix";
   if (/(code explanation|explains|data flow|invariant|coupling|module purpose)/.test(text)) return "code_explanation";
@@ -17538,12 +17677,27 @@ exit 0
   }
 
   if (agent === "gemini-cli") {
-    setSnippet(null, `gemini mcp add kage -- ${serverCommand} ${serverArgs.map((arg) => JSON.stringify(arg)).join(" ")}`, ["Run the command, then restart Gemini CLI if needed."]);
+    const geminiArgs = ["mcp", "add", "kage", "--", serverCommand, ...serverArgs];
+    setSnippet(null, `gemini ${geminiArgs.join(" ")}`, ["Run the command, then restart Gemini CLI if needed."], true);
+    if (options.write) {
+      try {
+        execFileSync("gemini", geminiArgs, { stdio: "ignore" });
+        result.wrote = true;
+      } catch (error) {
+        result.warnings.push(`could not run \`gemini\` automatically (${error instanceof Error ? error.message : String(error)}) — run the printed command yourself`);
+      }
+    }
     return result;
   }
 
   if (agent === "opencode") {
-    setSnippet(join(projectDir, "opencode.json"), JSON.stringify({ mcp: { kage: { type: "stdio", command: serverCommand, args: serverArgs } } }, null, 2), ["Merge this into opencode.json."]);
+    const path = join(projectDir, "opencode.json");
+    const serverEntry = { type: "stdio", command: serverCommand, args: serverArgs };
+    setSnippet(path, JSON.stringify({ mcp: { kage: serverEntry } }, null, 2), ["Merge this into opencode.json."], true);
+    if (options.write) {
+      upsertNestedMcpJson(path, "mcp", serverEntry);
+      result.wrote = true;
+    }
     return result;
   }
 
@@ -17555,6 +17709,12 @@ exit 0
     return result;
   }
 
+  // JSON-config agents: a plain `{ mcpServers: { kage: ... } }` merge is safe to write
+  // automatically. goose is deliberately excluded — its config.yaml is real YAML (may
+  // carry comments/anchors a JSON parser can't round-trip) and Kage has no YAML writer,
+  // so auto-writing there risks silently clobbering unrelated config. generic-mcp has no
+  // known path at all. Both stay print-only.
+  const jsonWriteAgents = new Set(["cursor", "windsurf", "cline", "roo-code", "kilo-code", "claude-desktop", "openclaw", "copilot", "hermes"]);
   const paths: Record<string, string> = {
     cursor: join(projectDir, ".cursor", "mcp.json"),
     windsurf: join(home, ".codeium", "windsurf", "mcp_config.json"),
@@ -17568,7 +17728,12 @@ exit 0
     hermes: join(home, ".hermes", "mcp.json"),
     "generic-mcp": "",
   };
-  setSnippet(paths[agent] || null, universal, [`Merge this MCP stdio config into ${agent}'s MCP settings.`, "Restart the agent after updating config."]);
+  const writeSupported = jsonWriteAgents.has(agent);
+  setSnippet(paths[agent] || null, universal, [`Merge this MCP stdio config into ${agent}'s MCP settings.`, "Restart the agent after updating config."], writeSupported);
+  if (options.write && writeSupported) {
+    upsertNestedMcpJson(paths[agent], "mcpServers", { command: serverCommand, args: serverArgs });
+    result.wrote = true;
+  }
   return result;
 }
 
@@ -17693,6 +17858,26 @@ function upsertTomlMcpBlock(text: string, block: string): string {
   return `${out.join("\n").trimEnd()}\n`;
 }
 
+// Merges a `{ [topKey]: { kage: serverEntry } }` MCP registration into an existing
+// JSON config file, preserving whatever else the tool already stores under topKey.
+// A malformed/non-object existing file is treated as empty rather than failing the
+// whole setup — this only ever ADDS the kage key, never destructively rewrites the
+// rest of the file's content when it does parse.
+function upsertNestedMcpJson(path: string, topKey: string, serverEntry: Record<string, unknown>): void {
+  ensureDir(dirname(path));
+  let config: Record<string, unknown> = {};
+  if (existsSync(path)) {
+    try {
+      const parsed = JSON.parse(readFileSync(path, "utf8"));
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) config = parsed as Record<string, unknown>;
+    } catch { /* unparseable existing file — start from an empty object rather than fail setup */ }
+  }
+  const existingBucket = config[topKey];
+  const bucket = existingBucket && typeof existingBucket === "object" && !Array.isArray(existingBucket) ? (existingBucket as Record<string, unknown>) : {};
+  config[topKey] = { ...bucket, kage: serverEntry };
+  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+}
+
 export function setupDoctor(projectDir: string, options: { homeDir?: string; serverPath?: string } = {}): AgentSetupDoctorItem[] {
   return SETUP_AGENTS.map((agent) => {
     const setup = setupAgent(agent, projectDir, { homeDir: options.homeDir, serverPath: options.serverPath });
@@ -17739,7 +17924,7 @@ function claudeHookEventConfigured(settings: Record<string, unknown>, event: str
 function claudeAmbientHookSummary(homeDir: string): AgentHookSummary {
   const settingsPath = join(homeDir, ".claude", "settings.json");
   const hookDir = join(homeDir, ".claude", "kage", "hooks");
-  const scriptPaths = [join(hookDir, "session-start.sh"), join(hookDir, "observe.sh"), join(hookDir, "kage-read-context.sh"), join(hookDir, "stop.sh")];
+  const scriptPaths = [join(hookDir, "session-start.sh"), join(hookDir, "observe.sh"), join(hookDir, "kage-read-context.sh"), join(hookDir, "kage-edit-context.sh"), join(hookDir, "stop.sh")];
   let settings: Record<string, unknown> = {};
   if (existsSync(settingsPath)) {
     const parsed = readJson<unknown>(settingsPath);
@@ -17840,6 +18025,7 @@ export function verifyAgentActivation(
       code_graph_works: codeGraphWorks,
       mcp_tool_reachable: mcpToolReachable,
       ambient_hooks_present: ambientHooksPresent,
+      ambient_hooks_supported: agent === "claude-code",
     },
     hook_summary: agent === "claude-code" ? hookSummary : undefined,
     config_path: setup.config_path,
@@ -18575,6 +18761,97 @@ export function kageSessionLearningLedger(
     ...reportWithoutBlock,
     context_block: learningLedgerContextBlock(reportWithoutBlock),
   };
+}
+
+function kageContextFilePathHints(query: string): string[] {
+  const matches = query.match(/[A-Za-z0-9_./@-]+\.(?:ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|kt|kts|rb|php|cs|c|h|cc|cpp|hpp|swift|json|md)\b/g) ?? [];
+  return [...new Set(matches.map((match) => match.replace(/^\.\//, "")).filter((match) => !/^https?:\/\//.test(match)))];
+}
+
+function kageContextWantsDependencyPath(query: string): boolean {
+  return /\b(connect|connected|dependency|depend|depends|path|impact|flow|trace)\b/i.test(query);
+}
+
+function kageContextRiskBlock(result: ReturnType<typeof kageRisk>): string {
+  const targets = Object.values(result.targets);
+  if (!targets.length) return "";
+  const lines = targets.slice(0, 5).map((item) => {
+    const coChange = item.git.co_change_partners.length
+      ? ` Co-change: ${item.git.co_change_partners.slice(0, 3).map((partner) => `${partner.file_path} (${partner.count})`).join(", ")}.`
+      : "";
+    return `- ${item.risk_summary}${coChange}`;
+  });
+  return `\n## Risk Signals\n${lines.join("\n")}`;
+}
+
+// Workflow pseudo-tool: the description itself is the documentation, so agents
+// absorb the loop just by listing tools. The MCP tool and `kage workflow` CLI
+// command both just return this text — it performs no action.
+export const KAGE_WORKFLOW_TEXT =
+  "Kage memory workflow (this tool performs no action; it returns this loop). " +
+  "1) Start every task with kage_context (project_dir + the task as query): it validates memory, recalls relevant packets, and queries the code and knowledge graphs in one call. " +
+  "2) Do the work, preferring repo memory over public context. " +
+  "3) Capture reusable learnings with kage_learn — bug causes and verified fixes, conventions, decisions, gotchas, run/test/build commands. Wrap anything that must never leave the repo in <private>...</private> tags; private spans are stripped before sharing. " +
+  "4) After meaningful file changes, call kage_refresh so indexes, graphs, and stale-memory checks stay current. " +
+  "5) Before finishing a branch, call kage_pr_summarize then kage_pr_check. " +
+  "Recall receipts show estimated tokens saved versus rediscovery; report memory quality with kage_feedback (helpful/wrong/stale).";
+
+// The single session-start entry point: validate + recall + code graph + knowledge
+// graph in one call, replacing the old separate validate/recall/code_graph/graph
+// sequence (see kage_context tool description). Shared by the MCP tool and the
+// `kage context` CLI command so both surfaces produce byte-identical output.
+export function kageContext(
+  projectDir: string,
+  query: string,
+  options: { limit?: number; targets?: string[]; changedFiles?: string[]; sessionId?: string } = {}
+): { context_block: string; validation_ok: boolean } {
+  const limit = options.limit ?? 5;
+  const validation = validateProject(projectDir);
+  const validationText = validation.ok ? "Memory healthy." : `Warnings: ${validation.warnings.join("; ")}`;
+  // recall already includes the code graph + knowledge-graph facts (its "## Related Graph
+  // Facts" section). We deliberately do NOT query the graph a second time here: doing so
+  // emitted a near-duplicate dump of the same edges which, with no size cap, blew past
+  // the response limit.
+  const recallResult = recall(projectDir, query, limit, false);
+  const explicitTargets = [...(options.targets ?? []), ...kageContextFilePathHints(query)];
+  const changedFiles = options.changedFiles ?? [];
+  const riskResult = explicitTargets.length || changedFiles.length ? kageRisk(projectDir, explicitTargets, changedFiles) : null;
+  const pathHints = kageContextFilePathHints(query);
+  const dependencyResult = kageContextWantsDependencyPath(query) && pathHints.length >= 2
+    ? kageDependencyPath(projectDir, pathHints[0], pathHints[1])
+    : null;
+  const reconciliation = kageMemoryReconciliation(projectDir, { sessionId: options.sessionId, limit: 5 });
+  const teammateBrief = kageTeammateBrief(projectDir, {
+    query,
+    targets: explicitTargets,
+    changedFiles,
+    recallResult,
+    riskResult,
+    reconciliation,
+  });
+  const learningLedger = options.sessionId && options.sessionId.trim()
+    ? kageSessionLearningLedger(projectDir, { sessionId: options.sessionId, limit: 20 })
+    : null;
+  const body = [
+    recallResult.context_block,
+    teammateBrief.context_block,
+    learningLedger ? learningLedger.context_block : "",
+    riskResult ? kageContextRiskBlock(riskResult) : "",
+    dependencyResult ? `\n## Dependency Path\n${dependencyResult.summary}${dependencyResult.path.length ? `\nPath: ${dependencyResult.path.join(" -> ")}` : ""}` : "",
+    reconciliation.unresolved_count ? `\n## Memory Reconciliation\n${reconciliation.agent_instruction}` : "",
+    `\n_${validationText}_`,
+  ].filter(Boolean).join("");
+  const gains = valueSummary(projectDir).today;
+  const gainsLine = gains.stale_withheld > 0
+    ? `\n\n_${gains.stale_withheld} stale memor${gains.stale_withheld === 1 ? "y" : "ies"} withheld today (cited code changed; run \`kage doctor\` to review)._`
+    : "";
+  // Backstop: per-field clamping + graph dedup keep this compact in practice, but never
+  // let a pathological repo overflow the response again. ~24k chars ≈ 6k tokens.
+  const MAX_CONTEXT_CHARS = 24000;
+  const cappedBody = body.length > MAX_CONTEXT_CHARS
+    ? `${body.slice(0, MAX_CONTEXT_CHARS)}\n\n_…kage context truncated to keep the response within limits; narrow your query for more specific memory._`
+    : body;
+  return { context_block: `${cappedBody}${gainsLine}`, validation_ok: validation.ok };
 }
 
 // Mechanical packets (branch change memory, prior auto-distilled drafts) never count as the

@@ -90,6 +90,7 @@ The Kage `type` maps to an OKF display string and back:
 | `runbook` | Runbook |
 | `bug_fix` | Bug Fix |
 | `decision` | Decision |
+| `proposal` | Proposal |
 | `rationale` | Rationale |
 | `convention` | Convention |
 | `workflow` | Workflow |

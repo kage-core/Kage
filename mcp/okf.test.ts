@@ -70,6 +70,8 @@ test("type vocabulary maps both directions", () => {
   assert.equal(kageType("Bug Fix"), "bug_fix");
   assert.equal(kageType("Negative Result"), "negative_result");
   assert.equal(kageType("Something Unknown"), "reference");
+  assert.equal(okfType("proposal"), "Proposal");
+  assert.equal(kageType("Proposal"), "proposal");
 });
 
 test("foreign OKF concept (no kage-state block) imports best-effort", () => {

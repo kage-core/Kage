@@ -40,6 +40,12 @@ import {
   installAgentPolicy,
   kageCleanupCandidates,
   kageCapabilityAudit,
+  kageContext,
+  kageFetchPublicGraphNode,
+  kageListPublicDomains,
+  kageSearchPublicGraph,
+  kageSessionLearningLedger,
+  KAGE_WORKFLOW_TEXT,
   kageContributors,
   kageContextSlots,
   kageDecisionIntelligence,
@@ -142,6 +148,7 @@ Core commands:
   kage scan --project <dir>                  truth report on any repo, in seconds (zero setup)
   kage init --project <dir>                  create repo memory (.agent_memory only)
   kage index --project <dir> [--full]        build/refresh code graph + indexes
+  kage context "<query>" --project <dir>     validate + recall + code graph + knowledge graph in one call
   kage recall "<query>" --project <dir>      grounded recall from repo memory
   kage learn --project <dir> ...             capture a learning as a memory packet
   kage gains --project <dir>                 what Kage saved you (tokens, cost, stale blocks)
@@ -181,7 +188,7 @@ Usage:
   kage refresh --project <dir> [--full] [--force] [--json]
   kage merge-packet <ours> <base> <theirs>      git merge driver for .agent_memory/packets/*.md
   kage gc --project <dir> [--dry-run] [--force] [--json]
-  kage compact --project <dir> [--dry-run] [--json]
+  kage compact --project <dir> [--execute] [--json]     dry-run by default; --execute prunes/deprecates for real
   kage verify --project <dir> [--id <packet-id>] [--json]
   kage suppressed --project <dir> [--json]
   kage pr summarize --project <dir> [--json]
@@ -241,6 +248,12 @@ Usage:
   kage graph "<query>" --project <dir> [--json]
   kage graph-registry --project <dir> [--json]
   kage embeddings build --project <dir> [--model Xenova/all-MiniLM-L6-v2] [--json]
+  kage context "<query>" --project <dir> [--limit <n>] [--targets a,b] [--changed-files a,b] [--session <id>] [--json]   the kage_context MCP tool, reproducible outside an agent session
+  kage community-domains                                list community knowledge-graph domains (untrusted, advisory)
+  kage community-search "<query>" [--domain <name>]      search the community knowledge graph (untrusted, advisory)
+  kage community-fetch --domain <name> --node <id>       fetch one community graph node
+  kage ledger --project <dir> [--session <id>] [--limit <n>] [--json]   this session's learning candidates: save/ignore/needs-evidence
+  kage workflow                                          print the Kage memory workflow loop (no action taken)
   kage recall "<query>" --project <dir> [--json] [--explain] [--embeddings] [--docs] [--max-context-tokens <n>] [--structural-hops <n>]
   kage docs-search "<query>" --project <dir> [--limit <n>] [--json]   search this repo's own committed docs (README, docs/**, *.md)
   kage file-context --project <dir> --path <file> [--json]
@@ -1114,7 +1127,11 @@ async function main(): Promise<void> {
 
   if (command === "compact") {
     const project = projectArg(args);
-    const dryRun = args.includes("--dry-run");
+    // Safe by default, matching kage_compact's MCP default (dry_run:true unless set
+    // false) — the CLI used to default to executing, the opposite safety posture of
+    // the exact same compactProject() call reached via MCP. --dry-run is still
+    // accepted (now a no-op) so existing scripts that pass it keep working.
+    const dryRun = !args.includes("--execute");
     const result = compactProject(project, { dryRun });
     if (args.includes("--json")) {
       console.log(JSON.stringify(result, null, 2));
@@ -1325,6 +1342,41 @@ async function main(): Promise<void> {
       for (const error of result.errors) console.log(`  - ${error}`);
       process.exitCode = 2;
     }
+    return;
+  }
+
+  if (command === "community-domains") {
+    console.log(await kageListPublicDomains());
+    return;
+  }
+
+  if (command === "community-search") {
+    const query = firstPositional(args);
+    if (!query) usage();
+    console.log(await kageSearchPublicGraph(query, takeArg(args, "--domain") ?? null));
+    return;
+  }
+
+  if (command === "community-fetch") {
+    const domain = takeArg(args, "--domain");
+    const nodeId = takeArg(args, "--node");
+    if (!domain || !nodeId) usage();
+    console.log(await kageFetchPublicGraphNode(domain, nodeId));
+    return;
+  }
+
+  if (command === "ledger") {
+    const result = kageSessionLearningLedger(projectArg(args), {
+      sessionId: takeArg(args, "--session"),
+      limit: args.includes("--limit") ? numberArg(args, "--limit", 50) : undefined,
+    });
+    if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
+    else console.log(result.context_block);
+    return;
+  }
+
+  if (command === "workflow") {
+    console.log(KAGE_WORKFLOW_TEXT);
     return;
   }
 
@@ -1593,11 +1645,13 @@ async function main(): Promise<void> {
     console.log(`  Evidence coverage: ${result.memory_graph.evidence_coverage_percent}%`);
     console.log(`  Average quality: ${result.memory_graph.average_quality_score}/100`);
     console.log(`  Duplicate candidates: ${result.memory_graph.duplicate_candidate_pairs}`);
-    console.log("\nToken savings:");
+    console.log("\nToken savings (whole-repo modeled estimate, not measured usage):");
     console.log(`  Indexed source tokens: ${result.savings.estimated_indexed_source_tokens}`);
     console.log(`  Memory tokens: ${result.savings.estimated_memory_tokens}`);
     console.log(`  Recall context tokens: ${result.savings.estimated_recall_context_tokens}`);
     console.log(`  Estimated tokens saved per recall: ${result.savings.estimated_tokens_saved_per_recall}`);
+    console.log(`  This models a typical recall against the whole indexed repo — it is not from real recall events.`);
+    console.log(`  For your actual cumulative savings: kage gains. For a reproducible before/after benchmark: kage savings.`);
     if (result.quality) {
       console.log("\nQuality:");
       console.log(`  Useful memory ratio: ${result.quality.useful_memory_ratio_percent}%`);
@@ -1668,6 +1722,7 @@ async function main(): Promise<void> {
       `(${usdOverridden ? "via KAGE_USD_PER_MTOK" : "Sonnet-class default — set KAGE_USD_PER_MTOK for your model"}). ` +
       `Ledger: .agent_memory/reports/value.json`
     );
+    console.log(`This is your actual cumulative usage. For a reproducible before/after benchmark: kage savings.`);
     return;
   }
 
@@ -2229,6 +2284,8 @@ async function main(): Promise<void> {
     console.log(`  Reproduce:  npx -y @kage-core/kage-graph-mcp savings --project . --json`);
     console.log("");
     console.log(`  ${result.caveats[0]}`);
+    console.log(`  This is a controlled benchmark, not your cumulative usage. For that: kage gains.`);
+    console.log("");
     return;
   }
 
@@ -2490,6 +2547,21 @@ async function main(): Promise<void> {
         console.log(`\n↳ saved ~${formatTokenCount(result.value_receipt.tokens_saved)} tokens vs reading source · ${result.value_receipt.stale_withheld} stale withheld`);
       }
     }
+    return;
+  }
+
+  if (command === "context") {
+    const query = firstPositional(args);
+    if (!query) usage();
+    const result = kageContext(projectArg(args), query, {
+      limit: args.includes("--limit") ? numberArg(args, "--limit", 5) : undefined,
+      targets: listArg(takeArg(args, "--targets")),
+      changedFiles: listArg(takeArg(args, "--changed-files")),
+      sessionId: takeArg(args, "--session"),
+    });
+    if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
+    else console.log(result.context_block);
+    if (!result.validation_ok) process.exitCode = 2;
     return;
   }
 

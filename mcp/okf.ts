@@ -39,6 +39,7 @@ const TYPE_DISPLAY: Record<MemoryType, string> = {
   runbook: "Runbook",
   bug_fix: "Bug Fix",
   decision: "Decision",
+  proposal: "Proposal",
   rationale: "Rationale",
   convention: "Convention",
   workflow: "Workflow",
