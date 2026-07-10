@@ -1,9 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { type Server, request as httpRequest } from "node:http";
+import { execFileSync } from "node:child_process";
 import { capture, recall } from "./kernel.js";
 import { startCloudServer } from "./cloud-server.js";
 import { cloudCreateTeam, cloudInvite, cloudPush, cloudPull, cloudList, cloudReview } from "./cloud-client.js";
@@ -194,4 +195,34 @@ test("kage cloud: dashboard shows cited paths for a grounded packet, not just it
     assert.match(page.body, /src\/checkout\.ts/);
     assert.doesNotMatch(page.body, /No cited paths/);
   });
+});
+
+test("cli.js loads on a Node without node:sqlite — every command works even when kage cloud can't", () => {
+  // node:sqlite only exists on Node 22.5+; this package declares Node 18+ support. cli.ts
+  // imports cloud-server.ts at the top level, so if cloud-server.ts ever imports node:sqlite
+  // eagerly again, EVERY kage command (not just cloud ones) crashes on Node 18-22.4 before
+  // main() even runs — this broke every command in this repo's own Pages CI (Node 20 runner)
+  // for several releases. Regression test: spawn a real subprocess with node:sqlite shadowed
+  // to throw exactly the error Node 20 throws, and confirm cli.js still loads and runs.
+  const shimDir = mkdtempSync(join(tmpdir(), "kage-no-sqlite-shim-"));
+  const shimPath = join(shimDir, "block-sqlite.cjs");
+  writeFileSync(
+    shimPath,
+    [
+      "const Module = require('module');",
+      "const origLoad = Module._load;",
+      "Module._load = function (request, parent, isMain) {",
+      "  if (request === 'node:sqlite') {",
+      "    const e = new Error('No such built-in module: node:sqlite');",
+      "    e.code = 'ERR_UNKNOWN_BUILTIN_MODULE';",
+      "    throw e;",
+      "  }",
+      "  return origLoad.apply(this, arguments);",
+      "};",
+    ].join("\n"),
+    "utf8"
+  );
+  const cli = join(__dirname, "cli.js");
+  const out = execFileSync("node", ["--require", shimPath, cli, "help"], { encoding: "utf8" });
+  assert.match(out, /Kage — code-grounded memory for coding agents/);
 });

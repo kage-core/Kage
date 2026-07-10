@@ -11,9 +11,19 @@
 // multi-team isolation beyond bearer tokens — treat it like any other self-hosted internal
 // tool (put it behind your own reverse proxy / VPN / auth layer before exposing it). Zero new
 // dependencies: node:http + node:sqlite, consistent with the rest of this package.
+//
+// node:sqlite only exists on Node 22.5+, but this package declares Node 18+ support (see
+// mcp/package.json engines) — so DatabaseSync is imported as a TYPE ONLY here (erased at
+// compile time) and required lazily inside openCloudDb(), the one place it's actually
+// constructed. That keeps every other command loadable on Node 18-22.4; only `kage cloud
+// serve` itself requires Node 22.5+, and it now fails with a clear message instead of
+// crashing the whole CLI at import time. An eager top-level `import { DatabaseSync }` here
+// previously broke EVERY `kage` command on Node < 22.5, including this repo's own Pages CI
+// (pinned to Node 20) — kernel.ts's queryClaudeMemStore() already used this exact guarded-
+// require pattern; this file just wasn't consistent with it despite the comment above.
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync } from "node:sqlite";
 import { randomBytes, createHash, randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
@@ -64,7 +74,22 @@ interface AuthedRequest {
 
 export function openCloudDb(dbPath: string): DatabaseSync {
   mkdirSync(dirname(dbPath), { recursive: true });
-  const db = new DatabaseSync(dbPath);
+  let DatabaseSyncCtor: typeof DatabaseSync;
+  try {
+    // Guarded require: node:sqlite only exists on Node 22.5+, and this package
+    // supports Node 18+. Compiled output is CJS, so require is available.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    ({ DatabaseSync: DatabaseSyncCtor } = require("node:sqlite") as typeof import("node:sqlite"));
+  } catch (error) {
+    throw new Error(
+      [
+        "kage cloud requires Node 22.5+ (for the built-in node:sqlite module).",
+        `node:sqlite said: ${error instanceof Error ? error.message : String(error)}`,
+        "Every other kage command works fine on Node 18+ — this gate is specific to the self-hosted team server.",
+      ].join("\n")
+    );
+  }
+  const db = new DatabaseSyncCtor(dbPath);
   db.exec(SCHEMA);
   return db;
 }
