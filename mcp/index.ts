@@ -80,6 +80,10 @@ import {
   setupDoctor,
   setContextSlot,
   supersedeMemory,
+  transitionWorkStage,
+  claimWorkItem,
+  linkImplements,
+  listWorkItems,
   validateProject,
   valueSummary,
   verifyAgentActivation,
@@ -87,6 +91,7 @@ import {
   type MemoryType,
   type ObservationEvent,
   type SetupAgent,
+  type WorkStage,
 } from "./kernel.js";
 import { driftCheck, formatCheckReport } from "./check.js";
 import { buildGraphRegistryManifest } from "./graph-registry.js";
@@ -723,6 +728,67 @@ export function listTools() {
       },
     },
     {
+      name: "kage_list_work_items",
+      description:
+        "List SDLC work items — proposal packets and their stage (proposed/claimed/in_review/done). Use this to find claimable work (stage: proposed) or check what's in review.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string", description: "Absolute path to the repository root." },
+          stage: { type: "string", enum: ["proposed", "claimed", "in_review", "done"], description: "Filter to one stage. Omit to list all." },
+        },
+        required: ["project_dir"],
+      },
+    },
+    {
+      name: "kage_claim_work_item",
+      description:
+        "Claim a proposed work item (a type: proposal packet at stage 'proposed') so you can implement it. Fails if it's already claimed by someone else. After implementing, call kage_link_implements to link your output and advance it to review.",
+      annotations: { title: "Claim a work item", readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string", description: "Absolute path to the repository root." },
+          packet_id: { type: "string", description: "Id of the proposal packet to claim." },
+          actor: { type: "string", description: "Your identity — used later to block you from self-approving your own work to done." },
+        },
+        required: ["project_dir", "packet_id", "actor"],
+      },
+    },
+    {
+      name: "kage_link_implements",
+      description:
+        "Link an output packet (whatever type already fits — decision, bug_fix, runbook, etc., captured with kage_learn/kage_capture) to the proposal it implements. Auto-advances the proposal from 'claimed' to 'in_review' once linked, signaling it's ready for a human (or a different agent) to review. This does not require a new packet type — capture your work normally, then link it.",
+      annotations: { title: "Link an output packet to the proposal it implements", readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string", description: "Absolute path to the repository root." },
+          output_packet_id: { type: "string", description: "Id of the packet documenting the completed work." },
+          proposal_packet_id: { type: "string", description: "Id of the proposal packet this implements." },
+          evidence: { type: "string", description: "What was done — files touched, tests run, etc." },
+        },
+        required: ["project_dir", "output_packet_id", "proposal_packet_id", "evidence"],
+      },
+    },
+    {
+      name: "kage_transition_work_item",
+      description:
+        "Move a work item between stages: proposed<->claimed, claimed<->in_review. This tool NEVER performs the terminal in_review -> done transition — that approval gate is deliberately human-only (kage gate review, TTY-interactive) or cryptographically-authenticated (kage cloud approve), never reachable by an agent through the MCP surface, so an agent can never approve its own work by calling a tool.",
+      annotations: { title: "Transition a work item's stage (not to done)", readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string", description: "Absolute path to the repository root." },
+          packet_id: { type: "string", description: "Id of the work item (proposal packet)." },
+          to_stage: { type: "string", enum: ["proposed", "claimed", "in_review"], description: "Target stage. 'done' is rejected — see description." },
+          actor: { type: "string", description: "Your identity." },
+          evidence: { type: "string", description: "Why this transition, optional." },
+        },
+        required: ["project_dir", "packet_id", "to_stage", "actor"],
+      },
+    },
+    {
       name: "kage_conflicts",
       description:
         "List repo-local memory packet pairs that contradict each other (same cited path, same subject, opposing claim). Resolve each with kage_supersede, or keep both intentionally.",
@@ -1329,6 +1395,64 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     const result = reverifyMemory(String(args?.project_dir ?? ""), String(args?.packet_id ?? ""), {
       evidence: typeof args?.evidence === "string" ? args.evidence : undefined,
       verifiedBy: typeof args?.verified_by === "string" ? args.verified_by : undefined,
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      isError: !result.ok,
+    };
+  }
+
+  if (name === "kage_list_work_items") {
+    const result = listWorkItems(String(args?.project_dir ?? ""), {
+      stage: typeof args?.stage === "string" ? (args.stage as WorkStage) : undefined,
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  if (name === "kage_claim_work_item") {
+    const result = claimWorkItem(String(args?.project_dir ?? ""), String(args?.packet_id ?? ""), String(args?.actor ?? ""));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      isError: !result.ok,
+    };
+  }
+
+  if (name === "kage_link_implements") {
+    const result = linkImplements(
+      String(args?.project_dir ?? ""),
+      String(args?.output_packet_id ?? ""),
+      String(args?.proposal_packet_id ?? ""),
+      String(args?.evidence ?? ""),
+    );
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      isError: !result.ok,
+    };
+  }
+
+  if (name === "kage_transition_work_item") {
+    const toStage = String(args?.to_stage ?? "");
+    if (toStage === "done") {
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            ok: false,
+            errors: [
+              "kage_transition_work_item never performs the terminal in_review -> done transition. " +
+                "That approval gate is human-only (kage gate review) or token-authenticated (kage cloud approve) — " +
+                "not reachable through the MCP surface, on purpose.",
+            ],
+          }, null, 2),
+        }],
+        isError: true,
+      };
+    }
+    const result = transitionWorkStage(String(args?.project_dir ?? ""), String(args?.packet_id ?? ""), toStage as WorkStage, {
+      actor: String(args?.actor ?? ""),
+      evidence: typeof args?.evidence === "string" ? args.evidence : undefined,
     });
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],

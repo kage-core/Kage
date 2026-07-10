@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import type { Stats } from "node:fs";
 import { availableParallelism, homedir, tmpdir } from "node:os";
 import { basename, delimiter, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -38,6 +38,15 @@ export type MemoryScope = "session" | "personal" | "repo" | "org" | "public";
 export type MemoryVisibility = "private" | "team" | "org" | "public";
 export type MemorySensitivity = "public" | "internal" | "confidential" | "blocked";
 
+// SDLC work-item position, independent of MemoryStatus. `status` answers "is this
+// trustworthy for recall"; `stage` answers "where is this in the SDLC." A `stage:
+// "done"` proposal can still later become `status: "superseded"` — these are
+// orthogonal axes and must stay that way. Only `type: "proposal"` packets carry a
+// stage in Phase 1; see transitionWorkStage(), the single function allowed to
+// write this field.
+export type WorkStage = "proposed" | "claimed" | "in_review" | "done";
+export const WORK_STAGES = ["proposed", "claimed", "in_review", "done"] as const;
+
 export interface MemoryPacket {
   schema_version: 2;
   id: string;
@@ -64,6 +73,9 @@ export interface MemoryPacket {
   // Git user.name at capture time — who on the team wrote this, surfaced in recall
   // and `kage review` so teammates see whose claim they're trusting, not just when.
   author_name?: string | null;
+  stage?: WorkStage;
+  claimed_by?: string | null;
+  claimed_at?: string | null;
 }
 
 // Per-symbol content fingerprint. Anchors a memory to the SPECIFIC symbols it is
@@ -1914,7 +1926,9 @@ export type MemoryAuditOperation =
   | "reject"
   | "supersede"
   | "deprecate"
-  | "delete";
+  | "delete"
+  | "claim"
+  | "transition";
 
 export interface MemoryAuditEntry {
   schema_version: 1;
@@ -4564,6 +4578,9 @@ export function validatePacket(packet: Partial<MemoryPacket>, source = "packet")
   if (packet.status && !["pending", "approved", "deprecated", "superseded"].includes(packet.status)) {
     errors.push(`${source}: invalid status ${packet.status}`);
   }
+  if (packet.stage && !(WORK_STAGES as readonly string[]).includes(packet.stage)) {
+    errors.push(`${source}: invalid stage ${packet.stage}`);
+  }
   if (typeof packet.confidence === "number" && (packet.confidence < 0 || packet.confidence > 1)) {
     errors.push(`${source}: confidence must be between 0 and 1`);
   }
@@ -4802,7 +4819,7 @@ function isPacketFile(name: string): boolean {
 // Read a packet file from disk, dispatching on format. Throws on an unparseable
 // file (same contract as the JSON reader it replaces); callers that tolerate bad
 // files go through tryReadPacket.
-function readPacketFromDisk(path: string): MemoryPacket {
+export function readPacketFromDisk(path: string): MemoryPacket {
   if (path.endsWith(".md")) {
     const packet = okfConceptToPacket(readFileSync(path, "utf8"));
     if (!packet) throw new Error(`not a parseable OKF concept: ${path}`);
@@ -4932,6 +4949,8 @@ export function kageMemoryAudit(projectDir: string, limit = 100): MemoryAuditRep
     supersede: 0,
     deprecate: 0,
     delete: 0,
+    claim: 0,
+    transition: 0,
   };
   for (const entry of entries) {
     totals[entry.operation] = Number(totals[entry.operation] || 0) + 1;
@@ -5221,7 +5240,7 @@ function gitBranch(projectDir: string): string | null {
   return readGit(projectDir, ["branch", "--show-current"]) || readGit(projectDir, ["rev-parse", "--short", "HEAD"]);
 }
 
-function gitUserName(projectDir: string): string | null {
+export function gitUserName(projectDir: string): string | null {
   return readGit(projectDir, ["config", "user.name"]) || null;
 }
 
@@ -17078,6 +17097,11 @@ export function capture(input: CaptureInput): CaptureResult {
     author_name: gitUserName(input.projectDir),
   };
   packet.edges = graphEdges;
+  // Only proposal packets carry an SDLC work stage (Phase 1 scope — see WorkStage).
+  // Claimable once approved; an ungrounded proposal routed to pending review still
+  // gets a stage so it's visible in `kage gate list`, just not claimable until a
+  // human approves it (claimWorkItem only reads from the approved packets dir).
+  if (type === "proposal") packet.stage = "proposed";
 
   const validation = validatePacket(packet);
   if (!validation.ok) return { ok: false, errors: validation.errors, warnings };
@@ -21121,6 +21145,260 @@ export function supersedeMemory(projectDir: string, oldPacketId: string, replace
     errors: [],
     warnings,
   };
+}
+
+// ---- SDLC work items (Phase 1) ----
+//
+// A work item IS a `type: "proposal"` memory packet carrying a `stage`. `status`
+// (trust: is this recall-worthy) and `stage` (SDLC position) are deliberately
+// independent axes — a `stage: "done"` proposal can still later become
+// `status: "superseded"` by a better one. Conflating them repeats the exact
+// fragility MemoryStatus already has (42+ scattered `.status = "..."` writers,
+// no single source of truth) — transitionWorkStage() below is the ONLY function
+// allowed to write `.stage`/`.claimed_by`/`.claimed_at`, on purpose.
+
+const WORK_STAGE_TRANSITIONS: Record<WorkStage, WorkStage[]> = {
+  proposed: ["claimed"],
+  claimed: ["in_review", "proposed"],
+  in_review: ["done", "claimed"],
+  done: [],
+};
+
+// Exclusive lock file per packet id, held for the duration of a stage
+// read-check-write. Guards against two callers (e.g. two agent pollers both
+// trying to claim the same proposal) racing on a check-then-write — a likely
+// first bug once multiple agent runners are actually polling for claimable
+// work, not a hypothetical edge case. Zero new dependencies: a plain exclusive
+// file create (the `wx` flag fails if the file already exists), consistent
+// with the rest of this package.
+function withWorkItemLock<T>(projectDir: string, packetId: string, fn: () => T): T {
+  const lockDir = join(memoryRoot(projectDir), "locks");
+  ensureDir(lockDir);
+  const lockPath = join(lockDir, `work-${createHash("sha256").update(packetId).digest("hex").slice(0, 16)}.lock`);
+  let fd: number;
+  try {
+    fd = openSync(lockPath, "wx");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      throw new Error(`Another process is already claiming or transitioning ${packetId} — try again in a moment.`);
+    }
+    throw error;
+  }
+  try {
+    return fn();
+  } finally {
+    closeSync(fd);
+    try { unlinkSync(lockPath); } catch { /* already gone */ }
+  }
+}
+
+export interface WorkStageTransitionResult {
+  ok: boolean;
+  project_dir: string;
+  packet_id: string;
+  from_stage: WorkStage | null;
+  to_stage: WorkStage;
+  actor: string;
+  errors: string[];
+}
+
+// The only function allowed to write MemoryPacket.stage/claimed_by/claimed_at.
+// Validates the transition table and blocks the actor who claimed a work item
+// from advancing it to "done" themselves — the terminal, human-approved gate.
+// This local check is a plain string comparison (spoofable by anything that can
+// pass --actor); the cryptographically stronger gate is cloud-server.ts's
+// approve/reject (bearer-token-hash based, see kageCloudApprove-adjacent code).
+// Present the two as different strength levels to callers, never as equivalent.
+export function transitionWorkStage(
+  projectDir: string,
+  packetId: string,
+  toStage: WorkStage,
+  options: { actor: string; evidence?: string },
+): WorkStageTransitionResult {
+  return withWorkItemLock(projectDir, packetId, () => {
+    ensureMemoryDirs(projectDir);
+    const result: WorkStageTransitionResult = {
+      ok: false,
+      project_dir: projectDir,
+      packet_id: packetId,
+      from_stage: null,
+      to_stage: toStage,
+      actor: options.actor,
+      errors: [],
+    };
+    const entries = loadPacketEntriesFromDir(packetsDir(projectDir));
+    const entry = entries.find((item) => item.packet.id === packetId);
+    if (!entry) {
+      result.errors.push(`Packet not found or not yet approved: ${packetId}`);
+      return result;
+    }
+    const packet = entry.packet;
+    if (packet.type !== "proposal") {
+      result.errors.push(`Only proposal packets carry a work stage (this packet is type: ${packet.type}).`);
+      return result;
+    }
+    const fromStage = packet.stage ?? "proposed";
+    result.from_stage = fromStage;
+    if (toStage === "claimed" && fromStage === "claimed" && packet.claimed_by) {
+      result.errors.push(`Already claimed by ${packet.claimed_by}.`);
+      return result;
+    }
+    if (fromStage === toStage) {
+      result.errors.push(`Already at stage ${toStage}.`);
+      return result;
+    }
+    const allowed = WORK_STAGE_TRANSITIONS[fromStage] ?? [];
+    if (!allowed.includes(toStage)) {
+      result.errors.push(`Cannot transition ${fromStage} -> ${toStage}. Allowed from ${fromStage}: ${allowed.join(", ") || "(terminal)"}`);
+      return result;
+    }
+    if (toStage === "done" && options.actor === packet.claimed_by) {
+      result.errors.push(
+        "self_transition_blocked: the actor who claimed this work item cannot advance it to done themselves " +
+          "— have someone else review it (kage gate review, or the cloud approve gate).",
+      );
+      return result;
+    }
+    const at = nowIso();
+    packet.stage = toStage;
+    packet.updated_at = at;
+    // Claiming (only from "proposed") sets who owns it; sending in_review back to
+    // claimed for changes preserves the existing claimant instead of reassigning
+    // it to whoever sent it back. Releasing back to "proposed" clears the claim.
+    if (toStage === "claimed" && fromStage === "proposed") {
+      packet.claimed_by = options.actor;
+      packet.claimed_at = at;
+    } else if (toStage === "proposed") {
+      packet.claimed_by = null;
+      packet.claimed_at = null;
+    }
+    writeJson(entry.path, packet);
+    recordMemoryAudit(projectDir, toStage === "claimed" ? "claim" : "transition", [packet], {
+      from_stage: fromStage,
+      to_stage: toStage,
+      actor: options.actor,
+      evidence: options.evidence ?? "",
+    });
+    buildIndexes(projectDir);
+    result.ok = true;
+    return result;
+  });
+}
+
+export interface ClaimWorkItemResult {
+  ok: boolean;
+  project_dir: string;
+  packet_id: string;
+  claimed_by: string;
+  errors: string[];
+}
+
+export function claimWorkItem(projectDir: string, packetId: string, actor: string): ClaimWorkItemResult {
+  const transition = transitionWorkStage(projectDir, packetId, "claimed", { actor, evidence: "claimed" });
+  return {
+    ok: transition.ok,
+    project_dir: projectDir,
+    packet_id: packetId,
+    claimed_by: actor,
+    errors: transition.errors,
+  };
+}
+
+export interface LinkImplementsResult {
+  ok: boolean;
+  project_dir: string;
+  output_packet_id: string;
+  proposal_packet_id: string;
+  auto_advanced: boolean;
+  errors: string[];
+}
+
+// Links an output packet (whatever type already fits — decision, bug_fix,
+// runbook...) back to the proposal it implements, via the same bidirectional
+// upsertPacketEdge() pattern supersedeMemory() already uses for
+// superseded_by/supersedes. No new packet type needed for the output — that's
+// the biggest reuse win in this design. Auto-advances the proposal claimed ->
+// in_review, since a linked output is the natural "ready for review" signal.
+export function linkImplements(
+  projectDir: string,
+  outputPacketId: string,
+  proposalPacketId: string,
+  evidence: string,
+): LinkImplementsResult {
+  ensureMemoryDirs(projectDir);
+  const result: LinkImplementsResult = {
+    ok: false,
+    project_dir: projectDir,
+    output_packet_id: outputPacketId,
+    proposal_packet_id: proposalPacketId,
+    auto_advanced: false,
+    errors: [],
+  };
+  if (outputPacketId === proposalPacketId) {
+    result.errors.push("A packet cannot implement itself.");
+    return result;
+  }
+  const entries = loadPacketEntriesFromDir(packetsDir(projectDir));
+  const outputEntry = entries.find((item) => item.packet.id === outputPacketId);
+  const proposalEntry = entries.find((item) => item.packet.id === proposalPacketId);
+  if (!outputEntry) result.errors.push(`Output packet not found: ${outputPacketId}`);
+  if (!proposalEntry) result.errors.push(`Proposal packet not found: ${proposalPacketId}`);
+  if (proposalEntry && proposalEntry.packet.type !== "proposal") {
+    result.errors.push(`${proposalPacketId} is type ${proposalEntry.packet.type}, not proposal — implements links only make sense against a proposal.`);
+  }
+  if (result.errors.length) return result;
+  const outputPacket = outputEntry!.packet;
+  const proposalPacket = proposalEntry!.packet;
+  const at = nowIso();
+  upsertPacketEdge(outputPacket, "implements", proposalPacket.id, evidence, at);
+  upsertPacketEdge(proposalPacket, "implemented_by", outputPacket.id, evidence, at);
+  outputPacket.updated_at = at;
+  proposalPacket.updated_at = at;
+  writeJson(outputEntry!.path, outputPacket);
+  writeJson(proposalEntry!.path, proposalPacket);
+  recordMemoryAudit(projectDir, "transition", [outputPacket, proposalPacket], {
+    relation: "implements",
+    output_packet_id: outputPacket.id,
+    proposal_packet_id: proposalPacket.id,
+    evidence,
+  });
+  buildIndexes(projectDir);
+  const stage = proposalPacket.stage ?? "proposed";
+  if (stage === "claimed") {
+    const transition = transitionWorkStage(projectDir, proposalPacket.id, "in_review", {
+      actor: outputPacket.author_name ?? "unknown",
+      evidence: `implemented by ${outputPacket.id}`,
+    });
+    result.auto_advanced = transition.ok;
+    if (!transition.ok) result.errors.push(...transition.errors.map((e) => `auto-advance skipped: ${e}`));
+  }
+  result.ok = true;
+  return result;
+}
+
+export interface WorkItemSummary {
+  id: string;
+  title: string;
+  stage: WorkStage;
+  claimed_by: string | null;
+  status: MemoryStatus;
+  updated_at: string;
+}
+
+export function listWorkItems(projectDir: string, options: { stage?: WorkStage } = {}): WorkItemSummary[] {
+  ensureMemoryDirs(projectDir);
+  const packets = loadPacketsFromDir(packetsDir(projectDir)).filter((packet) => packet.type === "proposal");
+  return packets
+    .map((packet) => ({
+      id: packet.id,
+      title: packet.title,
+      stage: packet.stage ?? "proposed",
+      claimed_by: packet.claimed_by ?? null,
+      status: packet.status,
+      updated_at: packet.updated_at,
+    }))
+    .filter((item) => !options.stage || item.stage === options.stage)
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
 }
 
 export function kageMemoryLineage(projectDir: string): MemoryLineageReport {

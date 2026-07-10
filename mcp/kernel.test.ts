@@ -137,6 +137,10 @@ import {
   setupDoctor,
   setContextSlot,
   supersedeMemory,
+  transitionWorkStage,
+  claimWorkItem,
+  linkImplements,
+  listWorkItems,
   structuralIndexDir,
   truthReport,
   truthScorecardSvg,
@@ -728,6 +732,181 @@ test("memory supersession records lineage and removes old packet from active rec
   assert.equal(lineage.totals.chains, 1);
   assert.ok(lineage.chains.some((chain) => chain.current_packet_id === replacement.packet!.id && chain.superseded_packet_ids.includes(oldPacket.packet!.id)));
   assert.ok(lineage.recommendations.some((item) => item.includes("current replacement")));
+});
+
+test("capturing a proposal auto-initializes stage: proposed; other types get no stage", () => {
+  const project = tempProject();
+  const proposal = capture({
+    projectDir: project,
+    title: "Add retry logic to sync client",
+    body: "We should add retry logic because transient network errors currently fail sync silently.",
+    type: "proposal",
+  });
+  assert.equal(proposal.packet?.stage, "proposed");
+  assert.equal(proposal.packet?.claimed_by, undefined);
+
+  const decision = capture({
+    projectDir: project,
+    title: "Use idempotency keys for retries",
+    body: "Decision: retries use idempotency keys to avoid double-charging.",
+    type: "decision",
+  });
+  assert.equal(decision.packet?.stage, undefined);
+});
+
+test("claimWorkItem: proposed -> claimed sets claimed_by, and blocks a second claim", () => {
+  const project = tempProject();
+  const proposal = capture({
+    projectDir: project,
+    title: "Add retry logic to sync client",
+    body: "We should add retry logic to the sync client for transient network errors.",
+    type: "proposal",
+  });
+  const packetId = proposal.packet!.id;
+
+  const claim = claimWorkItem(project, packetId, "agent-a");
+  assert.equal(claim.ok, true);
+  assert.equal(claim.claimed_by, "agent-a");
+
+  const items = listWorkItems(project);
+  const item = items.find((i) => i.id === packetId);
+  assert.equal(item?.stage, "claimed");
+  assert.equal(item?.claimed_by, "agent-a");
+
+  const secondClaim = claimWorkItem(project, packetId, "agent-b");
+  assert.equal(secondClaim.ok, false);
+  assert.match(secondClaim.errors.join(" "), /already claimed by agent-a/i);
+});
+
+test("transitionWorkStage rejects an invalid jump and enforces the transition table", () => {
+  const project = tempProject();
+  const proposal = capture({
+    projectDir: project,
+    title: "Add caching layer",
+    body: "We should add a caching layer for repeated recall queries.",
+    type: "proposal",
+  });
+  const packetId = proposal.packet!.id;
+
+  const invalidJump = transitionWorkStage(project, packetId, "done", { actor: "agent-a" });
+  assert.equal(invalidJump.ok, false);
+  assert.match(invalidJump.errors.join(" "), /Cannot transition proposed -> done/);
+
+  const nonProposalType = capture({ projectDir: project, title: "A decision", body: "Some decision body text here.", type: "decision" });
+  const nonProposalResult = transitionWorkStage(project, nonProposalType.packet!.id, "claimed", { actor: "agent-a" });
+  assert.equal(nonProposalResult.ok, false);
+  assert.match(nonProposalResult.errors.join(" "), /Only proposal packets carry a work stage/);
+});
+
+test("transitionWorkStage blocks the claimant from self-approving to done, allows a different actor", () => {
+  const project = tempProject();
+  const proposal = capture({
+    projectDir: project,
+    title: "Add rate limiting",
+    body: "We should add rate limiting to the proxy to avoid hammering the upstream API.",
+    type: "proposal",
+  });
+  const packetId = proposal.packet!.id;
+  claimWorkItem(project, packetId, "agent-a");
+  transitionWorkStage(project, packetId, "in_review", { actor: "agent-a", evidence: "implementation done" });
+
+  const selfApprove = transitionWorkStage(project, packetId, "done", { actor: "agent-a" });
+  assert.equal(selfApprove.ok, false);
+  assert.match(selfApprove.errors.join(" "), /self_transition_blocked/);
+
+  const humanApprove = transitionWorkStage(project, packetId, "done", { actor: "a-human-reviewer" });
+  assert.equal(humanApprove.ok, true);
+  assert.equal(humanApprove.from_stage, "in_review");
+  assert.equal(humanApprove.to_stage, "done");
+});
+
+test("in_review -> claimed (send-back) preserves the original claimant, does not reassign to the reviewer", () => {
+  const project = tempProject();
+  const proposal = capture({
+    projectDir: project,
+    title: "Add structured logging",
+    body: "We should add structured logging to the daemon for easier debugging.",
+    type: "proposal",
+  });
+  const packetId = proposal.packet!.id;
+  claimWorkItem(project, packetId, "agent-a");
+  transitionWorkStage(project, packetId, "in_review", { actor: "agent-a" });
+
+  const sentBack = transitionWorkStage(project, packetId, "claimed", { actor: "a-human-reviewer", evidence: "needs changes" });
+  assert.equal(sentBack.ok, true);
+  const items = listWorkItems(project);
+  const item = items.find((i) => i.id === packetId);
+  assert.equal(item?.claimed_by, "agent-a", "send-back must not reassign the claim to the reviewer");
+});
+
+test("linkImplements creates bidirectional edges and auto-advances claimed -> in_review", () => {
+  const project = tempProject();
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "src", "sync-client.ts"), "export function sync() { return true; }\n", "utf8");
+  const proposal = capture({
+    projectDir: project,
+    title: "Add retry logic to sync client",
+    body: "We should add retry logic because transient network errors currently fail sync silently.",
+    type: "proposal",
+  });
+  const proposalId = proposal.packet!.id;
+  claimWorkItem(project, proposalId, "agent-a");
+
+  const output = capture({
+    projectDir: project,
+    title: "Sync client retry logic",
+    body: "Implemented retry logic in the sync client, 3 attempts, exponential backoff.",
+    type: "decision",
+    paths: ["src/sync-client.ts"],
+  });
+  const outputId = output.packet!.id;
+
+  const link = linkImplements(project, outputId, proposalId, "src/sync-client.ts, tests green");
+  assert.equal(link.ok, true);
+  assert.equal(link.auto_advanced, true);
+
+  const items = listWorkItems(project);
+  const proposalItem = items.find((i) => i.id === proposalId);
+  assert.equal(proposalItem?.stage, "in_review");
+
+  const approved = loadApprovedPackets(project);
+  const outputPacket = approved.find((p) => p.id === outputId)!;
+  const proposalPacket = approved.find((p) => p.id === proposalId)!;
+  assert.equal(outputPacket.edges.some((e) => e.relation === "implements" && e.to === proposalId), true);
+  assert.equal(proposalPacket.edges.some((e) => e.relation === "implemented_by" && e.to === outputId), true);
+});
+
+test("linkImplements refuses to link against a non-proposal packet, and refuses self-linking", () => {
+  const project = tempProject();
+  const decisionA = capture({ projectDir: project, title: "Decision A", body: "Body A text here for the test.", type: "decision" });
+  const decisionB = capture({ projectDir: project, title: "Decision B", body: "Body B text here for the test.", type: "decision" });
+  const wrongType = linkImplements(project, decisionA.packet!.id, decisionB.packet!.id, "evidence");
+  assert.equal(wrongType.ok, false);
+  assert.match(wrongType.errors.join(" "), /not proposal/);
+
+  const proposal = capture({ projectDir: project, title: "A proposal", body: "We should add feature X to the system.", type: "proposal" });
+  const selfLink = linkImplements(project, proposal.packet!.id, proposal.packet!.id, "evidence");
+  assert.equal(selfLink.ok, false);
+  assert.match(selfLink.errors.join(" "), /cannot implement itself/);
+});
+
+test("listWorkItems only returns proposal packets and filters by stage", () => {
+  const project = tempProject();
+  capture({ projectDir: project, title: "Proposal one", body: "We should add feature one to the system.", type: "proposal" });
+  const p2 = capture({ projectDir: project, title: "Proposal two", body: "We should add feature two to the system.", type: "proposal" });
+  capture({ projectDir: project, title: "Unrelated decision", body: "Some decision body text goes here for the test.", type: "decision" });
+  claimWorkItem(project, p2.packet!.id, "agent-a");
+
+  const all = listWorkItems(project);
+  assert.equal(all.length, 2);
+  assert.equal(all.every((item) => item.id !== undefined), true);
+
+  const claimed = listWorkItems(project, { stage: "claimed" });
+  assert.equal(claimed.length, 1);
+  assert.equal(claimed[0].id, p2.packet!.id);
+
+  const proposed = listWorkItems(project, { stage: "proposed" });
+  assert.equal(proposed.length, 1);
 });
 
 test("memory lineage report flags superseded packets without replacement links", () => {

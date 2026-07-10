@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { callTool, listTools } from "./index.js";
-import { initProject, buildIndexes, capture } from "./kernel.js";
+import { initProject, buildIndexes, capture, claimWorkItem } from "./kernel.js";
 
 if (!process.env.KAGE_HOME) process.env.KAGE_HOME = mkdtempSync(join(tmpdir(), "kage-cov-home-"));
 
@@ -32,7 +32,14 @@ function setupFixture() {
   const a = capture({ projectDir: project, title: "Coverage packet A", body: "A grounded note about src/app.js used for feedback coverage in this fixture.", type: "reference", paths: ["src/app.js"] });
   const b = capture({ projectDir: project, title: "Coverage packet B", body: "A grounded note about src/core.js to be superseded during coverage.", type: "reference", paths: ["src/core.js"] });
   const c = capture({ projectDir: project, title: "Coverage packet C", body: "The replacement note about src/core.js for supersede coverage.", type: "reference", paths: ["src/core.js"] });
-  return { project, ids: { a: a.packet!.id, b: b.packet!.id, c: c.packet!.id } };
+  // Work-item fixtures: d for the claim-tool test, e (pre-claimed) + f (its
+  // output) for the link-implements and transition-tool tests — dedicated
+  // packets so these don't depend on tool iteration order.
+  const d = capture({ projectDir: project, title: "Coverage proposal D", body: "We should add a coverage feature D to the system.", type: "proposal", allowMissingPaths: true });
+  const e = capture({ projectDir: project, title: "Coverage proposal E", body: "We should add a coverage feature E to the system.", type: "proposal", allowMissingPaths: true });
+  claimWorkItem(project, e.packet!.id, "coverage-agent");
+  const f = capture({ projectDir: project, title: "Coverage packet F", body: "Implemented coverage feature E in src/app.js.", type: "decision", paths: ["src/app.js"] });
+  return { project, ids: { a: a.packet!.id, b: b.packet!.id, c: c.packet!.id, d: d.packet!.id, e: e.packet!.id, f: f.packet!.id } };
 }
 
 const { project, ids } = setupFixture();
@@ -56,6 +63,9 @@ function argsFor(name: string): Record<string, unknown> {
     kage_distill: { ...base, session_id: "cov" },
     kage_dependency_path: { ...base, from: "src/app.js", to: "src/core.js" },
     kage_verify_citations: { ...base },
+    kage_claim_work_item: { ...base, packet_id: ids.d, actor: "coverage-agent" },
+    kage_link_implements: { ...base, output_packet_id: ids.f, proposal_packet_id: ids.e, evidence: "coverage test" },
+    kage_transition_work_item: { ...base, packet_id: ids.e, to_stage: "in_review", actor: "coverage-agent" },
   };
   return overrides[name] ?? base;
 }
@@ -85,6 +95,25 @@ test("every registered MCP tool is reachable and returns content (no orphan hand
     });
   }
   assert.deepEqual(failures, [], `tools with broken handlers: ${failures.join("; ")}`);
+});
+
+test("kage_transition_work_item never performs the terminal in_review -> done transition, even for a real in_review item", async () => {
+  const proposal = capture({ projectDir: project, title: "Coverage proposal — never-done", body: "We should add a never-approved-via-mcp feature.", type: "proposal", allowMissingPaths: true });
+  const packetId = proposal.packet!.id;
+  claimWorkItem(project, packetId, "coverage-agent");
+  const output = capture({ projectDir: project, title: "Coverage output — never-done", body: "Implemented the never-approved-via-mcp feature.", type: "decision", paths: ["src/app.js"] });
+  const link = await callTool("kage_link_implements", { project_dir: project, output_packet_id: output.packet!.id, proposal_packet_id: packetId, evidence: "coverage" });
+  assert.equal(Boolean(link.isError), false);
+
+  const result = await callTool("kage_transition_work_item", { project_dir: project, packet_id: packetId, to_stage: "done", actor: "coverage-agent" });
+  assert.equal(result.isError, true);
+  const body = JSON.parse((result.content[0] as { text: string }).text);
+  assert.equal(body.ok, false);
+  assert.match(body.errors.join(" "), /never performs the terminal in_review -> done transition/);
+
+  const items = (await callTool("kage_list_work_items", { project_dir: project, stage: "in_review" })).content;
+  const listed = JSON.parse((items[0] as { text: string }).text) as Array<{ id: string; stage: string }>;
+  assert.equal(listed.some((item) => item.id === packetId && item.stage === "in_review"), true, "the item must still be in_review, not done");
 });
 
 test("network tools are registered (in full mode) even though offline-skipped", () => {

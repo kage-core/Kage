@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { type Server, request as httpRequest } from "node:http";
 import { execFileSync } from "node:child_process";
-import { capture, recall } from "./kernel.js";
+import { capture, recall, claimWorkItem, linkImplements } from "./kernel.js";
 import { startCloudServer } from "./cloud-server.js";
 import { cloudCreateTeam, cloudInvite, cloudPush, cloudPull, cloudList, cloudReview } from "./cloud-client.js";
 
@@ -194,6 +194,62 @@ test("kage cloud: dashboard shows cited paths for a grounded packet, not just it
     assert.match(page.body, /Cites:/);
     assert.match(page.body, /src\/checkout\.ts/);
     assert.doesNotMatch(page.body, /No cited paths/);
+  });
+});
+
+test("kage cloud: a work item's stage and claimed_by ride through push/approve unmodified", async () => {
+  await withServer(async (url) => {
+    const team = await cloudCreateTeam(url, "SDLC Team");
+    const project = tempProject();
+    const proposal = capture({
+      projectDir: project,
+      title: "Add retry logic to the sync client",
+      body: "We should add retry logic to the sync client because transient network errors currently fail the whole sync silently.",
+      type: "proposal",
+      allowMissingPaths: true,
+    });
+    const proposalId = proposal.packet!.id;
+    assert.equal(proposal.packet!.stage, "proposed");
+
+    const claim = claimWorkItem(project, proposalId, "agent-a-session-7f3");
+    assert.equal(claim.ok, true);
+
+    const output = capture({
+      projectDir: project,
+      title: "Sync client retry logic",
+      body: "Implemented retry logic, 3 attempts, exponential backoff.",
+      type: "decision",
+      allowMissingPaths: true,
+    });
+    const link = linkImplements(project, output.packet!.id, proposalId, "mcp/sync-client.ts, tests green");
+    assert.equal(link.ok, true);
+    assert.equal(link.auto_advanced, true);
+
+    // Push happens while the proposal is in_review — the server has never heard
+    // of "stage" or "claimed_by", it just stores whatever packet_json it's given.
+    const pushed = await cloudPush(url, team.team_id, team.token, project);
+    assert.equal(pushed.submitted, 2); // proposal + its linked output
+
+    const pending = await cloudList(url, team.team_id, team.token, "pending");
+    const pendingProposal = pending.find((entry) => entry.packet.id === proposalId);
+    assert.ok(pendingProposal, "proposal must have been pushed");
+    assert.equal(pendingProposal!.packet.stage, "in_review");
+    assert.equal(pendingProposal!.packet.claimed_by, "agent-a-session-7f3");
+
+    // A genuinely different teammate approves — self-approval is still blocked
+    // regardless of the packet carrying work-item fields.
+    await assert.rejects(() => cloudReview(url, team.team_id, team.token, proposalId, "approve"), /self_approval_blocked|403/);
+    const reviewer = await cloudInvite(url, team.team_id, team.token, "reviewer");
+    const approval = await cloudReview(url, team.team_id, reviewer.token, proposalId, "approve");
+    assert.equal(approval.status, "approved");
+
+    // stage/claimed_by must have survived the approve round-trip unmodified — the
+    // server's approve only ever touches `status`, never work-item fields.
+    const approved = await cloudList(url, team.team_id, team.token, "approved");
+    const approvedProposal = approved.find((entry) => entry.packet.id === proposalId);
+    assert.ok(approvedProposal, "proposal must be in the approved list");
+    assert.equal(approvedProposal!.packet.stage, "in_review");
+    assert.equal(approvedProposal!.packet.claimed_by, "agent-a-session-7f3");
   });
 });
 

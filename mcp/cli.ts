@@ -16,6 +16,7 @@ import {
   benchmarkSavings,
   teamMemoryReport,
   writeTeamLink,
+  readTeamLink,
   benchmarkCodingMemoryQuality,
   benchmarkMemoryScale,
   benchmarkTrust,
@@ -83,6 +84,7 @@ import {
   PACKET_MERGE_DRIVER_CONFIG,
   loadPendingPackets,
   MEMORY_TYPES,
+  WORK_STAGES,
   observe,
   prCheck,
   prSummarize,
@@ -115,6 +117,12 @@ import {
   staleCatch,
   formatStaleCatch,
   supersedeMemory,
+  transitionWorkStage,
+  claimWorkItem,
+  linkImplements,
+  listWorkItems,
+  loadApprovedPackets,
+  gitUserName,
   kageConflicts,
   syncPersonal,
   syncSetup,
@@ -132,6 +140,8 @@ import {
   type MemoryType,
   type ObservationEvent,
   type SetupAgent,
+  type WorkStage,
+  type WorkStageTransitionResult,
 } from "./kernel.js";
 import { buildGraphRegistryManifest } from "./graph-registry.js";
 import { checkReportMarkdown, driftCheck, formatCheckReport, kageCheckWorkflowYaml, writeCheckBaseline } from "./check.js";
@@ -153,6 +163,7 @@ Core commands:
   kage learn --project <dir> ...             capture a learning as a memory packet
   kage gains --project <dir>                 what Kage saved you (tokens, cost, stale blocks)
   kage team --project <dir>                  team memory health: contributors, pending review, stale, contradictions
+  kage gate list --project <dir>             SDLC work items (proposals) and their stage; kage gate review to approve
   kage verify --project <dir>                check memory citations against code
   kage setup <agent> --project <dir> --write wire your agent (claude-code, codex, cursor, ...)
   kage doctor --project <dir>                health check
@@ -284,6 +295,11 @@ Usage:
   kage registry --project <dir> [--json]
   kage changelog --project <dir> [--days <n>] [--json]
   kage review --project <dir>
+  kage claim --packet <id> --project <dir> [--actor <name>] [--json]
+  kage implements --packet <output-id> --proposal <proposal-id> --evidence <text> --project <dir> [--json]
+  kage stage --packet <id> --to <proposed|claimed|in_review> --project <dir> [--actor <name>] [--evidence <text>] [--json]
+  kage gate list --project <dir> [--stage <stage>] [--json]
+  kage gate review --project <dir>
   kage validate --project <dir>
 
 Types:
@@ -366,6 +382,43 @@ async function review(projectDir: string): Promise<void> {
       } else if (answer === "r") {
         const path = rejectPending(projectDir, packet.id);
         console.log(`Rejected: ${path}`);
+      } else {
+        console.log("Skipped.");
+      }
+    }
+  } finally {
+    rl.close();
+  }
+}
+
+// The terminal in_review -> done transition is deliberately reachable ONLY here
+// (TTY-interactive) or via the cloud path's token-authenticated approve — never
+// as a scriptable, agent-callable command or MCP tool. `kage stage` (the generic
+// escape hatch below) explicitly refuses that one edge non-interactively for the
+// same reason. This local gate is a plain actor-string comparison — weaker than
+// the cloud path's cryptographic token-hash check; say so if a reviewer asks.
+async function gateReview(projectDir: string): Promise<void> {
+  const inReview = listWorkItems(projectDir, { stage: "in_review" });
+  if (inReview.length === 0) {
+    console.log("No work items in review.");
+    return;
+  }
+  const rl = createInterface({ input, output });
+  try {
+    for (const item of inReview) {
+      console.log("\n─────────────────────────────────────────");
+      console.log(`Title:      ${item.title}`);
+      console.log(`ID:         ${item.id}`);
+      console.log(`Claimed by: ${item.claimed_by ?? "(unclaimed)"}`);
+      console.log(`Status:     ${item.status}`);
+      const answer = (await rl.question("\n(a) approve -> done  (b) send back to claimed  (s) skip  (q) quit: ")).trim().toLowerCase();
+      if (answer === "q") break;
+      if (answer === "a" || answer === "b") {
+        const actor = (await rl.question("Your name/identity (for the self-approval check): ")).trim() || gitUserName(projectDir) || "unknown";
+        const toStage: WorkStage = answer === "a" ? "done" : "claimed";
+        const result = transitionWorkStage(projectDir, item.id, toStage, { actor, evidence: answer === "a" ? "kage gate review: approved" : "kage gate review: sent back" });
+        if (result.ok) console.log(`${toStage === "done" ? "Approved" : "Sent back"}: ${item.id}`);
+        else console.log(`Failed: ${result.errors.join("; ")}`);
       } else {
         console.log("Skipped.");
       }
@@ -533,8 +586,24 @@ async function main(): Promise<void> {
       const packetId = takeArg(args, "--packet");
       if (!packetId) { console.error(`Usage: kage cloud ${sub} --server <url> --team <team-id> --token <token> --packet <packet-id>`); process.exit(2); }
       const result = await cloudReview(server!, teamId!, token!, packetId, sub);
-      if (args.includes("--json")) { console.log(JSON.stringify(result, null, 2)); return; }
+      let workItemResult: WorkStageTransitionResult | null = null;
+      if (sub === "approve" && result.status === "approved") {
+        const project = projectArg(args);
+        const local = loadApprovedPackets(project).find((p) => p.id === packetId);
+        if (local && local.type === "proposal" && local.stage === "in_review") {
+          workItemResult = transitionWorkStage(project, packetId, "done", {
+            actor: gitUserName(project) ?? "cloud-approved",
+            evidence: "kage cloud approve: approved by a teammate on Kage Cloud",
+          });
+        }
+      }
+      if (args.includes("--json")) { console.log(JSON.stringify({ ...result, work_item: workItemResult }, null, 2)); return; }
       console.log(`Packet ${packetId}: ${result.status}`);
+      if (workItemResult) {
+        console.log(workItemResult.ok
+          ? `  Work item advanced to done (non-forgeable cloud approval).`
+          : `  Work item stage NOT advanced: ${workItemResult.errors.join("; ")}`);
+      }
       return;
     }
 
@@ -2782,6 +2851,109 @@ async function main(): Promise<void> {
   if (command === "review") {
     await review(projectArg(args));
     return;
+  }
+
+  if (command === "claim") {
+    const packetId = takeArg(args, "--packet");
+    if (!packetId) usage();
+    const project = projectArg(args);
+    const actor = takeArg(args, "--actor") ?? gitUserName(project) ?? "unknown";
+    const result = claimWorkItem(project, packetId!, actor);
+    if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
+    else if (result.ok) console.log(`Claimed ${packetId} as ${actor}.`);
+    else console.log(`Claim failed: ${result.errors.join("; ")}`);
+    if (!result.ok) process.exit(2);
+    return;
+  }
+
+  if (command === "implements") {
+    const outputId = takeArg(args, "--packet");
+    const proposalId = takeArg(args, "--proposal");
+    if (!outputId || !proposalId) usage();
+    const project = projectArg(args);
+    const evidence = takeArg(args, "--evidence") ?? "";
+    const result = linkImplements(project, outputId!, proposalId!, evidence);
+    // Cloud glue: if this repo has a team linked (`kage cloud link`) and the
+    // proposal just advanced to in_review, push it so a teammate can approve it
+    // through the non-forgeable, token-authenticated gate (see `kage cloud
+    // approve`'s matching glue below) instead of the weaker local `kage gate
+    // review`. Best-effort — a push failure never fails the link itself.
+    let cloudPushResult: Awaited<ReturnType<typeof cloudPush>> | null = null;
+    if (result.ok && result.auto_advanced) {
+      const link = readTeamLink(project);
+      if (link) {
+        try {
+          cloudPushResult = await cloudPush(link.server, link.team_id, link.token, project);
+        } catch (error) {
+          cloudPushResult = { submitted: 0, failed: [{ title: proposalId!, reason: error instanceof Error ? error.message : String(error) }] };
+        }
+      }
+    }
+    if (args.includes("--json")) console.log(JSON.stringify({ ...result, cloud_push: cloudPushResult }, null, 2));
+    else if (result.ok) {
+      console.log(`Linked ${outputId} implements ${proposalId}.`);
+      if (result.auto_advanced) console.log(`  ${proposalId} advanced to in_review.`);
+      if (cloudPushResult) {
+        console.log(cloudPushResult.failed.length
+          ? `  Cloud push failed: ${cloudPushResult.failed.map((f) => f.reason).join("; ")}`
+          : `  Pushed to the team's Kage Cloud for review (kage cloud approve).`);
+      }
+    } else {
+      console.log(`Link failed: ${result.errors.join("; ")}`);
+    }
+    if (!result.ok) process.exit(2);
+    return;
+  }
+
+  if (command === "stage") {
+    const packetId = takeArg(args, "--packet");
+    const toStage = takeArg(args, "--to") as WorkStage | undefined;
+    if (!packetId || !toStage || !(WORK_STAGES as readonly string[]).includes(toStage)) {
+      console.error(`Usage: kage stage --packet <id> --to <${WORK_STAGES.join("|")}> --actor <name>`);
+      process.exit(2);
+    }
+    const project = projectArg(args);
+    const actor = takeArg(args, "--actor") ?? gitUserName(project) ?? "unknown";
+    // The terminal in_review -> done edge is not reachable from this non-interactive
+    // command — only `kage gate review` (TTY-interactive) or the cloud approve gate
+    // (token-authenticated) can perform it. See gateReview()'s comment for why.
+    if (toStage === "done") {
+      console.error("kage stage cannot advance a work item to done non-interactively. Use `kage gate review` or `kage cloud approve`.");
+      process.exit(2);
+    }
+    const evidence = takeArg(args, "--evidence") ?? "";
+    const result = transitionWorkStage(project, packetId, toStage, { actor, evidence });
+    if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
+    else if (result.ok) console.log(`${packetId}: ${result.from_stage} -> ${result.to_stage}`);
+    else console.log(`Transition failed: ${result.errors.join("; ")}`);
+    if (!result.ok) process.exit(2);
+    return;
+  }
+
+  if (command === "gate") {
+    const sub = args[1];
+    if (sub === "review") {
+      await gateReview(projectArg(args));
+      return;
+    }
+    if (sub === "list" || sub === undefined) {
+      const project = projectArg(args);
+      const stage = takeArg(args, "--stage") as WorkStage | undefined;
+      const items = listWorkItems(project, { stage });
+      if (args.includes("--json")) {
+        console.log(JSON.stringify(items, null, 2));
+        return;
+      }
+      if (!items.length) {
+        console.log(stage ? `No work items at stage ${stage}.` : "No work items.");
+        return;
+      }
+      for (const item of items) {
+        console.log(`${item.stage.padEnd(10)} ${item.id}  ${item.title}${item.claimed_by ? `  (claimed by ${item.claimed_by})` : ""}`);
+      }
+      return;
+    }
+    usage();
   }
 
   if (command === "validate") {

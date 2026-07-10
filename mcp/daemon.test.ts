@@ -5,7 +5,7 @@ import { createServer, get } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { daemonContextReport, daemonDoctor, startLiveFeed, viewerBenchmarkReport, viewerRedirectLocation, viewerReportPaths, viewerStaticHeaders, viewerUrl } from "./daemon.js";
+import { daemonContextReport, daemonDoctor, extractWorkItemId, startLiveFeed, viewerBenchmarkReport, viewerRedirectLocation, viewerReportPaths, viewerStaticHeaders, viewerUrl } from "./daemon.js";
 import { capture, indexProject } from "./kernel.js";
 
 test("viewer bare routes redirect to index while preserving query params", () => {
@@ -174,6 +174,60 @@ test("live feed streams packet writes and value ledger events over SSE", async (
   }
 });
 
+test("live feed enriches packet events with work-item fields for a real .md proposal packet, and readPacketTitle no longer silently fails on .md packets", async () => {
+  const project = mkdtempSync(join(tmpdir(), "kage-live-feed-workitem-"));
+  mkdirSync(join(project, ".agent_memory", "packets"), { recursive: true });
+  mkdirSync(join(project, ".agent_memory", "reports"), { recursive: true });
+  const feed = startLiveFeed(project, { debounceMs: 25, heartbeatMs: 60_000 });
+  const server = createServer((req, res) => {
+    if (req.url === "/kage/events") {
+      feed.handleRequest(req, res);
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = (server.address() as AddressInfo).port;
+
+  let received = "";
+  const request = get(`http://127.0.0.1:${port}/kage/events`, (res) => {
+    res.on("data", (chunk) => { received += String(chunk); });
+  });
+  const waitFor = async (pattern: RegExp) => {
+    const deadline = Date.now() + 5000;
+    while (!pattern.test(received)) {
+      if (Date.now() > deadline) throw new Error(`timed out waiting for ${pattern}; received so far: ${received}`);
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  };
+
+  try {
+    await waitFor(/: connected/);
+    // capture() writes a real .md OKF packet (the current on-disk format) — this
+    // is exactly the case that silently broke the old raw-JSON.parse
+    // readPacketTitle: it would swallow the parse error and fall back to the raw
+    // filename (still carrying ".md") as a fake title.
+    const result = capture({
+      projectDir: project,
+      title: "Add retry logic to sync client",
+      body: "We should add retry logic because transient network errors currently fail sync silently.",
+      type: "proposal",
+      allowMissingPaths: true,
+    });
+    assert.equal(result.ok, true);
+    await waitFor(/"type":"packet_written"/);
+    await waitFor(/Add retry logic to sync client/);
+    assert.doesNotMatch(received, /"title":"[^"]*\.md"/, "title must never be the raw filename with .md still attached");
+    assert.match(received, /"packet_type":"proposal"/);
+    assert.match(received, /"stage":"proposed"/);
+  } finally {
+    request.destroy();
+    feed.close();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("daemon doctor advertises complete REST memory operations", () => {
   const project = mkdtempSync(join(tmpdir(), "kage-daemon-doctor-"));
 
@@ -191,6 +245,22 @@ test("daemon doctor advertises complete REST memory operations", () => {
   assert.ok(report.endpoints.includes("POST http://127.0.0.1:3111/kage/context-slots"));
   assert.ok(report.endpoints.includes("GET http://127.0.0.1:3111/kage/replay"));
   assert.ok(report.endpoints.includes("GET http://127.0.0.1:3111/kage/learning-ledger"));
+  assert.ok(report.endpoints.includes("GET http://127.0.0.1:3111/kage/work-items"));
+  assert.ok(report.endpoints.includes("POST http://127.0.0.1:3111/kage/work-items/:id/claim"));
+  assert.ok(report.endpoints.includes("POST http://127.0.0.1:3111/kage/work-items/:id/transition"));
+});
+
+test("extractWorkItemId decodes a colon-bearing packet id and rejects a non-matching path", () => {
+  const id = "repo:memory:proposal:add-retry-logic-to-sync-client-1783683329060";
+  const encoded = encodeURIComponent(id);
+  assert.equal(extractWorkItemId(`/kage/work-items/${encoded}/claim`, "/claim"), id);
+  assert.equal(extractWorkItemId(`/kage/work-items/${encoded}/transition`, "/transition"), id);
+  // Wrong suffix, wrong prefix, empty id, and a "/claim"-suffixed-but-not-this-route
+  // path must all miss — a false positive here would route a claim as a transition.
+  assert.equal(extractWorkItemId(`/kage/work-items/${encoded}/transition`, "/claim"), null);
+  assert.equal(extractWorkItemId(`/kage/other/${encoded}/claim`, "/claim"), null);
+  assert.equal(extractWorkItemId("/kage/work-items//claim", "/claim"), null);
+  assert.equal(extractWorkItemId("/kage/work-items", "/claim"), null);
 });
 
 test("daemon context report gives REST agents combined memory graph and risk context", () => {

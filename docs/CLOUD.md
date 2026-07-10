@@ -90,6 +90,49 @@ TLS, no rate limiting, and no plan for horizontal scaling — put it behind your
 own reverse proxy/VPN before exposing it beyond your own network, the same as
 any other self-hosted internal tool.
 
+## SDLC work items — agents drive, humans approve gates
+
+`kage cloud approve` is also the non-forgeable approval gate for Kage's
+work-item state machine (`mcp/kernel.ts`): a `type: proposal` packet advances
+`proposed → claimed → in_review → done`, and the `in_review → done` edge —
+the only terminal one — can only be reached two ways:
+
+1. `kage gate review` — a local, TTY-interactive reviewer prompt. Its
+   self-block (an actor can't approve their own claim) compares plain
+   `git config user.name` strings, which is **spoofable**. Treat it as a
+   convenience gate for solo/trusted-local work, not a real control.
+2. `kage cloud approve` — the same server-side, bearer-token-hash
+   self-approval block described above, extended so that after a *different*
+   teammate's token approves, the submitter's own checkout applies the local
+   `done` transition (`kage cloud approve` glue in `mcp/cli.ts`). This is the
+   only actually non-forgeable gate in the whole design.
+
+No MCP tool and no CLI flag can perform the `in_review → done` transition
+directly — `kage_transition_work_item` rejects `to_stage: "done"` outright,
+and `kage stage --to done` refuses non-interactively — precisely so an agent
+with MCP/CLI access can't approve its own gate through a longer code path.
+
+**Boundary, stated explicitly so it doesn't erode under future feature
+pressure: Kage never holds an API key or spawns an agent process.** The
+work-item state machine is something external agent runners poll, claim, and
+advance themselves (via CLI or MCP tools) — Kage orchestrates *state*, never
+*compute*. `kage cloud serve` stores packet JSON and enforces the approval
+gate; it does not call an LLM, does not run an agent loop, and does not need
+credentials for one. If a future change makes the daemon or cloud server spawn
+or drive an agent process directly, that is a different, much bigger product
+(billing, API-key custody, a new security surface) and needs its own explicit
+decision, not a quiet extension of this one.
+
+```
+kage learn --learning "..." --title "..."         # type: proposal (auto-classified), stage: proposed
+kage claim --packet <id> --actor <name>            # stage: claimed
+kage learn --title "..." --type decision ...       # the actual work, as a normal packet — no new type needed
+kage implements --packet <output-id> --proposal <id> --evidence "..."   # links them, auto-advances proposal to in_review
+kage gate list                                      # see what's in_review
+kage gate review                                    # LOCAL gate (weaker, TTY-only)
+kage cloud approve --packet <id> --token <teammate-token>   # CLOUD gate (non-forgeable) -> stage: done
+```
+
 ## v2 — managed hosted endpoint (the business)
 
 A private MCP URL per user/team (`https://mcp.kage-core.com/u/<id>`), run BY
@@ -120,3 +163,14 @@ someone else to run it.
   self-approval, real second-reviewer approval, pull into a different repo,
   surfaces correctly in recall, and a server-approved-but-locally-unverifiable
   packet is correctly withheld). The managed-SaaS gate is unchanged.
+- 2026-07-10: pivoted Kage from a passive memory layer toward an agent-driven
+  SDLC platform ("agents drive, humans approve gates"), at explicit user
+  request after discovery/growth efforts on repo memory alone didn't produce
+  usage. Phase 1 shipped a `WorkStage` state machine (`proposed → claimed →
+  in_review → done`) on `type: proposal` packets, reusing `kage cloud
+  approve`'s existing non-forgeable self-approval block as the terminal gate —
+  see "SDLC work items" above. Deliberately scoped as Kage-as-substrate (state
+  orchestration only): no code here holds an API key or spawns an agent
+  process. That boundary is the load-bearing decision for this pivot and is
+  meant to hold under future feature pressure, not just describe today's
+  state.

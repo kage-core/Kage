@@ -49,7 +49,12 @@ import {
   setupDoctor,
   setContextSlot,
   validateProject,
+  readPacketFromDisk,
+  listWorkItems,
+  claimWorkItem,
+  transitionWorkStage,
   type ObservationEvent,
+  type WorkStage,
 } from "./kernel.js";
 
 export interface DaemonStatus {
@@ -208,6 +213,12 @@ export interface LiveFeedEvent {
   path?: string;
   event?: Record<string, unknown>;
   ts: string;
+  // Work-item enrichment (Phase 1): lets a poller watching this feed tell a
+  // claimable proposal apart from any other packet write without a second
+  // file read per event.
+  packet_type?: string;
+  stage?: WorkStage;
+  claimed_by?: string | null;
 }
 
 export interface LiveFeed {
@@ -220,13 +231,29 @@ export interface LiveFeed {
 const LIVE_FEED_HEARTBEAT_MS = 25_000;
 const LIVE_FEED_DEBOUNCE_MS = 100;
 
-function readPacketTitle(filePath: string): string | undefined {
+// Was a raw JSON.parse — silently failed on every packet once .md became the
+// primary packet store, falling back to the raw filename as a fake title. Now
+// format-aware (readPacketFromDisk dispatches .md OKF vs legacy .json), and
+// enriched with the work-item fields the SSE feed needs (see LiveFeedEvent).
+function readPacketSummary(filePath: string): { title?: string; packet_type?: string; stage?: WorkStage; claimed_by?: string | null } {
   try {
-    const parsed = JSON.parse(readFileSync(filePath, "utf8")) as { title?: unknown };
-    return typeof parsed.title === "string" && parsed.title ? parsed.title : undefined;
+    const packet = readPacketFromDisk(filePath);
+    return { title: packet.title || undefined, packet_type: packet.type, stage: packet.stage, claimed_by: packet.claimed_by };
   } catch {
-    return undefined;
+    return {};
   }
+}
+
+// Extracts the packet id from a `/kage/work-items/<id><suffix>` path (e.g.
+// suffix "/claim" or "/transition"). Packet ids contain colons
+// (repo:...:proposal:...), so the caller must percent-encode them and this
+// must decode — exported for a direct unit test since it's the one genuinely
+// fiddly bit of the new work-item routes.
+export function extractWorkItemId(pathname: string, suffix: string): string | null {
+  const prefix = "/kage/work-items/";
+  if (!pathname.startsWith(prefix) || !pathname.endsWith(suffix)) return null;
+  const id = pathname.slice(prefix.length, pathname.length - suffix.length);
+  return id ? decodeURIComponent(id) : null;
 }
 
 // Streams memory/value activity to viewer clients over SSE (GET /kage/events).
@@ -273,11 +300,15 @@ export function startLiveFeed(projectRoot: string, options: { heartbeatMs?: numb
     }
     const isNew = !knownPackets.has(name);
     knownPackets.add(name);
+    const summary = readPacketSummary(filePath);
     broadcast({
       type: isNew ? "packet_written" : "packet_updated",
-      title: readPacketTitle(filePath) ?? name.replace(/\.json$/, ""),
+      title: summary.title ?? name.replace(/\.(md|json)$/, ""),
       path: join(".agent_memory", "packets", name),
       ts: new Date().toISOString(),
+      packet_type: summary.packet_type,
+      stage: summary.stage,
+      claimed_by: summary.claimed_by,
     });
   }
 
@@ -605,6 +636,9 @@ export function daemonDoctor(projectDir: string): DaemonDoctor {
       `GET http://${DEFAULT_HOST}:${restPort}/kage/quality`,
       `GET http://${DEFAULT_HOST}:${restPort}/kage/inbox`,
       `GET http://${DEFAULT_HOST}:${restPort}/kage/benchmark`,
+      `GET http://${DEFAULT_HOST}:${restPort}/kage/work-items`,
+      `POST http://${DEFAULT_HOST}:${restPort}/kage/work-items/:id/claim`,
+      `POST http://${DEFAULT_HOST}:${restPort}/kage/work-items/:id/transition`,
     ],
     warnings,
   };
@@ -741,6 +775,40 @@ export async function startDaemon(projectDir: string, options: { host?: string; 
       }
       if (req.method === "GET" && url.pathname === "/kage/inbox") {
         json(res, 200, memoryInbox(projectDir));
+        return;
+      }
+      if (req.method === "GET" && url.pathname === "/kage/work-items") {
+        const stage = url.searchParams.get("stage") as WorkStage | null;
+        json(res, 200, listWorkItems(projectDir, { stage: stage ?? undefined }));
+        return;
+      }
+      const claimId = req.method === "POST" ? extractWorkItemId(url.pathname, "/claim") : null;
+      if (claimId) {
+        const body = await readBody(req);
+        const result = claimWorkItem(projectDir, claimId, String(body.actor ?? ""));
+        json(res, result.ok ? 200 : 400, result);
+        return;
+      }
+      const transitionId = req.method === "POST" ? extractWorkItemId(url.pathname, "/transition") : null;
+      if (transitionId) {
+        const body = await readBody(req);
+        const toStage = String(body.to_stage ?? "");
+        // Same load-bearing restriction as kage_transition_work_item (MCP) and
+        // `kage stage` (CLI): the terminal in_review -> done transition is never
+        // reachable through a scriptable API, only kage gate review (TTY) or
+        // kage cloud approve (token-authenticated).
+        if (toStage === "done") {
+          json(res, 403, {
+            ok: false,
+            errors: ["The daemon REST API never performs the terminal in_review -> done transition. Use kage gate review or kage cloud approve."],
+          });
+          return;
+        }
+        const result = transitionWorkStage(projectDir, transitionId, toStage as WorkStage, {
+          actor: String(body.actor ?? ""),
+          evidence: body.evidence == null ? undefined : String(body.evidence),
+        });
+        json(res, result.ok ? 200 : 400, result);
         return;
       }
       if (req.method === "GET" && url.pathname === "/kage/benchmark") {
