@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-13
 
-**Status:** Product direction approved; written specification awaiting user review
+**Status:** Written specification approved for implementation planning
 
 **Scope:** Kage vNext product reset and staged migration
 **Initial market:** Engineering teams of 5–50 developers working in one repository or monorepo with two or more coding-agent surfaces
@@ -23,7 +23,7 @@ Kage vNext combines three capabilities that reinforce one another:
 
 The commercial requirement is explicit: Kage must be able to prove that it improves agent outcomes without becoming an unmeasured token and infrastructure tax. Each task therefore receives a value receipt with exact context additions, exact compression transformations, Kage processing cost, latency, sources used, verification outcomes, and knowledge updates.
 
-This document is an umbrella product specification. The program is too large for a single safe implementation unit, so it is decomposed into separately gated subprojects. The first implementation plan after this document is approved will cover only the local runtime, integration protocol, event log, audit mode, and exact cost measurement. Later subprojects require their own focused child specifications before implementation.
+This document is an umbrella product specification. The program is too large for a single safe implementation unit, so it is decomposed into separately gated subprojects. The complete implementation program is documented as a master plan plus five phase plans; execution still begins with the local runtime, integration protocol, event log, audit mode, and exact cost measurement. Every later phase is revalidated against the preceding phase gate before implementation.
 
 ## 2. Evidence from the current product
 
@@ -1185,6 +1185,6 @@ The ten-minute product demonstration is:
 
 The demonstration succeeds only with real measured data from the connected repository. It does not use hypothetical “hours saved” or fabricated token-savings numbers.
 
-## 27. Next step after written-spec approval
+## 27. Implementation program
 
-After the user reviews and approves this document, create a detailed implementation plan for **Phase A — Local runtime and measurement** only. The plan must map changes to current repository files, define protocol schemas and migrations, identify tests before implementation, and keep the current product operational through the transition.
+The user approved this specification on 2026-07-13. The complete implementation program is indexed at `docs/superpowers/plans/2026-07-13-kage-vnext-program.md`, with separately gated plans for Phases A–E. Execution begins with **Phase A — Local runtime and measurement**; later plans are not executed until their dependencies and preceding phase gates pass.
