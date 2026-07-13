@@ -29,6 +29,7 @@ __pycache__/
 *.pyc
 node_modules/
 dist/
+.worktrees/
 mcp/viewer/graphs/*.json
 docs/assets/viewer-demo-frames*/
 docs/assets/*.mp4
