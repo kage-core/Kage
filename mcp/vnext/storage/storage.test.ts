@@ -54,17 +54,29 @@ function fixtureReceipt(): TransformationReceipt {
   };
 }
 
-test("runtime boundary accepts Node 22.5+ and rejects older or malformed versions", () => {
-  for (const version of ["22.5.0", "22.6.0", "23.0.0", "25.9.0"]) {
+function assertRuntimeRejected(version: string): void {
+  assert.throws(
+    () => assertVnextRuntime(version),
+    (error: unknown) => error instanceof Error && error.message === RUNTIME_ERROR,
+    version || "empty version",
+  );
+}
+
+test("runtime boundary accepts canonical Node 22.5+ versions", () => {
+  for (const version of ["22.5.0", "22.5.1", "22.6.0", "23.0.0", "25.9.0"]) {
     assert.doesNotThrow(() => assertVnextRuntime(version), version);
   }
+});
 
-  for (const version of ["22.4.99", "18.20.8", "23", "22.x.0", "banana", ""]) {
-    assert.throws(
-      () => assertVnextRuntime(version),
-      (error: unknown) => error instanceof Error && error.message === RUNTIME_ERROR,
-      version || "empty version",
-    );
+test("runtime boundary rejects canonical versions below Node 22.5", () => {
+  for (const version of ["22.4.99", "18.20.8", "0.0.0"]) {
+    assertRuntimeRejected(version);
+  }
+});
+
+test("runtime boundary rejects malformed or noncanonical versions", () => {
+  for (const version of ["22.5", "23.0", "22.05.0", "023.0.0", "23.0.00", "22.x.0", "banana", ""]) {
+    assertRuntimeRejected(version);
   }
 });
 
