@@ -1,5 +1,6 @@
 import { KAGE_PROTOCOL_VERSION, type EvidenceEvent } from "../protocol/index.js";
 import type { LocalDatabase } from "./database.js";
+import { parseJsonObject, stringifyJsonObject } from "./json.js";
 
 interface EvidenceEventRow {
   event_id: string;
@@ -20,6 +21,10 @@ export class EventStore {
   constructor(private readonly db: LocalDatabase) {}
 
   append(event: EvidenceEvent): EventAppendResult {
+    const payloadJson = stringifyJsonObject(
+      event.payload,
+      `evidence_events.payload_json for event_id "${event.event_id}"`,
+    );
     const result = this.db
       .prepare(`
         INSERT INTO evidence_events (
@@ -42,7 +47,7 @@ export class EventStore {
         event.task_id,
         event.privacy_class,
         event.source_fingerprint,
-        JSON.stringify(event.payload),
+        payloadJson,
       );
 
     return { inserted: result.changes !== 0 };
@@ -75,7 +80,10 @@ export class EventStore {
       task_id: row.task_id,
       privacy_class: row.privacy_class,
       source_fingerprint: row.source_fingerprint,
-      payload: JSON.parse(row.payload_json) as Record<string, unknown>,
+      payload: parseJsonObject(
+        row.payload_json,
+        `evidence_events.payload_json for event_id "${row.event_id}"`,
+      ),
     }));
   }
 }
