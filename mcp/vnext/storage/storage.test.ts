@@ -1,7 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readlinkSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { EvidenceEvent, TransformationReceipt } from "../protocol/index.js";
@@ -64,6 +76,15 @@ function assertRuntimeRejected(version: string): void {
 
 function fileMode(path: string): number {
   return statSync(path).mode & 0o777;
+}
+
+function isKagePathError(error: unknown, path: string): boolean {
+  return (
+    error instanceof Error &&
+    error.message.includes("Kage vNext") &&
+    error.message.includes(path) &&
+    /regular.*file/i.test(error.message)
+  );
 }
 
 function assertContextualCorruption(
@@ -233,6 +254,159 @@ test("new file database is already private when SQLite opens it", () => {
   } finally {
     moduleLoader._load = originalLoad;
     process.umask(originalUmask);
+    rmSync(databaseDir, { recursive: true, force: true });
+  }
+});
+
+test("reopening a legacy WAL database tightens DB, WAL, and SHM without losing data", () => {
+  const databaseDir = mkdtempSync(join(tmpdir(), "kage-vnext-legacy-wal-"));
+  const databasePath = join(databaseDir, "kage.db");
+  const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
+  const originalUmask = process.umask(0o022);
+  const legacy = new DatabaseSync(databasePath);
+  let reopened: ReturnType<typeof openVnextDatabase> | undefined;
+
+  try {
+    legacy.exec(`
+      PRAGMA journal_mode=WAL;
+      PRAGMA wal_autocheckpoint=0;
+      CREATE TABLE legacy_data (value TEXT NOT NULL);
+      INSERT INTO legacy_data (value) VALUES ('preserved');
+    `);
+    assert.equal(existsSync(`${databasePath}-wal`), true, "legacy WAL setup");
+    assert.equal(existsSync(`${databasePath}-shm`), true, "legacy SHM setup");
+    for (const path of [databasePath, `${databasePath}-wal`, `${databasePath}-shm`]) {
+      chmodSync(path, 0o644);
+    }
+
+    reopened = openVnextDatabase(databasePath);
+    const row = reopened.prepare("SELECT value FROM legacy_data").get() as { value: string };
+
+    assert.equal(row.value, "preserved");
+    assert.equal(fileMode(databasePath), 0o600, "database");
+    assert.equal(fileMode(`${databasePath}-wal`), 0o600, "WAL");
+    assert.equal(fileMode(`${databasePath}-shm`), 0o600, "SHM");
+  } finally {
+    reopened?.close();
+    legacy.close();
+    process.umask(originalUmask);
+    rmSync(databaseDir, { recursive: true, force: true });
+  }
+});
+
+test("database path rejects an existing directory without changing its mode", () => {
+  const databaseDir = mkdtempSync(join(tmpdir(), "kage-vnext-directory-db-"));
+  const databasePath = join(databaseDir, "kage.db");
+  mkdirSync(databasePath, { mode: 0o755 });
+  chmodSync(databasePath, 0o755);
+  let rejection: unknown;
+
+  try {
+    try {
+      openVnextDatabase(databasePath);
+    } catch (error) {
+      rejection = error;
+    }
+
+    assert.equal(fileMode(databasePath), 0o755);
+    assert.equal(isKagePathError(rejection, databasePath), true);
+  } finally {
+    chmodSync(databasePath, 0o755);
+    rmSync(databaseDir, { recursive: true, force: true });
+  }
+});
+
+test("database path rejects a symlink without changing the link or target", () => {
+  const databaseDir = mkdtempSync(join(tmpdir(), "kage-vnext-symlink-db-"));
+  const targetPath = join(databaseDir, "target.db");
+  const databasePath = join(databaseDir, "kage.db");
+  const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
+  const target = new DatabaseSync(targetPath);
+  target.exec("CREATE TABLE preserved (value TEXT)");
+  target.close();
+  chmodSync(targetPath, 0o644);
+  symlinkSync(targetPath, databasePath);
+  const linkMode = lstatSync(databasePath).mode;
+  let opened: ReturnType<typeof openVnextDatabase> | undefined;
+  let rejection: unknown;
+
+  try {
+    try {
+      opened = openVnextDatabase(databasePath);
+    } catch (error) {
+      rejection = error;
+    }
+
+    assert.equal(lstatSync(databasePath).isSymbolicLink(), true);
+    assert.equal(lstatSync(databasePath).mode, linkMode);
+    assert.equal(readlinkSync(databasePath), targetPath);
+    assert.equal(fileMode(targetPath), 0o644);
+    assert.equal(isKagePathError(rejection, databasePath), true);
+  } finally {
+    opened?.close();
+    rmSync(databaseDir, { recursive: true, force: true });
+  }
+});
+
+test("database open validates every existing path before tightening or opening SQLite", () => {
+  interface ModuleLoader {
+    _load(request: string, parent: unknown, isMain: boolean): unknown;
+  }
+
+  const databaseDir = mkdtempSync(join(tmpdir(), "kage-vnext-sidecar-collision-"));
+  const databasePath = join(databaseDir, "kage.db");
+  const walPath = `${databasePath}-wal`;
+  const shmPath = `${databasePath}-shm`;
+  const targetPath = join(databaseDir, "collision-target");
+  writeFileSync(databasePath, "", { mode: 0o644 });
+  writeFileSync(walPath, "legacy-wal", { mode: 0o644 });
+  writeFileSync(targetPath, "do-not-touch", { mode: 0o644 });
+  chmodSync(databasePath, 0o644);
+  chmodSync(walPath, 0o644);
+  chmodSync(targetPath, 0o644);
+  symlinkSync(targetPath, shmPath);
+  const linkMode = lstatSync(shmPath).mode;
+  const moduleLoader = require("node:module") as ModuleLoader;
+  const originalLoad = moduleLoader._load;
+  let sqliteOpened = false;
+  let opened: ReturnType<typeof openVnextDatabase> | undefined;
+  let rejection: unknown;
+
+  class InspectingDatabase {
+    constructor(_path: string) {
+      sqliteOpened = true;
+    }
+
+    exec(): void {}
+
+    close(): void {}
+  }
+
+  moduleLoader._load = (request, parent, isMain) =>
+    request === "node:sqlite"
+      ? { DatabaseSync: InspectingDatabase }
+      : originalLoad.call(moduleLoader, request, parent, isMain);
+
+  try {
+    try {
+      opened = openVnextDatabase(databasePath);
+    } catch (error) {
+      rejection = error;
+    }
+
+    assert.equal(sqliteOpened, false);
+    assert.equal(fileMode(databasePath), 0o644);
+    assert.equal(fileMode(walPath), 0o644);
+    assert.equal(readFileSync(walPath, "utf8"), "legacy-wal");
+    assert.equal(lstatSync(shmPath).isSymbolicLink(), true);
+    assert.equal(lstatSync(shmPath).mode, linkMode);
+    assert.equal(readlinkSync(shmPath), targetPath);
+    assert.equal(fileMode(targetPath), 0o644);
+    assert.equal(readFileSync(targetPath, "utf8"), "do-not-touch");
+    assert.equal(isKagePathError(rejection, shmPath), true);
+  } finally {
+    opened?.close();
+    moduleLoader._load = originalLoad;
     rmSync(databaseDir, { recursive: true, force: true });
   }
 });
