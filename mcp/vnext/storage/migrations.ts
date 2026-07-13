@@ -115,6 +115,137 @@ interface TableColumnRow {
   pk: number;
 }
 
+interface IndexListRow {
+  name: string;
+  unique: number;
+  partial: number;
+}
+
+interface IndexColumnRow {
+  name: string | null;
+}
+
+type ExpectedColumn = readonly [name: string, type: string, notnull: number, pk: number];
+
+const V1_TABLE_COLUMNS: Readonly<Record<string, readonly ExpectedColumn[]>> = {
+  tasks: [
+    ["task_id", "TEXT", 0, 1],
+    ["session_id", "TEXT", 1, 0],
+    ["repository_id", "TEXT", 1, 0],
+    ["agent_surface", "TEXT", 1, 0],
+    ["user_id", "TEXT", 0, 0],
+    ["started_at", "TEXT", 1, 0],
+    ["ended_at", "TEXT", 0, 0],
+    ["outcome", "TEXT", 0, 0],
+  ],
+  evidence_events: [
+    ["event_id", "TEXT", 0, 1],
+    ["event_type", "TEXT", 1, 0],
+    ["occurred_at", "TEXT", 1, 0],
+    ["repository_id", "TEXT", 1, 0],
+    ["task_id", "TEXT", 1, 0],
+    ["privacy_class", "TEXT", 1, 0],
+    ["source_fingerprint", "TEXT", 1, 0],
+    ["payload_json", "TEXT", 1, 0],
+  ],
+  context_deliveries: [
+    ["delivery_id", "TEXT", 0, 1],
+    ["capsule_id", "TEXT", 1, 0],
+    ["task_id", "TEXT", 1, 0],
+    ["adapter_id", "TEXT", 1, 0],
+    ["injection_location", "TEXT", 1, 0],
+    ["delivered_at", "TEXT", 1, 0],
+    ["added_bytes", "INTEGER", 1, 0],
+    ["added_tokens", "INTEGER", 0, 0],
+    ["measurement_quality", "TEXT", 1, 0],
+    ["status", "TEXT", 1, 0],
+    ["reason", "TEXT", 1, 0],
+  ],
+  transformation_receipts: [
+    ["receipt_id", "TEXT", 0, 1],
+    ["task_id", "TEXT", 1, 0],
+    ["request_id", "TEXT", 1, 0],
+    ["provider", "TEXT", 1, 0],
+    ["model", "TEXT", 0, 0],
+    ["mode", "TEXT", 1, 0],
+    ["measurement_quality", "TEXT", 1, 0],
+    ["before_input_bytes", "INTEGER", 1, 0],
+    ["after_input_bytes", "INTEGER", 1, 0],
+    ["before_input_tokens", "INTEGER", 0, 0],
+    ["after_input_tokens", "INTEGER", 0, 0],
+    ["output_tokens", "INTEGER", 0, 0],
+    ["kage_processing_cost_usd", "REAL", 0, 0],
+    ["provider_input_cost_before_usd", "REAL", 0, 0],
+    ["provider_input_cost_after_usd", "REAL", 0, 0],
+    ["latency_ms", "REAL", 1, 0],
+    ["transformations_json", "TEXT", 1, 0],
+    ["created_at", "TEXT", 1, 0],
+  ],
+};
+
+const V1_UNIQUE_KEYS = [
+  ["evidence_events", "source_fingerprint"],
+  ["transformation_receipts", "request_id"],
+] as const;
+
+function quoteIdentifier(value: string): string {
+  return `"${value.replaceAll('"', '""')}"`;
+}
+
+function validateV1Schema(db: LocalDatabase): void {
+  for (const [table, expectedColumns] of Object.entries(V1_TABLE_COLUMNS)) {
+    const object = db
+      .prepare("SELECT type FROM sqlite_master WHERE name = ?")
+      .get(table) as SchemaObjectRow | undefined;
+    if (!object) {
+      throw new Error(
+        `Kage vNext database schema version 1 is incompatible: required table "${table}" is missing.`,
+      );
+    }
+    if (object.type !== "table") {
+      throw new Error(
+        `Kage vNext database schema version 1 is incompatible: required object "${table}" must be a table.`,
+      );
+    }
+
+    const actualColumns = db
+      .prepare(`PRAGMA table_info(${quoteIdentifier(table)})`)
+      .all() as unknown as TableColumnRow[];
+    const columnsMatch =
+      actualColumns.length === expectedColumns.length &&
+      expectedColumns.every(
+        ([name, type, notnull, pk], index) =>
+          actualColumns[index].name === name &&
+          actualColumns[index].type.toUpperCase() === type &&
+          actualColumns[index].notnull === notnull &&
+          actualColumns[index].pk === pk,
+      );
+    if (!columnsMatch) {
+      throw new Error(
+        `Kage vNext database schema version 1 is incompatible: table "${table}" columns do not match the required ordered schema.`,
+      );
+    }
+  }
+
+  for (const [table, column] of V1_UNIQUE_KEYS) {
+    const indexes = db
+      .prepare(`PRAGMA index_list(${quoteIdentifier(table)})`)
+      .all() as unknown as IndexListRow[];
+    const hasRequiredUniqueKey = indexes.some((index) => {
+      if (index.unique !== 1 || index.partial !== 0) return false;
+      const columns = db
+        .prepare(`PRAGMA index_info(${quoteIdentifier(index.name)})`)
+        .all() as unknown as IndexColumnRow[];
+      return columns.length === 1 && columns[0].name === column;
+    });
+    if (!hasRequiredUniqueKey) {
+      throw new Error(
+        `Kage vNext database schema version 1 is incompatible: table "${table}" column "${column}" must have a unique index.`,
+      );
+    }
+  }
+}
+
 function ensureCompatibleMigrationLedger(db: LocalDatabase): void {
   const object = db
     .prepare("SELECT type FROM sqlite_master WHERE name = ?")
@@ -169,6 +300,11 @@ export function migrateLocalDatabase(db: LocalDatabase): void {
     const applied = versions.some(({ version }) => version === currentSchemaVersion);
     if (!applied) {
       db.exec(MIGRATION_001);
+    }
+
+    validateV1Schema(db);
+
+    if (!applied) {
       db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)").run(
         CURRENT_SCHEMA_VERSION,
         new Date().toISOString(),

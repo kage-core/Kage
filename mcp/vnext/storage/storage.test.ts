@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { EvidenceEvent, TransformationReceipt } from "../protocol/index.js";
@@ -149,7 +149,7 @@ test("database open configures WAL, foreign keys, and busy timeout", () => {
   }
 });
 
-test("file database locks down only its immediate runtime directory and SQLite files", () => {
+test("file database preserves a pre-existing parent while locking down SQLite files", () => {
   const ancestorDir = mkdtempSync(join(tmpdir(), "kage-vnext-private-db-"));
   const runtimeDir = join(ancestorDir, "runtime");
   const databasePath = join(runtimeDir, "kage.db");
@@ -168,7 +168,7 @@ test("file database locks down only its immediate runtime directory and SQLite f
     `).run("task-permissions", "session-1", "repo-1", "codex", "2026-07-13T00:00:00.000Z");
 
     assert.equal(fileMode(ancestorDir), 0o755, "higher ancestor");
-    assert.equal(fileMode(runtimeDir), 0o700, "immediate runtime directory");
+    assert.equal(fileMode(runtimeDir), 0o755, "pre-existing immediate parent");
     assert.equal(fileMode(databasePath), 0o600, "database");
     assert.equal(fileMode(`${databasePath}-wal`), 0o600, "WAL");
     assert.equal(fileMode(`${databasePath}-shm`), 0o600, "SHM");
@@ -176,6 +176,64 @@ test("file database locks down only its immediate runtime directory and SQLite f
     db?.close();
     process.umask(originalUmask);
     rmSync(ancestorDir, { recursive: true, force: true });
+  }
+});
+
+test("file database creates a missing immediate parent privately", () => {
+  const ancestorDir = mkdtempSync(join(tmpdir(), "kage-vnext-new-private-db-"));
+  const runtimeDir = join(ancestorDir, "runtime");
+  const databasePath = join(runtimeDir, "kage.db");
+  const originalUmask = process.umask(0o022);
+  let db: ReturnType<typeof openVnextDatabase> | undefined;
+
+  try {
+    db = openVnextDatabase(databasePath);
+
+    assert.equal(fileMode(runtimeDir), 0o700, "new immediate parent");
+    assert.equal(fileMode(databasePath), 0o600, "database");
+  } finally {
+    db?.close();
+    process.umask(originalUmask);
+    rmSync(ancestorDir, { recursive: true, force: true });
+  }
+});
+
+test("new file database is already private when SQLite opens it", () => {
+  interface ModuleLoader {
+    _load(request: string, parent: unknown, isMain: boolean): unknown;
+  }
+
+  const databaseDir = mkdtempSync(join(tmpdir(), "kage-vnext-precreated-db-"));
+  const databasePath = join(databaseDir, "kage.db");
+  const moduleLoader = require("node:module") as ModuleLoader;
+  const originalLoad = moduleLoader._load;
+  const originalUmask = process.umask(0o022);
+  let modeAtOpen: number | undefined;
+
+  class InspectingDatabase {
+    constructor(path: string) {
+      modeAtOpen = existsSync(path) ? fileMode(path) : undefined;
+      if (!existsSync(path)) writeFileSync(path, "", "utf8");
+    }
+
+    exec(): void {}
+
+    close(): void {}
+  }
+
+  moduleLoader._load = (request, parent, isMain) =>
+    request === "node:sqlite"
+      ? { DatabaseSync: InspectingDatabase }
+      : originalLoad.call(moduleLoader, request, parent, isMain);
+
+  try {
+    const db = openVnextDatabase(databasePath);
+    db.close();
+    assert.equal(modeAtOpen, 0o600);
+  } finally {
+    moduleLoader._load = originalLoad;
+    process.umask(originalUmask);
+    rmSync(databaseDir, { recursive: true, force: true });
   }
 });
 
@@ -316,6 +374,101 @@ test("migration reports an unsupported schema error for future versions beyond s
   }
 });
 
+test("migration rejects and preserves a ledger-only database recorded as schema version 1", () => {
+  const db = openVnextDatabase(":memory:");
+
+  try {
+    db.exec(`
+      CREATE TABLE schema_migrations (
+        version INTEGER PRIMARY KEY,
+        applied_at TEXT NOT NULL
+      );
+      INSERT INTO schema_migrations (version, applied_at)
+      VALUES (1, '2026-07-13T00:00:00.000Z');
+    `);
+
+    assert.throws(
+      () => migrateLocalDatabase(db),
+      /schema version 1.*incompatible.*tasks.*missing/i,
+    );
+    const tables = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+      .all() as Array<{ name: string }>;
+    const versions = db
+      .prepare("SELECT version FROM schema_migrations ORDER BY version")
+      .all() as Array<{ version: number }>;
+    assert.deepEqual(tables.map(({ name }) => name), ["schema_migrations"]);
+    assert.deepEqual(versions.map(({ version }) => version), [1]);
+  } finally {
+    db.close();
+  }
+});
+
+test("migration validates ordered columns, types, nullability, and primary keys for schema version 1", () => {
+  const mutations: Array<[string, (sql: string) => string]> = [
+    [
+      "column order",
+      (sql) =>
+        sql.replace(
+          "task_id TEXT PRIMARY KEY,\n  session_id TEXT NOT NULL",
+          "session_id TEXT NOT NULL,\n  task_id TEXT PRIMARY KEY",
+        ),
+    ],
+    ["column type", (sql) => sql.replace("session_id TEXT NOT NULL", "session_id BLOB NOT NULL")],
+    ["nullability", (sql) => sql.replace("session_id TEXT NOT NULL", "session_id TEXT")],
+    ["primary key", (sql) => sql.replace("task_id TEXT PRIMARY KEY", "task_id TEXT UNIQUE")],
+  ];
+
+  for (const [name, mutate] of mutations) {
+    const db = openVnextDatabase(":memory:");
+    try {
+      migrateLocalDatabase(db);
+      const row = db
+        .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'tasks'")
+        .get() as { sql: string };
+      const incompatibleSql = mutate(row.sql);
+      assert.notEqual(incompatibleSql, row.sql, name);
+      db.exec(`DROP TABLE tasks; ${incompatibleSql};`);
+
+      assert.throws(
+        () => migrateLocalDatabase(db),
+        /schema version 1.*incompatible.*tasks.*columns/i,
+        name,
+      );
+    } finally {
+      db.close();
+    }
+  }
+});
+
+test("migration validates required unique keys for schema version 1", () => {
+  const requiredUniqueKeys = [
+    ["evidence_events", "source_fingerprint"],
+    ["transformation_receipts", "request_id"],
+  ] as const;
+
+  for (const [table, column] of requiredUniqueKeys) {
+    const db = openVnextDatabase(":memory:");
+    try {
+      migrateLocalDatabase(db);
+      const row = db
+        .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")
+        .get(table) as { sql: string };
+      const incompatibleSql = row.sql.replace(" UNIQUE", "");
+      assert.notEqual(incompatibleSql, row.sql, `${table}.${column}`);
+      db.exec(`DROP TABLE ${table}; ${incompatibleSql};`);
+
+      assert.throws(
+        () => migrateLocalDatabase(db),
+        new RegExp(`schema version 1.*incompatible.*${table}.*${column}.*unique`, "i"),
+        `${table}.${column}`,
+      );
+    } finally {
+      db.close();
+    }
+  }
+});
+
 test("event store is append-only and deduplicates source fingerprints", () => {
   const db = openVnextDatabase(":memory:");
   migrateLocalDatabase(db);
@@ -396,6 +549,33 @@ test("event store rejects lossy or unsupported JSON payloads before SQLite", () 
       );
     }
     assert.equal(store.forTask("task-1").length, 0);
+  } finally {
+    db.close();
+  }
+});
+
+test("event store rejects nested negative zero at the lossless JSON boundary", () => {
+  const db = openVnextDatabase(":memory:");
+  migrateLocalDatabase(db);
+  const store = new EventStore(db);
+  const event = {
+    ...fixtureEvidenceEvent(),
+    event_id: "event-negative-zero",
+    source_fingerprint: "sha256:event-negative-zero",
+    payload: { nested: { value: -0 } },
+  };
+
+  try {
+    assert.throws(
+      () => store.append(event),
+      (error: unknown) =>
+        error instanceof Error &&
+        error.message.includes("evidence_events.payload_json") &&
+        error.message.includes(event.event_id) &&
+        error.message.includes("$.nested.value") &&
+        /negative zero.*lossless/i.test(error.message),
+    );
+    assert.equal(store.forTask(event.task_id).length, 0);
   } finally {
     db.close();
   }
@@ -543,6 +723,34 @@ test("receipt store rejects invalid cost and latency metrics before SQLite", () 
         () => store.write(receipt),
         new RegExp(`transformation_receipts\\.${field}`),
         `${field}=${String(value)}`,
+      );
+    }
+    assert.equal(store.forTask("task-1").length, 0);
+  } finally {
+    db.close();
+  }
+});
+
+test("receipt store rejects negative zero counts, costs, and latency losslessly", () => {
+  const db = openVnextDatabase(":memory:");
+  migrateLocalDatabase(db);
+  const store = new ReceiptStore(db);
+  const fields: Array<keyof TransformationReceipt> = [
+    "before_input_bytes",
+    "kage_processing_cost_usd",
+    "latency_ms",
+  ];
+
+  try {
+    for (const field of fields) {
+      const receipt = { ...fixtureReceipt(), [field]: -0 } as TransformationReceipt;
+      assert.throws(
+        () => store.write(receipt),
+        (error: unknown) =>
+          error instanceof Error &&
+          error.message.includes(`transformation_receipts.${field}`) &&
+          /negative zero.*lossless/i.test(error.message),
+        field,
       );
     }
     assert.equal(store.forTask("task-1").length, 0);

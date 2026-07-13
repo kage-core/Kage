@@ -68,6 +68,7 @@ function validatePlainObject(
 function validateJsonValue(value: unknown, path: string, ancestors: WeakSet<object>): void {
   if (value === null || typeof value === "boolean" || typeof value === "string") return;
   if (typeof value === "number") {
+    if (Object.is(value, -0)) fail(path, "negative zero cannot be persisted losslessly");
     if (!Number.isFinite(value)) fail(path, "numbers must be finite");
     return;
   }

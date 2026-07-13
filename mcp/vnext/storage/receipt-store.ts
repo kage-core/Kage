@@ -29,6 +29,9 @@ export interface ReceiptWriteResult {
 
 function assertNonnegativeSafeInteger(field: string, value: unknown, nullable = false): void {
   if (nullable && value === null) return;
+  if (typeof value === "number" && Object.is(value, -0)) {
+    throw new Error(`Invalid transformation_receipts.${field}: negative zero cannot be persisted losslessly.`);
+  }
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
     throw new Error(
       `Invalid transformation_receipts.${field}: expected ${nullable ? "null or " : ""}a nonnegative safe integer.`,
@@ -38,6 +41,9 @@ function assertNonnegativeSafeInteger(field: string, value: unknown, nullable = 
 
 function assertNonnegativeFiniteNumber(field: string, value: unknown, nullable = false): void {
   if (nullable && value === null) return;
+  if (typeof value === "number" && Object.is(value, -0)) {
+    throw new Error(`Invalid transformation_receipts.${field}: negative zero cannot be persisted losslessly.`);
+  }
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
     throw new Error(
       `Invalid transformation_receipts.${field}: expected ${nullable ? "null or " : ""}a finite nonnegative number.`,
