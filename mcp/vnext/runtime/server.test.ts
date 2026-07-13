@@ -5,6 +5,7 @@ import type { IncomingHttpHeaders } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import type { ContextCandidate, ContextRequest, ContextSource } from "../context/source.js";
 import type { AdapterHandshake, EvidenceEvent, TransformationReceipt } from "../protocol/index.js";
 import { acquireRuntimeLock, releaseRuntimeLock } from "./lock.js";
 import { assertRuntimeDirectoryLease, ensureRuntimeDirectory, resolveRuntimePaths } from "./paths.js";
@@ -50,6 +51,19 @@ function fixtureEvidenceEvent(): EvidenceEvent {
   };
 }
 
+function fixtureContextRequest(overrides: Partial<ContextRequest> = {}): ContextRequest {
+  const handshake = fixtureHandshake();
+  return {
+    repository: handshake.repository,
+    task: handshake.task,
+    query: "auth flow",
+    targets: ["src/auth.ts"],
+    changed_files: [],
+    token_budget: 1_200,
+    ...overrides,
+  };
+}
+
 function fixtureReceipt(): TransformationReceipt {
   return {
     receipt_id: "receipt-1",
@@ -87,11 +101,12 @@ async function postJson(runtime: LocalRuntimeHandle, path: string, value: unknow
 
 async function withRuntime(
   action: (runtime: LocalRuntimeHandle, projectDir: string) => Promise<void>,
+  options: { contextSource?: ContextSource | null } = {},
 ): Promise<void> {
   const projectDir = mkdtempSync(join(tmpdir(), "kage-vnext-runtime-"));
   let runtime: LocalRuntimeHandle | undefined;
   try {
-    runtime = await startLocalRuntime({ projectDir, port: 0, mode: "audit" });
+    runtime = await startLocalRuntime({ projectDir, port: 0, mode: "audit", ...options });
     await action(runtime, projectDir);
   } finally {
     await runtime?.close();
@@ -337,16 +352,102 @@ test("local runtime enforces the actual two MiB limit for chunked bodies", async
   });
 });
 
-test("local runtime reports context source unavailability only for valid object requests", async () => {
-  await withRuntime(async (runtime) => {
-    const unavailable = await postJson(runtime, "/v2/context", { task_id: "task-1", query: "auth flow" });
-    assert.equal(unavailable.status, 503);
-    assert.deepEqual(await unavailable.json(), { ok: false, error: "context_source_unavailable" });
+test("local runtime composes an authenticated context capsule from a projected request", async () => {
+  let received: ContextRequest | undefined;
+  const candidate: ContextCandidate = {
+    candidate_id: "invariant-1",
+    kind: "invariant",
+    title: "Authentication invariant",
+    body: "Token comparisons are constant-time.",
+    evidence_ids: ["src/auth.ts"],
+    trust_state: "verified",
+    priority: 100,
+  };
+  const source: ContextSource = {
+    async find(request) {
+      received = request;
+      return [candidate];
+    },
+  };
 
-    const invalid = await postJson(runtime, "/v2/context", ["not", "an", "object"]);
-    assert.equal(invalid.status, 400);
-    assert.deepEqual(await invalid.json(), { ok: false, error: "invalid_protocol" });
-  });
+  await withRuntime(async (runtime) => {
+    const requestBody = fixtureContextRequest();
+    const response = await postJson(runtime, "/v2/context", requestBody);
+    const capsule = await response.json() as Record<string, unknown>;
+
+    assert.equal(response.status, 200);
+    assert.equal(capsule.protocol_version, 1);
+    assert.equal(capsule.task_id, "task-1");
+    assert.equal(capsule.repository_id, "repo-1");
+    assert.deepEqual(capsule.sections, [{
+      kind: "invariant",
+      title: "Authentication invariant",
+      body: "Token comparisons are constant-time.",
+      evidence_ids: ["src/auth.ts"],
+      priority: 100,
+    }]);
+    assert.deepEqual(received, requestBody);
+    assert.notEqual(received, requestBody);
+    assert.notEqual(received?.repository, requestBody.repository);
+  }, { contextSource: source });
+});
+
+test("local runtime returns a successful empty capsule when trusted context is empty", async () => {
+  const source: ContextSource = { async find() { return []; } };
+
+  await withRuntime(async (runtime) => {
+    const response = await postJson(runtime, "/v2/context", fixtureContextRequest());
+    const capsule = await response.json() as Record<string, unknown>;
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(capsule.sections, []);
+    assert.equal(capsule.estimated_tokens, 0);
+  }, { contextSource: source });
+});
+
+test("local runtime maps source failure and explicit unavailability to deterministic 503", async () => {
+  const failingSource: ContextSource = {
+    async find() {
+      throw new Error("private source details");
+    },
+  };
+
+  for (const contextSource of [failingSource, null]) {
+    await withRuntime(async (runtime) => {
+      const response = await postJson(runtime, "/v2/context", fixtureContextRequest());
+      const body = await response.text();
+
+      assert.equal(response.status, 503);
+      assert.deepEqual(JSON.parse(body), { ok: false, error: "context_source_unavailable" });
+      assert.equal(body.includes("private source details"), false);
+    }, { contextSource });
+  }
+});
+
+test("local runtime strictly validates context requests before consulting the source", async () => {
+  let calls = 0;
+  const source: ContextSource = {
+    async find() {
+      calls += 1;
+      return [];
+    },
+  };
+  const invalidRequests: unknown[] = [
+    ["not", "an", "object"],
+    { task_id: "task-1", query: "auth flow" },
+    { ...fixtureContextRequest(), unexpected: true },
+    { ...fixtureContextRequest(), targets: [""] },
+    { ...fixtureContextRequest(), token_budget: Number.MAX_SAFE_INTEGER },
+  ];
+
+  await withRuntime(async (runtime) => {
+    for (const requestBody of invalidRequests) {
+      const response = await postJson(runtime, "/v2/context", requestBody);
+      assert.equal(response.status, 400);
+      assert.deepEqual(await response.json(), { ok: false, error: "invalid_protocol" });
+    }
+    assert.equal(calls, 0);
+  }, { contextSource: source });
 });
 
 test("local runtime lists task receipts for exactly one safely decoded path segment", async () => {

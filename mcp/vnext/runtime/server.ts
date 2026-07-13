@@ -2,7 +2,9 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo, Socket } from "node:net";
 import { TextDecoder } from "node:util";
-import { isRecord } from "../../type-guards.js";
+import { buildContextCapsule } from "../context/capsule-builder.js";
+import { LegacyContextSource } from "../context/legacy-source.js";
+import { validateContextRequest, type ContextSource } from "../context/source.js";
 import { validateEvidenceEvent, validateHandshake } from "../protocol/index.js";
 import { openVnextDatabase, type LocalDatabase } from "../storage/database.js";
 import { EventStore } from "../storage/event-store.js";
@@ -41,6 +43,7 @@ export interface LocalRuntimeOptions {
   projectDir: string;
   port?: number;
   mode?: "audit" | "assist";
+  contextSource?: ContextSource | null;
 }
 
 export interface LocalRuntimeHandle {
@@ -225,6 +228,7 @@ function createRequestHandler(
   db: LocalDatabase,
   eventStore: EventStore,
   receiptStore: ReceiptStore,
+  contextSource: ContextSource | null,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
     try {
@@ -285,11 +289,21 @@ function createRequestHandler(
         json(res, 202, { status: result.inserted ? "inserted" : "deduplicated" });
         return;
       }
-      if (!isRecord(body)) {
+      const contextRequest = validateContextRequest(body);
+      if (!contextRequest.ok) {
         error(res, 400, "invalid_protocol");
         return;
       }
-      error(res, 503, "context_source_unavailable");
+      if (!contextSource) {
+        error(res, 503, "context_source_unavailable");
+        return;
+      }
+      try {
+        const capsule = await buildContextCapsule(contextSource, contextRequest.value);
+        json(res, 200, capsule);
+      } catch {
+        error(res, 503, "context_source_unavailable");
+      }
     } catch (caught) {
       if (caught instanceof RequestFailure) {
         error(res, caught.status, caught.code);
@@ -337,6 +351,9 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
   const directoryLease = ensureRuntimeDirectory(paths.runtimeDirectory);
   assertRuntimeDirectoryLease(directoryLease);
   const token = ensureRuntimeToken(paths.tokenPath);
+  const contextSource = options.contextSource === undefined
+    ? new LegacyContextSource(options.projectDir)
+    : options.contextSource;
   let server: Server | undefined;
   let database: LocalDatabase | undefined;
   let lockLease: RuntimeLockLease | undefined;
@@ -355,7 +372,14 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
     const eventStore = new EventStore(openedDatabase);
     const receiptStore = new ReceiptStore(openedDatabase);
     let status: VnextRuntimeStatus | undefined;
-    server = createServer(createRequestHandler(token, () => status, openedDatabase, eventStore, receiptStore));
+    server = createServer(createRequestHandler(
+      token,
+      () => status,
+      openedDatabase,
+      eventStore,
+      receiptStore,
+      contextSource,
+    ));
     server.on("connection", (socket) => {
       sockets.add(socket);
       socket.once("close", () => sockets.delete(socket));
