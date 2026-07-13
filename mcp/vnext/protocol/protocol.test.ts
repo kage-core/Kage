@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { KAGE_PROTOCOL_VERSION } from "./index.js";
-import { validateEvidenceEvent, validateHandshake } from "./validate.js";
+import { KAGE_PROTOCOL_VERSION, validateEvidenceEvent, validateHandshake } from "./index.js";
 
 const completeHandshake = {
   protocol_version: 1,
@@ -43,6 +42,51 @@ test("protocol v1 accepts a complete adapter handshake", () => {
   if (result.ok) assert.deepEqual(result.value, completeHandshake);
 });
 
+test("protocol v1 rejects handshakes whose required fields are inherited", () => {
+  const inheritedHandshake = Object.create(completeHandshake) as unknown;
+  const inheritedRepository = {
+    ...completeHandshake,
+    repository: Object.create(completeHandshake.repository),
+  };
+  const inheritedTask = {
+    ...completeHandshake,
+    task: Object.create(completeHandshake.task),
+  };
+
+  for (const [name, value] of [
+    ["handshake", inheritedHandshake],
+    ["repository", inheritedRepository],
+    ["task", inheritedTask],
+  ] as const) {
+    const result = validateHandshake(value);
+    assert.equal(result.ok, false, name);
+  }
+});
+
+test("protocol v1 projects handshakes onto declared plain-object fields", () => {
+  const capabilities = [...completeHandshake.capabilities];
+  const input = {
+    ...completeHandshake,
+    extra: "discard",
+    repository: { ...completeHandshake.repository, extra: "discard" },
+    task: { ...completeHandshake.task, extra: "discard" },
+    capabilities,
+  };
+
+  const result = validateHandshake(input);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+
+  assert.deepEqual(result.value, completeHandshake);
+  assert.notEqual(result.value, input);
+  assert.notEqual(result.value.repository, input.repository);
+  assert.notEqual(result.value.task, input.task);
+  assert.notEqual(result.value.capabilities, capabilities);
+  assert.equal(Object.getPrototypeOf(result.value), Object.prototype);
+  assert.equal(Object.getPrototypeOf(result.value.repository), Object.prototype);
+  assert.equal(Object.getPrototypeOf(result.value.task), Object.prototype);
+});
+
 test("protocol v1 exposes its version through the public protocol surface", () => {
   assert.equal(KAGE_PROTOCOL_VERSION, 1);
 });
@@ -76,6 +120,7 @@ test("protocol v1 rejects invalid adapter handshakes", () => {
     ],
     ["capabilities array", { ...completeHandshake, capabilities: "prompt" }, /capabilities must be an array/],
     ["capability enum", { ...completeHandshake, capabilities: ["prompt", "unknown"] }, /capabilities\[1\]/],
+    ["sparse capability", { ...completeHandshake, capabilities: Array(1) }, /capabilities\[0\]/],
   ];
 
   for (const [name, value, expectedError] of invalidHandshakes) {
@@ -89,6 +134,47 @@ test("protocol v1 accepts a complete evidence event", () => {
   const result = validateEvidenceEvent(completeEvidenceEvent);
   assert.equal(result.ok, true);
   if (result.ok) assert.deepEqual(result.value, completeEvidenceEvent);
+});
+
+test("protocol v1 rejects evidence events whose required fields are inherited", () => {
+  const inheritedEvent = Object.create(completeEvidenceEvent) as unknown;
+  const { payload: inheritedPayload, ...ownEventFields } = completeEvidenceEvent;
+  const eventWithInheritedPayload = Object.assign(
+    Object.create({ payload: inheritedPayload }),
+    ownEventFields,
+  ) as unknown;
+
+  for (const [name, value] of [
+    ["event", inheritedEvent],
+    ["payload", eventWithInheritedPayload],
+  ] as const) {
+    const result = validateEvidenceEvent(value);
+    assert.equal(result.ok, false, name);
+  }
+});
+
+test("protocol v1 projects evidence events while preserving own payload content", () => {
+  const nestedPayloadValue = { approved: true };
+  const payload = Object.assign(
+    Object.create({ inherited_secret: "discard" }),
+    { text: "prompt text", metadata: nestedPayloadValue },
+  ) as Record<string, unknown>;
+  const input = { ...completeEvidenceEvent, extra: "discard", payload };
+
+  const result = validateEvidenceEvent(input);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+
+  assert.deepEqual(result.value, {
+    ...completeEvidenceEvent,
+    payload: { text: "prompt text", metadata: nestedPayloadValue },
+  });
+  assert.notEqual(result.value, input);
+  assert.notEqual(result.value.payload, payload);
+  assert.equal(Object.getPrototypeOf(result.value), Object.prototype);
+  assert.equal(Object.getPrototypeOf(result.value.payload), Object.prototype);
+  assert.equal(result.value.payload.metadata, nestedPayloadValue);
+  assert.equal("inherited_secret" in result.value.payload, false);
 });
 
 test("protocol v1 rejects raw events without a privacy class", () => {

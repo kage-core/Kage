@@ -31,19 +31,23 @@ const EVIDENCE_EVENT_TYPES = new Set<EvidenceEvent["event_type"]>([
 const PRIVACY_CLASSES = new Set<PrivacyClass>(["local_raw", "team_metadata", "team_approved"]);
 const ISO_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
-function requiredString(value: unknown, name: string, errors: string[]): value is string {
-  if (typeof value === "string" && value.trim()) return true;
+function ownValue(record: Record<string, unknown>, name: string): unknown {
+  return Object.prototype.hasOwnProperty.call(record, name) ? record[name] : undefined;
+}
+
+function requiredString(value: unknown, name: string, errors: string[]): string | undefined {
+  if (typeof value === "string" && value.trim()) return value;
   errors.push(`${name} must be a non-empty string`);
-  return false;
+  return undefined;
 }
 
-function nullableString(value: unknown, name: string, errors: string[]): value is string | null {
-  if (value === null || (typeof value === "string" && value.trim())) return true;
+function nullableString(value: unknown, name: string, errors: string[]): string | null | undefined {
+  if (value === null || (typeof value === "string" && value.trim())) return value;
   errors.push(`${name} must be null or a non-empty string`);
-  return false;
+  return undefined;
 }
 
-function isoTimestamp(value: unknown, name: string, errors: string[]): value is string {
+function isoTimestamp(value: unknown, name: string, errors: string[]): string | undefined {
   const text = typeof value === "string" ? value : "";
   const match = ISO_TIMESTAMP.exec(text);
   if (match) {
@@ -65,67 +69,151 @@ function isoTimestamp(value: unknown, name: string, errors: string[]): value is 
       && minute <= 59
       && second <= 59
       && Number.isFinite(Date.parse(text))
-    ) return true;
+    ) return text;
   }
   errors.push(`${name} must be an ISO timestamp`);
-  return false;
+  return undefined;
+}
+
+function isKnownString<T extends string>(value: unknown, allowed: ReadonlySet<T>): value is T {
+  return typeof value === "string" && allowed.has(value as T);
 }
 
 export function validateHandshake(value: unknown): ValidationResult<AdapterHandshake> {
   const errors: string[] = [];
   if (!isRecord(value)) return { ok: false, errors: ["handshake must be an object"] };
 
-  if (value.protocol_version !== KAGE_PROTOCOL_VERSION) errors.push("unsupported protocol_version");
-  requiredString(value.adapter_id, "adapter_id", errors);
-  requiredString(value.agent_surface, "agent_surface", errors);
-  nullableString(value.agent_version, "agent_version", errors);
+  const protocolVersion = ownValue(value, "protocol_version");
+  if (protocolVersion !== KAGE_PROTOCOL_VERSION) errors.push("unsupported protocol_version");
+  const adapterId = requiredString(ownValue(value, "adapter_id"), "adapter_id", errors);
+  const agentSurface = requiredString(ownValue(value, "agent_surface"), "agent_surface", errors);
+  const agentVersion = nullableString(ownValue(value, "agent_version"), "agent_version", errors);
 
-  if (!isRecord(value.repository)) {
+  let repository: AdapterHandshake["repository"] | undefined;
+  const repositoryValue = ownValue(value, "repository");
+  if (!isRecord(repositoryValue)) {
     errors.push("repository must be an object");
   } else {
-    requiredString(value.repository.repo_id, "repository.repo_id", errors);
-    requiredString(value.repository.root, "repository.root", errors);
-    nullableString(value.repository.remote, "repository.remote", errors);
-    nullableString(value.repository.branch, "repository.branch", errors);
-    nullableString(value.repository.commit, "repository.commit", errors);
-    requiredString(value.repository.worktree, "repository.worktree", errors);
+    const repoId = requiredString(ownValue(repositoryValue, "repo_id"), "repository.repo_id", errors);
+    const root = requiredString(ownValue(repositoryValue, "root"), "repository.root", errors);
+    const remote = nullableString(ownValue(repositoryValue, "remote"), "repository.remote", errors);
+    const branch = nullableString(ownValue(repositoryValue, "branch"), "repository.branch", errors);
+    const commit = nullableString(ownValue(repositoryValue, "commit"), "repository.commit", errors);
+    const worktree = requiredString(ownValue(repositoryValue, "worktree"), "repository.worktree", errors);
+    if (
+      repoId !== undefined
+      && root !== undefined
+      && remote !== undefined
+      && branch !== undefined
+      && commit !== undefined
+      && worktree !== undefined
+    ) {
+      repository = { repo_id: repoId, root, remote, branch, commit, worktree };
+    }
   }
 
-  if (!isRecord(value.task)) {
+  let task: AdapterHandshake["task"] | undefined;
+  const taskValue = ownValue(value, "task");
+  if (!isRecord(taskValue)) {
     errors.push("task must be an object");
   } else {
-    requiredString(value.task.task_id, "task.task_id", errors);
-    requiredString(value.task.session_id, "task.session_id", errors);
-    nullableString(value.task.user_id, "task.user_id", errors);
-    requiredString(value.task.agent_surface, "task.agent_surface", errors);
+    const taskId = requiredString(ownValue(taskValue, "task_id"), "task.task_id", errors);
+    const sessionId = requiredString(ownValue(taskValue, "session_id"), "task.session_id", errors);
+    const userId = nullableString(ownValue(taskValue, "user_id"), "task.user_id", errors);
+    const taskAgentSurface = requiredString(ownValue(taskValue, "agent_surface"), "task.agent_surface", errors);
+    if (taskId !== undefined && sessionId !== undefined && userId !== undefined && taskAgentSurface !== undefined) {
+      task = { task_id: taskId, session_id: sessionId, user_id: userId, agent_surface: taskAgentSurface };
+    }
   }
 
-  if (!Array.isArray(value.capabilities)) {
+  let capabilities: AdapterCapability[] | undefined;
+  const capabilitiesValue = ownValue(value, "capabilities");
+  if (!Array.isArray(capabilitiesValue)) {
     errors.push("capabilities must be an array");
   } else {
-    value.capabilities.forEach((capability, index) => {
-      if (!ADAPTER_CAPABILITIES.has(capability as AdapterCapability)) {
+    const validatedCapabilities: AdapterCapability[] = [];
+    for (let index = 0; index < capabilitiesValue.length; index += 1) {
+      const capability = capabilitiesValue[index];
+      if (isKnownString(capability, ADAPTER_CAPABILITIES)) {
+        validatedCapabilities.push(capability);
+      } else {
         errors.push(`capabilities[${index}] is invalid`);
       }
-    });
+    }
+    if (validatedCapabilities.length === capabilitiesValue.length) capabilities = validatedCapabilities;
   }
 
-  return errors.length ? { ok: false, errors } : { ok: true, value: value as unknown as AdapterHandshake };
+  if (
+    errors.length
+    || protocolVersion !== KAGE_PROTOCOL_VERSION
+    || adapterId === undefined
+    || agentSurface === undefined
+    || agentVersion === undefined
+    || repository === undefined
+    || task === undefined
+    || capabilities === undefined
+  ) return { ok: false, errors };
+
+  return {
+    ok: true,
+    value: {
+      protocol_version: KAGE_PROTOCOL_VERSION,
+      adapter_id: adapterId,
+      agent_surface: agentSurface,
+      agent_version: agentVersion,
+      repository,
+      task,
+      capabilities,
+    },
+  };
 }
 
 export function validateEvidenceEvent(value: unknown): ValidationResult<EvidenceEvent> {
   const errors: string[] = [];
   if (!isRecord(value)) return { ok: false, errors: ["event must be an object"] };
 
-  if (value.protocol_version !== KAGE_PROTOCOL_VERSION) errors.push("unsupported protocol_version");
-  requiredString(value.event_id, "event_id", errors);
-  if (!EVIDENCE_EVENT_TYPES.has(value.event_type as EvidenceEvent["event_type"])) errors.push("event_type is invalid");
-  isoTimestamp(value.occurred_at, "occurred_at", errors);
-  requiredString(value.repository_id, "repository_id", errors);
-  requiredString(value.task_id, "task_id", errors);
-  if (!PRIVACY_CLASSES.has(value.privacy_class as PrivacyClass)) errors.push("privacy_class is invalid");
-  requiredString(value.source_fingerprint, "source_fingerprint", errors);
-  if (!isRecord(value.payload)) errors.push("payload must be an object");
+  const protocolVersion = ownValue(value, "protocol_version");
+  if (protocolVersion !== KAGE_PROTOCOL_VERSION) errors.push("unsupported protocol_version");
+  const eventId = requiredString(ownValue(value, "event_id"), "event_id", errors);
+  const eventTypeValue = ownValue(value, "event_type");
+  const eventType = isKnownString(eventTypeValue, EVIDENCE_EVENT_TYPES) ? eventTypeValue : undefined;
+  if (eventType === undefined) errors.push("event_type is invalid");
+  const occurredAt = isoTimestamp(ownValue(value, "occurred_at"), "occurred_at", errors);
+  const repositoryId = requiredString(ownValue(value, "repository_id"), "repository_id", errors);
+  const taskId = requiredString(ownValue(value, "task_id"), "task_id", errors);
+  const privacyClassValue = ownValue(value, "privacy_class");
+  const privacyClass = isKnownString(privacyClassValue, PRIVACY_CLASSES) ? privacyClassValue : undefined;
+  if (privacyClass === undefined) errors.push("privacy_class is invalid");
+  const sourceFingerprint = requiredString(ownValue(value, "source_fingerprint"), "source_fingerprint", errors);
+  const payloadValue = ownValue(value, "payload");
+  const payload = isRecord(payloadValue) ? Object.fromEntries(Object.entries(payloadValue)) : undefined;
+  if (payload === undefined) errors.push("payload must be an object");
 
-  return errors.length ? { ok: false, errors } : { ok: true, value: value as unknown as EvidenceEvent };
+  if (
+    errors.length
+    || protocolVersion !== KAGE_PROTOCOL_VERSION
+    || eventId === undefined
+    || eventType === undefined
+    || occurredAt === undefined
+    || repositoryId === undefined
+    || taskId === undefined
+    || privacyClass === undefined
+    || sourceFingerprint === undefined
+    || payload === undefined
+  ) return { ok: false, errors };
+
+  return {
+    ok: true,
+    value: {
+      protocol_version: KAGE_PROTOCOL_VERSION,
+      event_id: eventId,
+      event_type: eventType,
+      occurred_at: occurredAt,
+      repository_id: repositoryId,
+      task_id: taskId,
+      privacy_class: privacyClass,
+      source_fingerprint: sourceFingerprint,
+      payload,
+    },
+  };
 }
