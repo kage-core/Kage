@@ -56,6 +56,11 @@ import {
   type ObservationEvent,
   type WorkStage,
 } from "./kernel.js";
+import {
+  startLocalRuntime,
+  type LocalRuntimeHandle,
+  type LocalRuntimeOptions,
+} from "./vnext/runtime/server.js";
 
 export interface DaemonStatus {
   ok: boolean;
@@ -96,6 +101,23 @@ export interface ViewerStatus {
   host: string;
   port: number;
   url: string;
+}
+
+export type VnextRuntimeStarter = (options: LocalRuntimeOptions) => Promise<LocalRuntimeHandle>;
+
+export async function startOptionalVnextRuntime(
+  projectDir: string,
+  enabled: boolean,
+  starter: VnextRuntimeStarter = startLocalRuntime,
+  report: (message: string) => void = (message) => console.error(message),
+): Promise<LocalRuntimeHandle | null> {
+  if (!enabled) return null;
+  try {
+    return await starter({ projectDir, mode: "audit" });
+  } catch (error) {
+    report(`Kage vNext runtime failed to start; legacy daemon remains available: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  }
 }
 
 export type ViewerBenchmarkReport = BenchmarkReport & {
@@ -655,7 +677,7 @@ export function stopDaemon(projectDir: string): { ok: boolean; message: string; 
   }
 }
 
-export async function startDaemon(projectDir: string, options: { host?: string; restPort?: number; viewerPort?: number } = {}): Promise<void> {
+export async function startDaemon(projectDir: string, options: { host?: string; restPort?: number; viewerPort?: number; vnext?: boolean } = {}): Promise<void> {
   const host = options.host ?? DEFAULT_HOST;
   const restPort = options.restPort ?? DEFAULT_REST_PORT;
   const viewerPort = options.viewerPort ?? DEFAULT_VIEWER_PORT;
@@ -903,6 +925,7 @@ export async function startDaemon(projectDir: string, options: { host?: string; 
   });
 
   await new Promise<void>((resolve) => server.listen(restPort, host, resolve));
+  const vnextRuntime = await startOptionalVnextRuntime(projectDir, options.vnext === true);
   console.log(`Kage daemon listening on http://${host}:${restPort}`);
   console.log(`Project: ${projectDir}`);
   console.log(`Status: ${status.status_path}`);
@@ -910,7 +933,13 @@ export async function startDaemon(projectDir: string, options: { host?: string; 
   process.on("SIGTERM", () => {
     if (watcher) watcher.close();
     if (refreshTimer) clearTimeout(refreshTimer);
-    server.close(() => process.exit(0));
+    void (async () => {
+      try {
+        await vnextRuntime?.close();
+      } finally {
+        server.close(() => process.exit(0));
+      }
+    })();
   });
 }
 

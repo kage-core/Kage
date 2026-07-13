@@ -5,7 +5,7 @@ import { createServer, get } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { daemonContextReport, daemonDoctor, extractWorkItemId, startLiveFeed, viewerBenchmarkReport, viewerRedirectLocation, viewerReportPaths, viewerStaticHeaders, viewerUrl } from "./daemon.js";
+import { daemonContextReport, daemonDoctor, extractWorkItemId, startLiveFeed, startOptionalVnextRuntime, viewerBenchmarkReport, viewerRedirectLocation, viewerReportPaths, viewerStaticHeaders, viewerUrl } from "./daemon.js";
 import { capture, indexProject } from "./kernel.js";
 
 test("viewer bare routes redirect to index while preserving query params", () => {
@@ -248,6 +248,41 @@ test("daemon doctor advertises complete REST memory operations", () => {
   assert.ok(report.endpoints.includes("GET http://127.0.0.1:3111/kage/work-items"));
   assert.ok(report.endpoints.includes("POST http://127.0.0.1:3111/kage/work-items/:id/claim"));
   assert.ok(report.endpoints.includes("POST http://127.0.0.1:3111/kage/work-items/:id/transition"));
+});
+
+test("optional vNext startup fails open without preventing the legacy daemon", async () => {
+  const reports: string[] = [];
+  let starts = 0;
+
+  const runtime = await startOptionalVnextRuntime(
+    "/repo",
+    true,
+    async () => {
+      starts += 1;
+      throw new Error("runtime unavailable");
+    },
+    (message) => reports.push(message),
+  );
+
+  assert.equal(runtime, null);
+  assert.equal(starts, 1);
+  assert.equal(reports.length, 1);
+  assert.match(reports[0], /vNext runtime.*runtime unavailable/i);
+});
+
+test("legacy daemon leaves optional vNext startup disabled by default", async () => {
+  let starts = 0;
+  const runtime = await startOptionalVnextRuntime(
+    "/repo",
+    false,
+    async () => {
+      starts += 1;
+      throw new Error("must not start");
+    },
+  );
+
+  assert.equal(runtime, null);
+  assert.equal(starts, 0);
 });
 
 test("extractWorkItemId decodes a colon-bearing packet id and rejects a non-matching path", () => {
