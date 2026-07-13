@@ -1,0 +1,129 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { KAGE_PROTOCOL_VERSION } from "./index.js";
+import { validateEvidenceEvent, validateHandshake } from "./validate.js";
+
+const completeHandshake = {
+  protocol_version: 1,
+  adapter_id: "claude-code:local",
+  agent_surface: "claude-code",
+  agent_version: "1.0.0",
+  repository: {
+    repo_id: "github.com/kage-core/kage",
+    root: "/repo",
+    remote: "https://github.com/kage-core/Kage.git",
+    branch: "main",
+    commit: "abc123",
+    worktree: "/repo",
+  },
+  task: {
+    task_id: "task-1",
+    session_id: "session-1",
+    user_id: null,
+    agent_surface: "claude-code",
+  },
+  capabilities: ["session_start", "prompt", "tool_result", "inject_user_turn"],
+};
+
+const completeEvidenceEvent = {
+  protocol_version: 1,
+  event_id: "event-1",
+  event_type: "prompt",
+  occurred_at: "2026-07-13T00:00:00.000Z",
+  repository_id: "repo-1",
+  task_id: "task-1",
+  privacy_class: "local_raw",
+  source_fingerprint: "sha256:abc123",
+  payload: { text: "prompt text" },
+};
+
+test("protocol v1 accepts a complete adapter handshake", () => {
+  const result = validateHandshake(completeHandshake);
+  assert.equal(result.ok, true);
+  if (result.ok) assert.deepEqual(result.value, completeHandshake);
+});
+
+test("protocol v1 exposes its version through the public protocol surface", () => {
+  assert.equal(KAGE_PROTOCOL_VERSION, 1);
+});
+
+test("protocol v1 rejects invalid adapter handshakes", () => {
+  const invalidHandshakes: Array<[string, unknown, RegExp]> = [
+    ["object", null, /handshake must be an object/],
+    ["version", { ...completeHandshake, protocol_version: 2 }, /protocol_version/],
+    ["adapter id", { ...completeHandshake, adapter_id: " " }, /adapter_id/],
+    ["agent surface", { ...completeHandshake, agent_surface: "" }, /agent_surface/],
+    ["agent version", { ...completeHandshake, agent_version: 42 }, /agent_version/],
+    ["repository object", { ...completeHandshake, repository: [] }, /repository must be an object/],
+    [
+      "repository identifiers",
+      { ...completeHandshake, repository: { ...completeHandshake.repository, repo_id: "", root: "", worktree: "" } },
+      /repository\.repo_id.*repository\.root.*repository\.worktree/,
+    ],
+    [
+      "repository nullable strings",
+      { ...completeHandshake, repository: { ...completeHandshake.repository, remote: 1, branch: [], commit: {} } },
+      /repository\.remote.*repository\.branch.*repository\.commit/,
+    ],
+    ["task object", { ...completeHandshake, task: null }, /task must be an object/],
+    [
+      "task identifiers",
+      {
+        ...completeHandshake,
+        task: { ...completeHandshake.task, task_id: "", session_id: "", user_id: 7, agent_surface: "" },
+      },
+      /task\.task_id.*task\.session_id.*task\.user_id.*task\.agent_surface/,
+    ],
+    ["capabilities array", { ...completeHandshake, capabilities: "prompt" }, /capabilities must be an array/],
+    ["capability enum", { ...completeHandshake, capabilities: ["prompt", "unknown"] }, /capabilities\[1\]/],
+  ];
+
+  for (const [name, value, expectedError] of invalidHandshakes) {
+    const result = validateHandshake(value);
+    assert.equal(result.ok, false, name);
+    if (!result.ok) assert.match(result.errors.join(" "), expectedError, name);
+  }
+});
+
+test("protocol v1 accepts a complete evidence event", () => {
+  const result = validateEvidenceEvent(completeEvidenceEvent);
+  assert.equal(result.ok, true);
+  if (result.ok) assert.deepEqual(result.value, completeEvidenceEvent);
+});
+
+test("protocol v1 rejects raw events without a privacy class", () => {
+  const result = validateEvidenceEvent({
+    protocol_version: 1,
+    event_id: "event-1",
+    event_type: "prompt",
+    occurred_at: "2026-07-13T00:00:00.000Z",
+    repository_id: "repo-1",
+    task_id: "task-1",
+    payload: { text: "secret-looking raw prompt" },
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.errors.join(" "), /privacy_class/);
+});
+
+test("protocol v1 rejects invalid evidence events", () => {
+  const invalidEvents: Array<[string, unknown, RegExp]> = [
+    ["object", [], /event must be an object/],
+    ["version", { ...completeEvidenceEvent, protocol_version: 2 }, /protocol_version/],
+    ["event id", { ...completeEvidenceEvent, event_id: " " }, /event_id/],
+    ["event type", { ...completeEvidenceEvent, event_type: "provider_usage" }, /event_type/],
+    ["timestamp type", { ...completeEvidenceEvent, occurred_at: 42 }, /occurred_at/],
+    ["timestamp format", { ...completeEvidenceEvent, occurred_at: "yesterday" }, /occurred_at/],
+    ["timestamp date", { ...completeEvidenceEvent, occurred_at: "2026-02-30T00:00:00.000Z" }, /occurred_at/],
+    ["repository id", { ...completeEvidenceEvent, repository_id: "" }, /repository_id/],
+    ["task id", { ...completeEvidenceEvent, task_id: "" }, /task_id/],
+    ["privacy class", { ...completeEvidenceEvent, privacy_class: "public" }, /privacy_class/],
+    ["fingerprint", { ...completeEvidenceEvent, source_fingerprint: "" }, /source_fingerprint/],
+    ["payload", { ...completeEvidenceEvent, payload: [] }, /payload must be an object/],
+  ];
+
+  for (const [name, value, expectedError] of invalidEvents) {
+    const result = validateEvidenceEvent(value);
+    assert.equal(result.ok, false, name);
+    if (!result.ok) assert.match(result.errors.join(" "), expectedError, name);
+  }
+});
