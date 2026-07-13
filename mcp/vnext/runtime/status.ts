@@ -77,19 +77,18 @@ export function writeRuntimeStatus(path: string, status: VnextRuntimeStatus): Ru
     fchmodSync(descriptor, 0o600);
     writeFileSync(descriptor, contents, "utf8");
     fsyncSync(descriptor);
-  } finally {
-    if (descriptor !== undefined) closeSync(descriptor);
-  }
-
-  try {
+    closeSync(descriptor);
+    descriptor = undefined;
     renameSync(temporaryPath, path);
-  } catch (error) {
-    removeTemporaryFile(temporaryPath);
-    throw error;
+    const written = lstatSync(path);
+    return { path, contents, device: written.dev, inode: written.ino };
+  } finally {
+    try {
+      if (descriptor !== undefined) closeSync(descriptor);
+    } finally {
+      removeTemporaryFile(temporaryPath);
+    }
   }
-
-  const written = lstatSync(path);
-  return { path, contents, device: written.dev, inode: written.ino };
 }
 
 export function removeRuntimeStatus(lease: RuntimeStatusLease): void {

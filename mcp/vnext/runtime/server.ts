@@ -1,13 +1,15 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo, Socket } from "node:net";
+import { TextDecoder } from "node:util";
 import { isRecord } from "../../type-guards.js";
 import { validateEvidenceEvent, validateHandshake } from "../protocol/index.js";
 import { openVnextDatabase, type LocalDatabase } from "../storage/database.js";
 import { EventStore } from "../storage/event-store.js";
 import { migrateLocalDatabase } from "../storage/migrations.js";
 import { ReceiptStore } from "../storage/receipt-store.js";
-import { ensureRuntimeDirectory, resolveRuntimePaths } from "./paths.js";
+import { acquireRuntimeLock, releaseRuntimeLock, type RuntimeLockLease } from "./lock.js";
+import { assertRuntimeDirectoryLease, ensureRuntimeDirectory, resolveRuntimePaths } from "./paths.js";
 import {
   removeRuntimeStatus,
   writeRuntimeStatus,
@@ -19,6 +21,7 @@ import { ensureRuntimeToken } from "./token.js";
 const HOST = "127.0.0.1" as const;
 const DEFAULT_PORT = 3112;
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
+const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
 
 type RouteKind = "health" | "status" | "handshakes" | "events" | "context" | "receipts";
 
@@ -132,7 +135,7 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
   });
 
   try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+    return JSON.parse(UTF8_DECODER.decode(Buffer.concat(chunks))) as unknown;
   } catch {
     throw new RequestFailure(400, "invalid_json");
   }
@@ -167,20 +170,53 @@ function matchRoute(pathname: string): MatchedRoute | undefined {
   return receiptRoute(pathname);
 }
 
-function persistHandshake(db: LocalDatabase, value: ReturnType<typeof validateHandshake> & { ok: true }): void {
+interface PersistedTaskIdentity {
+  session_id: string;
+  repository_id: string;
+  agent_surface: string;
+  user_id: string | null;
+}
+
+function persistHandshake(
+  db: LocalDatabase,
+  value: ReturnType<typeof validateHandshake> & { ok: true },
+): "accepted" | "conflict" {
   const handshake = value.value;
-  db.prepare(`
-    INSERT INTO tasks (task_id, session_id, repository_id, agent_surface, user_id, started_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(task_id) DO NOTHING
-  `).run(
-    handshake.task.task_id,
-    handshake.task.session_id,
-    handshake.repository.repo_id,
-    handshake.task.agent_surface,
-    handshake.task.user_id,
-    new Date().toISOString(),
-  );
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const result = db.prepare(`
+      INSERT INTO tasks (task_id, session_id, repository_id, agent_surface, user_id, started_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(task_id) DO NOTHING
+    `).run(
+      handshake.task.task_id,
+      handshake.task.session_id,
+      handshake.repository.repo_id,
+      handshake.task.agent_surface,
+      handshake.task.user_id,
+      new Date().toISOString(),
+    );
+    let status: "accepted" | "conflict" = "accepted";
+    if (result.changes === 0) {
+      const persisted = db.prepare(`
+        SELECT session_id, repository_id, agent_surface, user_id
+        FROM tasks
+        WHERE task_id = ?
+      `).get(handshake.task.task_id) as PersistedTaskIdentity | undefined;
+      if (!persisted) throw new Error("Persisted Kage vNext task disappeared during handshake comparison.");
+      if (
+        persisted.session_id !== handshake.task.session_id
+        || persisted.repository_id !== handshake.repository.repo_id
+        || persisted.agent_surface !== handshake.task.agent_surface
+        || persisted.user_id !== handshake.task.user_id
+      ) status = "conflict";
+    }
+    db.exec("COMMIT");
+    return status;
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 function createRequestHandler(
@@ -232,7 +268,10 @@ function createRequestHandler(
           error(res, 400, "invalid_protocol");
           return;
         }
-        persistHandshake(db, handshake);
+        if (persistHandshake(db, handshake) === "conflict") {
+          error(res, 409, "task_identity_conflict");
+          return;
+        }
         json(res, 202, { status: "accepted" });
         return;
       }
@@ -273,6 +312,20 @@ function closeServer(server: Server, sockets: ReadonlySet<Socket>): Promise<void
   return closed;
 }
 
+async function runCleanupSteps(
+  steps: readonly (() => void | Promise<void>)[],
+): Promise<unknown | undefined> {
+  let firstFailure: unknown;
+  for (const step of steps) {
+    try {
+      await step();
+    } catch (error) {
+      firstFailure ??= error;
+    }
+  }
+  return firstFailure;
+}
+
 export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<LocalRuntimeHandle> {
   const mode = options.mode ?? "audit";
   const requestedPort = options.port ?? DEFAULT_PORT;
@@ -281,23 +334,33 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
   }
 
   const paths = resolveRuntimePaths(options.projectDir);
-  ensureRuntimeDirectory(paths.runtimeDirectory);
+  const directoryLease = ensureRuntimeDirectory(paths.runtimeDirectory);
+  assertRuntimeDirectoryLease(directoryLease);
   const token = ensureRuntimeToken(paths.tokenPath);
-  const database = openVnextDatabase(paths.databasePath);
   let server: Server | undefined;
+  let database: LocalDatabase | undefined;
+  let lockLease: RuntimeLockLease | undefined;
   let statusLease: RuntimeStatusLease | undefined;
   const sockets = new Set<Socket>();
 
   try {
-    migrateLocalDatabase(database);
-    const eventStore = new EventStore(database);
-    const receiptStore = new ReceiptStore(database);
+    assertRuntimeDirectoryLease(directoryLease);
+    lockLease = acquireRuntimeLock(paths.lockPath);
+    assertRuntimeDirectoryLease(directoryLease);
+    const openedDatabase = openVnextDatabase(paths.databasePath);
+    database = openedDatabase;
+    assertRuntimeDirectoryLease(directoryLease);
+    migrateLocalDatabase(openedDatabase);
+    assertRuntimeDirectoryLease(directoryLease);
+    const eventStore = new EventStore(openedDatabase);
+    const receiptStore = new ReceiptStore(openedDatabase);
     let status: VnextRuntimeStatus | undefined;
-    server = createServer(createRequestHandler(token, () => status, database, eventStore, receiptStore));
+    server = createServer(createRequestHandler(token, () => status, openedDatabase, eventStore, receiptStore));
     server.on("connection", (socket) => {
       sockets.add(socket);
       socket.once("close", () => sockets.delete(socket));
     });
+    assertRuntimeDirectoryLease(directoryLease);
     await new Promise<void>((resolve, reject) => {
       server!.once("error", reject);
       server!.listen(requestedPort, HOST, () => {
@@ -305,6 +368,7 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
         resolve();
       });
     });
+    assertRuntimeDirectoryLease(directoryLease);
 
     const address = server.address();
     if (!address || typeof address === "string" || address.address !== HOST || address.family !== "IPv4") {
@@ -320,20 +384,26 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
       database_path: paths.databasePath,
       token_path: paths.tokenPath,
     };
+    assertRuntimeDirectoryLease(directoryLease);
     statusLease = writeRuntimeStatus(paths.statusPath, status);
+    assertRuntimeDirectoryLease(directoryLease);
 
     let closePromise: Promise<void> | undefined;
     const close = (): Promise<void> => {
       closePromise ??= (async () => {
-        try {
-          await closeServer(server!, sockets);
-        } finally {
-          try {
-            database.close();
-          } finally {
-            if (statusLease) removeRuntimeStatus(statusLease);
-          }
-        }
+        const cleanupFailure = await runCleanupSteps([
+          () => closeServer(server!, sockets),
+          () => openedDatabase.close(),
+          () => {
+            if (!statusLease) return;
+            assertRuntimeDirectoryLease(directoryLease);
+            removeRuntimeStatus(statusLease);
+          },
+          () => {
+            if (lockLease) releaseRuntimeLock(lockLease);
+          },
+        ]);
+        if (cleanupFailure) throw cleanupFailure;
       })();
       return closePromise;
     };
@@ -343,16 +413,25 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
       token,
       status,
       address,
-      database,
+      database: openedDatabase,
       eventStore,
       store: eventStore,
       receiptStore,
       close,
     };
   } catch (caught) {
-    if (server) await closeServer(server, sockets).catch(() => {});
-    database.close();
-    if (statusLease) removeRuntimeStatus(statusLease);
+    await runCleanupSteps([
+      () => server ? closeServer(server, sockets) : undefined,
+      () => database?.close(),
+      () => {
+        if (!statusLease) return;
+        assertRuntimeDirectoryLease(directoryLease);
+        removeRuntimeStatus(statusLease);
+      },
+      () => {
+        if (lockLease) releaseRuntimeLock(lockLease);
+      },
+    ]);
     throw caught;
   }
 }

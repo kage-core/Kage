@@ -87,17 +87,18 @@ export function ensureRuntimeToken(path: string): string {
     fchmodSync(descriptor, 0o600);
     writeFileSync(descriptor, token, "utf8");
     fsyncSync(descriptor);
-  } finally {
-    if (descriptor !== undefined) closeSync(descriptor);
-  }
-
-  try {
+    closeSync(descriptor);
+    descriptor = undefined;
     linkSync(temporaryPath, path);
     return token;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
     return readExistingToken(path);
   } finally {
-    removeTemporaryFile(temporaryPath);
+    try {
+      if (descriptor !== undefined) closeSync(descriptor);
+    } finally {
+      removeTemporaryFile(temporaryPath);
+    }
   }
 }

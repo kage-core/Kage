@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { request } from "node:http";
 import type { IncomingHttpHeaders } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { AdapterHandshake, EvidenceEvent, TransformationReceipt } from "../protocol/index.js";
-import { resolveRuntimePaths } from "./paths.js";
+import { acquireRuntimeLock, releaseRuntimeLock } from "./lock.js";
+import { assertRuntimeDirectoryLease, ensureRuntimeDirectory, resolveRuntimePaths } from "./paths.js";
 import { startLocalRuntime, type LocalRuntimeHandle } from "./server.js";
 
 const JSON_LIMIT = 2 * 1024 * 1024;
@@ -157,6 +158,9 @@ test("local runtime protects status and never includes its machine token", async
 test("local runtime accepts a valid handshake and persists its task idempotently", async () => {
   await withRuntime(async (runtime) => {
     const first = await postJson(runtime, "/v2/handshakes", fixtureHandshake());
+    const firstStartedAt = (runtime.database
+      .prepare("SELECT started_at FROM tasks WHERE task_id = ?")
+      .get("task-1") as { started_at: string }).started_at;
     const second = await postJson(runtime, "/v2/handshakes", fixtureHandshake());
 
     assert.equal(first.status, 202);
@@ -170,7 +174,33 @@ test("local runtime accepts a valid handshake and persists its task idempotently
     assert.equal(rows[0].repository_id, "repo-1");
     assert.equal(rows[0].agent_surface, "codex");
     assert.equal(rows[0].user_id, null);
-    assert.equal(typeof rows[0].started_at, "string");
+    assert.equal(rows[0].started_at, firstStartedAt);
+  });
+});
+
+test("local runtime rejects conflicting reuse of a persisted task identity", async () => {
+  await withRuntime(async (runtime) => {
+    const original = fixtureHandshake();
+    assert.equal((await postJson(runtime, "/v2/handshakes", original)).status, 202);
+    const persisted = runtime.database
+      .prepare("SELECT task_id, session_id, repository_id, agent_surface, user_id, started_at FROM tasks WHERE task_id = ?")
+      .get("task-1") as Record<string, unknown>;
+    const conflicts: Array<[string, AdapterHandshake]> = [
+      ["session_id", { ...original, task: { ...original.task, session_id: "session-2" } }],
+      ["repository_id", { ...original, repository: { ...original.repository, repo_id: "repo-2" } }],
+      ["agent_surface", { ...original, task: { ...original.task, agent_surface: "claude-code" } }],
+      ["user_id", { ...original, task: { ...original.task, user_id: "user-2" } }],
+    ];
+
+    for (const [field, conflict] of conflicts) {
+      const response = await postJson(runtime, "/v2/handshakes", conflict);
+      assert.equal(response.status, 409, field);
+      assert.deepEqual(await response.json(), { ok: false, error: "task_identity_conflict" }, field);
+      const after = runtime.database
+        .prepare("SELECT task_id, session_id, repository_id, agent_surface, user_id, started_at FROM tasks WHERE task_id = ?")
+        .get("task-1") as Record<string, unknown>;
+      assert.deepEqual(after, persisted, field);
+    }
   });
 });
 
@@ -238,6 +268,29 @@ test("local runtime rejects malformed JSON and invalid event protocol", async ()
     const invalid = await postJson(runtime, "/v2/events", { ...fixtureEvidenceEvent(), task_id: "" });
     assert.equal(invalid.status, 400);
     assert.deepEqual(await invalid.json(), { ok: false, error: "invalid_protocol" });
+  });
+});
+
+test("local runtime rejects invalid UTF-8 instead of persisting replacement characters", async () => {
+  await withRuntime(async (runtime) => {
+    const body = Buffer.from(JSON.stringify(fixtureEvidenceEvent()), "utf8");
+    const textOffset = body.indexOf(Buffer.from("prompt text", "utf8"));
+    assert.notEqual(textOffset, -1);
+    body[textOffset] = 0xff;
+
+    const response = await rawRequest(`${runtime.url}/v2/events`, {
+      method: "POST",
+      headers: {
+        ...authHeaders(runtime.token),
+        "content-type": "application/json",
+        "content-length": String(body.length),
+      },
+      chunks: [body],
+    });
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(JSON.parse(response.body), { ok: false, error: "invalid_json" });
+    assert.equal(runtime.store.forTask("task-1").length, 0);
   });
 });
 
@@ -372,6 +425,112 @@ test("local runtime rejects symlinked runtime ancestors without writing outside 
   }
 });
 
+test("local runtime tightens a current-user-owned existing runtime directory to 0700", async () => {
+  const projectDir = mkdtempSync(join(tmpdir(), "kage-vnext-runtime-existing-directory-"));
+  const paths = resolveRuntimePaths(projectDir);
+  mkdirSync(paths.runtimeDirectory, { recursive: true, mode: 0o777 });
+  chmodSync(paths.runtimeDirectory, 0o777);
+  let runtime: LocalRuntimeHandle | undefined;
+
+  try {
+    runtime = await startLocalRuntime({ projectDir, port: 0 });
+    assert.equal(fileMode(paths.runtimeDirectory), 0o700);
+  } finally {
+    await runtime?.close();
+    rmSync(projectDir, { recursive: true, force: true });
+  }
+});
+
+test("runtime directory refuses to chmod a directory not owned by the current POSIX uid", () => {
+  if (typeof process.getuid !== "function") return;
+  const projectDir = mkdtempSync(join(tmpdir(), "kage-vnext-runtime-foreign-owner-"));
+  const paths = resolveRuntimePaths(projectDir);
+  mkdirSync(paths.runtimeDirectory, { recursive: true, mode: 0o777 });
+  chmodSync(paths.runtimeDirectory, 0o777);
+  const getuid = process.getuid;
+  Object.defineProperty(process, "getuid", { configurable: true, writable: true, value: () => getuid() + 1 });
+
+  try {
+    assert.throws(() => ensureRuntimeDirectory(paths.runtimeDirectory), /owned by the current user/i);
+    assert.equal(fileMode(paths.runtimeDirectory), 0o777);
+  } finally {
+    Object.defineProperty(process, "getuid", { configurable: true, writable: true, value: getuid });
+    rmSync(projectDir, { recursive: true, force: true });
+  }
+});
+
+test("runtime directory lease rejects inode replacement", () => {
+  const projectDir = mkdtempSync(join(tmpdir(), "kage-vnext-runtime-directory-lease-"));
+  const paths = resolveRuntimePaths(projectDir);
+  const displaced = join(projectDir, "displaced-vnext");
+
+  try {
+    const lease = ensureRuntimeDirectory(paths.runtimeDirectory);
+    renameSync(paths.runtimeDirectory, displaced);
+    mkdirSync(paths.runtimeDirectory, { mode: 0o700 });
+
+    assert.throws(() => assertRuntimeDirectoryLease(lease), /runtime directory.*replaced/i);
+  } finally {
+    rmSync(projectDir, { recursive: true, force: true });
+  }
+});
+
+test("local runtime revalidates its directory after database open before migration", async () => {
+  interface ModuleLoader {
+    _load(request: string, parent: unknown, isMain: boolean): unknown;
+  }
+
+  const projectDir = mkdtempSync(join(tmpdir(), "kage-vnext-runtime-database-lease-"));
+  const paths = resolveRuntimePaths(projectDir);
+  const displaced = join(projectDir, "displaced-vnext");
+  const moduleLoader = require("node:module") as ModuleLoader;
+  const originalLoad = moduleLoader._load;
+  const sqlite = require("node:sqlite") as typeof import("node:sqlite");
+  let replaced = false;
+
+  class ReplacingDatabase {
+    constructor(path: string) {
+      const database = new sqlite.DatabaseSync(path);
+      if (!path.endsWith("local.db")) return database;
+      const exec = database.exec.bind(database);
+      Object.defineProperty(database, "exec", {
+        configurable: true,
+        value(sql: string) {
+          exec(sql);
+          if (!replaced) {
+            replaced = true;
+            renameSync(paths.runtimeDirectory, displaced);
+            mkdirSync(paths.runtimeDirectory, { mode: 0o700 });
+          }
+        },
+      });
+      return database;
+    }
+  }
+
+  moduleLoader._load = (request, parent, isMain) =>
+    request === "node:sqlite"
+      ? { DatabaseSync: ReplacingDatabase }
+      : originalLoad.call(moduleLoader, request, parent, isMain);
+
+  try {
+    await assert.rejects(startLocalRuntime({ projectDir, port: 0 }), /runtime directory.*replaced/i);
+  } finally {
+    moduleLoader._load = originalLoad;
+  }
+
+  const displacedDatabase = new sqlite.DatabaseSync(join(displaced, "local.db"));
+  try {
+    const tasks = displacedDatabase
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'tasks'")
+      .get();
+    assert.equal(tasks, undefined, "migration must not run after directory replacement");
+  } finally {
+    displacedDatabase.close();
+    rmSync(projectDir, { recursive: true, force: true });
+  }
+});
+
 test("local runtime creates private token, status, database, and runtime files", async () => {
   const projectDir = mkdtempSync(join(tmpdir(), "kage-vnext-runtime-permissions-"));
   const parent = join(projectDir, ".agent_memory", "daemon");
@@ -475,6 +634,140 @@ test("local runtime rejects an untrusted status symlink without touching its tar
   }
 });
 
+test("local runtime startup cleanup releases every resource when database close throws", async () => {
+  interface ModuleLoader {
+    _load(request: string, parent: unknown, isMain: boolean): unknown;
+  }
+
+  const projectDir = mkdtempSync(join(tmpdir(), "kage-vnext-runtime-startup-cleanup-"));
+  const paths = resolveRuntimePaths(projectDir);
+  mkdirSync(paths.runtimeDirectory, { recursive: true, mode: 0o700 });
+  const target = join(projectDir, "status-target");
+  writeFileSync(target, "preserve", { mode: 0o644 });
+  symlinkSync(target, paths.statusPath);
+  const moduleLoader = require("node:module") as ModuleLoader;
+  const originalLoad = moduleLoader._load;
+  const sqlite = require("node:sqlite") as typeof import("node:sqlite");
+
+  class ThrowingCloseDatabase {
+    constructor(path: string) {
+      const database = new sqlite.DatabaseSync(path);
+      const close = database.close.bind(database);
+      Object.defineProperty(database, "close", {
+        configurable: true,
+        value() {
+          close();
+          throw new Error(path.endsWith("runtime-lock.db")
+            ? "injected lock database close failure"
+            : "injected main database close failure");
+        },
+      });
+      return database;
+    }
+  }
+
+  moduleLoader._load = (request, parent, isMain) =>
+    request === "node:sqlite"
+      ? { DatabaseSync: ThrowingCloseDatabase }
+      : originalLoad.call(moduleLoader, request, parent, isMain);
+
+  let rejection: unknown;
+  try {
+    try {
+      await startLocalRuntime({ projectDir, port: 0 });
+    } catch (error) {
+      rejection = error;
+    }
+  } finally {
+    moduleLoader._load = originalLoad;
+  }
+
+  let probe: ReturnType<typeof acquireRuntimeLock> | undefined;
+  let probeFailure: unknown;
+  try {
+    probe = acquireRuntimeLock(paths.lockPath);
+  } catch (error) {
+    probeFailure = error;
+  } finally {
+    if (probe) releaseRuntimeLock(probe);
+  }
+
+  try {
+    assert.equal(probeFailure, undefined, "startup cleanup must release the lock transaction");
+    assert.match(rejection instanceof Error ? rejection.message : "", /status.*regular file|regular file.*status/i);
+    assert.equal(lstatSync(paths.statusPath).isSymbolicLink(), true);
+    assert.equal(readFileSync(target, "utf8"), "preserve");
+  } finally {
+    rmSync(projectDir, { recursive: true, force: true });
+  }
+});
+
+test("local runtime close attempts status and lock cleanup while preserving the first close failure", async () => {
+  interface ModuleLoader {
+    _load(request: string, parent: unknown, isMain: boolean): unknown;
+  }
+
+  const projectDir = mkdtempSync(join(tmpdir(), "kage-vnext-runtime-close-cleanup-"));
+  const paths = resolveRuntimePaths(projectDir);
+  const moduleLoader = require("node:module") as ModuleLoader;
+  const originalLoad = moduleLoader._load;
+  const sqlite = require("node:sqlite") as typeof import("node:sqlite");
+
+  class ThrowingCloseDatabase {
+    constructor(path: string) {
+      const database = new sqlite.DatabaseSync(path);
+      const close = database.close.bind(database);
+      Object.defineProperty(database, "close", {
+        configurable: true,
+        value() {
+          close();
+          throw new Error(path.endsWith("runtime-lock.db")
+            ? "injected lock database close failure"
+            : "injected main database close failure");
+        },
+      });
+      return database;
+    }
+  }
+
+  moduleLoader._load = (request, parent, isMain) =>
+    request === "node:sqlite"
+      ? { DatabaseSync: ThrowingCloseDatabase }
+      : originalLoad.call(moduleLoader, request, parent, isMain);
+
+  let runtime: LocalRuntimeHandle | undefined;
+  try {
+    runtime = await startLocalRuntime({ projectDir, port: 0 });
+  } finally {
+    moduleLoader._load = originalLoad;
+  }
+
+  let rejection: unknown;
+  try {
+    await runtime.close();
+  } catch (error) {
+    rejection = error;
+  }
+
+  let probe: ReturnType<typeof acquireRuntimeLock> | undefined;
+  let probeFailure: unknown;
+  try {
+    probe = acquireRuntimeLock(paths.lockPath);
+  } catch (error) {
+    probeFailure = error;
+  } finally {
+    if (probe) releaseRuntimeLock(probe);
+  }
+
+  try {
+    assert.equal(probeFailure, undefined, "normal close must release the lock transaction");
+    assert.equal(existsSync(paths.statusPath), false, "normal close must remove its status lease");
+    assert.equal(rejection instanceof Error ? rejection.message : "", "injected main database close failure");
+  } finally {
+    rmSync(projectDir, { recursive: true, force: true });
+  }
+});
+
 test("local runtime close is idempotent and removes only its live status", async () => {
   const projectDir = mkdtempSync(join(tmpdir(), "kage-vnext-runtime-close-"));
   const paths = resolveRuntimePaths(projectDir);
@@ -528,6 +821,93 @@ test("local runtime close does not wait indefinitely for a partial request body"
   } finally {
     partial.destroy();
     await runtime.close();
+    rmSync(projectDir, { recursive: true, force: true });
+  }
+});
+
+test("local runtime enforces one live owner per project and allows restart after close", { timeout: 5_000 }, async () => {
+  const projectDir = mkdtempSync(join(tmpdir(), "kage-vnext-runtime-singleton-"));
+  const paths = resolveRuntimePaths(projectDir);
+  const lockPath = join(paths.runtimeDirectory, "runtime-lock.db");
+  let first: LocalRuntimeHandle | undefined;
+  let unexpectedSecond: LocalRuntimeHandle | undefined;
+  let third: LocalRuntimeHandle | undefined;
+  let secondFailure: unknown;
+
+  try {
+    first = await startLocalRuntime({ projectDir, port: 0 });
+    const firstStatus = readFileSync(paths.statusPath, "utf8");
+    assert.equal(fileMode(lockPath), 0o600);
+
+    try {
+      unexpectedSecond = await startLocalRuntime({ projectDir, port: 0 });
+    } catch (error) {
+      secondFailure = error;
+    }
+    await unexpectedSecond?.close();
+
+    assert.match(secondFailure instanceof Error ? secondFailure.message : "", /runtime.*already running|live runtime/i);
+    assert.equal(readFileSync(paths.statusPath, "utf8"), firstStatus);
+    assert.equal((await fetch(`${first.url}/v2/health`)).status, 200);
+
+    await first.close();
+    assert.equal(existsSync(lockPath), true, "the persistent lock database is not unlinked on release");
+    third = await startLocalRuntime({ projectDir, port: 0 });
+    assert.equal((await fetch(`${third.url}/v2/health`)).status, 200);
+  } finally {
+    await unexpectedSecond?.close();
+    await third?.close();
+    await first?.close();
+    rmSync(projectDir, { recursive: true, force: true });
+  }
+});
+
+test("runtime lock database blocks a second lease and permits a new lease after release", () => {
+  const projectDir = mkdtempSync(join(tmpdir(), "kage-vnext-runtime-direct-lock-"));
+  const paths = resolveRuntimePaths(projectDir);
+  const lockPath = join(paths.runtimeDirectory, "runtime-lock.db");
+  mkdirSync(paths.runtimeDirectory, { recursive: true, mode: 0o700 });
+  const first = acquireRuntimeLock(lockPath);
+
+  try {
+    assert.throws(() => acquireRuntimeLock(lockPath), /runtime.*already running/i);
+    releaseRuntimeLock(first);
+    const second = acquireRuntimeLock(lockPath);
+    releaseRuntimeLock(second);
+    assert.equal(existsSync(lockPath), true, "release preserves the lock database");
+    assert.equal(fileMode(lockPath), 0o600);
+  } finally {
+    releaseRuntimeLock(first);
+    rmSync(projectDir, { recursive: true, force: true });
+  }
+});
+
+test("local runtime rejects an untrusted lock symlink without touching its target", async () => {
+  const projectDir = mkdtempSync(join(tmpdir(), "kage-vnext-runtime-lock-symlink-"));
+  const paths = resolveRuntimePaths(projectDir);
+  const lockPath = join(paths.runtimeDirectory, "runtime-lock.db");
+  mkdirSync(paths.runtimeDirectory, { recursive: true, mode: 0o700 });
+  const target = join(projectDir, "lock-target");
+  const contents = "preserve";
+  writeFileSync(target, contents, { mode: 0o644 });
+  chmodSync(target, 0o644);
+  symlinkSync(target, lockPath);
+  let runtime: LocalRuntimeHandle | undefined;
+  let rejection: unknown;
+
+  try {
+    try {
+      runtime = await startLocalRuntime({ projectDir, port: 0 });
+    } catch (error) {
+      rejection = error;
+    }
+    await runtime?.close();
+    assert.match(rejection instanceof Error ? rejection.message : "", /lock.*regular file|regular file.*lock|database.*regular file/i);
+    assert.equal(lstatSync(lockPath).isSymbolicLink(), true);
+    assert.equal(readFileSync(target, "utf8"), contents);
+    assert.equal(fileMode(target), 0o644);
+  } finally {
+    await runtime?.close();
     rmSync(projectDir, { recursive: true, force: true });
   }
 });
