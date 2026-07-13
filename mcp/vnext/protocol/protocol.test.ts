@@ -87,6 +87,17 @@ test("protocol v1 projects handshakes onto declared plain-object fields", () => 
   assert.equal(Object.getPrototypeOf(result.value.task), Object.prototype);
 });
 
+test("protocol v1 rejects inherited capability elements", () => {
+  const capabilities: unknown[] = Array(1);
+  const capabilityPrototype = Object.create(Array.prototype) as unknown[];
+  capabilityPrototype[0] = "prompt";
+  Object.setPrototypeOf(capabilities, capabilityPrototype);
+
+  const result = validateHandshake({ ...completeHandshake, capabilities });
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.errors.join(" "), /capabilities\[0\]/);
+});
+
 test("protocol v1 exposes its version through the public protocol surface", () => {
   assert.equal(KAGE_PROTOCOL_VERSION, 1);
 });

@@ -133,6 +133,10 @@ export function validateHandshake(value: unknown): ValidationResult<AdapterHands
   } else {
     const validatedCapabilities: AdapterCapability[] = [];
     for (let index = 0; index < capabilitiesValue.length; index += 1) {
+      if (!Object.prototype.hasOwnProperty.call(capabilitiesValue, index)) {
+        errors.push(`capabilities[${index}] is invalid`);
+        continue;
+      }
       const capability = capabilitiesValue[index];
       if (isKnownString(capability, ADAPTER_CAPABILITIES)) {
         validatedCapabilities.push(capability);
