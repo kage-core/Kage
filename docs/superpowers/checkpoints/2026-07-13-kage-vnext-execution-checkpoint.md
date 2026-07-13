@@ -1,9 +1,9 @@
 # Kage vNext Execution Checkpoint
 
-**Updated:** 2026-07-13  
-**Execution mode:** Subagent-driven development with per-task specification and code-quality reviews  
-**Branch:** `codex/kage-vnext-implementation`  
-**Worktree:** `/Users/kushaljain/code/Kage/.worktrees/kage-vnext-implementation`  
+**Updated:** 2026-07-13
+**Execution mode:** Subagent-driven development with per-task specification and code-quality reviews
+**Branch:** `codex/kage-vnext-implementation`
+**Worktree:** `/Users/kushaljain/code/Kage/.worktrees/kage-vnext-implementation`
 **Last reviewed implementation commit:** `35b596d`
 
 ## Resume contract
