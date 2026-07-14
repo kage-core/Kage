@@ -213,10 +213,10 @@ export class LegacyContextSource implements ContextSource {
   ) {}
 
   // `async` in signature only: recall, kageRisk (which can fall back to a full code-graph
-  // build) and kageTeammateBrief are synchronous kernel calls that occupy the runtime's
-  // single event loop for their whole duration. They cannot be preempted by a timeout, so
-  // the caller's protection is the input caps enforced in validateContextRequest — see the
-  // Phase A limitation recorded there.
+  // build) and kageTeammateBrief are synchronous kernel calls that occupy whatever thread
+  // runs them for their whole duration, and no in-process timeout can preempt them. That is
+  // why this class must NOT be driven from the runtime's request thread: the runtime uses
+  // WorkerContextSource, which runs exactly this code inside a worker it can terminate.
   async find(request: ContextRequest): Promise<ContextCandidate[]> {
     const recallResult = this.kernel.recall(this.projectDir, request.query, 12);
     const targets = unique([...request.targets, ...request.changed_files]);

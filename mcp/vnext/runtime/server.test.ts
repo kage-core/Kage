@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { ContextCandidate, ContextRequest, ContextSource } from "../context/source.js";
+import { WorkerContextSource } from "../context/worker-source.js";
 import type { AdapterHandshake, EvidenceEvent, TransformationReceipt } from "../protocol/index.js";
 import { acquireRuntimeLock, releaseRuntimeLock } from "./lock.js";
 import { assertRuntimeDirectoryLease, ensureRuntimeDirectory, resolveRuntimePaths } from "./paths.js";
@@ -1064,4 +1065,156 @@ test("local runtime rejects an untrusted lock symlink without touching its targe
     await runtime?.close();
     rmSync(projectDir, { recursive: true, force: true });
   }
+});
+
+// --- context work is off the request thread ----------------------------------------------
+// The fake worker below burns CPU synchronously exactly the way the real kernel (recall,
+// kageRisk -> code-graph build) does. It never loads the kernel: what is under test is that
+// the runtime's single event loop stays free to answer health, events and receipts while a
+// context request is being computed, and that a runaway job is really killed.
+
+function writeSpinWorker(dir: string, mode: "reply" | "runaway"): string {
+  const path = join(dir, `spin-worker-${mode}.js`);
+  writeFileSync(path, `
+const { parentPort, workerData } = require("node:worker_threads");
+parentPort.on("message", (message) => {
+  ${mode === "runaway" ? "for (;;) {}" : `
+  const until = Date.now() + Number(workerData.spinMs);
+  while (Date.now() < until) {}
+  parentPort.postMessage({
+    job_id: message.job_id,
+    ok: true,
+    candidates: [{
+      candidate_id: "worker:auth",
+      kind: "invariant",
+      title: "Authentication invariant",
+      body: "Token comparisons are constant-time.",
+      evidence_ids: ["src/auth.ts"],
+      trust_state: "verified",
+      priority: 100,
+    }],
+  });`}
+});
+`, "utf8");
+  return path;
+}
+
+const RESPONSIVENESS_SPIN_MS = 2_000;
+const RESPONSIVENESS_WINDOW_MS = 600;
+const RESPONSIVENESS_MIN_PROBES = 5;
+
+test("local runtime keeps answering health and events while a context request is in flight", async () => {
+  const workerDir = mkdtempSync(join(tmpdir(), "kage-vnext-worker-"));
+  const source = new WorkerContextSource({
+    projectDir: workerDir,
+    workerPath: writeSpinWorker(workerDir, "reply"),
+    workerData: { spinMs: RESPONSIVENESS_SPIN_MS },
+  });
+
+  try {
+    await withRuntime(async (runtime) => {
+      const startedAt = Date.now();
+      const context = postJson(runtime, "/v2/context", fixtureContextRequest());
+
+      // Probes are counted only if they COMPLETE inside the window that opens when the context
+      // request is fired. On the main-thread source this count is at most 1: the loop is
+      // blocked for the whole computation, timers never fire, and fail-open adapters lose
+      // their evidence. There is no way to fake this with a timeout on the blocked thread.
+      let answered = 0;
+      let accepted = 0;
+      while (Date.now() - startedAt < RESPONSIVENESS_WINDOW_MS) {
+        const health = await fetch(`${runtime.url}/v2/health`);
+        const events = await postJson(runtime, "/v2/events", fixtureEvidenceEvent());
+        const inWindow = Date.now() - startedAt < RESPONSIVENESS_WINDOW_MS;
+        if (health.status === 200 && inWindow) answered += 1;
+        if (events.status === 202 && inWindow) accepted += 1;
+        await health.arrayBuffer();
+        await events.arrayBuffer();
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+
+      assert.ok(
+        answered >= RESPONSIVENESS_MIN_PROBES,
+        `runtime must answer health while context computes; answered ${answered}`,
+      );
+      assert.ok(
+        accepted >= RESPONSIVENESS_MIN_PROBES,
+        `runtime must accept evidence while context computes; accepted ${accepted}`,
+      );
+
+      const response = await context;
+      const capsule = await response.json() as Record<string, unknown>;
+      assert.equal(response.status, 200);
+      assert.equal((capsule.sections as unknown[]).length, 1);
+    }, { contextSource: source });
+  } finally {
+    await source.close();
+    rmSync(workerDir, { recursive: true, force: true });
+  }
+});
+
+test("local runtime turns a runaway context job into a 503 without hanging the loop", async () => {
+  const workerDir = mkdtempSync(join(tmpdir(), "kage-vnext-runaway-"));
+  const source = new WorkerContextSource({
+    projectDir: workerDir,
+    workerPath: writeSpinWorker(workerDir, "runaway"),
+    timeoutMs: 300,
+  });
+  const originalError = console.error;
+  console.error = () => {};
+
+  try {
+    await withRuntime(async (runtime) => {
+      const startedAt = Date.now();
+      const response = await postJson(runtime, "/v2/context", fixtureContextRequest());
+      const elapsed = Date.now() - startedAt;
+
+      assert.equal(response.status, 503);
+      assert.deepEqual(await response.json(), { ok: false, error: "context_source_unavailable" });
+      assert.ok(elapsed < 5_000, `the deadline must preempt the runaway worker; took ${elapsed} ms`);
+      assert.equal((await fetch(`${runtime.url}/v2/health`)).status, 200);
+    }, { contextSource: source });
+  } finally {
+    console.error = originalError;
+    await source.close();
+    rmSync(workerDir, { recursive: true, force: true });
+  }
+});
+
+test("local runtime tears its context worker down on close", async () => {
+  const workerDir = mkdtempSync(join(tmpdir(), "kage-vnext-close-"));
+  const source = new WorkerContextSource({
+    projectDir: workerDir,
+    workerPath: writeSpinWorker(workerDir, "reply"),
+    workerData: { spinMs: 0 },
+  });
+
+  try {
+    await withRuntime(async (runtime) => {
+      assert.equal((await postJson(runtime, "/v2/context", fixtureContextRequest())).status, 200);
+      assert.equal(source.workerRunning(), true);
+    }, { contextSource: source });
+
+    // withRuntime already closed the runtime: the worker must be gone with it, or the process
+    // would never exit.
+    assert.equal(source.workerRunning(), false);
+  } finally {
+    await source.close();
+    rmSync(workerDir, { recursive: true, force: true });
+  }
+});
+
+test("local runtime defaults its context source to the off-thread worker", async () => {
+  await withRuntime(async (runtime) => {
+    const response = await postJson(runtime, "/v2/context", fixtureContextRequest());
+    const capsule = await response.json() as { sections: { title: string }[] };
+
+    // No contextSource was injected, so this is the shipped default: the legacy kernel really
+    // ran, on a worker thread, and produced its target-context section for the requested file.
+    assert.equal(response.status, 200);
+    assert.ok(
+      capsule.sections.some((section) => section.title === "Target context: src/auth.ts"),
+      `default source must produce real kernel context; got ${JSON.stringify(capsule.sections)}`,
+    );
+  });
 });

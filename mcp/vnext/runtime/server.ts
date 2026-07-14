@@ -3,8 +3,8 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo, Socket } from "node:net";
 import { TextDecoder } from "node:util";
 import { buildContextCapsule } from "../context/capsule-builder.js";
-import { LegacyContextSource } from "../context/legacy-source.js";
 import { validateContextRequest, type ContextSource } from "../context/source.js";
+import { WorkerContextSource } from "../context/worker-source.js";
 import { validateEvidenceEvent, validateHandshake } from "../protocol/index.js";
 import { openVnextDatabase, type LocalDatabase } from "../storage/database.js";
 import { EventStore } from "../storage/event-store.js";
@@ -354,8 +354,11 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
   const directoryLease = ensureRuntimeDirectory(paths.runtimeDirectory);
   assertRuntimeDirectoryLease(directoryLease);
   const token = ensureRuntimeToken(paths.tokenPath);
+  // The default source runs the legacy kernel on a worker thread. It must never run on this
+  // thread: its work is synchronous, so it would hold the runtime's single event loop for the
+  // whole analysis and /v2/health, /v2/events and /v2/receipts would go unanswered.
   const contextSource = options.contextSource === undefined
-    ? new LegacyContextSource(options.projectDir)
+    ? new WorkerContextSource({ projectDir: options.projectDir })
     : options.contextSource;
   let server: Server | undefined;
   let database: LocalDatabase | undefined;
@@ -420,6 +423,9 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
       closePromise ??= (async () => {
         const cleanupFailure = await runCleanupSteps([
           () => closeServer(server!, sockets),
+          // The runtime owns the source's lifetime: the context worker thread would otherwise
+          // keep the process alive after close().
+          () => contextSource?.close?.(),
           () => openedDatabase.close(),
           () => {
             if (!statusLease) return;
@@ -449,6 +455,7 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
   } catch (caught) {
     await runCleanupSteps([
       () => server ? closeServer(server, sockets) : undefined,
+      () => contextSource?.close?.(),
       () => database?.close(),
       () => {
         if (!statusLease) return;

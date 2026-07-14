@@ -15,15 +15,14 @@ export const MAX_CONTEXT_QUERY_BYTES = 4_096;
 export const MAX_CONTEXT_IDENTIFIER_BYTES = 256;
 
 // LegacyContextSource.find drives SYNCHRONOUS kernel work (recall, kageRisk -> code-graph
-// build). A synchronous kernel call cannot be preempted by an in-process timeout, so the
-// only real bound available to the single-threaded runtime is a bound on its inputs: a
-// request carrying tens of thousands of targets would block /v2/health, /v2/events and
-// /v2/receipts for the whole analysis and drop fail-open adapter evidence.
+// build). That work now runs on a worker thread (WorkerContextSource), so it no longer blocks
+// /v2/health, /v2/events or /v2/receipts, and a runaway analysis is killed by terminating the
+// thread. These caps remain the first line of defence: they keep a single request from asking
+// the kernel to analyse tens of thousands of targets at all, rather than asking it and then
+// killing it 60 seconds later.
 //
-// Known limitation (Phase A): even a legal, in-cap request can exceed Task 5's 500 ms
-// budget on a cold repo, because kageRisk falls back to a full code-graph build. Bounding
-// the inputs bounds the abuse case, not the cold-build case. Moving kernel work off the
-// request thread is out of scope here and is recorded, not papered over.
+// A cold code-graph build can still exceed Task 5's 500 ms budget; the adapter aborts and
+// fails open, the worker keeps building, and the next request finds a warm cache.
 export const MAX_CONTEXT_PATHS = 256;
 export const MAX_CONTEXT_PATH_BYTES = 1_024;
 
@@ -48,6 +47,10 @@ export interface ContextCandidate {
 
 export interface ContextSource {
   find(request: ContextRequest): Promise<ContextCandidate[]>;
+  // The runtime owns the source's lifetime: whatever a source holds open (a worker thread, in
+  // the shipped implementation) is released when the runtime closes. Sources that hold nothing
+  // simply omit this.
+  close?(): Promise<void>;
 }
 
 function hasExactOwnKeys(record: Record<string, unknown>, expected: readonly string[]): boolean {

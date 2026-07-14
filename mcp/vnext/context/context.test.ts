@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { packetVerificationLabel, type MemoryPacket } from "../../kernel.js";
 import type { CapsuleSection } from "../protocol/index.js";
@@ -20,6 +24,7 @@ import {
   type ContextSource,
 } from "./source.js";
 import { estimateTokens } from "./token-estimate.js";
+import { WorkerContextSource } from "./worker-source.js";
 
 const NOW = new Date("2026-07-13T06:00:00.000Z");
 
@@ -579,4 +584,231 @@ test("canonical rendered section contains every complete evidence identifier", (
   assert.match(rendered, /Run focused tests/);
   assert.ok(rendered.includes("test:one"));
   assert.ok(rendered.includes("evidence:界:two"));
+});
+
+// --- WorkerContextSource -----------------------------------------------------------------
+// These tests never load the kernel: they point the source at a fake worker script whose only
+// job is to burn CPU exactly the way the real synchronous kernel does. What is under test is
+// the offload and the deadline, not the kernel's answers.
+
+function writeFakeWorker(dir: string, body: string): string {
+  const path = join(dir, `fake-context-worker-${randomUUID()}.js`);
+  writeFileSync(path, `
+const { parentPort, workerData } = require("node:worker_threads");
+const { appendFileSync, readFileSync } = require("node:fs");
+const { join } = require("node:path");
+function spin(ms) {
+  const until = Date.now() + ms;
+  // Synchronous, exactly like recall()/kageRisk(): nothing on this thread can preempt it.
+  while (Date.now() < until) {}
+}
+function spinForever() {
+  for (;;) {}
+}
+function candidate(title) {
+  return {
+    candidate_id: "worker:" + title,
+    kind: "decision",
+    title,
+    body: "From the worker thread.",
+    evidence_ids: ["packet-1"],
+    trust_state: "verified",
+    priority: 10,
+  };
+}
+let calls = 0;
+parentPort.on("message", (message) => {
+  calls += 1;
+${body}
+});
+`, "utf8");
+  return path;
+}
+
+const REPLY_AFTER_SPIN = `
+  spin(Number(workerData.spinMs) || 0);
+  parentPort.postMessage({ job_id: message.job_id, ok: true, candidates: [candidate(message.request.query)] });
+`;
+
+const RUNAWAY = `
+  appendFileSync(join(workerData.projectDir, "worker-started"), "x");
+  spinForever();
+`;
+
+// First call runs away and gets terminated; a respawned worker starts at calls = 1 again but
+// sees the on-disk marker, so it answers instead of hanging.
+const RUNAWAY_ONCE = `
+  const marker = join(workerData.projectDir, "ran-once");
+  let seen = false;
+  try { readFileSync(marker); seen = true; } catch {}
+  appendFileSync(marker, "x");
+  if (!seen) spinForever();
+  parentPort.postMessage({ job_id: message.job_id, ok: true, candidates: [candidate("after respawn")] });
+`;
+
+const CRASH = `
+  throw new Error("worker exploded");
+`;
+
+function workerScratchDir(): string {
+  return mkdtempSync(join(tmpdir(), "kage-worker-source-"));
+}
+
+test("worker context source keeps the caller's event loop free while the worker burns CPU", async () => {
+  const dir = workerScratchDir();
+  const source = new WorkerContextSource({
+    projectDir: dir,
+    workerPath: writeFakeWorker(dir, REPLY_AFTER_SPIN),
+    workerData: { spinMs: 800 },
+  });
+  try {
+    const ticks: number[] = [];
+    const timer = setInterval(() => ticks.push(Date.now()), 20);
+    const candidates = await source.find(fixtureContextRequest());
+    clearInterval(timer);
+
+    assert.equal(candidates.length, 1);
+    assert.equal(candidates[0].title, "change the refund flow");
+    // Main-thread execution of the same work would have starved every one of these timers.
+    assert.ok(ticks.length >= 10, `event loop must keep ticking during the find; ticks=${ticks.length}`);
+  } finally {
+    await source.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("worker context source really kills a runaway synchronous job at the deadline", async () => {
+  const dir = workerScratchDir();
+  const source = new WorkerContextSource({
+    projectDir: dir,
+    workerPath: writeFakeWorker(dir, RUNAWAY),
+    timeoutMs: 250,
+  });
+  try {
+    const ticks: number[] = [];
+    const timer = setInterval(() => ticks.push(Date.now()), 20);
+    const startedAt = Date.now();
+    const failure = await source.find(fixtureContextRequest()).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+    const elapsed = Date.now() - startedAt;
+    clearInterval(timer);
+
+    // The worker is spinning in `for(;;){}`: only terminate() can stop it. A timer on the
+    // thread doing that work could not.
+    assert.ok(failure instanceof Error, "a runaway job must reject, never fake a success");
+    assert.match((failure as Error).message, /timed out/i);
+    assert.ok(elapsed < 2_000, `the deadline must actually fire; waited ${elapsed} ms`);
+    assert.ok(ticks.length >= 5, `caller loop must stay free while the worker runs away; ticks=${ticks.length}`);
+    assert.equal(existsSync(join(dir, "worker-started")), true);
+  } finally {
+    await source.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("worker context source respawns after a terminate so one runaway job cannot poison the next", async () => {
+  const dir = workerScratchDir();
+  const source = new WorkerContextSource({
+    projectDir: dir,
+    workerPath: writeFakeWorker(dir, RUNAWAY_ONCE),
+    timeoutMs: 250,
+  });
+  try {
+    await assert.rejects(source.find(fixtureContextRequest()), /timed out/i);
+    const candidates = await source.find(fixtureContextRequest());
+
+    assert.equal(candidates.length, 1);
+    assert.equal(candidates[0].title, "after respawn");
+  } finally {
+    await source.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("worker context source surfaces a crashed worker as a rejection and recovers", async () => {
+  const dir = workerScratchDir();
+  const crashing = writeFakeWorker(dir, CRASH);
+  const source = new WorkerContextSource({ projectDir: dir, workerPath: crashing, timeoutMs: 2_000 });
+  try {
+    await assert.rejects(source.find(fixtureContextRequest()), (error: unknown) => error instanceof Error);
+  } finally {
+    await source.close();
+  }
+
+  const healthy = new WorkerContextSource({
+    projectDir: dir,
+    workerPath: writeFakeWorker(dir, REPLY_AFTER_SPIN),
+    workerData: { spinMs: 0 },
+  });
+  try {
+    assert.equal((await healthy.find(fixtureContextRequest())).length, 1);
+  } finally {
+    await healthy.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("worker context source bounds its queue instead of growing memory without limit", async () => {
+  const dir = workerScratchDir();
+  const source = new WorkerContextSource({
+    projectDir: dir,
+    workerPath: writeFakeWorker(dir, REPLY_AFTER_SPIN),
+    workerData: { spinMs: 150 },
+    queueLimit: 2,
+  });
+  try {
+    // One job goes in flight, two wait; the fourth is refused rather than queued.
+    const accepted = [
+      source.find(fixtureContextRequest()),
+      source.find(fixtureContextRequest()),
+      source.find(fixtureContextRequest()),
+    ];
+    await assert.rejects(source.find(fixtureContextRequest()), /overloaded|queue/i);
+    const settled = await Promise.all(accepted);
+
+    assert.equal(settled.length, 3);
+    for (const candidates of settled) assert.equal(candidates.length, 1);
+  } finally {
+    await source.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("worker context source shuts its worker down and refuses work after close", async () => {
+  const dir = workerScratchDir();
+  const source = new WorkerContextSource({
+    projectDir: dir,
+    workerPath: writeFakeWorker(dir, REPLY_AFTER_SPIN),
+    workerData: { spinMs: 0 },
+  });
+  try {
+    await source.find(fixtureContextRequest());
+    assert.equal(source.workerRunning(), true);
+
+    await source.close();
+    await source.close();
+
+    assert.equal(source.workerRunning(), false);
+    await assert.rejects(source.find(fixtureContextRequest()), /closed/i);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("worker context source runs the real legacy kernel source inside the worker", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "kage-worker-kernel-"));
+  const source = new WorkerContextSource({ projectDir: dir });
+  try {
+    const candidates = await source.find(fixtureContextRequest());
+    // An empty project has no trusted repo memory: the contract is that the real kernel runs
+    // off-thread and returns a well-formed (here empty) candidate list, not that it finds
+    // anything.
+    assert.ok(Array.isArray(candidates));
+    for (const candidate of candidates) assert.equal(typeof candidate.candidate_id, "string");
+  } finally {
+    await source.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
