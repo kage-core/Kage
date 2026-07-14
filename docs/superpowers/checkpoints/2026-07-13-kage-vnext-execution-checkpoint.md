@@ -1,10 +1,10 @@
 # Kage vNext Execution Checkpoint
 
-**Updated:** 2026-07-13
+**Updated:** 2026-07-14
 **Execution mode:** Subagent-driven development with per-task specification and code-quality reviews
 **Branch:** `codex/kage-vnext-implementation`
 **Worktree:** `/Users/kushaljain/code/Kage/.worktrees/kage-vnext-implementation`
-**Last reviewed implementation commit:** `35b596d`
+**Last reviewed implementation commit:** `b8a3f54`
 
 ## Resume contract
 
@@ -27,25 +27,25 @@ Phase A is in progress.
 | 1. Freeze protocol v1 | Complete and reviewed | Final fix `5918e35`; protocol 11/11, package 434/434, dogfood 12/12 |
 | 2. SQLite boundary and migrations | Complete and reviewed | Final fix `21ed16e`; storage 36/36, package 470/470, dogfood 12/12 |
 | 3. Authenticated local runtime | Complete and reviewed | Final hardening `35b596d`; runtime 34/34, runtime + daemon 47/47, package 506/506, dogfood 12/12 |
-| 4. Budgeted capsules and ContextSource | Next | Start with `kage_context`, extract the full Task 4 text, then dispatch a fresh implementer |
-| 5. Claude fail-open adapter | Pending | — |
+| 4. Budgeted capsules and ContextSource | Complete and reviewed | Final fix `b8a3f54`; context + runtime 59/59, package 531/531, dogfood 12/12 |
+| 5. Claude fail-open adapter | Next | Start with `kage_context`, extract the full Task 5 text, then dispatch a fresh implementer |
 | 6. Exact-measurement proxy gateway | Pending | — |
 | 7. Connection/status/receipt CLI | Pending | — |
 | 8. CI, fixtures, and Phase A gate | Pending | — |
 
 ## Next action
 
-Begin Phase A Task 4, “Build budgeted capsules behind a replaceable context source.” Do not revisit Tasks 1–3 unless a new regression points to them.
+Begin Phase A Task 5, “Convert Claude hooks into a fail-open adapter.” Do not revisit Tasks 1–4 unless a new regression points to them.
 
-Task 3’s final quality review confirmed:
+Task 4’s reviews confirmed:
 
-- runtime directory mode and ownership are secured;
-- the persistent SQLite `BEGIN IMMEDIATE` singleton lease blocks concurrent processes and releases on close/crash;
-- conflicting task identities return `409` while exact retries remain idempotent;
-- invalid UTF-8 is rejected without evidence corruption;
-- cleanup attempts all resources while preserving the primary error.
+- the `ContextSource` seam matches the plan and `LegacyContextSource` is the only vNext module importing `mcp/kernel.ts`;
+- trust routes through the kernel’s exported `packetVerificationLabel`, so the `verified` tier is reachable, stale packets are excluded, and a packet with no `quality` key no longer throws a bogus `503`;
+- `/v2/context` rejects oversized query, identifier, path-count, and path-length inputs before any kernel work;
+- section cost is charged in exact serialized bytes, so `estimated_tokens` never under-reports the delivered sections, and the whole capsule is bounded by `token_budget + MAX_CAPSULE_ENVELOPE_TOKENS`;
+- source failures reach stderr while the HTTP body still leaks nothing.
 
-Non-blocking follow-up: token/status cleanup should preserve a primary write/fsync error if temporary-file unlink also fails. Parent-directory fsync and hostile same-UID/openat hardening remain outside the Phase A threat model.
+Known Phase A limitation, recorded in `mcp/vnext/context/source.ts` and load-bearing for Task 5: `LegacyContextSource.find` is `async` in name only. `recall`, `kageRisk`, and `kageTeammateBrief` are synchronous kernel calls, and `kageRisk` falls back to a full code-graph build on a cold repo, which blocks the runtime’s event loop and cannot be preempted by an in-process timeout. Bounding the inputs bounds the abuse case, not the cold-build case. Task 5 gives context requests an `AbortSignal.timeout(500)`; when the adapter times out it must fail open and must not lose evidence events. If the cold-build stall proves material, moving kernel work off the request thread is a change of shape, not a hardening tweak — plan it, do not paper over it.
 
 ## Commit ledger
 
@@ -72,6 +72,12 @@ Non-blocking follow-up: token/status cleanup should preserve a primary write/fsy
 
 - `579b7a4` — initial authenticated loopback runtime and daemon integration
 - `35b596d` — hardened runtime directory lease, SQLite singleton lock, task identity conflict handling, fatal UTF-8, and failure-independent cleanup
+
+### Task 4
+
+- `5aef382` — initial budgeted capsules, `ContextSource` seam, and `/v2/context`
+- `236985b` — routed trust through `packetVerificationLabel`, capped query/identifier/path inputs, counted `priority` in the payload, fixed dedup-before-budget, reused recall/risk in the brief, and logged swallowed source failures
+- `b8a3f54` — charged sections their exact serialized bytes so a token-boundary array cannot exceed `token_budget`
 
 ## Resume commands
 
