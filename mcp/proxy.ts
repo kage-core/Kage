@@ -28,7 +28,7 @@ import {
   type ProxyForwardPlan,
   type ProxyMode,
 } from "./vnext/adapters/anthropic-proxy.js";
-import { extractProviderUsage } from "./vnext/measurement/token-count.js";
+import { extractProviderUsage, totalPromptTokens, type ProviderUsage } from "./vnext/measurement/token-count.js";
 import { openReceiptSink, type ReceiptSink } from "./vnext/measurement/receipt-sink.js";
 
 const MEMORY_HEADER = "# Verified repo memory (injected by Kage — follow it, it is checked against this code)";
@@ -228,11 +228,16 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
     model: string | null;
     plan: ProxyForwardPlan;
     headers: Record<string, string | string[] | undefined>;
-    forwardedInputTokens: number | null;
-    outputTokens: number | null;
+    usage: ProviderUsage;
     latencyMs: number;
   }): Promise<void> {
     try {
+      // A receipt describes a TRANSFORMATION. A request Kage did not transform has nothing to
+      // measure, and writing an "exact, zero savings, transformations: []" row for it would let a
+      // later exact-coverage metric read as high-exact while no transformed request was ever
+      // exactly measured. No transformation, no receipt.
+      if (!args.plan.transformations.length) return;
+
       const sink = receiptSinkFor(args.requestProjectDir);
       if (!sink) return;
 
@@ -240,8 +245,7 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
       // unless we pay to measure it — and if we don't, its count stays null and the receipt is
       // honestly "partial". Nothing here ever fills the gap with an estimate.
       let measuredInputTokens: number | null = null;
-      const untransformed = args.plan.measured.equals(args.plan.original);
-      if (options.countTokens && !untransformed) {
+      if (options.countTokens) {
         const counter = createUpstreamTokenCounter({ upstream: upstreamUrl, headers: args.headers });
         const unsent = args.plan.forwarded.equals(args.plan.original) ? args.plan.measured : args.plan.original;
         measuredInputTokens = await counter(unsent);
@@ -253,9 +257,8 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
         model: args.model,
         mode,
         plan: args.plan,
-        forwarded_input_tokens: args.forwardedInputTokens,
+        forwarded_usage: args.usage,
         measured_input_tokens: measuredInputTokens,
-        output_tokens: args.outputTokens,
         latency_ms: args.latencyMs,
       }));
       stats.receipts += 1;
@@ -353,9 +356,11 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
           stats.injected += mode === "assist" ? injected : 0;
           try {
             // Usage is what the PROVIDER measured for the body we actually sent. Absent usage is
-            // null (unmeasured), never 0.
+            // null (unmeasured), never 0. The counter shows PROMPT tokens (uncached + cache writes
+            // + cache reads) — `usage.input_tokens` alone is only the uncached remainder and would
+            // under-report a cached session by an order of magnitude.
             const usage = extractProviderUsage(Buffer.concat(tap).toString("utf8"));
-            stats.input_tokens += usage.input_tokens ?? 0;
+            stats.input_tokens += totalPromptTokens(usage) ?? 0;
             stats.output_tokens += usage.output_tokens ?? 0;
             // Capture the exchange into the memory loop — no hook required, agent-agnostic.
             if (status < 300 && userPrompt.trim()) {
@@ -369,8 +374,7 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
                 model,
                 plan,
                 headers: clientReq.headers,
-                forwardedInputTokens: usage.input_tokens,
-                outputTokens: usage.output_tokens,
+                usage,
                 latencyMs,
               });
             }

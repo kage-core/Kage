@@ -1,7 +1,13 @@
 import { createHash } from "node:crypto";
 import type { TransformationReceipt } from "../protocol/index.js";
 import { buildTransformationReceipt } from "../measurement/receipt.js";
-import { measuredCount, type TokenCounter } from "../measurement/token-count.js";
+import {
+  measuredCount,
+  promptTokenBreakdown,
+  totalPromptTokens,
+  type ProviderUsage,
+  type TokenCounter,
+} from "../measurement/token-count.js";
 import type { ProviderPriceSnapshot } from "../measurement/pricing.js";
 import { isRecord } from "../../type-guards.js";
 
@@ -65,32 +71,44 @@ export interface ProxyReceiptInput {
   model: string | null;
   mode: ProxyMode;
   plan: ProxyForwardPlan;
-  /** Provider-reported input tokens for the body that was actually FORWARDED. */
-  forwarded_input_tokens: number | null;
-  /** Provider-measured tokens for the body that was NOT forwarded (from a count_tokens call). */
+  /** Provider-reported usage for the body that was actually FORWARDED. */
+  forwarded_usage: ProviderUsage;
+  /**
+   * Provider-measured TOTAL tokens of the body that was NOT forwarded, from a count_tokens call.
+   * count_tokens counts the whole body and knows nothing about caching, so it is directly
+   * comparable with the forwarded body's TOTAL prompt tokens — and with nothing else.
+   */
   measured_input_tokens: number | null;
-  output_tokens: number | null;
   latency_ms: number;
   now?: Date;
   snapshots?: readonly ProviderPriceSnapshot[];
 }
 
-// Attribution is mode-dependent and is the easiest thing in this task to get quietly wrong: the
-// provider's usage always describes THE BODY THAT WAS SENT. In audit mode that body is the
-// original (the BEFORE side); in assist mode it is the transformed one (the AFTER side). Copying
-// one count into both sides would manufacture a fake "exact" receipt claiming zero savings.
+// Two things are easy to get quietly wrong here, and both manufacture a fake number.
+//
+// 1. ATTRIBUTION. The provider's usage always describes THE BODY THAT WAS SENT. In audit mode that
+//    is the original (the BEFORE side); in assist mode it is the transformed body (the AFTER
+//    side). Copying one count into both sides would claim a measured zero-savings result.
+// 2. COMMENSURABILITY. `usage.input_tokens` is the UNCACHED REMAINDER, while count_tokens returns
+//    the size of the WHOLE body. Putting those two on opposite sides of a receipt is what made a
+//    cached session look like injecting context saved 98% of the prompt. Both sides here are TOTAL
+//    prompt tokens (uncached + cache writes + cache reads), which is the same quantity count_tokens
+//    reports — and null the moment any component of that total is missing.
 export function buildProxyReceipt(input: ProxyReceiptInput): TransformationReceipt {
   const forwardedIsOriginal = input.plan.forwarded.equals(input.plan.original);
-  // When nothing was transformed, the before and after sides are the SAME BYTES, so the provider's
-  // one measurement describes both. That is an identity, not an inference — and it is the only
-  // case where a single count is allowed to appear on both sides.
+  // When nothing was transformed, before and after are the SAME BYTES, so the provider's one
+  // measurement describes both. An identity, not an inference.
   const untransformed = input.plan.measured.equals(input.plan.original);
-  const beforeTokens = untransformed || forwardedIsOriginal
-    ? input.forwarded_input_tokens
-    : input.measured_input_tokens;
-  const afterTokens = untransformed
-    ? input.forwarded_input_tokens
-    : (forwardedIsOriginal ? input.measured_input_tokens : input.forwarded_input_tokens);
+
+  const forwardedTokens = totalPromptTokens(input.forwarded_usage);
+  // How the forwarded prompt actually billed. The counted (unsent) body has no such breakdown —
+  // count_tokens says how big a body is, not what mix of cached/uncached tokens it would have
+  // billed as — so that side's cost stays null rather than being priced as if fully uncached.
+  const forwardedBreakdown = promptTokenBreakdown(input.forwarded_usage);
+  const countedTokens = input.measured_input_tokens;
+
+  const beforeIsForwarded = untransformed || forwardedIsOriginal;
+  const afterIsForwarded = untransformed || !forwardedIsOriginal;
 
   return buildTransformationReceipt({
     task_id: input.task_id,
@@ -100,9 +118,11 @@ export function buildProxyReceipt(input: ProxyReceiptInput): TransformationRecei
     mode: input.mode,
     before: input.plan.original,
     after: input.plan.measured,
-    before_tokens: beforeTokens,
-    after_tokens: afterTokens,
-    output_tokens: input.output_tokens,
+    before_tokens: beforeIsForwarded ? forwardedTokens : countedTokens,
+    after_tokens: afterIsForwarded ? forwardedTokens : countedTokens,
+    before_breakdown: beforeIsForwarded ? forwardedBreakdown : null,
+    after_breakdown: afterIsForwarded ? forwardedBreakdown : null,
+    output_tokens: input.forwarded_usage.output_tokens,
     latency_ms: input.latency_ms,
     transformations: input.plan.transformations,
     now: input.now,
@@ -121,6 +141,33 @@ const COUNT_TOKENS_HEADERS = new Set([
   "anthropic-dangerous-direct-browser-access",
 ]);
 
+// /v1/messages/count_tokens is NOT /v1/messages: it accepts only the fields that determine the
+// token count and rejects unrecognized top-level fields. Posting the client's complete Messages
+// body (max_tokens, stream, metadata, temperature, ...) is a 400 — a probe that always failed
+// silently, downgrading every transformed receipt to "partial" forever while still spending a
+// billable round trip. Send only what the endpoint accepts.
+const COUNT_TOKENS_FIELDS = ["model", "messages", "system", "tools", "tool_choice", "thinking"] as const;
+
+// Pure + exported for testing: the body of the count_tokens probe for a Messages body. Null when
+// there is nothing countable (unparseable, or no model/messages) — Kage does not probe a body it
+// cannot form a legal request for.
+export function countTokensProbeBody(body: Buffer): Buffer | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body.toString("utf8"));
+  } catch {
+    return null;
+  }
+  if (!isRecord(parsed)) return null;
+  if (typeof parsed.model !== "string" || !Array.isArray(parsed.messages)) return null;
+
+  const probe: Record<string, unknown> = {};
+  for (const field of COUNT_TOKENS_FIELDS) {
+    if (parsed[field] !== undefined) probe[field] = parsed[field];
+  }
+  return Buffer.from(JSON.stringify(probe), "utf8");
+}
+
 // The ONLY honest way to learn the token count of a body Kage did not send: ask the provider to
 // count it. It is a real measurement, and it is opt-in because it costs an extra round trip.
 // Any failure returns null, which downgrades the receipt to "partial" — never to a guess.
@@ -137,11 +184,13 @@ export function createUpstreamTokenCounter(options: {
   }
 
   return async (body: Buffer): Promise<number | null> => {
+    const probe = countTokensProbeBody(body);
+    if (!probe) return null;
     try {
       const response = await fetch(new URL("/v1/messages/count_tokens", options.upstream.origin), {
         method: "POST",
         headers,
-        body: new Uint8Array(body),
+        body: new Uint8Array(probe),
         signal: AbortSignal.timeout(options.timeoutMs ?? 5_000),
       });
       if (!response.ok) return null;

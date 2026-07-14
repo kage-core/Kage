@@ -279,7 +279,34 @@ function projectWithMemory(): string {
   return project;
 }
 
-function measuringUpstream(seen: Array<{ path: string; body: string }>) {
+// The provider's usage block, in the shape the Anthropic API actually returns it: `input_tokens`
+// is the UNCACHED REMAINDER, and the cache fields carry the rest of the prompt. An uncached
+// request reports explicit zeros — it does not omit the fields.
+const UNCACHED_USAGE = {
+  input_tokens: 137,
+  cache_creation_input_tokens: 0,
+  cache_read_input_tokens: 0,
+  output_tokens: 5,
+};
+
+// A cached provider: the same deterministic tokenizer as the count_tokens stand-in (1 token per 10
+// bytes of body), but reported the way the real API reports a cached request — a small uncached
+// remainder in `input_tokens` and the rest of the prompt in `cache_read_input_tokens`.
+function cachedUsageFor(body: string): Record<string, number> {
+  const total = Math.ceil(Buffer.byteLength(body) / 10);
+  const uncached = Math.min(20, total);
+  return {
+    input_tokens: uncached,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: total - uncached,
+    output_tokens: 5,
+  };
+}
+
+function measuringUpstream(
+  seen: Array<{ path: string; body: string }>,
+  usageFor: (body: string) => Record<string, number> = () => UNCACHED_USAGE,
+) {
   return withFakeUpstream((req, res) => {
     let body = "";
     req.on("data", (chunk) => { body += chunk; });
@@ -292,7 +319,7 @@ function measuringUpstream(seen: Array<{ path: string; body: string }>) {
         res.end(JSON.stringify({ input_tokens: Math.ceil(Buffer.byteLength(body) / 10) }));
         return;
       }
-      res.end(JSON.stringify({ content: [{ type: "text", text: "ok" }], usage: { input_tokens: 137, output_tokens: 5 } }));
+      res.end(JSON.stringify({ content: [{ type: "text", text: "ok" }], usage: usageFor(body) }));
     });
   });
 }
@@ -435,6 +462,107 @@ test("an upstream token count of the unsent body promotes the receipt to exact",
   }
 });
 
+// THE regression this hardening pass exists for. On a cached request the provider reports only the
+// UNCACHED REMAINDER in `usage.input_tokens` (20 here) while the real prompt is the whole body.
+// Putting that remainder on one side of the receipt and a count_tokens number (which counts the
+// whole body) on the other manufactures a fake saving — Kage claiming that ADDING context CUT the
+// prompt. The two sides must both be total prompt tokens.
+test("a cached request is measured as the whole prompt, so the receipt cannot claim a fake saving", async () => {
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const collector = collectingSink();
+  const { server: fakeUpstream, url } = await measuringUpstream(seen, cachedUsageFor);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "assist", countTokens: true, receiptSink: collector.sink });
+  const port = await listeningPort(proxy);
+
+  try {
+    await proxyRequest(port, "/v1/messages", QUESTION);
+    const receipt = await collector.waitForReceipt();
+    const forwarded = seen.find((entry) => entry.path === "/v1/messages")!;
+    assert.match(forwarded.body, /injected by Kage/);
+
+    const forwardedTotal = Math.ceil(Buffer.byteLength(forwarded.body) / 10);
+    const originalTotal = Math.ceil(Buffer.byteLength(QUESTION) / 10);
+
+    assert.equal(receipt.measurement_quality, "exact");
+    // The AFTER side is the body that was sent: the WHOLE prompt, not the 20-token remainder.
+    assert.equal(receipt.after_input_tokens, forwardedTotal);
+    assert.notEqual(receipt.after_input_tokens, 20);
+    assert.equal(receipt.before_input_tokens, originalTotal);
+    // Injecting memory made the prompt bigger. A receipt that said otherwise would be a lie.
+    assert.equal(receipt.after_input_tokens! > receipt.before_input_tokens!, true);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+// The count_tokens endpoint accepts model/messages/system/tools (+tool_choice, thinking) and 400s
+// on the rest, so posting the complete Messages body meant the probe always failed — every
+// transformed receipt stayed "partial" forever while still spending a real round trip.
+test("the count_tokens probe body carries only the fields that endpoint accepts", async () => {
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const collector = collectingSink();
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "audit", countTokens: true, receiptSink: collector.sink });
+  const port = await listeningPort(proxy);
+
+  const fullBody = JSON.stringify({
+    model: "claude-opus-4-8",
+    max_tokens: 32_000,
+    stream: false,
+    metadata: { user_id: "u1" },
+    system: "You are Claude Code, Anthropic's official CLI for Claude.",
+    messages: [{ role: "user", content: "how should I make the payment flow idempotent?" }],
+  });
+
+  try {
+    await proxyRequest(port, "/v1/messages", fullBody);
+    await collector.waitForReceipt();
+    const counted = seen.filter((entry) => entry.path.startsWith("/v1/messages/count_tokens"));
+    assert.equal(counted.length, 1);
+    const probe = JSON.parse(counted[0].body) as Record<string, unknown>;
+    assert.deepEqual(Object.keys(probe).sort(), ["messages", "model", "system"]);
+    assert.equal("max_tokens" in probe, false);
+    assert.equal("stream" in probe, false);
+    assert.equal("metadata" in probe, false);
+    // It is still the candidate body being counted — the probe is a measurement, not a stub.
+    assert.match(counted[0].body, /injected by Kage/);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+// A request where nothing was transformed has nothing to measure. Writing an "exact, zero savings"
+// row for it would inflate the exact-coverage metric with rows that were never transformed.
+test("no receipt is written when nothing was transformed", async () => {
+  const project = tempProject(); // memory tree, no packets: nothing to recall, nothing to inject
+  const seen: Array<{ path: string; body: string }> = [];
+  const collector = collectingSink();
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "assist", receiptSink: collector.sink });
+  const port = await listeningPort(proxy);
+
+  const noRecall = JSON.stringify({
+    model: "claude-opus-4-8",
+    messages: [{ role: "user", content: "xyzzy nothing will match this token qwerty" }],
+  });
+
+  try {
+    const response = await proxyRequest(port, "/v1/messages", noRecall);
+    assert.equal(response.status, 200);
+    assert.equal(seen[0].body, noRecall);
+    // Give the (async) receipt path a chance to run before asserting it did nothing.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(collector.receipts.length, 0);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
 test("a receipt failure never changes the client response", async () => {
   const project = projectWithMemory();
   const seen: Array<{ path: string; body: string }> = [];
@@ -451,7 +579,57 @@ test("a receipt failure never changes the client response", async () => {
     const response = await proxyRequest(port, "/v1/messages", QUESTION);
     assert.equal(response.status, 200);
     assert.match(response.body, /"text":"ok"/);
+    // The process must still be serving after the sink blew up mid-measurement.
+    const second = await proxyRequest(port, "/v1/messages", QUESTION);
+    assert.equal(second.status, 200);
   } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+// Measurement is opt-in and costs a provider round trip. It must run AFTER the client has been
+// answered — a hanging count_tokens probe must not hold the client's response open.
+test("a hanging measurement probe never delays the client response", async () => {
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const pending: import("node:http").ServerResponse[] = [];
+
+  const { server: fakeUpstream, url } = await withFakeUpstream((req, res) => {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      seen.push({ path: req.url ?? "", body });
+      if ((req.url ?? "").startsWith("/v1/messages/count_tokens")) {
+        pending.push(res); // never answered while the client is waiting
+        return;
+      }
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ content: [{ type: "text", text: "ok" }], usage: UNCACHED_USAGE }));
+    });
+  });
+
+  const proxy = startProxy(project, {
+    port: 0,
+    upstream: url,
+    mode: "audit",
+    countTokens: true,
+    receiptSink: { write: () => {} },
+  });
+  const port = await listeningPort(proxy);
+
+  try {
+    const startedAt = Date.now();
+    const response = await proxyRequest(port, "/v1/messages", QUESTION);
+    const elapsed = Date.now() - startedAt;
+    assert.equal(response.status, 200);
+    assert.match(response.body, /"text":"ok"/);
+    // The probe is still outstanding — the client was answered anyway, and fast.
+    assert.equal(elapsed < 1_000, true, `client waited ${elapsed}ms on a hanging probe`);
+    // A second request is served while the first probe is still hanging.
+    assert.equal((await proxyRequest(port, "/v1/messages", QUESTION)).status, 200);
+  } finally {
+    for (const res of pending) res.end(JSON.stringify({ input_tokens: 1 }));
     proxy.close();
     fakeUpstream.close();
   }

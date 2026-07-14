@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { TransformationReceipt } from "../protocol/index.js";
-import { findPriceSnapshot, inputCostUsd, type ProviderPriceSnapshot } from "./pricing.js";
+import {
+  findPriceSnapshot,
+  promptInputCostUsd,
+  type PromptTokenBreakdown,
+  type ProviderPriceSnapshot,
+} from "./pricing.js";
 import { measurementQuality } from "./token-count.js";
 
 export interface TransformationReceiptInput {
@@ -13,10 +18,22 @@ export interface TransformationReceiptInput {
   before: Buffer;
   /** The bytes of the transformed candidate (which in audit mode is NOT what was forwarded). */
   after: Buffer;
-  /** Provider-measured token count of `before`, or null when nothing measured it. */
+  /**
+   * Provider-measured TOTAL prompt tokens of `before` (uncached + cache writes + cache reads, or a
+   * count_tokens measurement of the body), or null when nothing measured it. Both sides must be
+   * the same quantity or the receipt compares two incommensurable numbers.
+   */
   before_tokens: number | null;
-  /** Provider-measured token count of `after`, or null when nothing measured it. */
+  /** Provider-measured TOTAL prompt tokens of `after`, or null when nothing measured it. */
   after_tokens: number | null;
+  /**
+   * How `before`'s prompt tokens actually billed (cache reads and cache writes bill at their own
+   * rates). Required, and explicitly null when unknown: a token total alone cannot be priced,
+   * because pricing it as if every token were uncached overstates a cached request by up to ~10x.
+   */
+  before_breakdown: PromptTokenBreakdown | null;
+  /** How `after`'s prompt tokens actually billed, or null when unknown. */
+  after_breakdown: PromptTokenBreakdown | null;
   output_tokens?: number | null;
   latency_ms: number;
   transformations: string[];
@@ -56,8 +73,11 @@ export function buildTransformationReceipt(input: TransformationReceiptInput): T
     // Kage's own processing cost is not measured in Phase A. Null is the honest value; 0 would be
     // a claim that the harness is free.
     kage_processing_cost_usd: null,
-    provider_input_cost_before_usd: inputCostUsd(input.before_tokens, price),
-    provider_input_cost_after_usd: inputCostUsd(input.after_tokens, price),
+    // A cost exists only where a measured BILLING BREAKDOWN meets a price snapshot in effect. A
+    // measured token total with no breakdown (a count_tokens probe knows nothing about caching)
+    // has no honest cost — null, never a number priced at the wrong rate.
+    provider_input_cost_before_usd: promptInputCostUsd(input.before_breakdown, price),
+    provider_input_cost_after_usd: promptInputCostUsd(input.after_breakdown, price),
     latency_ms: nonnegativeMs(input.latency_ms),
     transformations: [...input.transformations],
     created_at: now.toISOString(),
