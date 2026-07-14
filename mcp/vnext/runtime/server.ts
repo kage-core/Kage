@@ -55,6 +55,10 @@ export interface LocalRuntimeHandle {
   eventStore: EventStore;
   store: EventStore;
   receiptStore: ReceiptStore;
+  // The source the runtime actually resolved. Exposed so a test can assert the shipped default
+  // is off-thread: without it, reverting the default to an on-request-thread source is a silent
+  // one-line regression that every other test still passes.
+  contextSource: ContextSource | null;
   close(): Promise<void>;
 }
 
@@ -450,6 +454,7 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
       eventStore,
       store: eventStore,
       receiptStore,
+      contextSource,
       close,
     };
   } catch (caught) {

@@ -708,15 +708,60 @@ test("worker context source really kills a runaway synchronous job at the deadli
   }
 });
 
+test("worker context source refuses queued and new work during the cooldown after a deadline kill", async () => {
+  const dir = workerScratchDir();
+  let clock = 1_000;
+  const source = new WorkerContextSource({
+    projectDir: dir,
+    workerPath: writeFakeWorker(dir, RUNAWAY),
+    timeoutMs: 250,
+    cooldownMs: 30_000,
+    now: () => clock,
+  });
+  try {
+    // Two callers arrive while the repo's analysis is doomed to blow the deadline. The second
+    // is queued behind the first, and would re-enter the very same runaway build.
+    const first = source.find(fixtureContextRequest()).catch((error: unknown) => error);
+    const queued = source.find(fixtureContextRequest()).catch((error: unknown) => error);
+
+    assert.match(((await first) as Error).message, /timed out/i);
+    // The queued job is refused rather than re-running the build that just failed to finish.
+    assert.ok((await queued) instanceof Error, "a job queued behind a deadline kill must not re-run it");
+
+    // A request arriving during the cooldown fails fast instead of pinning a core for another
+    // full timeout. Without the cooldown this would spawn a fresh worker and spin again.
+    const startedAt = Date.now();
+    const duringCooldown = await source.find(fixtureContextRequest()).catch((error: unknown) => error);
+    assert.match((duringCooldown as Error).message, /cooling down/i);
+    assert.ok(Date.now() - startedAt < 200, "a cooldown refusal must be immediate, not another deadline wait");
+
+    // Recovery is real: once the cooldown elapses the source tries again (here the fake worker
+    // still runs away, so we only assert it stopped fast-failing and actually ran).
+    clock += 30_001;
+    const afterCooldown = await source.find(fixtureContextRequest()).catch((error: unknown) => error);
+    assert.match((afterCooldown as Error).message, /timed out/i);
+  } finally {
+    await source.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("worker context source respawns after a terminate so one runaway job cannot poison the next", async () => {
   const dir = workerScratchDir();
+  let clock = 1_000;
   const source = new WorkerContextSource({
     projectDir: dir,
     workerPath: writeFakeWorker(dir, RUNAWAY_ONCE),
     timeoutMs: 250,
+    cooldownMs: 30_000,
+    now: () => clock,
   });
   try {
     await assert.rejects(source.find(fixtureContextRequest()), /timed out/i);
+    // The terminated thread is replaced, so the next job runs on a fresh worker rather than a
+    // poisoned one. Step past the post-timeout cooldown first: after a deadline kill the source
+    // deliberately fails fast rather than immediately re-entering the same doomed analysis.
+    clock += 30_001;
     const candidates = await source.find(fixtureContextRequest());
 
     assert.equal(candidates.length, 1);

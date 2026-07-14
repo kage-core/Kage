@@ -24,10 +24,24 @@ export const DEFAULT_CONTEXT_WORKER_TIMEOUT_MS = 60_000;
 // caller has given up.
 export const DEFAULT_CONTEXT_WORKER_QUEUE_LIMIT = 16;
 
+// A deadline kill is not an isolated failure. buildCodeGraph writes graph.json only when it
+// finishes, so a repository whose cold build exceeds the deadline never persists a graph: the
+// respawned worker starts the same build from scratch, gets killed again, and /v2/context 503s
+// forever while every request pins a core for the whole timeout. Callers have already given up
+// (adapters abort in ~500 ms and fail open), so the work is burned for nobody.
+//
+// After a kill, therefore: drop the queued jobs — they would re-enter the same doomed build —
+// and fail fast for a cooldown instead of re-running it per request. Recovery is real, not
+// permanent lockout: the next request after the cooldown tries again, and an out-of-band
+// `kage refresh` (which warms graph.json) makes that attempt succeed. Any success clears it.
+export const DEFAULT_CONTEXT_WORKER_COOLDOWN_MS = 30_000;
+
 export interface WorkerContextSourceOptions {
   projectDir: string;
   timeoutMs?: number;
   queueLimit?: number;
+  cooldownMs?: number;
+  now?: () => number;
   // Test seam: point the source at a script that fakes the kernel's synchronous CPU burn
   // without loading the kernel. Production leaves both unset.
   workerPath?: string;
@@ -67,6 +81,8 @@ export class WorkerContextSource implements ContextSource {
   private readonly projectDir: string;
   private readonly timeoutMs: number;
   private readonly queueLimit: number;
+  private readonly cooldownMs: number;
+  private readonly now: () => number;
   private readonly workerPath: string;
   private readonly workerData: Record<string, unknown>;
 
@@ -75,11 +91,14 @@ export class WorkerContextSource implements ContextSource {
   private readonly queue: PendingJob[] = [];
   private nextJobId = 1;
   private closed = false;
+  private cooldownUntil = 0;
 
   constructor(options: WorkerContextSourceOptions) {
     this.projectDir = options.projectDir;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_CONTEXT_WORKER_TIMEOUT_MS;
     this.queueLimit = options.queueLimit ?? DEFAULT_CONTEXT_WORKER_QUEUE_LIMIT;
+    this.cooldownMs = options.cooldownMs ?? DEFAULT_CONTEXT_WORKER_COOLDOWN_MS;
+    this.now = options.now ?? Date.now;
     this.workerPath = options.workerPath ?? defaultWorkerPath();
     this.workerData = options.workerData ?? {};
   }
@@ -87,6 +106,11 @@ export class WorkerContextSource implements ContextSource {
   find(request: ContextRequest): Promise<ContextCandidate[]> {
     if (this.closed) {
       return Promise.reject(new Error("Kage vNext context worker is closed."));
+    }
+    if (this.now() < this.cooldownUntil) {
+      return Promise.reject(new Error(
+        "Kage vNext context worker is cooling down after a timeout; the last analysis exceeded its deadline.",
+      ));
     }
     if (this.queue.length >= this.queueLimit) {
       return Promise.reject(new Error(
@@ -136,7 +160,7 @@ export class WorkerContextSource implements ContextSource {
     const timer = setTimeout(() => {
       void this.failInFlight(jobId, new Error(
         `Kage vNext context worker timed out after ${this.timeoutMs} ms.`,
-      ));
+      ), { timedOut: true });
     }, this.timeoutMs);
     // The deadline must not be the reason a healthy process stays alive.
     timer.unref?.();
@@ -177,6 +201,9 @@ export class WorkerContextSource implements ContextSource {
     clearTimeout(inFlight.timer);
     this.inFlight = undefined;
     if (reply.ok === true && Array.isArray(reply.candidates)) {
+      // A completed analysis proves the worker can finish: whatever tripped the last deadline
+      // is over (a graph was probably just built and persisted), so stop failing fast.
+      this.cooldownUntil = 0;
       inFlight.job.resolve(reply.candidates as ContextCandidate[]);
     } else {
       inFlight.job.reject(new Error(
@@ -190,12 +217,23 @@ export class WorkerContextSource implements ContextSource {
   // deadline, uncaught throw, unexpected exit -- the worker's state is now untrustworthy or it
   // is stuck in synchronous CPU work that nothing else can interrupt. The next job gets a
   // fresh one.
-  private async failInFlight(jobId: number | undefined, failure: Error): Promise<void> {
+  private async failInFlight(
+    jobId: number | undefined,
+    failure: Error,
+    options: { timedOut?: boolean } = {},
+  ): Promise<void> {
     const inFlight = this.inFlight;
     if (inFlight && (jobId === undefined || inFlight.jobId === jobId)) {
       clearTimeout(inFlight.timer);
       this.inFlight = undefined;
       inFlight.job.reject(failure);
+    }
+    if (options.timedOut) {
+      // Everything queued behind a deadline kill would re-enter the same analysis that just
+      // failed to finish. Refuse them now instead of burning a core per request on work whose
+      // callers have already aborted.
+      this.cooldownUntil = this.now() + this.cooldownMs;
+      for (const job of this.queue.splice(0)) job.reject(failure);
     }
     await this.discardWorker();
     this.pump();

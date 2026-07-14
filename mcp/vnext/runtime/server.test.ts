@@ -1210,11 +1210,18 @@ test("local runtime defaults its context source to the off-thread worker", async
     const capsule = await response.json() as { sections: { title: string }[] };
 
     // No contextSource was injected, so this is the shipped default: the legacy kernel really
-    // ran, on a worker thread, and produced its target-context section for the requested file.
+    // ran and produced its target-context section for the requested file.
     assert.equal(response.status, 200);
     assert.ok(
       capsule.sections.some((section) => section.title === "Target context: src/auth.ts"),
       `default source must produce real kernel context; got ${JSON.stringify(capsule.sections)}`,
+    );
+    // ...and it ran OFF the request thread. Asserting only on the capsule above would pass just
+    // as well with the kernel running on the runtime's event loop, so reverting the default to
+    // an on-thread LegacyContextSource would be a silent one-line regression. This is the guard.
+    assert.ok(
+      runtime.contextSource instanceof WorkerContextSource,
+      `default context source must be off-thread; got ${runtime.contextSource?.constructor.name}`,
     );
   });
 });
