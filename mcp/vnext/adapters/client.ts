@@ -1,4 +1,6 @@
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { lstatSync, readFileSync } from "node:fs";
+import { basename } from "node:path";
 import { isRecord } from "../../type-guards.js";
 import type { ContextRequest } from "../context/source.js";
 import {
@@ -140,18 +142,53 @@ export function parseContextCapsule(value: unknown): ContextCapsule | undefined 
   };
 }
 
+// The runtime writes status.json and token 0600 inside a 0700 directory it owns (runtime/paths.ts,
+// status.ts, token.ts). Those files sit at a repo-relative, CHECKED-OUT path, so a cloned hostile
+// repo can ship its own pair and point the harness at a port of its choosing. Trust them only while
+// they still look like the runtime's own.
+function ownedAndPrivate(path: string, kind: "file" | "directory"): boolean {
+  const stats = lstatSync(path);
+  if (kind === "file" ? !stats.isFile() : !stats.isDirectory()) return false;
+  if (stats.isSymbolicLink()) return false;
+  const uid = process.getuid?.();
+  if (uid !== undefined && stats.uid !== uid) return false;
+  return (stats.mode & 0o077) === 0;
+}
+
+// status.json is removed only on a graceful close, so SIGKILL, an OOM kill, or a reboot leaves it
+// behind — and the port it names may since have been taken by any other local process. A runtime is
+// live only while the process it recorded is still running and still ours. Anything unverifiable is
+// "no runtime": when in doubt the legacy path must keep running, because silence is the worst
+// possible failure and a redundant legacy hook is a survivable one.
+function runtimeProcessAlive(pid: unknown): boolean {
+  if (!Number.isInteger(pid) || (pid as number) <= 0) return false;
+  try {
+    // Signal 0 probes existence and permission: ESRCH (gone) and EPERM (someone else's process,
+    // i.e. a recycled pid) both throw, and both mean "not our runtime".
+    process.kill(pid as number, 0);
+    const comm = execFileSync("ps", ["-p", String(pid), "-o", "comm="], { encoding: "utf8", timeout: 2_000 });
+    return basename(comm.trim()).toLowerCase().includes("node");
+  } catch {
+    return false;
+  }
+}
+
 // Adapters discover the runtime the same way the shell hook does: the status file the daemon
-// publishes, plus the token beside it. Anything missing, unreadable, or off-mode means "no
-// runtime" — never an exception, because an adapter that throws is an adapter that breaks a
-// user's session.
+// publishes, plus the token beside it. Anything missing, unreadable, off-mode, untrusted, or no
+// longer alive means "no runtime" — never an exception, because an adapter that throws is an
+// adapter that breaks a user's session.
 export function readAdapterConnection(projectDir: string): AdapterConnection | null {
   try {
     const paths = resolveRuntimePaths(projectDir);
+    if (!ownedAndPrivate(paths.runtimeDirectory, "directory")) return null;
+    if (!ownedAndPrivate(paths.statusPath, "file")) return null;
+    if (!ownedAndPrivate(paths.tokenPath, "file")) return null;
     const status: unknown = JSON.parse(readFileSync(paths.statusPath, "utf8"));
     if (!isRecord(status)) return null;
-    const { host, port, mode } = status;
+    const { host, port, mode, pid } = status;
     if (host !== "127.0.0.1" || !Number.isInteger(port) || (port as number) <= 0 || (port as number) > 65_535) return null;
     if (mode !== "audit" && mode !== "assist") return null;
+    if (!runtimeProcessAlive(pid)) return null;
     const token = readFileSync(paths.tokenPath, "utf8").trim();
     if (!token) return null;
     return { url: `http://127.0.0.1:${port as number}`, token, mode };

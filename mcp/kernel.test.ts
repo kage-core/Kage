@@ -149,6 +149,7 @@ import {
   evaluateMemoryAdmission,
   isUngroundedConversationalCapture,
   verifyAgentActivation,
+  KAGE_HOOKS_VERSION,
   validatePacket,
   validateProject,
   writeCodeIndex,
@@ -2417,14 +2418,27 @@ test("setup generates all-agent MCP configuration and writes Codex config idempo
   const vnextAdapterPath = join(home, ".claude", "kage", "hooks", "kage-vnext-adapter.sh");
   const vnextAdapter = readFileSync(vnextAdapterPath, "utf8");
   execFileSync("bash", ["-n", vnextAdapterPath]);
-  assert.match(vnextAdapter, /curl -sf --max-time 0\.5/);
+  // Evidence gets 150 ms, context 500 ms — the two budgets Phase A commits to.
+  assert.match(vnextAdapter, /curl -sf --max-time 0\.15/);
+  assert.match(vnextAdapter, /curl -sf --max-time 0\.5 /);
   assert.match(vnextAdapter, /exit 0/);
+  // The adapter is stamped like every other hook, so a stale copy on disk is reported, not run.
+  assert.match(vnextAdapter, new RegExp(`^# kage-hooks-v${KAGE_HOOKS_VERSION}$`, "m"));
   for (const hookName of ["session-start.sh", "observe.sh", "stop.sh", "kage-read-context.sh", "kage-edit-context.sh"]) {
-    assert.match(
-      readFileSync(join(home, ".claude", "kage", "hooks", hookName), "utf8"),
-      /\.agent_memory\/daemon\/vnext\/status\.json/,
-      `${hookName} missing the vNext stand-down guard`,
-    );
+    const guarded = readFileSync(join(home, ".claude", "kage", "hooks", hookName), "utf8");
+    assert.match(guarded, /KAGE_VNEXT_DIR="\$CWD\/\.agent_memory\/daemon\/vnext"/, `${hookName} missing the vNext stand-down guard`);
+    // The guard is event-aware: it may only hand over events the adapter actually handles, and it
+    // must verify the runtime is ALIVE (os.kill) rather than trusting a leftover status file.
+    assert.match(guarded, /KAGE_VNEXT_ADAPTER_EVENTS=/, `${hookName} stands down without checking the event`);
+    assert.match(guarded, /os\.kill\(pid, 0\)/, `${hookName} trusts a status file without checking liveness`);
+  }
+  // Stop, PreCompact and SubagentStop have no adapter handler: they must never appear in the
+  // hand-over set, or refresh, pr summarize, the reconcile gate and distillation all die silently.
+  const standDownEvents = vnextAdapter.length && readFileSync(join(home, ".claude", "kage", "hooks", "observe.sh"), "utf8")
+    .match(/KAGE_VNEXT_ADAPTER_EVENTS="([^"]*)"/);
+  assert.ok(standDownEvents);
+  for (const orphan of ["Stop", "PreCompact", "SubagentStop"]) {
+    assert.ok(!standDownEvents[1].includes(` ${orphan} `), `${orphan} has no adapter handler and must not be handed over`);
   }
 
   // PreToolUse(Read) memory injection: dedicated script + a "Read"-matcher hook entry.
@@ -2501,6 +2515,23 @@ esac
   assert.equal(claudeVerify.checks.ambient_hooks_present, true);
   assert.equal(claudeVerify.checks.ambient_hooks_supported, true);
   assert.equal(claudeVerify.hook_summary?.missing.length, 0);
+  assert.equal(claudeVerify.hook_summary?.ready, true);
+
+  // The adapter is wired into six hook events. If it is missing, bash exits 127 on every prompt;
+  // if it is stale, it runs last release's behavior. Either way "ready" would be a lie, so the
+  // adapter is verified exactly like the five legacy scripts.
+  const adapterPath = join(home, ".claude", "kage", "hooks", "kage-vnext-adapter.sh");
+  assert.ok(claudeVerify.hook_summary?.script_paths.includes(adapterPath), "the adapter is a verified script");
+  const adapterBody = readFileSync(adapterPath, "utf8");
+  writeFileSync(adapterPath, adapterBody.replace(`# kage-hooks-v${KAGE_HOOKS_VERSION}`, "# kage-hooks-v1"), "utf8");
+  const staleAdapter = verifyAgentActivation("claude-code", project, { homeDir: home, serverPath: "/tmp/kage/dist/index.js" });
+  assert.equal(staleAdapter.hook_summary?.outdated.includes("kage-vnext-adapter.sh"), true, "a stale adapter is reported");
+  assert.equal(staleAdapter.hook_summary?.ready, false, "verify-agent never says ready with a stale adapter");
+  unlinkSync(adapterPath);
+  const missingAdapter = verifyAgentActivation("claude-code", project, { homeDir: home, serverPath: "/tmp/kage/dist/index.js" });
+  assert.equal(missingAdapter.hook_summary?.missing.includes("kage-vnext-adapter.sh"), true, "a missing adapter is reported");
+  assert.equal(missingAdapter.hook_summary?.ready, false, "verify-agent never says ready without the adapter");
+  writeFileSync(adapterPath, adapterBody, { mode: 0o755 });
 
   // Cursor has no hook mechanism at all — ambient_hooks_present is vacuously true
   // (nothing was required), but ambient_hooks_supported must say so isn't the same

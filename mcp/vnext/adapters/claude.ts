@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { isAbsolute, join, resolve, sep } from "node:path";
 import { isRecord } from "../../type-guards.js";
 import type {
   AdapterCapability,
@@ -59,14 +60,47 @@ function toolInput(payload: Record<string, unknown>): Record<string, unknown> {
   return isRecord(value) ? value : {};
 }
 
-function hookPath(payload: Record<string, unknown>): string {
+// Memory is repo-scoped, and a path is team_metadata — the SHAREABLE tier. A Read of ~/.ssh/config,
+// or of a different employer's checkout, must never put that path (a username, a client name) into
+// a shareable event. Out-of-repo paths are dropped, exactly as the legacy file hooks always did.
+function hookPath(payload: Record<string, unknown>, root: string): string {
   const input = toolInput(payload);
-  const candidate = input.file_path ?? input.path ?? input.notebook_path;
-  return text(candidate, MAX_PATH_CHARS);
+  const candidate = text(input.file_path ?? input.path ?? input.notebook_path, MAX_PATH_CHARS);
+  if (!candidate || !root) return "";
+  const absolute = isAbsolute(candidate) ? candidate : join(root, candidate);
+  const real = resolve(absolute);
+  const base = resolve(root);
+  return real === base || real.startsWith(`${base}${sep}`) ? candidate : "";
 }
 
-function fingerprint(parts: readonly unknown[]): string {
-  return createHash("sha256").update(JSON.stringify(parts)).digest("hex");
+// The store deduplicates on source_fingerprint, so the fingerprint must describe the SIGNAL, not
+// the post: a hook retried after a failed-open post must not double-record. event_id is random and
+// deliberately excluded. Exported because the shipped shell adapter computes the same value over
+// the same bytes — the two adapters must dedupe against each other, not merely against themselves.
+export function claudeSourceFingerprint(
+  repositoryId: string,
+  taskId: string,
+  eventType: string,
+  occurredAt: string,
+  payload: unknown,
+): string {
+  return createHash("sha256")
+    .update(JSON.stringify([repositoryId, taskId, eventType, occurredAt, payload]))
+    .digest("hex");
+}
+
+// Claude Code has no PostToolUseFailure hook event: a failed tool call arrives as an ordinary
+// PostToolUse whose tool_response carries the error. Reading the outcome off the response is the
+// only way a measurement phase can tell a working session from a thrashing one. The error TEXT is
+// never copied into the event — only the verdict.
+function toolOutcome(payload: Record<string, unknown>): "ok" | "error" {
+  if (payload.hook_event_name === "PostToolUseFailure") return "error";
+  const response = payload.tool_response ?? payload.toolResponse;
+  if (!isRecord(response)) return "ok";
+  if (response.is_error === true || response.isError === true || response.success === false) return "error";
+  if (typeof response.error === "string" && response.error.trim()) return "error";
+  if (isRecord(response.error)) return "error";
+  return "ok";
 }
 
 export function claudeRepositoryIdentity(
@@ -139,6 +173,7 @@ export function claudeEventType(hookEventName: string, toolName: string): Eviden
 function eventPayload(
   eventType: EvidenceEvent["event_type"],
   payload: Record<string, unknown>,
+  root: string,
 ): Record<string, unknown> {
   const tool = text(payload.tool_name ?? payload.toolName, 128);
   switch (eventType) {
@@ -152,13 +187,9 @@ function eventPayload(
     case "file_edit":
       // Paths and the tool name only. The edit's old/new text is the most sensitive thing a hook
       // ever sees and it has no place in a team_metadata event.
-      return { tool, path: hookPath(payload) };
+      return { tool, path: hookPath(payload, root) };
     case "tool_result":
-      return {
-        tool,
-        path: hookPath(payload),
-        outcome: payload.hook_event_name === "PostToolUseFailure" ? "error" : "ok",
-      };
+      return { tool, path: hookPath(payload, root), outcome: toolOutcome(payload) };
   }
 }
 
@@ -170,7 +201,7 @@ export function claudeHookToEvent(
 ): EvidenceEvent | null {
   const sessionId = text(payload.session_id ?? payload.sessionId, 256);
   const task = claudeTaskIdentity(repository, sessionId);
-  const body = eventPayload(eventType, payload);
+  const body = eventPayload(eventType, payload, repository.root);
   // A file event with no path, or a prompt with no text, is not evidence — it is noise.
   if ((eventType === "file_open" || eventType === "file_edit") && !body.path) return null;
   if (eventType === "prompt" && !body.text) return null;
@@ -184,10 +215,7 @@ export function claudeHookToEvent(
     repository_id: repository.repo_id,
     task_id: task.task_id,
     privacy_class: PRIVACY_BY_EVENT[eventType],
-    // The store deduplicates on source_fingerprint, so the fingerprint must describe the SIGNAL,
-    // not this particular post: a hook retried after a failed-open post must not double-record.
-    // event_id is random and deliberately excluded.
-    source_fingerprint: fingerprint([repository.repo_id, task.task_id, eventType, occurredAt, body]),
+    source_fingerprint: claudeSourceFingerprint(repository.repo_id, task.task_id, eventType, occurredAt, body),
     payload: body,
   };
 }
