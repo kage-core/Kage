@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { callTool, listTools } from "./index.js";
@@ -793,4 +793,53 @@ test("MCP kage_validate reports project memory health", async () => {
   const result = await callTool("kage_validate", { project_dir: project });
   assert.equal(result.isError, false);
   assert.match(textContent(result), /Validation passed/);
+});
+
+// Regression: a kage_learn call that passed the insight under an unsupported key ("content"
+// instead of "learning") was silently accepted. The unknown key was dropped, `learning`
+// defaulted to "", and a packet with an empty body was written, indexed, and only ever
+// surfaced as a soft "body is empty" validation warning long after the insight was lost.
+test("kage_learn rejects an unknown parameter instead of silently dropping the insight", async () => {
+  const project = tempProject();
+  writeFileSync(join(project, "app.ts"), "export const app = 1;\n", "utf8");
+  const result = await callTool("kage_learn", {
+    project_dir: project,
+    content: "The refund ledger is the source of truth; never recompute balances from events.",
+    paths: ["app.ts"],
+  });
+
+  assert.equal(result.isError, true);
+  assert.match(textContent(result), /content/);
+  const packets = join(project, ".agent_memory", "packets");
+  const written = existsSync(packets) ? readdirSync(packets) : [];
+  assert.deepEqual(written, [], "a rejected call must not write a packet");
+});
+
+test("kage_learn refuses to write a packet with no learning text", async () => {
+  const project = tempProject();
+  writeFileSync(join(project, "app.ts"), "export const app = 1;\n", "utf8");
+  const result = await callTool("kage_learn", {
+    project_dir: project,
+    learning: "   ",
+    paths: ["app.ts"],
+  });
+
+  assert.equal(result.isError, true);
+  const packets = join(project, ".agent_memory", "packets");
+  const written = existsSync(packets) ? readdirSync(packets) : [];
+  assert.deepEqual(written, [], "an empty learning must not produce a packet");
+});
+
+test("kage_supersede names the unknown parameter instead of failing as self-supersede", async () => {
+  const project = tempProject();
+  const result = await callTool("kage_supersede", {
+    project_dir: project,
+    old_id: "repo:demo:decision:a",
+    new_id: "repo:demo:decision:b",
+  });
+
+  assert.equal(result.isError, true);
+  const text = textContent(result);
+  assert.match(text, /old_id|new_id/);
+  assert.doesNotMatch(text, /cannot supersede itself/i);
 });

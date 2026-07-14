@@ -131,7 +131,13 @@ export const CORE_TOOLS = new Set([
 ]);
 
 export function listTools() {
-  const all = [
+  const all = allTools();
+  if (process.env.KAGE_TOOLS === "full" || process.env.KAGE_ALL_TOOLS === "1") return all;
+  return all.filter((tool) => CORE_TOOLS.has(tool.name));
+}
+
+function allTools() {
+  return [
     {
       // Combined entry-point tool: validate + recall + code_graph + graph in one call.
       // Agents should load this schema first (one ToolSearch) instead of loading four
@@ -149,6 +155,8 @@ export function listTools() {
           session_id: { type: "string", description: "Optional active agent session id for memory reconciliation" },
           targets: { type: "array", items: { type: "string" }, description: "Optional files the agent may edit or explain; used for risk context" },
           changed_files: { type: "array", items: { type: "string" }, description: "Optional changed files for pre-edit or PR risk context" },
+          json: { type: "boolean", description: "Return the full structured result instead of the rendered context block." },
+          explain: { type: "boolean", description: "Return the full structured result, including why each memory was recalled." },
         },
         required: ["project_dir", "query"],
       },
@@ -517,6 +525,7 @@ export function listTools() {
           project_dir: { type: "string", description: "Workspace root directory to scan for git repos" },
           query: { type: "string", description: "Question or task to recall across repos" },
           limit: { type: "number", description: "Max combined hits to return (default 8)" },
+          json: { type: "boolean", description: "Return the full structured result instead of the rendered context block." },
         },
         required: ["project_dir", "query"],
       },
@@ -1130,15 +1139,44 @@ export function listTools() {
       },
     },
   ];
-  if (process.env.KAGE_TOOLS === "full" || process.env.KAGE_ALL_TOOLS === "1") return all;
-  return all.filter((tool) => CORE_TOOLS.has(tool.name));
 }
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: listTools(),
 }));
 
+// Every tool reads its arguments as `args?.some_key`, so a caller that misnames a parameter
+// gets it silently dropped and the tool runs on the default. That is how a kage_learn call
+// carrying its insight under the wrong key wrote a packet with an empty body: the insight was
+// discarded, no error was raised, and the loss only surfaced later as a soft validation
+// warning. Unknown keys are a caller bug every time — fail loudly instead of writing something
+// useless.
+function unknownToolArgs(name: string, args: Record<string, unknown> | undefined): string[] {
+  if (!args) return [];
+  const tool = allTools().find((candidate) => candidate.name === name);
+  const schema = tool?.inputSchema as { properties?: Record<string, unknown> } | undefined;
+  if (!schema?.properties) return [];
+  const allowed = new Set(Object.keys(schema.properties));
+  return Object.keys(args).filter((key) => !allowed.has(key)).sort();
+}
+
 export async function callTool(name: string, args: Record<string, unknown> | undefined) {
+  const unknown = unknownToolArgs(name, args);
+  if (unknown.length) {
+    const tool = allTools().find((candidate) => candidate.name === name);
+    const allowed = Object.keys((tool?.inputSchema as { properties: Record<string, unknown> }).properties).sort();
+    return {
+      content: [
+        {
+          type: "text",
+          text: `${name} does not accept: ${unknown.join(", ")}.\n`
+            + `Supported parameters: ${allowed.join(", ")}.\n`
+            + "Nothing was written. Re-send the call with the intended parameter name.",
+        },
+      ],
+      isError: true,
+    };
+  }
   await ensureTreeSitterLanguages();
   if (name === "kage_list_domains") {
     return { content: [{ type: "text", text: await kageListPublicDomains() }] };

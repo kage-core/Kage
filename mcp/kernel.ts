@@ -16926,6 +16926,21 @@ export function learn(input: LearnInput): LearnResult {
     input.verifiedBy ? `\nVerified by: ${input.verifiedBy.trim()}` : "",
   ].join("").trim();
 
+  // A packet with no content is worse than no packet: it is indexed, recalled, and
+  // occupies the slot of the insight it was supposed to carry, while the loss shows
+  // up only as a soft "body is empty" validation warning much later. Reject the write
+  // at capture time, the same way an uncited learning is rejected below.
+  if (!body) {
+    return {
+      ok: false,
+      errors: [
+        "Empty learning: a memory packet needs content. Pass the insight in `learning` "
+          + "(full sentences: what was learned and why it matters to a future session).",
+      ],
+      warnings: [],
+    };
+  }
+
   // Strict (agent/CLI) repo learnings must be grounded: a learning with no cited
   // paths at all is rejected. Citation-free notes are allowed only in the
   // personal store (`kage learn --personal` / learnPersonal), where recall
