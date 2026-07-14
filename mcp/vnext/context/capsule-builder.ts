@@ -4,10 +4,39 @@ import {
   type CapsuleSection,
   type ContextCapsule,
 } from "../protocol/index.js";
-import type { ContextCandidate, ContextRequest, ContextSource } from "./source.js";
+import {
+  MAX_CONTEXT_IDENTIFIER_BYTES,
+  MAX_CONTEXT_QUERY_BYTES,
+  type ContextCandidate,
+  type ContextRequest,
+  type ContextSource,
+} from "./source.js";
 import { estimateTokens } from "./token-estimate.js";
 
 const DEFAULT_TTL_MS = 5 * 60 * 1_000;
+
+// JSON.stringify expands one input byte into at most six output bytes (a control character
+// or lone surrogate becomes \u00XX).
+const JSON_ESCAPE_FACTOR = 6;
+
+// Everything in the capsule that is not a validated input string: the field names and JSON
+// punctuation, capsule_id ("capsule_" + 64 hex chars), two ISO-8601 timestamps, the empty
+// sections array, and the two numbers. Measured worst case is ~260 bytes; 512 is the
+// documented ceiling.
+const CAPSULE_ENVELOPE_STRUCTURE_BYTES = 512;
+
+// The guarantee this module actually provides:
+//
+//   estimateTokens(JSON.stringify(capsule)) <= request.token_budget + MAX_CAPSULE_ENVELOPE_TOKENS
+//
+// Sections are charged the exact bytes they contribute to the serialized capsule (their own
+// JSON plus the one-byte array separator), so the sections array never exceeds token_budget.
+// Everything else is the envelope, which is bounded because validateContextRequest caps the
+// only variable-length strings it echoes: query, repository_id, and task_id.
+export const MAX_CAPSULE_ENVELOPE_TOKENS = Math.ceil(
+  (CAPSULE_ENVELOPE_STRUCTURE_BYTES
+    + JSON_ESCAPE_FACTOR * (MAX_CONTEXT_QUERY_BYTES + 2 * MAX_CONTEXT_IDENTIFIER_BYTES)) / 4,
+);
 const SECTION_KINDS = new Set<CapsuleSection["kind"]>([
   "orientation",
   "invariant",
@@ -91,13 +120,22 @@ function sectionFrom(candidate: ContextCandidate): CapsuleSection {
   };
 }
 
+// Exactly the bytes this section contributes to JSON.stringify(capsule).sections — every
+// field the protocol emits, priority included. Omitting a field here would under-count the
+// payload the caller is actually charged for.
 export function renderCapsuleSection(section: CapsuleSection): string {
   return JSON.stringify({
     kind: section.kind,
     title: section.title,
     body: section.body,
     evidence_ids: section.evidence_ids,
+    priority: section.priority,
   });
+}
+
+// The rendered section plus the one-byte comma that joins it to the array.
+export function capsuleSectionTokens(section: CapsuleSection): number {
+  return estimateTokens(`${renderCapsuleSection(section)},`);
 }
 
 function projectedRequest(request: ContextRequest): ContextRequest {
@@ -141,10 +179,11 @@ export async function buildContextCapsule(
 
   for (const candidate of sorted) {
     if (seen.has(candidate.candidate_id)) continue;
-    seen.add(candidate.candidate_id);
     const section = sectionFrom(candidate);
-    const sectionTokens = estimateTokens(renderCapsuleSection(section));
+    const sectionTokens = capsuleSectionTokens(section);
+    // Budget overflow must not claim the id: a duplicate that fits still deserves its slot.
     if (estimatedTokens + sectionTokens > request.token_budget) continue;
+    seen.add(candidate.candidate_id);
     sections.push(section);
     estimatedTokens += sectionTokens;
   }

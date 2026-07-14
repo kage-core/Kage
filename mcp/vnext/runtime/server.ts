@@ -301,7 +301,10 @@ function createRequestHandler(
       try {
         const capsule = await buildContextCapsule(contextSource, contextRequest.value);
         json(res, 200, capsule);
-      } catch {
+      } catch (failure) {
+        // The client never learns why (no internal paths or messages over the wire), but a
+        // code bug in the source must not vanish: it is a bug, not an availability event.
+        console.error("[kage-vnext] context source failed:", failure);
         error(res, 503, "context_source_unavailable");
       }
     } catch (caught) {

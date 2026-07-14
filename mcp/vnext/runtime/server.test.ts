@@ -424,6 +424,59 @@ test("local runtime maps source failure and explicit unavailability to determini
   }
 });
 
+test("local runtime logs the swallowed context source failure instead of hiding a bug", async () => {
+  const failingSource: ContextSource = {
+    async find() {
+      throw new TypeError("private source details");
+    },
+  };
+  const logged: unknown[][] = [];
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => { logged.push(args); };
+
+  try {
+    await withRuntime(async (runtime) => {
+      const response = await postJson(runtime, "/v2/context", fixtureContextRequest());
+      assert.equal(response.status, 503);
+      assert.equal((await response.text()).includes("private source details"), false);
+    }, { contextSource: failingSource });
+  } finally {
+    console.error = originalError;
+  }
+
+  // The client learns nothing; the operator learns everything.
+  const text = logged.map((args) => args.map(String).join(" ")).join("\n");
+  assert.match(text, /context source failed/i);
+  assert.match(text, /private source details/);
+});
+
+test("local runtime rejects oversized context inputs before doing kernel work", async () => {
+  let calls = 0;
+  const source: ContextSource = {
+    async find() {
+      calls += 1;
+      return [];
+    },
+  };
+  // Each stays well under the 2 MiB JSON body cap yet would drive unbounded synchronous
+  // kernel work (or an unbounded response body) if it reached the source.
+  const overCapRequests: unknown[] = [
+    { ...fixtureContextRequest(), query: "q".repeat(64 * 1024) },
+    { ...fixtureContextRequest(), targets: Array.from({ length: 50_000 }, (_, index) => `src/file-${index}.ts`) },
+    { ...fixtureContextRequest(), changed_files: Array.from({ length: 50_000 }, (_, index) => `src/file-${index}.ts`) },
+    { ...fixtureContextRequest(), targets: [`src/${"deep/".repeat(2_000)}file.ts`] },
+  ];
+
+  await withRuntime(async (runtime) => {
+    for (const requestBody of overCapRequests) {
+      const response = await postJson(runtime, "/v2/context", requestBody);
+      assert.equal(response.status, 400);
+      assert.deepEqual(await response.json(), { ok: false, error: "invalid_protocol" });
+    }
+    assert.equal(calls, 0);
+  }, { contextSource: source });
+});
+
 test("local runtime strictly validates context requests before consulting the source", async () => {
   let calls = 0;
   const source: ContextSource = {

@@ -1,7 +1,11 @@
 import {
   kageRisk as legacyKageRisk,
   kageTeammateBrief as legacyKageTeammateBrief,
+  packetVerificationLabel as legacyPacketVerificationLabel,
   recall as legacyRecall,
+  type KageRiskReport,
+  type MemoryPacket,
+  type RecallResult,
 } from "../../kernel.js";
 import type { CapsuleSection } from "../protocol/index.js";
 import type { ContextCandidate, ContextRequest, ContextSource } from "./source.js";
@@ -15,9 +19,13 @@ export interface LegacyPacket {
   scope: string;
   status: string;
   paths: string[];
-  quality: Record<string, unknown>;
+  // Optional on purpose: packets written by older kernels (or hand-edited on disk) can be
+  // missing these entirely. Every read here goes through `?? {}`.
+  quality?: Record<string, unknown>;
   freshness?: Record<string, unknown>;
 }
+
+export type LegacyVerificationLabel = "verified" | "unverified" | "stale";
 
 interface LegacyRecallResult {
   results: Array<{ packet: LegacyPacket; score: number }>;
@@ -46,29 +54,38 @@ export interface LegacyKernelFunctions {
     query: string;
     targets: string[];
     changedFiles: string[];
+    recallResult?: LegacyRecallResult;
+    riskResult?: LegacyRiskReport;
   }): LegacyTeammateBrief;
+  // The kernel's only real verification signal. Routed through the seam so trust has a
+  // single source of truth and tests can fake it.
+  packetVerificationLabel(packet: LegacyPacket): LegacyVerificationLabel;
 }
 
 const DEFAULT_KERNEL: LegacyKernelFunctions = {
+  // The kernel results are returned as-is (they are structurally LegacyRecallResult /
+  // LegacyRiskReport) so find() can forward them to kageTeammateBrief instead of making the
+  // kernel recompute recall and risk.
   recall(projectDir, query, limit) {
-    const result = legacyRecall(projectDir, query, limit);
-    return {
-      results: result.results.map((entry) => ({ packet: entry.packet, score: entry.score })),
-      suppressed: result.suppressed,
-    };
+    return legacyRecall(projectDir, query, limit);
   },
   kageRisk(projectDir, targets, changedFiles) {
-    const result = legacyKageRisk(projectDir, targets, changedFiles);
-    return {
-      targets: Object.fromEntries(Object.entries(result.targets).map(([path, target]) => [
-        path,
-        { target: target.target, risk_summary: target.risk_summary },
-      ])),
-    };
+    return legacyKageRisk(projectDir, targets, changedFiles);
   },
   kageTeammateBrief(projectDir, options) {
-    const result = legacyKageTeammateBrief(projectDir, options);
+    const result = legacyKageTeammateBrief(projectDir, {
+      query: options.query,
+      targets: options.targets,
+      changedFiles: options.changedFiles,
+      // Under this kernel the seam values are the kernel's own results; the cast restores
+      // the concrete types the narrow seam deliberately forgets.
+      recallResult: options.recallResult as RecallResult | undefined,
+      riskResult: options.riskResult as KageRiskReport | undefined,
+    });
     return { verification_contract: result.verification_contract };
+  },
+  packetVerificationLabel(packet) {
+    return legacyPacketVerificationLabel(packet as MemoryPacket);
   },
 };
 
@@ -129,13 +146,14 @@ function packetKind(type: string): CapsuleSection["kind"] {
   }
 }
 
-function packetTrust(packet: LegacyPacket): ContextCandidate["trust_state"] {
-  return packet.quality.verified === true || packet.quality.verification_status === "verified"
-    ? "verified"
-    : "approved";
-}
-
-function memoryCandidate(entry: LegacyRecallResult["results"][number]): ContextCandidate | undefined {
+// Trust follows the kernel label, not fields nobody writes: "verified" means an evidence
+// check actually verified the claim, "stale" means the packet must not be emitted at all,
+// and everything else is approved-but-unverified.
+function memoryCandidate(
+  entry: LegacyRecallResult["results"][number],
+  label: LegacyVerificationLabel,
+): ContextCandidate | undefined {
+  if (label === "stale") return undefined;
   if (!trustedRepoPacket(entry.packet)) return undefined;
   return {
     candidate_id: `memory:${entry.packet.id}`,
@@ -143,7 +161,7 @@ function memoryCandidate(entry: LegacyRecallResult["results"][number]): ContextC
     title: entry.packet.title,
     body: entry.packet.summary,
     evidence_ids: [entry.packet.id],
-    trust_state: packetTrust(entry.packet),
+    trust_state: label === "verified" ? "verified" : "approved",
     priority: Number.isFinite(entry.score) ? entry.score : 0,
   };
 }
@@ -192,6 +210,11 @@ export class LegacyContextSource implements ContextSource {
     private readonly kernel: LegacyKernelFunctions = DEFAULT_KERNEL,
   ) {}
 
+  // `async` in signature only: recall, kageRisk (which can fall back to a full code-graph
+  // build) and kageTeammateBrief are synchronous kernel calls that occupy the runtime's
+  // single event loop for their whole duration. They cannot be preempted by a timeout, so
+  // the caller's protection is the input caps enforced in validateContextRequest — see the
+  // Phase A limitation recorded there.
   async find(request: ContextRequest): Promise<ContextCandidate[]> {
     const recallResult = this.kernel.recall(this.projectDir, request.query, 12);
     const targets = unique([...request.targets, ...request.changed_files]);
@@ -200,9 +223,13 @@ export class LegacyContextSource implements ContextSource {
       query: request.query,
       targets: request.targets,
       changedFiles: request.changed_files,
+      // Reuse what we already computed: the kernel needs these to produce memory warnings
+      // and risk-derived test gaps, and recomputing them would double the synchronous cost.
+      recallResult,
+      riskResult,
     });
     const memories = recallResult.results
-      .map(memoryCandidate)
+      .map((entry) => memoryCandidate(entry, this.kernel.packetVerificationLabel(entry.packet)))
       .filter((candidate): candidate is ContextCandidate => candidate !== undefined);
     const verification = verificationCandidate(brief.verification_contract);
     return [

@@ -1,9 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { packetVerificationLabel, type MemoryPacket } from "../../kernel.js";
 import type { CapsuleSection } from "../protocol/index.js";
-import { buildContextCapsule, renderCapsuleSection } from "./capsule-builder.js";
+import {
+  MAX_CAPSULE_ENVELOPE_TOKENS,
+  buildContextCapsule,
+  capsuleSectionTokens,
+  renderCapsuleSection,
+} from "./capsule-builder.js";
 import { LegacyContextSource, type LegacyKernelFunctions, type LegacyPacket } from "./legacy-source.js";
 import {
+  MAX_CONTEXT_IDENTIFIER_BYTES,
+  MAX_CONTEXT_PATHS,
+  MAX_CONTEXT_PATH_BYTES,
+  MAX_CONTEXT_QUERY_BYTES,
   MAX_CONTEXT_TOKEN_BUDGET,
   validateContextRequest,
   type ContextCandidate,
@@ -130,8 +140,79 @@ test("capsule builder keeps required invariants and stays inside 1200 tokens", a
   assert.ok(capsule.sections.some((section) => section.kind === "invariant"));
   assert.equal(
     capsule.estimated_tokens,
-    capsule.sections.reduce((sum, section) => sum + estimateTokens(renderCapsuleSection(section)), 0),
+    capsule.sections.reduce((sum, section) => sum + capsuleSectionTokens(section), 0),
   );
+});
+
+test("capsule payload honours its budget in the bytes actually serialized", async () => {
+  // Worst-case legal input: identifiers and a query at their validated caps, made of
+  // control characters so JSON escaping expands every input byte six-fold.
+  const query = "\u0001".repeat(MAX_CONTEXT_QUERY_BYTES);
+  const identifier = "\u0001".repeat(MAX_CONTEXT_IDENTIFIER_BYTES);
+  const request = fixtureContextRequest({
+    repository: { ...fixtureContextRequest().repository, repo_id: identifier },
+    task: { ...fixtureContextRequest().task, task_id: identifier },
+    query,
+    token_budget: 1_200,
+  });
+  assert.equal(validateContextRequest(request).ok, true);
+
+  const source = new FakeContextSource(Array.from({ length: 200 }, (_, index) => fixtureCandidate({
+    candidate_id: `decision-${index}`,
+    kind: "decision",
+    priority: index,
+    title: `Decision ${index}`,
+    body: "x".repeat(60),
+  })));
+
+  const capsule = await buildContextCapsule(source, request, { now: () => NOW });
+  const serialized = JSON.stringify(capsule);
+  const sectionBytes = estimateTokens(JSON.stringify(capsule.sections));
+
+  assert.ok(capsule.sections.length > 1);
+  assert.ok(sectionBytes <= capsule.token_budget, `${sectionBytes} > ${capsule.token_budget}`);
+  assert.ok(
+    estimateTokens(serialized) <= capsule.token_budget + MAX_CAPSULE_ENVELOPE_TOKENS,
+    `${estimateTokens(serialized)} > ${capsule.token_budget + MAX_CAPSULE_ENVELOPE_TOKENS}`,
+  );
+  assert.equal(
+    capsule.estimated_tokens,
+    capsule.sections.reduce((sum, section) => sum + capsuleSectionTokens(section), 0),
+  );
+  // Every section field that reaches the wire is paid for, priority included.
+  for (const section of capsule.sections) {
+    assert.equal(renderCapsuleSection(section), JSON.stringify(section));
+  }
+});
+
+test("context request validation rejects payloads disguised as query, targets, or paths", () => {
+  const oversizedQuery = "x".repeat(MAX_CONTEXT_QUERY_BYTES + 1);
+  const multibyteQuery = "界".repeat(Math.ceil(MAX_CONTEXT_QUERY_BYTES / 3));
+  const invalidValues: unknown[] = [
+    { ...fixtureContextRequest(), query: oversizedQuery },
+    { ...fixtureContextRequest(), query: multibyteQuery },
+    { ...fixtureContextRequest(), targets: Array.from({ length: MAX_CONTEXT_PATHS + 1 }, (_, i) => `src/${i}.ts`) },
+    { ...fixtureContextRequest(), changed_files: Array.from({ length: MAX_CONTEXT_PATHS + 1 }, (_, i) => `src/${i}.ts`) },
+    { ...fixtureContextRequest(), targets: ["x".repeat(MAX_CONTEXT_PATH_BYTES + 1)] },
+    { ...fixtureContextRequest(), changed_files: ["x".repeat(MAX_CONTEXT_PATH_BYTES + 1)] },
+    {
+      ...fixtureContextRequest(),
+      repository: { ...fixtureContextRequest().repository, repo_id: "x".repeat(MAX_CONTEXT_IDENTIFIER_BYTES + 1) },
+    },
+    {
+      ...fixtureContextRequest(),
+      task: { ...fixtureContextRequest().task, task_id: "x".repeat(MAX_CONTEXT_IDENTIFIER_BYTES + 1) },
+    },
+  ];
+
+  for (const value of invalidValues) {
+    assert.equal(validateContextRequest(value).ok, false, JSON.stringify(value).slice(0, 80));
+  }
+
+  assert.equal(validateContextRequest(fixtureContextRequest({
+    query: "x".repeat(MAX_CONTEXT_QUERY_BYTES),
+    targets: Array.from({ length: MAX_CONTEXT_PATHS }, (_, index) => `src/${index}.ts`),
+  })).ok, true);
 });
 
 test("capsule ordering is deterministic by rank, descending priority, and candidate id", async () => {
@@ -173,6 +254,34 @@ test("capsule builder removes duplicate candidate ids deterministically", async 
   assert.deepEqual(forward.sections.map((section) => section.title), ["Higher priority"]);
   assert.deepEqual(reverse.sections, forward.sections);
   assert.equal(reverse.capsule_id, forward.capsule_id);
+});
+
+test("capsule builder does not let a skipped duplicate suppress a duplicate that fits", async () => {
+  // Same candidate_id, ranked first because of its higher priority, but too large for
+  // the budget. Skipping it must not consume the id: the smaller duplicate still fits.
+  const oversized = fixtureCandidate({
+    candidate_id: "same",
+    kind: "decision",
+    priority: 100,
+    title: "Oversized duplicate",
+    body: "x".repeat(400),
+  });
+  const fitting = fixtureCandidate({
+    candidate_id: "same",
+    kind: "decision",
+    priority: 1,
+    title: "Fitting duplicate",
+    body: "Fits.",
+  });
+
+  const capsule = await buildContextCapsule(
+    new FakeContextSource([oversized, fitting]),
+    fixtureContextRequest({ token_budget: 40 }),
+    { now: () => NOW },
+  );
+
+  assert.deepEqual(capsule.sections.map((section) => section.title), ["Fitting duplicate"]);
+  assert.ok(capsule.estimated_tokens <= 40);
 });
 
 test("capsule builder drops oversized whole sections without splitting citations", async () => {
@@ -265,6 +374,9 @@ function fixtureLegacyPacket(overrides: Partial<LegacyPacket> = {}): LegacyPacke
 
 function fixtureLegacyKernel(packets: LegacyPacket[]): LegacyKernelFunctions {
   return {
+    // The real kernel signal, not a re-implementation: trust must track what Kage
+    // actually records about verification.
+    packetVerificationLabel: (packet) => packetVerificationLabel(packet as unknown as MemoryPacket),
     recall: () => ({
       results: packets.map((packet, index) => ({ packet, score: 100 - index })),
       suppressed: [{ id: "packet-suppressed", title: "Suppressed", reason: "stale" }],
@@ -325,6 +437,7 @@ test("legacy source translates memory, verification, and target risk through the
     fixtureLegacyPacket({ id: "map", type: "repo_map", title: "Repository map" }),
   ]);
   const tracked: LegacyKernelFunctions = {
+    packetVerificationLabel: kernel.packetVerificationLabel,
     recall: (...args) => {
       calls.push("recall");
       return kernel.recall(...args);
@@ -357,6 +470,67 @@ test("legacy source translates memory, verification, and target risk through the
   const memory = candidates.find((candidate) => candidate.candidate_id === "memory:policy");
   assert.equal(memory?.body, "Refunds use the ledger.");
   assert.deepEqual(memory?.evidence_ids, ["policy"]);
+});
+
+test("legacy source trust tiers follow the kernel verification label", async () => {
+  const packets = [
+    fixtureLegacyPacket({
+      id: "packet-verified",
+      quality: {},
+      freshness: { verification: "citation_check", last_verified_at: "2026-07-12T00:00:00.000Z" },
+    }),
+    fixtureLegacyPacket({
+      id: "packet-captured",
+      quality: {},
+      freshness: { verification: "repo_local_agent_capture", last_verified_at: "2026-07-12T00:00:00.000Z" },
+    }),
+    fixtureLegacyPacket({ id: "packet-unverified", quality: {}, freshness: {} }),
+    fixtureLegacyPacket({ id: "packet-kernel-stale", quality: { stale: true } }),
+  ];
+  const source = new LegacyContextSource("/repo", fixtureLegacyKernel(packets));
+
+  const candidates = await source.find(fixtureContextRequest());
+  const byId = new Map(candidates.map((candidate) => [candidate.candidate_id, candidate]));
+
+  // The "verified" tier must be reachable: a packet an evidence check actually verified.
+  assert.equal(byId.get("memory:packet-verified")?.trust_state, "verified");
+  // Capture-time provenance is not verification.
+  assert.equal(byId.get("memory:packet-captured")?.trust_state, "approved");
+  assert.equal(byId.get("memory:packet-unverified")?.trust_state, "approved");
+  assert.equal(byId.has("memory:packet-kernel-stale"), false);
+});
+
+test("legacy source survives a packet with no quality or freshness metadata", async () => {
+  const malformed = { ...fixtureLegacyPacket({ id: "packet-malformed" }) } as Partial<LegacyPacket>;
+  delete malformed.quality;
+  delete malformed.freshness;
+  const source = new LegacyContextSource("/repo", fixtureLegacyKernel([malformed as LegacyPacket]));
+
+  const candidates = await source.find(fixtureContextRequest());
+
+  // One malformed packet on disk must not take the whole context endpoint down.
+  const memory = candidates.find((candidate) => candidate.candidate_id === "memory:packet-malformed");
+  assert.equal(memory?.trust_state, "approved");
+});
+
+test("legacy source reuses its recall and risk results when composing the brief", async () => {
+  const kernel = fixtureLegacyKernel([fixtureLegacyPacket()]);
+  let briefOptions: Parameters<LegacyKernelFunctions["kageTeammateBrief"]>[1] | undefined;
+  const tracked: LegacyKernelFunctions = {
+    ...kernel,
+    kageTeammateBrief: (projectDir, options) => {
+      briefOptions = options;
+      return kernel.kageTeammateBrief(projectDir, options);
+    },
+  };
+  const source = new LegacyContextSource("/repo", tracked);
+
+  await source.find(fixtureContextRequest({ changed_files: ["src/refunds.ts"] }));
+
+  // The kernel accepts these precisely so callers do not recompute recall and risk;
+  // without them memory_warnings and risk-derived test gaps come back empty.
+  assert.equal(briefOptions?.recallResult?.results.length, 1);
+  assert.ok(briefOptions?.riskResult?.targets["src/refunds.ts"]);
 });
 
 test("canonical rendered section contains every complete evidence identifier", () => {
