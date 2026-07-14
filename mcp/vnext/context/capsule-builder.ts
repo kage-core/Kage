@@ -11,7 +11,7 @@ import {
   type ContextRequest,
   type ContextSource,
 } from "./source.js";
-import { estimateTokens } from "./token-estimate.js";
+import { estimateTokensFromBytes as estimateTokens4 } from "./token-estimate.js";
 
 const DEFAULT_TTL_MS = 5 * 60 * 1_000;
 
@@ -29,10 +29,12 @@ const CAPSULE_ENVELOPE_STRUCTURE_BYTES = 512;
 //
 //   estimateTokens(JSON.stringify(capsule)) <= request.token_budget + MAX_CAPSULE_ENVELOPE_TOKENS
 //
-// Sections are charged the exact bytes they contribute to the serialized capsule (their own
-// JSON plus the one-byte array separator), so the sections array never exceeds token_budget.
-// Everything else is the envelope, which is bounded because validateContextRequest caps the
-// only variable-length strings it echoes: query, repository_id, and task_id.
+// estimated_tokens is charged the exact bytes the sections contribute to the serialized
+// capsule: each section's own JSON, plus the one-byte comma joining it to the previous one.
+// The enclosing "[" and "]" belong to the envelope, not to any section, and are covered by
+// CAPSULE_ENVELOPE_STRUCTURE_BYTES. Charging the brackets per-section instead would let an
+// empty capsule report a nonzero cost. The envelope is bounded because validateContextRequest
+// caps the only variable-length strings it echoes: query, repository_id, and task_id.
 export const MAX_CAPSULE_ENVELOPE_TOKENS = Math.ceil(
   (CAPSULE_ENVELOPE_STRUCTURE_BYTES
     + JSON_ESCAPE_FACTOR * (MAX_CONTEXT_QUERY_BYTES + 2 * MAX_CONTEXT_IDENTIFIER_BYTES)) / 4,
@@ -133,9 +135,10 @@ export function renderCapsuleSection(section: CapsuleSection): string {
   });
 }
 
-// The rendered section plus the one-byte comma that joins it to the array.
-export function capsuleSectionTokens(section: CapsuleSection): number {
-  return estimateTokens(`${renderCapsuleSection(section)},`);
+// The exact bytes a section contributes to the serialized sections array. `precededBySection`
+// adds the one-byte comma that joins it to the section before it; the first section pays none.
+export function capsuleSectionBytes(section: CapsuleSection, precededBySection: boolean): number {
+  return Buffer.byteLength(renderCapsuleSection(section), "utf8") + (precededBySection ? 1 : 0);
 }
 
 function projectedRequest(request: ContextRequest): ContextRequest {
@@ -175,18 +178,22 @@ export async function buildContextCapsule(
   const sorted = candidates.filter(validCandidate).sort(compareCandidates);
   const seen = new Set<string>();
   const sections: CapsuleSection[] = [];
-  let estimatedTokens = 0;
+  // Accumulate bytes, not tokens: rounding each section up to a token individually would
+  // charge more than the array actually costs, and the budget is asserted on the real bytes.
+  let sectionBytes = 0;
 
   for (const candidate of sorted) {
     if (seen.has(candidate.candidate_id)) continue;
     const section = sectionFrom(candidate);
-    const sectionTokens = capsuleSectionTokens(section);
+    const candidateBytes = sectionBytes + capsuleSectionBytes(section, sections.length > 0);
     // Budget overflow must not claim the id: a duplicate that fits still deserves its slot.
-    if (estimatedTokens + sectionTokens > request.token_budget) continue;
+    if (estimateTokens4(candidateBytes) > request.token_budget) continue;
     seen.add(candidate.candidate_id);
     sections.push(section);
-    estimatedTokens += sectionTokens;
+    sectionBytes = candidateBytes;
   }
+
+  const estimatedTokens = estimateTokens4(sectionBytes);
 
   const created = (options.now ?? (() => new Date()))();
   return {

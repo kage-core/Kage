@@ -5,7 +5,6 @@ import type { CapsuleSection } from "../protocol/index.js";
 import {
   MAX_CAPSULE_ENVELOPE_TOKENS,
   buildContextCapsule,
-  capsuleSectionTokens,
   renderCapsuleSection,
 } from "./capsule-builder.js";
 import { LegacyContextSource, type LegacyKernelFunctions, type LegacyPacket } from "./legacy-source.js";
@@ -138,10 +137,41 @@ test("capsule builder keeps required invariants and stays inside 1200 tokens", a
 
   assert.ok(capsule.estimated_tokens <= 1_200);
   assert.ok(capsule.sections.some((section) => section.kind === "invariant"));
-  assert.equal(
-    capsule.estimated_tokens,
-    capsule.sections.reduce((sum, section) => sum + capsuleSectionTokens(section), 0),
-  );
+  assert.equal(capsule.estimated_tokens, serializedSectionTokens(capsule.sections));
+});
+
+// The bytes the sections array actually costs on the wire, excluding the enclosing brackets,
+// which belong to the envelope. Derived from JSON.stringify, not from the builder's own
+// accounting, so it cannot agree with the builder by construction.
+function serializedSectionTokens(sections: readonly CapsuleSection[]): number {
+  if (!sections.length) return 0;
+  const serialized = JSON.stringify(sections);
+  return estimateTokens(serialized.slice(1, -1));
+}
+
+test("capsule budget accounting does not overshoot on exact token boundaries", async () => {
+  // Sections whose rendered length lands so that per-section token rounding would leave no
+  // slack: charging each section its own ceil() and the array its brackets used to push the
+  // real serialized array one token past the budget.
+  for (let bodyLength = 1; bodyLength <= 64; bodyLength += 1) {
+    const source = new FakeContextSource(Array.from({ length: 12 }, (_, index) => fixtureCandidate({
+      candidate_id: `decision-${index}`,
+      kind: "decision",
+      priority: index,
+      title: `D${index}`,
+      body: "x".repeat(bodyLength),
+    })));
+    const capsule = await buildContextCapsule(
+      source,
+      fixtureContextRequest({ token_budget: 40 }),
+      { now: () => NOW },
+    );
+    assert.equal(capsule.estimated_tokens, serializedSectionTokens(capsule.sections));
+    assert.ok(
+      capsule.estimated_tokens <= 40,
+      `bodyLength ${bodyLength}: ${capsule.estimated_tokens} > 40`,
+    );
+  }
 });
 
 test("capsule payload honours its budget in the bytes actually serialized", async () => {
@@ -167,17 +197,18 @@ test("capsule payload honours its budget in the bytes actually serialized", asyn
 
   const capsule = await buildContextCapsule(source, request, { now: () => NOW });
   const serialized = JSON.stringify(capsule);
-  const sectionBytes = estimateTokens(JSON.stringify(capsule.sections));
 
   assert.ok(capsule.sections.length > 1);
-  assert.ok(sectionBytes <= capsule.token_budget, `${sectionBytes} > ${capsule.token_budget}`);
+  // The sections cost, measured on the real serialized bytes, stays inside the budget...
+  assert.equal(capsule.estimated_tokens, serializedSectionTokens(capsule.sections));
+  assert.ok(
+    capsule.estimated_tokens <= capsule.token_budget,
+    `${capsule.estimated_tokens} > ${capsule.token_budget}`,
+  );
+  // ...and the whole capsule stays inside budget plus the documented envelope ceiling.
   assert.ok(
     estimateTokens(serialized) <= capsule.token_budget + MAX_CAPSULE_ENVELOPE_TOKENS,
     `${estimateTokens(serialized)} > ${capsule.token_budget + MAX_CAPSULE_ENVELOPE_TOKENS}`,
-  );
-  assert.equal(
-    capsule.estimated_tokens,
-    capsule.sections.reduce((sum, section) => sum + capsuleSectionTokens(section), 0),
   );
   // Every section field that reaches the wire is paid for, priority included.
   for (const section of capsule.sections) {

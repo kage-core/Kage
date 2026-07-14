@@ -148,7 +148,9 @@ function packetKind(type: string): CapsuleSection["kind"] {
 
 // Trust follows the kernel label, not fields nobody writes: "verified" means an evidence
 // check actually verified the claim, "stale" means the packet must not be emitted at all,
-// and everything else is approved-but-unverified.
+// and everything else is approved-but-unverified. The "stale" arm is defense in depth, not
+// the deciding filter: the kernel labels stale on quality.stale, which disputedOrStale
+// already rejects. It exists so a future kernel that widens "stale" cannot leak one through.
 function memoryCandidate(
   entry: LegacyRecallResult["results"][number],
   label: LegacyVerificationLabel,
@@ -223,8 +225,9 @@ export class LegacyContextSource implements ContextSource {
       query: request.query,
       targets: request.targets,
       changedFiles: request.changed_files,
-      // Reuse what we already computed: the kernel needs these to produce memory warnings
-      // and risk-derived test gaps, and recomputing them would double the synchronous cost.
+      // The kernel needs these to populate memory warnings and risk-derived test gaps; without
+      // them the brief still builds, just thinner. Passing them adds signal rather than saving
+      // work — the brief never recomputed recall or risk on its own.
       recallResult,
       riskResult,
     });

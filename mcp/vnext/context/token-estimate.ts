@@ -1,3 +1,7 @@
+export function estimateTokensFromBytes(bytes: number): number {
+  return Math.ceil(bytes / 4);
+}
+
 export function estimateTokens(text: string): number {
-  return Math.ceil(Buffer.byteLength(text, "utf8") / 4);
+  return estimateTokensFromBytes(Buffer.byteLength(text, "utf8"));
 }
