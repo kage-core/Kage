@@ -211,7 +211,7 @@ Usage:
   kage gains --project <dir> [--json]
   kage savings --project <dir> [--queries <n>] [--json]   deterministic token-reduction receipt (no LLM on the measurement path)
   kage team --project <dir> [--json]   team memory health: contributors, pending review, stale-withheld, contradictions
-  kage proxy --project <dir> [--port 8788] [--upstream <url>] [--workspace <dir>] [--no-inject] [--verbose]   drop-in proxy: inject memory outbound, capture exchanges inbound (one proxy per repo, or --workspace for many)
+  kage proxy --project <dir> [--port 8788] [--upstream <url>] [--workspace <dir>] [--mode audit|assist] [--count-tokens] [--no-receipts] [--no-inject] [--verbose]   drop-in proxy: inject memory outbound, capture exchanges inbound, record measured transformation receipts (--mode audit forwards your exact bytes and only measures)
   kage memory-access --project <dir> [--json]
   kage activity --project <dir> [--json]
   kage memory-audit --project <dir> [--limit <n>] [--json]
@@ -2325,12 +2325,21 @@ async function main(): Promise<void> {
     const port = args.includes("--port") ? numberArg(args, "--port", 8788) : 8788;
     const upstream = takeArg(args, "--upstream");
     const workspace = takeArg(args, "--workspace");
+    const modeArg = takeArg(args, "--mode");
+    if (modeArg && modeArg !== "audit" && modeArg !== "assist") {
+      console.error(`Unknown --mode "${modeArg}". Use audit (measure only, forward the client's exact bytes) or assist (inject memory).`);
+      process.exitCode = 1;
+      return;
+    }
     startProxy(project, {
       port,
       upstream: upstream ?? undefined,
       verbose: args.includes("--verbose"),
       noInject: args.includes("--no-inject"),
       workspace: workspace ?? undefined,
+      mode: modeArg === "audit" ? "audit" : "assist",
+      receiptSink: args.includes("--no-receipts") ? null : undefined,
+      countTokens: args.includes("--count-tokens"),
     });
     return;
   }

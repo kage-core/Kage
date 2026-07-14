@@ -19,6 +19,17 @@ import { randomUUID } from "node:crypto";
 import { resolve as resolvePath, sep } from "node:path";
 import { memoryRoot, observe, recall, type MemoryPacket } from "./kernel.js";
 import { isRecord } from "./type-guards.js";
+import {
+  buildProxyReceipt,
+  createUpstreamTokenCounter,
+  planProxyForward,
+  proxyTaskId,
+  requestModel,
+  type ProxyForwardPlan,
+  type ProxyMode,
+} from "./vnext/adapters/anthropic-proxy.js";
+import { extractProviderUsage } from "./vnext/measurement/token-count.js";
+import { openReceiptSink, type ReceiptSink } from "./vnext/measurement/receipt-sink.js";
 
 const MEMORY_HEADER = "# Verified repo memory (injected by Kage — follow it, it is checked against this code)";
 const MAX_MEMORY_CHARS = 6000; // ~1.5k tokens, so injection never dominates the prompt
@@ -29,6 +40,7 @@ interface ProxyStats {
   requests: number;
   injected: number;
   captured: number;
+  receipts: number;
   input_tokens: number;
   output_tokens: number;
 }
@@ -156,41 +168,40 @@ export function injectMemory(projectDir: string, body: Record<string, unknown>):
   return { body, injected: 0 };
 }
 
-// Best-effort usage + assistant text from either a non-streamed JSON body or a streamed SSE
-// transcript. Used only for the receipt and capture — never to alter what the client sees.
-function extractUsageAndText(raw: string): { input: number; output: number; text: string } {
-  const trimmed = raw.trimStart();
-  if (trimmed.startsWith("{")) {
-    try {
-      const json = JSON.parse(raw) as Record<string, any>;
-      const usage = json.usage ?? {};
-      const text = Array.isArray(json.content)
-        ? json.content.filter((b: any) => b?.type === "text").map((b: any) => b.text).join("")
-        : "";
-      return { input: Number(usage.input_tokens ?? 0), output: Number(usage.output_tokens ?? 0), text };
-    } catch { /* fall through to SSE parse */ }
-  }
-  let input = 0;
-  let output = 0;
-  let text = "";
-  for (const line of raw.split("\n")) {
-    if (!line.startsWith("data:")) continue;
-    const payload = line.slice(5).trim();
-    if (!payload || payload === "[DONE]") continue;
-    try {
-      const event = JSON.parse(payload) as Record<string, any>;
-      if (event.type === "message_start" && event.message?.usage) input = Number(event.message.usage.input_tokens ?? input);
-      if (event.usage?.output_tokens != null) output = Number(event.usage.output_tokens);
-      if (event.type === "content_block_delta" && event.delta?.type === "text_delta") text += event.delta.text ?? "";
-    } catch { /* skip malformed event */ }
-  }
-  return { input, output, text };
+export interface ProxyOptions {
+  port?: number;
+  upstream?: string;
+  verbose?: boolean;
+  noInject?: boolean;
+  workspace?: string;
+  // audit (measure only, forward the client's exact bytes) vs assist (forward the transformed body).
+  // Defaults to assist: that is what every existing `kage proxy` user already runs.
+  mode?: ProxyMode;
+  // Injectable for tests; `null` disables receipts; undefined opens the repo-local vNext store.
+  receiptSink?: ReceiptSink | null;
+  // Opt-in: spend one extra provider round trip per transformed request to MEASURE the token count
+  // of the body that was not sent, which is the only way a receipt can honestly be "exact".
+  countTokens?: boolean;
 }
 
-export function startProxy(projectDir: string, options: { port?: number; upstream?: string; verbose?: boolean; noInject?: boolean; workspace?: string } = {}): Server {
+export function startProxy(projectDir: string, options: ProxyOptions = {}): Server {
   const port = options.port ?? 8788;
   const upstreamUrl = new URL(options.upstream ?? process.env.KAGE_PROXY_UPSTREAM ?? "https://api.anthropic.com");
-  const stats: ProxyStats = { requests: 0, injected: 0, captured: 0, input_tokens: 0, output_tokens: 0 };
+  const mode: ProxyMode = options.mode ?? "assist";
+  const stats: ProxyStats = { requests: 0, injected: 0, captured: 0, receipts: 0, input_tokens: 0, output_tokens: 0 };
+
+  // One sink per repo (a --workspace proxy serves many), opened lazily and never retried: a repo
+  // whose store cannot be opened (e.g. Node 18, which has no node:sqlite) records no receipts and
+  // otherwise behaves exactly as before.
+  const sinks = new Map<string, ReceiptSink | null>();
+  function receiptSinkFor(requestProjectDir: string): ReceiptSink | null {
+    if (options.receiptSink !== undefined) return options.receiptSink;
+    // A repo with no .agent_memory is a plain passthrough and stays one: the proxy must not
+    // create a memory tree in a directory the user never ran `kage init` in.
+    if (!existsSync(memoryRoot(requestProjectDir))) return null;
+    if (!sinks.has(requestProjectDir)) sinks.set(requestProjectDir, openReceiptSink(requestProjectDir));
+    return sinks.get(requestProjectDir) ?? null;
+  }
   // A stable per-process id, NOT the literal string "default": without this every proxy
   // run ever, across restarts, shared one observation-dedup bucket, and diverged from any
   // real Claude Code session id a hook might be recording under — so the same prompt could
@@ -204,32 +215,92 @@ export function startProxy(projectDir: string, options: { port?: number; upstrea
   const server = createServer((clientReq, clientRes) => {
     void handle(clientReq, clientRes);
   });
+  server.on("close", () => {
+    for (const sink of sinks.values()) sink?.close?.();
+    sinks.clear();
+  });
+
+  // Measurement is best-effort, always. It runs after the client has already been answered, it
+  // catches everything, and it can only ever fail to record — never fail a request.
+  async function recordReceipt(args: {
+    requestProjectDir: string;
+    requestId: string;
+    model: string | null;
+    plan: ProxyForwardPlan;
+    headers: Record<string, string | string[] | undefined>;
+    forwardedInputTokens: number | null;
+    outputTokens: number | null;
+    latencyMs: number;
+  }): Promise<void> {
+    try {
+      const sink = receiptSinkFor(args.requestProjectDir);
+      if (!sink) return;
+
+      // The provider's usage always describes the body that was SENT. The other body is unmeasured
+      // unless we pay to measure it — and if we don't, its count stays null and the receipt is
+      // honestly "partial". Nothing here ever fills the gap with an estimate.
+      let measuredInputTokens: number | null = null;
+      const untransformed = args.plan.measured.equals(args.plan.original);
+      if (options.countTokens && !untransformed) {
+        const counter = createUpstreamTokenCounter({ upstream: upstreamUrl, headers: args.headers });
+        const unsent = args.plan.forwarded.equals(args.plan.original) ? args.plan.measured : args.plan.original;
+        measuredInputTokens = await counter(unsent);
+      }
+
+      sink.write(buildProxyReceipt({
+        task_id: proxyTaskId(args.requestProjectDir, sessionId),
+        request_id: args.requestId,
+        model: args.model,
+        mode,
+        plan: args.plan,
+        forwarded_input_tokens: args.forwardedInputTokens,
+        measured_input_tokens: measuredInputTokens,
+        output_tokens: args.outputTokens,
+        latency_ms: args.latencyMs,
+      }));
+      stats.receipts += 1;
+    } catch { /* a receipt is never worth breaking a session over */ }
+  }
 
   async function handle(clientReq: IncomingMessage, clientRes: ServerResponse): Promise<void> {
+    const startedAt = Date.now();
     const raw = await readBody(clientReq);
     const isMessages = isCompletionsRequest(clientReq.method, clientReq.url);
 
-    let outBody = raw;
     let injected = 0;
     let userPrompt = "";
+    let model: string | null = null;
+    // What bytes go on the wire, and what bytes the receipt describes. Null for anything that is
+    // not an eligible, parseable POST /v1/messages — count_tokens included, which stays a strict
+    // passthrough and is never measured.
+    let plan: ProxyForwardPlan | null = null;
     // Resolved once per request so --workspace can route each request to the right repo
     // (see resolveRequestProjectDir); with no --workspace this is always the fixed projectDir,
     // identical to pre-multi-repo behavior.
     let requestProjectDir = projectDir;
-    // --no-inject forwards the exact original bytes (diagnostic: proves whether the proxy can
-    // carry subscription traffic at all, independent of any memory injection).
-    if (isMessages && raw.length && !options.noInject) {
+    if (isMessages && raw.length) {
       try {
         const parsed = JSON.parse(raw.toString("utf8")) as Record<string, unknown>;
         requestProjectDir = resolveRequestProjectDir(projectDir, options.workspace, parsed);
-        if (existsSync(memoryRoot(requestProjectDir))) {
+        model = requestModel(parsed);
+        let transformed: Buffer | null = null;
+        // --no-inject forwards the exact original bytes (diagnostic: proves whether the proxy can
+        // carry subscription traffic at all, independent of any memory injection).
+        if (!options.noInject && existsSync(memoryRoot(requestProjectDir))) {
           userPrompt = lastUserText(parsed);
           const result = injectMemory(requestProjectDir, parsed);
-          injected = result.injected;
-          outBody = Buffer.from(JSON.stringify(result.body), "utf8");
+          if (result.injected) {
+            injected = result.injected;
+            transformed = Buffer.from(JSON.stringify(result.body), "utf8");
+          }
         }
-      } catch { /* not JSON we understand — pass through untouched */ }
+        // In audit mode this constructs the candidate body but forwards the ORIGINAL bytes: the
+        // whole point of an audit baseline is that the audited traffic was not touched.
+        plan = planProxyForward({ mode, original: raw, transformed });
+      } catch { /* not JSON we understand — pass through untouched, and measure nothing */ }
     }
+
+    const outBody = plan ? plan.forwarded : raw;
 
     const headers: Record<string, string | string[]> = { ...clientReq.headers } as Record<string, string | string[]>;
     delete headers.host;
@@ -276,21 +347,37 @@ export function startProxy(projectDir: string, options: { port?: number; upstrea
             console.log(`\n[proxy] ${clientReq.method} ${clientReq.url} -> ${status}${body ? `  ${body}` : ""}`);
           }
           if (!isMessages) return;
+          const latencyMs = Date.now() - startedAt;
           stats.requests += 1;
-          stats.injected += injected;
+          // In audit mode nothing was injected on the wire, so nothing may be counted as injected.
+          stats.injected += mode === "assist" ? injected : 0;
           try {
-            const { input, output } = extractUsageAndText(Buffer.concat(tap).toString("utf8"));
-            stats.input_tokens += input;
-            stats.output_tokens += output;
+            // Usage is what the PROVIDER measured for the body we actually sent. Absent usage is
+            // null (unmeasured), never 0.
+            const usage = extractProviderUsage(Buffer.concat(tap).toString("utf8"));
+            stats.input_tokens += usage.input_tokens ?? 0;
+            stats.output_tokens += usage.output_tokens ?? 0;
             // Capture the exchange into the memory loop — no hook required, agent-agnostic.
             if (status < 300 && userPrompt.trim()) {
               observe(requestProjectDir, { type: "user_prompt", agent: "kage-proxy", session_id: sessionId, text: userPrompt.slice(0, 4000), summary: userPrompt.slice(0, 200) });
               stats.captured += 1;
             }
-          } catch { /* receipt/capture is best-effort; never affect the client */ }
+            if (status < 300 && plan) {
+              void recordReceipt({
+                requestProjectDir,
+                requestId: `${sessionId}:${stats.requests}`,
+                model,
+                plan,
+                headers: clientReq.headers,
+                forwardedInputTokens: usage.input_tokens,
+                outputTokens: usage.output_tokens,
+                latencyMs,
+              });
+            }
+          } catch { /* capture/measurement is best-effort; never affect the client */ }
           process.stdout.write(
-            `\r  kage proxy · ${stats.requests} req · ${stats.injected} memories injected · ${stats.captured} captured · ` +
-            `${stats.input_tokens.toLocaleString()} in / ${stats.output_tokens.toLocaleString()} out tokens   `
+            `\r  kage proxy [${mode}] · ${stats.requests} req · ${stats.injected} memories injected · ${stats.captured} captured · ` +
+            `${stats.receipts} receipts · ${stats.input_tokens.toLocaleString()} in / ${stats.output_tokens.toLocaleString()} out tokens   `
           );
         });
       }
@@ -317,6 +404,9 @@ export function startProxy(projectDir: string, options: { port?: number; upstrea
         ? `Kage will inject verified memory outbound and capture the exchange inbound. Ctrl-C to stop.`
         : `No .agent_memory here yet — run \`kage init\` first, or the proxy is a plain passthrough. Ctrl-C to stop.`);
     }
+    console.log(mode === "audit"
+      ? `\nMode: audit — your request bytes are forwarded unchanged; Kage only measures what an injected request would have cost.`
+      : `\nMode: assist — Kage appends verified memory to the last user turn and records what that cost.`);
   });
   return server;
 }

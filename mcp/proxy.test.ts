@@ -1,11 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createServer, request as httpRequest, type Server } from "node:http";
 import { capture, loadObservations } from "./kernel.js";
 import { injectMemory, isCompletionsRequest, resolveRequestProjectDir, startProxy } from "./proxy.js";
+import type { TransformationReceipt } from "./vnext/protocol/index.js";
+import { openVnextDatabase } from "./vnext/storage/database.js";
+import { resolveRuntimePaths } from "./vnext/runtime/paths.js";
+import { assertVnextRuntime } from "./vnext/runtime/runtime-version.js";
 
 // The literal shape Claude Code 2.1.202 actually sends (confirmed via a live captured
 // request, not guessed): a multi-block system array with an Environment section naming
@@ -254,6 +258,284 @@ test("proxy observations carry a stable per-process session id, not the literal 
     assert.match(observations[0].session_id ?? "", /^proxy-/);
   } finally {
     proxyServer.close();
+    fakeUpstream.close();
+  }
+});
+
+// --- vNext exact-measurement gateway (Phase A, Task 6) -------------------------------------
+// One fake upstream that answers both /v1/messages (with real usage) and the sibling
+// /v1/messages/count_tokens, plus a receipt sink the test can inspect.
+
+function projectWithMemory(): string {
+  const project = tempProject();
+  capture({
+    projectDir: project,
+    title: "Payments must be idempotent via the ledger key",
+    summary: "Retries dedupe on the ledger idempotency key",
+    body: "processPayment must pass the ledger idempotency key so retries dedupe. Verified by: npm test.",
+    type: "decision",
+    allowMissingPaths: true,
+  });
+  return project;
+}
+
+function measuringUpstream(seen: Array<{ path: string; body: string }>) {
+  return withFakeUpstream((req, res) => {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      seen.push({ path: req.url ?? "", body });
+      res.writeHead(200, { "content-type": "application/json" });
+      if ((req.url ?? "").startsWith("/v1/messages/count_tokens")) {
+        // A real measurement of whatever body was counted: one token per 10 bytes is a
+        // deterministic stand-in for the provider's tokenizer, not an estimate Kage invents.
+        res.end(JSON.stringify({ input_tokens: Math.ceil(Buffer.byteLength(body) / 10) }));
+        return;
+      }
+      res.end(JSON.stringify({ content: [{ type: "text", text: "ok" }], usage: { input_tokens: 137, output_tokens: 5 } }));
+    });
+  });
+}
+
+// Receipts are recorded after the client has already been answered (measurement must never sit in
+// the request path), so a test waits for the write instead of racing it.
+function collectingSink() {
+  const receipts: TransformationReceipt[] = [];
+  let notify: (() => void) | null = null;
+  return {
+    receipts,
+    sink: {
+      write(receipt: TransformationReceipt) {
+        receipts.push(receipt);
+        notify?.();
+      },
+    },
+    async waitForReceipt(): Promise<TransformationReceipt> {
+      if (!receipts.length) {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error("no receipt was recorded within 5s")), 5_000);
+          notify = () => { clearTimeout(timer); resolve(); };
+        });
+      }
+      return receipts[0];
+    },
+  };
+}
+
+function proxyRequest(port: number, path: string, requestBody: string): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(
+      { hostname: "127.0.0.1", port, path, method: "POST", headers: { "content-type": "application/json", "content-length": Buffer.byteLength(requestBody) } },
+      (res) => {
+        let body = "";
+        res.on("data", (chunk) => { body += chunk; });
+        res.on("end", () => resolve({ status: res.statusCode ?? 0, body }));
+      },
+    );
+    req.on("error", reject);
+    req.end(requestBody);
+  });
+}
+
+async function listeningPort(server: Server): Promise<number> {
+  await new Promise<void>((resolve) => server.on("listening", resolve));
+  const address = server.address();
+  return typeof address === "object" && address ? address.port : 0;
+}
+
+const QUESTION = JSON.stringify({
+  model: "claude-opus-4-8",
+  system: "You are Claude Code, Anthropic's official CLI for Claude.",
+  messages: [{ role: "user", content: "how should I make the payment flow idempotent?" }],
+});
+
+test("audit mode forwards the exact original bytes even though memory would have been injected", async () => {
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const collector = collectingSink();
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "audit", receiptSink: collector.sink });
+  const port = await listeningPort(proxy);
+
+  try {
+    const response = await proxyRequest(port, "/v1/messages", QUESTION);
+    assert.equal(response.status, 200);
+    assert.equal(seen.length, 1);
+    // THE audit invariant: the bytes on the wire are byte-identical to the client's.
+    assert.equal(seen[0].body, QUESTION);
+    assert.doesNotMatch(seen[0].body, /injected by Kage/);
+
+    const receipt = await collector.waitForReceipt();
+    assert.equal(collector.receipts.length, 1);
+    assert.equal(receipt.mode, "audit");
+    assert.equal(receipt.model, "claude-opus-4-8");
+    assert.equal(receipt.before_input_bytes, Buffer.byteLength(QUESTION));
+    // The candidate (simulated) transformed body is measured in bytes but never forwarded.
+    assert.equal(receipt.after_input_bytes > receipt.before_input_bytes, true);
+    // Only the forwarded body's tokens were measured by the provider.
+    assert.equal(receipt.before_input_tokens, 137);
+    assert.equal(receipt.after_input_tokens, null);
+    assert.equal(receipt.measurement_quality, "partial");
+    assert.equal(receipt.provider_input_cost_after_usd, null);
+    assert.equal(receipt.output_tokens, 5);
+    assert.deepEqual(receipt.transformations, ["context_append_last_user_turn"]);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+test("assist mode forwards the transformed body and records it as the after side", async () => {
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const collector = collectingSink();
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "assist", receiptSink: collector.sink });
+  const port = await listeningPort(proxy);
+
+  try {
+    await proxyRequest(port, "/v1/messages", QUESTION);
+    assert.match(seen[0].body, /injected by Kage/);
+    const receipt = await collector.waitForReceipt();
+    assert.equal(receipt.mode, "assist");
+    assert.equal(receipt.before_input_bytes, Buffer.byteLength(QUESTION));
+    assert.equal(receipt.after_input_bytes, Buffer.byteLength(seen[0].body));
+    assert.equal(receipt.after_input_tokens, 137);
+    assert.equal(receipt.before_input_tokens, null);
+    assert.equal(receipt.measurement_quality, "partial");
+    assert.equal(receipt.provider_input_cost_before_usd, null);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+test("an upstream token count of the unsent body promotes the receipt to exact", async () => {
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const collector = collectingSink();
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "audit", countTokens: true, receiptSink: collector.sink });
+  const port = await listeningPort(proxy);
+
+  try {
+    await proxyRequest(port, "/v1/messages", QUESTION);
+    const receipt = await collector.waitForReceipt();
+    const counted = seen.filter((entry) => entry.path.startsWith("/v1/messages/count_tokens"));
+    assert.equal(counted.length, 1);
+    // The counted body is the candidate, never the one already forwarded.
+    assert.match(counted[0].body, /injected by Kage/);
+    assert.equal(receipt.measurement_quality, "exact");
+    assert.equal(receipt.before_input_tokens, 137);
+    assert.equal(receipt.after_input_tokens, Math.ceil(Buffer.byteLength(counted[0].body) / 10));
+    assert.equal(receipt.provider_input_cost_before_usd, 137 / 1_000_000 * 5);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+test("a receipt failure never changes the client response", async () => {
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, {
+    port: 0,
+    upstream: url,
+    mode: "assist",
+    receiptSink: { write: () => { throw new Error("receipt store exploded"); } },
+  });
+  const port = await listeningPort(proxy);
+
+  try {
+    const response = await proxyRequest(port, "/v1/messages", QUESTION);
+    assert.equal(response.status, 200);
+    assert.match(response.body, /"text":"ok"/);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+// The default sink is the repo-local vNext store. It is opened lazily precisely so that a legacy
+// `kage proxy` on Node 18 (no node:sqlite) keeps working and simply records nothing.
+test("the default sink persists receipts into the repo-local vNext store", async (t) => {
+  let vnextRuntime = true;
+  try {
+    assertVnextRuntime();
+  } catch {
+    vnextRuntime = false;
+  }
+  if (!vnextRuntime) {
+    t.skip("node:sqlite is unavailable on this runtime; the proxy records no receipts and still serves traffic");
+    return;
+  }
+
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "audit" });
+  const port = await listeningPort(proxy);
+
+  try {
+    await proxyRequest(port, "/v1/messages", QUESTION);
+    const databasePath = resolveRuntimePaths(project).databasePath;
+    let rows: Array<{ mode: string; measurement_quality: string; before_input_tokens: number | null }> = [];
+    // The write happens after the client was answered, so poll briefly rather than racing it.
+    for (let attempt = 0; attempt < 50 && rows.length === 0; attempt++) {
+      const db = openVnextDatabase(databasePath);
+      try {
+        rows = db.prepare("SELECT mode, measurement_quality, before_input_tokens FROM transformation_receipts").all() as never;
+      } finally {
+        db.close();
+      }
+      if (!rows.length) await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].mode, "audit");
+    assert.equal(rows[0].measurement_quality, "partial");
+    assert.equal(rows[0].before_input_tokens, 137);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+test("a repo with no .agent_memory stays a plain passthrough and gets no memory tree", async () => {
+  const project = mkdtempSync(join(tmpdir(), "kage-proxy-bare-"));
+  const seen: Array<{ path: string; body: string }> = [];
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "audit" });
+  const port = await listeningPort(proxy);
+
+  try {
+    const response = await proxyRequest(port, "/v1/messages", QUESTION);
+    assert.equal(response.status, 200);
+    assert.equal(seen[0].body, QUESTION);
+    // No .agent_memory means no receipts store: the proxy never creates a memory tree the user
+    // did not ask for.
+    assert.equal(existsSync(join(project, ".agent_memory")), false);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+test("count_tokens stays a byte-identical passthrough and produces no receipt", async () => {
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const collector = collectingSink();
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "assist", receiptSink: collector.sink });
+  const port = await listeningPort(proxy);
+
+  try {
+    await proxyRequest(port, "/v1/messages/count_tokens?beta=true", QUESTION);
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].body, QUESTION);
+    assert.equal(collector.receipts.length, 0);
+  } finally {
+    proxy.close();
     fakeUpstream.close();
   }
 });
