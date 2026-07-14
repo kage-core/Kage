@@ -30,8 +30,64 @@ jobs:
         working-directory: mcp
         run: npm test
 
+      - name: Kage vNext Phase A gate
+        working-directory: mcp
+        run: npm run test:vnext
+
+      - name: Kage vNext Phase A audit report
+        run: node scripts/vnext-phase-a-report.mjs --project . --json
+
       - name: Generate Kage code index
         run: node mcp/dist/cli.js code-index --project . --json
 
       - name: Build Kage graph registry manifest
         run: node mcp/dist/cli.js graph-registry --project . --json
+
+  legacy-node18:
+    name: Legacy CLI loads on Node 18
+    runs-on: ubuntu-latest
+
+    # The vNext runtime needs node:sqlite (Node 22.5+). Every existing Kage user is on the legacy
+    # CLI, and some of them are on Node 18: an eager `node:sqlite` import anywhere in the module
+    # graph breaks every one of them at evaluation time (it has happened once already). This job
+    # builds on Node 22 and then EVALUATES the built CLI on Node 18, without touching a vNext
+    # command, so that regression can never ship again.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22 (build)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+
+      - name: Install
+        working-directory: mcp
+        run: npm ci
+
+      - name: Build
+        working-directory: mcp
+        run: npm run build
+
+      - name: Setup Node 18 (run)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Confirm this runtime really has no node:sqlite
+        # Without this the smoke below could pass on a runner that quietly has node:sqlite, and the
+        # job would prove nothing.
+        run: |
+          node --version
+          node -e 'try { require("node:sqlite"); console.error("this Node has node:sqlite; the Node 18 smoke would prove nothing"); process.exit(1); } catch { console.log("node:sqlite is unavailable, as expected"); }'
+
+      - name: Legacy CLI loads and runs on Node 18
+        # Evaluation-time proof: if any module in the CLI's graph imports node:sqlite eagerly, these
+        # commands crash before main() runs — which is exactly the regression that once broke every
+        # kage command on Node 18-22.4. No vNext command is invoked here.
+        run: |
+          node mcp/dist/cli.js help
+          node mcp/dist/cli.js help --all
+          node mcp/dist/cli.js validate --project .

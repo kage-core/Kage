@@ -1,0 +1,30 @@
+{
+  "protocol_version": 1,
+  "adapter_id": "claude-code-hooks",
+  "agent_surface": "claude-code",
+  "agent_version": "2.1.202",
+  "repository": {
+    "repo_id": "repo_0f3a1c9d2b4e5f60718293a4b5c6d7e8",
+    "root": "/Users/example/code/payments",
+    "remote": "git@github.com:example/payments.git",
+    "branch": "main",
+    "commit": "9f1c2a7d4b6e8f0a1b2c3d4e5f60718293a4b5c6",
+    "worktree": "/Users/example/code/payments"
+  },
+  "task": {
+    "task_id": "task_5b1d8c7a6e4f30219283a4b5c6d7e8f9",
+    "session_id": "01J8Z6QK9V0000000000000000",
+    "user_id": null,
+    "agent_surface": "claude-code"
+  },
+  "capabilities": [
+    "session_start",
+    "prompt",
+    "file_open",
+    "file_edit",
+    "tool_result",
+    "session_end",
+    "inject_system",
+    "inject_user_turn"
+  ]
+}
