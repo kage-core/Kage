@@ -6,8 +6,17 @@ import { tmpdir } from "node:os";
 import { buildTransformationReceipt } from "../measurement/receipt.js";
 import type { TransformationReceipt } from "../protocol/index.js";
 import { readVnextConfig, vnextConfigPath } from "./config.js";
-import type { ReceiptQuery, ReceiptQueryResult, RuntimeClient, RuntimeHealth } from "./client.js";
+import type {
+  DeliveryQueryResult,
+  ReceiptQuery,
+  ReceiptQueryResult,
+  RuntimeClient,
+  RuntimeHealth,
+} from "./client.js";
+import type { StoredContextDelivery } from "../storage/delivery-store.js";
 import {
+  attachmentReport,
+  contextLatency,
   connectProject,
   renderReceipts,
   renderStatus,
@@ -67,14 +76,40 @@ function receipt(options: {
   });
 }
 
+let deliveryCounter = 0;
+
+function delivery(options: {
+  status: StoredContextDelivery["status"];
+  latency_ms?: number | null;
+}): StoredContextDelivery {
+  deliveryCounter += 1;
+  const delivered = options.status === "delivered";
+  return {
+    delivery_id: `delivery_${deliveryCounter}`,
+    capsule_id: delivered ? `capsule_${deliveryCounter}` : "capsule_unavailable",
+    task_id: "task_fixture",
+    adapter_id: "claude-code-hooks",
+    injection_location: delivered ? "user_turn" : "none",
+    delivered_at: `2026-07-15T00:00:0${deliveryCounter % 10}.000Z`,
+    added_bytes: delivered ? 400 : 0,
+    added_tokens: null,
+    measurement_quality: delivered ? "partial" : "unavailable",
+    status: options.status,
+    reason: options.status === "delivered" ? "delivered" : "audit_mode_no_injection",
+    composition_latency_ms: options.latency_ms === undefined ? 10 : options.latency_ms,
+  };
+}
+
 function fixtureRuntimeClient(options: {
   project_dir: string;
   receipts?: TransformationReceipt[];
+  deliveries?: StoredContextDelivery[];
   available?: boolean;
   reason?: string | null;
   health?: Partial<RuntimeHealth>;
 }): RuntimeClient {
   const receipts = options.receipts ?? [];
+  const deliveries = options.deliveries ?? [];
   return {
     project_dir: options.project_dir,
     async health(): Promise<RuntimeHealth> {
@@ -93,6 +128,12 @@ function fixtureRuntimeClient(options: {
       }
       const filtered = query?.task_id ? receipts.filter((r) => r.task_id === query.task_id) : receipts;
       return { available: true, reason: null, receipts: filtered };
+    },
+    async deliveries(): Promise<DeliveryQueryResult> {
+      if (options.available === false) {
+        return { available: false, reason: options.reason ?? "receipts_unavailable", deliveries: [] };
+      }
+      return { available: true, reason: null, deliveries };
     },
   };
 }
@@ -295,4 +336,127 @@ test("receipts on a task with no receipts says so instead of reporting a saving"
   assert.equal(report.token_delta.available, false);
   assert.equal(report.cost_delta.available, false);
   assert.equal(/saved|savings/i.test(renderReceipts(report)), false);
+});
+
+// --- attachment and context latency: the numbers Phase A could not produce at all ---------
+
+// The definition, stated once and enforced here: attachment_success_rate is
+//   delivered / (delivered + skipped + failed_open)
+// A skip is an attempt that attached NOTHING (audit mode, or an empty capsule). Leaving it out of
+// the denominator would turn "Kage attached context 1 time in 4" into "Kage attached context 100%
+// of the time", which is the exact lie this whole phase exists to prevent.
+test("attachment counts every attempt, and a skip is never counted as a success", () => {
+  const report = attachmentReport([
+    delivery({ status: "delivered" }),
+    delivery({ status: "delivered" }),
+    delivery({ status: "skipped" }),
+    delivery({ status: "failed_open", latency_ms: null }),
+  ]);
+
+  assert.equal(report.delivered, 2);
+  assert.equal(report.skipped, 1);
+  assert.equal(report.failed_open, 1);
+  assert.equal(report.attempted, 4);
+  assert.equal(report.success_rate, 0.5);
+});
+
+test("an audit period that attached nothing reports 0.0, not null and never 1.0", () => {
+  // Audit composes and skips, every time. 0% attachment is the TRUTH about an audit period, and it
+  // is a measured 0 — there were attempts, and none of them attached anything.
+  const report = attachmentReport([delivery({ status: "skipped" }), delivery({ status: "skipped" })]);
+  assert.equal(report.success_rate, 0);
+  assert.equal(report.delivered, 0);
+  assert.equal(report.attempted, 2);
+});
+
+test("no attempt at all is a null rate: zero attempts is not a zero percent, and not a hundred", () => {
+  const report = attachmentReport([]);
+  assert.deepEqual(report, { delivered: 0, skipped: 0, failed_open: 0, attempted: 0, success_rate: null });
+});
+
+test("context latency percentiles come from measured compositions, or they are null", () => {
+  const latencies = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+  const report = contextLatency(latencies.map((ms) => delivery({ status: "delivered", latency_ms: ms })));
+
+  assert.equal(report.available, true);
+  assert.equal(report.samples, 10);
+  // Nearest-rank, no interpolation: every reported number is a latency that was really measured.
+  assert.equal(report.p50_ms, 50);
+  assert.equal(report.p95_ms, 100);
+  assert.equal(report.source, "context_delivery.composition_latency_ms");
+});
+
+test("a failed-open contributes no latency: a timeout is not a composition time", () => {
+  const report = contextLatency([
+    delivery({ status: "delivered", latency_ms: 12 }),
+    delivery({ status: "failed_open", latency_ms: null }),
+  ]);
+  assert.equal(report.samples, 1, "only the composition that happened is a sample");
+  assert.equal(report.p50_ms, 12);
+  assert.equal(report.p95_ms, 12);
+});
+
+test("percentiles over no measured composition are null, never zero", () => {
+  const report = contextLatency([delivery({ status: "failed_open", latency_ms: null })]);
+  assert.equal(report.available, false);
+  assert.equal(report.reason, "no_measured_composition");
+  assert.equal(report.samples, 0);
+  assert.equal(report.p50_ms, null);
+  assert.equal(report.p95_ms, null);
+  assert.equal(report.source, null);
+});
+
+test("status reports attachment and latency from real delivery rows", async () => {
+  const project = tempProject();
+  const report = await vnextStatus(fixtureRuntimeClient({
+    project_dir: project,
+    deliveries: [
+      delivery({ status: "delivered", latency_ms: 20 }),
+      delivery({ status: "skipped", latency_ms: 40 }),
+      delivery({ status: "failed_open", latency_ms: null }),
+    ],
+  }));
+
+  assert.equal(report.deliveries.available, true);
+  assert.equal(report.deliveries.total, 3);
+  assert.equal(report.attachment?.delivered, 1);
+  assert.equal(report.attachment?.failed_open, 1);
+  assert.equal(report.attachment?.success_rate, 1 / 3);
+  // Nearest-rank on the two measured compositions (20 ms, 40 ms): p50 is a latency that really
+  // happened, not the 30 ms average of two that did not.
+  assert.equal(report.context_latency.p50_ms, 20);
+  assert.equal(report.context_latency.p95_ms, 40);
+  assert.equal(report.context_latency.samples, 2);
+
+  const text = renderStatus(report);
+  assert.match(text, /1 delivered, 1 skipped, 1 failed open/);
+  assert.match(text, /failed-open/);
+});
+
+test("status with no deliveries reports a null attachment rate, not a perfect one", async () => {
+  const project = tempProject();
+  const report = await vnextStatus(fixtureRuntimeClient({ project_dir: project, deliveries: [] }));
+
+  assert.equal(report.deliveries.available, true);
+  assert.equal(report.deliveries.total, 0);
+  assert.equal(report.attachment?.attempted, 0);
+  assert.equal(report.attachment?.success_rate, null);
+  assert.equal(report.context_latency.p50_ms, null);
+  assert.equal(report.context_latency.p95_ms, null);
+  const text = renderStatus(report);
+  assert.match(text, /attachment:.*null \(nothing attempted\)/);
+  assert.equal(/100%|1\.000/.test(text), false);
+});
+
+test("status distinguishes an unreadable delivery store from a period with no attempts", async () => {
+  const project = tempProject();
+  const report = await vnextStatus(
+    fixtureRuntimeClient({ project_dir: project, available: false, reason: "runtime_unsupported" }),
+  );
+  assert.equal(report.deliveries.available, false);
+  assert.equal(report.deliveries.total, null);
+  // Not {0,0,0} with a rate: three zeros would claim we looked and saw no attempt. We could not look.
+  assert.equal(report.attachment, null);
+  assert.equal(report.context_latency.available, false);
+  assert.equal(report.context_latency.reason, "runtime_unsupported");
 });

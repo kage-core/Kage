@@ -7,6 +7,7 @@ import { validateContextRequest, type ContextSource } from "../context/source.js
 import { WorkerContextSource } from "../context/worker-source.js";
 import { validateEvidenceEvent, validateHandshake } from "../protocol/index.js";
 import { openVnextDatabase, type LocalDatabase } from "../storage/database.js";
+import { drainDeliverySpool } from "../storage/delivery-spool.js";
 import { EventStore } from "../storage/event-store.js";
 import { migrateLocalDatabase } from "../storage/migrations.js";
 import { ReceiptStore } from "../storage/receipt-store.js";
@@ -233,6 +234,7 @@ function createRequestHandler(
   eventStore: EventStore,
   receiptStore: ReceiptStore,
   contextSource: ContextSource | null,
+  projectDir: string,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
     try {
@@ -293,6 +295,11 @@ function createRequestHandler(
         json(res, 202, { status: result.inserted ? "inserted" : "deduplicated" });
         return;
       }
+      // Deliveries are spooled as files, not posted: the one Kage most needs to record is the one
+      // where THIS process was unreachable, and there is no endpoint for that. A context request is
+      // the natural moment to drain them — the runtime is alive, it holds the SQLite handle, and
+      // the previous turn's records are exactly one prompt old. It never fails a request.
+      drainDeliverySpool(db, projectDir);
       const contextRequest = validateContextRequest(body);
       if (!contextRequest.ok) {
         error(res, 400, "invalid_protocol");
@@ -379,6 +386,9 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
     assertRuntimeDirectoryLease(directoryLease);
     migrateLocalDatabase(openedDatabase);
     assertRuntimeDirectoryLease(directoryLease);
+    // Whatever the adapters recorded while no runtime was alive (every failed-open, above all) is
+    // taken into the store the moment one is.
+    drainDeliverySpool(openedDatabase, options.projectDir);
     const eventStore = new EventStore(openedDatabase);
     const receiptStore = new ReceiptStore(openedDatabase);
     let status: VnextRuntimeStatus | undefined;
@@ -389,6 +399,7 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
       eventStore,
       receiptStore,
       contextSource,
+      options.projectDir,
     ));
     server.on("connection", (socket) => {
       sockets.add(socket);

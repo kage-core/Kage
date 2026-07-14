@@ -14,6 +14,8 @@ import {
   totalPromptTokens,
 } from "./token-count.js";
 import {
+  ANTHROPIC_PROXY_ADAPTER_ID,
+  buildProxyDelivery,
   buildProxyReceipt,
   countTokensProbeBody,
   planProxyForward,
@@ -377,6 +379,63 @@ test("with no transformation, both modes forward the original and record no tran
     assert.equal(plan.forwarded.equals(original), true);
     assert.equal(plan.measured.equals(original), true);
     assert.deepEqual(plan.transformations, []);
+  }
+});
+
+// --- what the proxy RECORDS about attaching context --------------------------------------
+
+const ORIGINAL_BODY = Buffer.from('{"messages":[{"role":"user","content":"hello"}]}');
+const TRANSFORMED_BODY = Buffer.from('{"messages":[{"role":"user","content":"hello\\n\\nmemory"}]}');
+
+test("assist records a delivery into the user turn, measured in bytes it actually added", () => {
+  const plan = planProxyForward({ mode: "assist", original: ORIGINAL_BODY, transformed: TRANSFORMED_BODY });
+  const delivery = buildProxyDelivery({
+    task_id: "task_x",
+    mode: "assist",
+    plan,
+    composition_latency_ms: 12.25,
+    now: new Date("2026-07-15T00:00:00.000Z"),
+  });
+
+  assert.ok(delivery);
+  assert.equal(delivery.status, "delivered");
+  assert.equal(delivery.reason, "delivered");
+  assert.equal(delivery.adapter_id, ANTHROPIC_PROXY_ADAPTER_ID);
+  // The proxy appends to the LAST USER TURN — never the system prompt. The record says so.
+  assert.equal(delivery.injection_location, "user_turn");
+  assert.equal(delivery.added_bytes, TRANSFORMED_BODY.length - ORIGINAL_BODY.length);
+  assert.equal(delivery.added_tokens, null, "nobody counted the injected tokens; none is invented");
+  assert.equal(delivery.measurement_quality, "partial");
+  assert.equal(delivery.composition_latency_ms, 12.25);
+  assert.equal(delivery.delivered_at, "2026-07-15T00:00:00.000Z");
+});
+
+test("audit records the same composition as a SKIP: nothing reached the request", () => {
+  const plan = planProxyForward({ mode: "audit", original: ORIGINAL_BODY, transformed: TRANSFORMED_BODY });
+  const delivery = buildProxyDelivery({
+    task_id: "task_x",
+    mode: "audit",
+    plan,
+    composition_latency_ms: 9,
+  });
+
+  assert.ok(delivery);
+  // Audit built the candidate and forwarded the client's exact bytes. Counting that as an
+  // attachment would be the exact lie this phase exists to prevent.
+  assert.equal(delivery.status, "skipped");
+  assert.equal(delivery.reason, "audit_mode_no_injection");
+  assert.equal(delivery.injection_location, "none");
+  assert.equal(delivery.added_bytes, 0);
+  // The composition was real and its latency is real, even though it went nowhere.
+  assert.equal(delivery.composition_latency_ms, 9);
+});
+
+test("a request with no composed context records no delivery at all", () => {
+  // No recall hit means no capsule was ever composed. There is nothing to have delivered, and a
+  // row here would put a phantom attempt into the denominator.
+  for (const mode of ["audit", "assist"] as const) {
+    const plan = planProxyForward({ mode, original: ORIGINAL_BODY, transformed: null });
+    assert.equal(buildProxyDelivery({ task_id: "task_x", mode, plan, composition_latency_ms: 3 }), null);
   }
 });
 

@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { lstatSync, readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { isRecord } from "../../type-guards.js";
@@ -8,9 +9,13 @@ import {
   type AdapterHandshake,
   type CapsuleSection,
   type ContextCapsule,
+  type ContextDelivery,
   type EvidenceEvent,
 } from "../protocol/index.js";
 import { resolveRuntimePaths } from "../runtime/paths.js";
+import { spoolContextDelivery } from "../storage/delivery-spool.js";
+import type { StoredContextDelivery } from "../storage/delivery-store.js";
+import { renderContextBlock } from "./claude.js";
 
 // The two budgets Phase A commits to. Event delivery is a background write and gets 150 ms;
 // context composition is allowed 500 ms and NO MORE — a cold code-graph build takes tens of
@@ -254,4 +259,102 @@ export async function requestAdapterContext(options: {
   const capsule = parseContextCapsule(await readJsonBody(sent.response));
   if (!capsule) return { status: "failed_open", reason: "malformed_response" };
   return { status: "delivered", reason: "delivered", capsule };
+}
+
+// A failed attempt has no capsule, and a delivery row's capsule_id is NOT NULL. A fixed token says
+// so out loud rather than inventing an id for a capsule that was never composed.
+export const NO_CAPSULE_ID = "capsule_unavailable";
+
+export interface AdapterContextAttempt extends AdapterContextResult {
+  /** The block that was actually injected. Empty for every status but "delivered". */
+  block: string;
+  /** The delivery this attempt recorded — the row a report will later count. */
+  delivery: StoredContextDelivery;
+  /** False when the record could not be spooled. A lost measurement, never a broken session. */
+  recorded: boolean;
+}
+
+/**
+ * One context ATTEMPT, end to end: ask the runtime for a capsule, decide what the session actually
+ * gets, and record what happened. This is the only shipped path a Claude-style adapter needs, and
+ * it exists because nothing else was writing the evidence that attachment even happened.
+ *
+ * The three statuses are the three true outcomes, and none of them may be confused for another:
+ *
+ *   delivered   — a non-empty block reached the session, at `injection_location`, adding
+ *                 `added_bytes` measured bytes.
+ *   skipped     — Kage composed a capsule and deliberately did not inject it. AUDIT MODE IS THIS
+ *                 CASE, always: audit measures and never touches the prompt. A skip is NOT an
+ *                 attachment, and counting it as one is the precise lie this phase exists to stop.
+ *   failed_open — the runtime was unreachable, slow, unauthorized, or off-protocol. The session
+ *                 carries on untouched; the failure is COUNTED rather than hidden.
+ *
+ * Latency is measured, never estimated: it is the real round trip of the composition request, and
+ * it is null when nothing was composed (a timeout is not a composition time).
+ */
+export async function attachAdapterContext(options: {
+  project_dir: string;
+  connection: AdapterConnection;
+  adapter_id: string;
+  request: ContextRequest;
+  /** Where the block would go if it is injected. Audit records "none" — because nothing goes. */
+  injection_location: Exclude<ContextDelivery["injection_location"], "none">;
+  timeout_ms?: number;
+  now?: Date;
+}): Promise<AdapterContextAttempt> {
+  const startedAt = performance.now();
+  const result = await requestAdapterContext({
+    url: options.connection.url,
+    token: options.connection.token,
+    request: options.request,
+    timeout_ms: options.timeout_ms,
+  });
+  const latencyMs = performance.now() - startedAt;
+
+  const capsule = result.capsule;
+  const block = capsule ? renderContextBlock(capsule) : "";
+  const injects = options.connection.mode === "assist" && block !== "";
+
+  let status: ContextDelivery["status"];
+  let reason: string;
+  if (!capsule) {
+    status = "failed_open";
+    reason = result.reason;
+  } else if (!block) {
+    status = "skipped";
+    reason = "empty_capsule";
+  } else if (!injects) {
+    status = "skipped";
+    reason = "audit_mode_no_injection";
+  } else {
+    status = "delivered";
+    reason = "delivered";
+  }
+
+  const delivered = status === "delivered";
+  const delivery: StoredContextDelivery = {
+    delivery_id: `delivery_${randomUUID()}`,
+    capsule_id: capsule?.capsule_id ?? NO_CAPSULE_ID,
+    task_id: options.request.task.task_id,
+    adapter_id: options.adapter_id,
+    injection_location: delivered ? options.injection_location : "none",
+    delivered_at: (options.now ?? new Date()).toISOString(),
+    added_bytes: delivered ? Buffer.byteLength(block, "utf8") : 0,
+    // Nothing counts the injected block's tokens. bytes/4 would be a fabricated number, so this
+    // stays null and the row is honestly "partial" (bytes exact, tokens unmeasured).
+    added_tokens: null,
+    measurement_quality: delivered ? "partial" : "unavailable",
+    status,
+    reason,
+    composition_latency_ms: capsule ? latencyMs : null,
+  };
+
+  return {
+    status,
+    reason,
+    capsule,
+    block: delivered ? block : "",
+    delivery,
+    recorded: spoolContextDelivery(options.project_dir, delivery),
+  };
 }

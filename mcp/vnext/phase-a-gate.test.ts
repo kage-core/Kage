@@ -26,16 +26,20 @@ import { capture } from "../kernel.js";
 import { startProxy } from "../proxy.js";
 import { renderContextBlock } from "./adapters/claude.js";
 import {
+  CLAUDE_ADAPTER_ID,
   claudeHandshake,
   claudeHookToEvent,
   claudeRepositoryIdentity,
 } from "./adapters/claude.js";
 import {
+  attachAdapterContext,
   requestAdapterContext,
   sendAdapterEvent,
   sendAdapterHandshake,
 } from "./adapters/client.js";
 import { validateEvidenceEvent, validateHandshake, type TransformationReceipt } from "./protocol/index.js";
+import { drainDeliverySpool } from "./storage/delivery-spool.js";
+import { DeliveryStore } from "./storage/delivery-store.js";
 import { readLocalReceipts } from "./runtime/client.js";
 import { startLocalRuntime } from "./runtime/server.js";
 import { assertVnextRuntime } from "./runtime/runtime-version.js";
@@ -261,35 +265,48 @@ test("Gate A: evidence, context, and an audited receipt with no MCP call and no 
     const capsule = context.capsule!;
     assert.equal(capsule.protocol_version, 1);
 
-    // 4. A context delivery, written to the real store. added_tokens stays NULL: nothing measured
-    // the injected block's token count, and a byte-derived guess is exactly the fabricated number
-    // this phase exists to prevent.
-    const block = renderContextBlock(capsule);
-    const deliveryId = "delivery_gate_1";
-    runtime.database.prepare(`
-      INSERT INTO context_deliveries (
-        delivery_id, capsule_id, task_id, adapter_id, injection_location, delivered_at,
-        added_bytes, added_tokens, measurement_quality, status, reason
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      deliveryId,
-      capsule.capsule_id,
-      event.task_id,
-      "claude-code-hooks",
-      "user_turn",
-      new Date().toISOString(),
-      Buffer.byteLength(block, "utf8"),
-      null,
-      "unavailable",
-      "delivered",
-      "delivered",
-    );
-    const deliveries = runtime.database
-      .prepare("SELECT delivery_id, status, added_tokens FROM context_deliveries WHERE task_id = ?")
-      .all(event.task_id) as unknown as Array<{ delivery_id: string; status: string; added_tokens: number | null }>;
+    // 4. A context delivery, recorded by the SHIPPED path — not hand-written by this test. The
+    // adapter asks the real runtime for a capsule, decides what the session gets, and records the
+    // outcome. This runtime is in AUDIT mode, so the truthful outcome is a SKIP: the capsule was
+    // composed (and its latency measured) and nothing was injected. A skip is not an attachment,
+    // and the report below must not treat it as one.
+    const attempt = await attachAdapterContext({
+      project_dir: project,
+      connection: { url: runtime.url, token: runtime.token, mode: runtime.status.mode },
+      adapter_id: CLAUDE_ADAPTER_ID,
+      request: {
+        repository,
+        task: { ...claudeHandshake(repository, "gate-session").task },
+        query: "how should I make the payment flow idempotent?",
+        targets: [],
+        changed_files: [],
+        token_budget: 2_000,
+      },
+      injection_location: "user_turn",
+      timeout_ms: 60_000,
+    });
+    operations.push({ name: "delivery", transport: "http" });
+    assert.equal(attempt.status, "skipped");
+    assert.equal(attempt.reason, "audit_mode_no_injection");
+    assert.equal(attempt.block, "", "audit injects nothing into the session");
+    assert.equal(attempt.recorded, true);
+    // The record only reaches SQLite through the shipped drain — the runtime's own, on the next
+    // context request, or the reader's, when a report runs.
+    drainDeliverySpool(runtime.database, project);
+
+    const deliveries = new DeliveryStore(runtime.database).forTask(event.task_id);
     assert.equal(deliveries.length, 1);
-    assert.equal(deliveries[0].status, "delivered");
+    assert.equal(deliveries[0].status, "skipped");
+    assert.equal(deliveries[0].injection_location, "none");
+    assert.equal(deliveries[0].added_bytes, 0);
+    // added_tokens stays NULL: nothing measured the block's token count, and a byte-derived guess
+    // is exactly the fabricated number this phase exists to prevent.
     assert.equal(deliveries[0].added_tokens, null);
+    // ...but the COMPOSITION latency is a real measurement, and it is the reason the Phase A
+    // latency percentiles can be anything but null.
+    assert.equal(typeof deliveries[0].composition_latency_ms, "number");
+    assert.ok((deliveries[0].composition_latency_ms as number) > 0);
+    assert.equal(renderContextBlock(capsule).includes("<<<KAGE_CONTEXT>>>"), true);
 
     // 5. ONE audit-mode proxy request through the real proxy to the fake provider.
     const response = await post(proxyPort, "/v1/messages", QUESTION);
@@ -373,12 +390,22 @@ test("Gate A: evidence, context, and an audited receipt with no MCP call and no 
     assert.equal(report.prompt_mutations, 0);
     assert.deepEqual(report.measurement, { exact: 1, partial: 0, unavailable: 0 });
     assert.equal(report.measurement_scope, "transformed_requests");
-    assert.equal(report.attachment_success_rate, 1);
-    assert.equal(report.failed_open_requests, 0);
-    // No stored measurement of context-composition latency exists in protocol v1, so percentiles
-    // stay null even for a NON-empty period. A number here would be invented.
-    assert.equal(report.context_latency_p50_ms, null);
-    assert.equal(report.context_latency_p95_ms, null);
+
+    // ---- attachment and latency are now MEASURED, and both come from the shipped path ----
+    //
+    // Two audit-mode skips — the hook adapter's capsule and the proxy's candidate body, each
+    // COMPOSED and each injected nowhere — and one failed-open (the shell hook, run for real
+    // against a runtime that had been stopped). The rate is a measured 0.0: three attempts, zero
+    // attachments. It is emphatically NOT 1.0, and it is not null.
+    assert.deepEqual(report.attachment, { delivered: 0, skipped: 2, failed_open: 1 });
+    assert.equal(report.attachment_success_rate, 0);
+    assert.equal(report.failed_open_requests, 1, "a daemon outage is COUNTED, not hidden");
+    // The percentiles are real numbers now, from the compositions that really happened. The
+    // failed-open composed nothing and contributed no sample — a timeout is not a composition time.
+    assert.equal(report.context_latency_samples, 2);
+    assert.equal(typeof report.context_latency_p50_ms, "number");
+    assert.equal(typeof report.context_latency_p95_ms, "number");
+    assert.equal(report.context_latency_source, "context_delivery.composition_latency_ms");
     const cost = report.cost_delta as Record<string, unknown>;
     assert.equal(cost.available, false);
     const tokens = report.token_delta as Record<string, unknown>;
@@ -421,9 +448,16 @@ test("prompt_mutations is a measured count: a FORWARDED transformation is counte
     ) as Record<string, unknown>;
     assert.equal(report.mode, "assist");
     assert.equal(report.prompt_mutations, 1);
-    // No handshake and no delivery in this flow: attachment has nothing to report, so the rate is
-    // null. Zero attempts is not a 0% success rate, and it is certainly not a 100% one.
-    assert.equal(report.attachment_success_rate, null);
+    // The proxy really did append memory to the last user turn, so the SHIPPED proxy path recorded
+    // a delivered attachment — with the location it went to and the bytes it added. This is the
+    // other half of the gate: the audit run above proves a skip is not a success, and this proves a
+    // real attachment is still counted as one.
+    assert.deepEqual(report.attachment, { delivered: 1, skipped: 0, failed_open: 0 });
+    assert.equal(report.attachment_success_rate, 1);
+    assert.equal(report.failed_open_requests, 0);
+    assert.equal(report.context_latency_samples, 1);
+    assert.equal(typeof report.context_latency_p50_ms, "number");
+    // No handshake in this flow: the proxy records receipts and deliveries, not tasks.
     assert.equal(report.tasks, 0);
   } finally {
     proxy.close();

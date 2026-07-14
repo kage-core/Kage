@@ -20,6 +20,7 @@ import { resolve as resolvePath, sep } from "node:path";
 import { memoryRoot, observe, recall, type MemoryPacket } from "./kernel.js";
 import { isRecord } from "./type-guards.js";
 import {
+  buildProxyDelivery,
   buildProxyReceipt,
   createUpstreamTokenCounter,
   planProxyForward,
@@ -30,6 +31,7 @@ import {
 } from "./vnext/adapters/anthropic-proxy.js";
 import { extractProviderUsage, totalPromptTokens, type ProviderUsage } from "./vnext/measurement/token-count.js";
 import { openReceiptSink, type ReceiptSink } from "./vnext/measurement/receipt-sink.js";
+import { spoolContextDelivery } from "./vnext/storage/delivery-spool.js";
 
 const MEMORY_HEADER = "# Verified repo memory (injected by Kage — follow it, it is checked against this code)";
 const MAX_MEMORY_CHARS = 6000; // ~1.5k tokens, so injection never dominates the prompt
@@ -230,6 +232,7 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
     headers: Record<string, string | string[] | undefined>;
     usage: ProviderUsage;
     latencyMs: number;
+    compositionLatencyMs: number;
   }): Promise<void> {
     try {
       // A receipt describes a TRANSFORMATION. A request Kage did not transform has nothing to
@@ -240,6 +243,19 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
 
       const sink = receiptSinkFor(args.requestProjectDir);
       if (!sink) return;
+
+      // What the transformation COST is a receipt. Whether it ever reached the agent is a DELIVERY,
+      // and they are different facts: in audit the candidate is measured and then thrown away, so
+      // the receipt exists and the attachment does not. Spooled (not written straight to SQLite)
+      // for one reason above all: the same record has to be writable by a hook whose daemon is
+      // dead, and a lost measurement must never become a broken session.
+      const delivery = buildProxyDelivery({
+        task_id: proxyTaskId(args.requestProjectDir, sessionId),
+        mode,
+        plan: args.plan,
+        composition_latency_ms: args.compositionLatencyMs,
+      });
+      if (delivery) spoolContextDelivery(args.requestProjectDir, delivery);
 
       // The provider's usage always describes the body that was SENT. The other body is unmeasured
       // unless we pay to measure it — and if we don't, its count stays null and the receipt is
@@ -277,6 +293,9 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
     // not an eligible, parseable POST /v1/messages — count_tokens included, which stays a strict
     // passthrough and is never measured.
     let plan: ProxyForwardPlan | null = null;
+    // MEASURED, not estimated: the wall time Kage spent composing the context it would attach. It
+    // is the only number that can populate the Phase A context-latency percentiles from the proxy.
+    let compositionLatencyMs = 0;
     // Resolved once per request so --workspace can route each request to the right repo
     // (see resolveRequestProjectDir); with no --workspace this is always the fixed projectDir,
     // identical to pre-multi-repo behavior.
@@ -291,11 +310,13 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
         // carry subscription traffic at all, independent of any memory injection).
         if (!options.noInject && existsSync(memoryRoot(requestProjectDir))) {
           userPrompt = lastUserText(parsed);
+          const composeStartedAt = performance.now();
           const result = injectMemory(requestProjectDir, parsed);
           if (result.injected) {
             injected = result.injected;
             transformed = Buffer.from(JSON.stringify(result.body), "utf8");
           }
+          compositionLatencyMs = performance.now() - composeStartedAt;
         }
         // In audit mode this constructs the candidate body but forwards the ORIGINAL bytes: the
         // whole point of an audit baseline is that the audited traffic was not touched.
@@ -376,6 +397,7 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
                 headers: clientReq.headers,
                 usage,
                 latencyMs,
+                compositionLatencyMs,
               });
             }
           } catch { /* capture/measurement is best-effort; never affect the client */ }

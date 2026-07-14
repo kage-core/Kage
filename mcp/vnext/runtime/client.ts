@@ -2,6 +2,9 @@ import { existsSync } from "node:fs";
 import { readAdapterConnection } from "../adapters/client.js";
 import type { TransformationReceipt } from "../protocol/index.js";
 import { openVnextDatabase } from "../storage/database.js";
+import { drainDeliverySpool } from "../storage/delivery-spool.js";
+import { DeliveryStore, type StoredContextDelivery } from "../storage/delivery-store.js";
+import { migrateLocalDatabase } from "../storage/migrations.js";
 import { ReceiptStore } from "../storage/receipt-store.js";
 import { resolveRuntimePaths } from "./paths.js";
 
@@ -32,10 +35,23 @@ export interface ReceiptQueryResult {
   receipts: TransformationReceipt[];
 }
 
+/**
+ * Deliveries, or an explicit statement that they could not be read. Exactly like receipts,
+ * `available: false` is NOT an empty result: "we could not look" and "Kage never tried to attach
+ * context" are different facts, and collapsing them would let a broken measurement path read as a
+ * clean audit period with nothing to report.
+ */
+export interface DeliveryQueryResult {
+  available: boolean;
+  reason: string | null;
+  deliveries: StoredContextDelivery[];
+}
+
 export interface RuntimeClient {
   project_dir: string;
   health(): Promise<RuntimeHealth>;
   receipts(query?: ReceiptQuery): Promise<ReceiptQueryResult>;
+  deliveries(): Promise<DeliveryQueryResult>;
 }
 
 const NOT_RUNNING: RuntimeHealth = {
@@ -116,12 +132,54 @@ export function readLocalReceipts(projectDir: string, query: ReceiptQuery = {}):
   }
 }
 
+/**
+ * Deliveries come from the local SQLite store, and reading them DRAINS the spool first: a hook or a
+ * proxy writes its record as a file (there is no posting a failed-open to the daemon that failed),
+ * so a report run after the daemon has stopped must still take those records in — otherwise the one
+ * outcome the audit most needs to count would be the one it silently dropped.
+ *
+ * Never throws. Every failure to read is surfaced as `available: false` with a fixed reason token.
+ */
+export function readLocalDeliveries(projectDir: string): DeliveryQueryResult {
+  const paths = resolveRuntimePaths(projectDir);
+  if (!existsSync(paths.databasePath)) {
+    return { available: false, reason: "no_delivery_store", deliveries: [] };
+  }
+  let database;
+  try {
+    database = openVnextDatabase(paths.databasePath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      available: false,
+      reason: message.includes("Node 22.5") ? "runtime_unsupported" : "delivery_store_unreadable",
+      deliveries: [],
+    };
+  }
+  try {
+    migrateLocalDatabase(database);
+    drainDeliverySpool(database, projectDir);
+    return { available: true, reason: null, deliveries: new DeliveryStore(database).list() };
+  } catch {
+    return { available: false, reason: "delivery_store_unreadable", deliveries: [] };
+  } finally {
+    try {
+      database.close();
+    } catch {
+      // A close failure cannot invalidate rows that were already read.
+    }
+  }
+}
+
 export function createRuntimeClient(projectDir: string): RuntimeClient {
   return {
     project_dir: projectDir,
     health: () => probeRuntimeHealth(projectDir),
     async receipts(query?: ReceiptQuery) {
       return readLocalReceipts(projectDir, query ?? {});
+    },
+    async deliveries() {
+      return readLocalDeliveries(projectDir);
     },
   };
 }

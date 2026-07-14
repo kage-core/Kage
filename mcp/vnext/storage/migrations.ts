@@ -1,6 +1,6 @@
 import type { LocalDatabase } from "./database.js";
 
-const CURRENT_SCHEMA_VERSION = 1;
+const CURRENT_SCHEMA_VERSION = 2;
 
 const MIGRATION_LEDGER_SCHEMA = `
 CREATE TABLE schema_migrations (
@@ -104,6 +104,27 @@ CREATE TABLE transformation_receipts (
 );
 `;
 
+// Storage schema is NOT the wire protocol. Protocol v1 is frozen and `ContextDelivery` gains no
+// field — but the local store is Kage's own, and without a recorded composition latency the Phase A
+// context latency percentiles are structurally null forever, which makes the phase's own completion
+// gate ("measurement-quality counts and latency percentiles") impossible to meet by construction.
+//
+// NULLABLE, deliberately: an attempt that never composed a capsule (a failed-open) has no latency
+// at all, and a 0 there would be an invented measurement.
+const MIGRATION_002 = `
+ALTER TABLE context_deliveries ADD COLUMN composition_latency_ms REAL CHECK (
+  composition_latency_ms IS NULL OR (
+    typeof(composition_latency_ms) IN ('integer', 'real') AND
+    composition_latency_ms BETWEEN 0 AND 1.7976931348623157e308
+  )
+);
+`;
+
+const MIGRATIONS: Readonly<Record<number, string>> = {
+  1: MIGRATION_001,
+  2: MIGRATION_002,
+};
+
 interface SchemaObjectRow {
   type: string;
 }
@@ -183,6 +204,18 @@ const V1_TABLE_COLUMNS: Readonly<Record<string, readonly ExpectedColumn[]>> = {
   ],
 };
 
+// Migration 002 appends exactly one column to exactly one table. Everything else is byte-identical
+// to version 1, so the validator is expressed as "version 1, plus this".
+const V2_DELIVERY_LATENCY_COLUMN: ExpectedColumn = ["composition_latency_ms", "REAL", 0, 0];
+
+function expectedColumns(version: number): Readonly<Record<string, readonly ExpectedColumn[]>> {
+  if (version < 2) return V1_TABLE_COLUMNS;
+  return {
+    ...V1_TABLE_COLUMNS,
+    context_deliveries: [...V1_TABLE_COLUMNS.context_deliveries, V2_DELIVERY_LATENCY_COLUMN],
+  };
+}
+
 const V1_UNIQUE_KEYS = [
   ["evidence_events", "source_fingerprint"],
   ["transformation_receipts", "request_id"],
@@ -192,19 +225,19 @@ function quoteIdentifier(value: string): string {
   return `"${value.replaceAll('"', '""')}"`;
 }
 
-function validateV1Schema(db: LocalDatabase): void {
-  for (const [table, expectedColumns] of Object.entries(V1_TABLE_COLUMNS)) {
+function validateSchema(db: LocalDatabase, version: number): void {
+  for (const [table, columns] of Object.entries(expectedColumns(version))) {
     const object = db
       .prepare("SELECT type FROM sqlite_master WHERE name = ?")
       .get(table) as SchemaObjectRow | undefined;
     if (!object) {
       throw new Error(
-        `Kage vNext database schema version 1 is incompatible: required table "${table}" is missing.`,
+        `Kage vNext database schema version ${version} is incompatible: required table "${table}" is missing.`,
       );
     }
     if (object.type !== "table") {
       throw new Error(
-        `Kage vNext database schema version 1 is incompatible: required object "${table}" must be a table.`,
+        `Kage vNext database schema version ${version} is incompatible: required object "${table}" must be a table.`,
       );
     }
 
@@ -212,8 +245,8 @@ function validateV1Schema(db: LocalDatabase): void {
       .prepare(`PRAGMA table_info(${quoteIdentifier(table)})`)
       .all() as unknown as TableColumnRow[];
     const columnsMatch =
-      actualColumns.length === expectedColumns.length &&
-      expectedColumns.every(
+      actualColumns.length === columns.length &&
+      columns.every(
         ([name, type, notnull, pk], index) =>
           actualColumns[index].name === name &&
           actualColumns[index].type.toUpperCase() === type &&
@@ -222,7 +255,7 @@ function validateV1Schema(db: LocalDatabase): void {
       );
     if (!columnsMatch) {
       throw new Error(
-        `Kage vNext database schema version 1 is incompatible: table "${table}" columns do not match the required ordered schema.`,
+        `Kage vNext database schema version ${version} is incompatible: table "${table}" columns do not match the required ordered schema.`,
       );
     }
   }
@@ -240,7 +273,7 @@ function validateV1Schema(db: LocalDatabase): void {
     });
     if (!hasRequiredUniqueKey) {
       throw new Error(
-        `Kage vNext database schema version 1 is incompatible: table "${table}" column "${column}" must have a unique index.`,
+        `Kage vNext database schema version ${version} is incompatible: table "${table}" column "${column}" must have a unique index.`,
       );
     }
   }
@@ -297,19 +330,19 @@ export function migrateLocalDatabase(db: LocalDatabase): void {
       );
     }
 
-    const applied = versions.some(({ version }) => version === currentSchemaVersion);
-    if (!applied) {
-      db.exec(MIGRATION_001);
+    const applied = new Set(versions.map(({ version }) => Number(version)));
+    const record = db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)");
+    for (let version = 1; version <= CURRENT_SCHEMA_VERSION; version += 1) {
+      if (applied.has(version)) continue;
+      // A migration only ever runs against the schema it was written for. A ledger that claims
+      // version N while the tables of version N are absent is corruption, not an upgrade path, and
+      // it is reported as the incompatibility it is rather than papered over with an ALTER.
+      if (version > 1) validateSchema(db, version - 1);
+      db.exec(MIGRATIONS[version]);
+      record.run(version, new Date().toISOString());
     }
 
-    validateV1Schema(db);
-
-    if (!applied) {
-      db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)").run(
-        CURRENT_SCHEMA_VERSION,
-        new Date().toISOString(),
-      );
-    }
+    validateSchema(db, CURRENT_SCHEMA_VERSION);
 
     db.exec("COMMIT");
   } catch (error) {

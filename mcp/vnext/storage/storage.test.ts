@@ -19,6 +19,12 @@ import { join } from "node:path";
 import type { EvidenceEvent, TransformationReceipt } from "../protocol/index.js";
 import { assertVnextRuntime } from "../runtime/runtime-version.js";
 import { openVnextDatabase } from "./database.js";
+import { DeliveryStore, type StoredContextDelivery } from "./delivery-store.js";
+import {
+  drainDeliverySpool,
+  deliverySpoolDirectory,
+  spoolContextDelivery,
+} from "./delivery-spool.js";
 import { EventStore } from "./event-store.js";
 import { migrateLocalDatabase } from "./migrations.js";
 import { ReceiptStore } from "./receipt-store.js";
@@ -445,7 +451,7 @@ test("database open closes an opened handle when initialization fails", () => {
   }
 });
 
-test("migration 001 records its version once and is idempotent", () => {
+test("every migration records its version once and the ledger is idempotent", () => {
   const db = openVnextDatabase(":memory:");
 
   try {
@@ -463,13 +469,96 @@ test("migration 001 records its version once and is idempotent", () => {
       .all() as Array<{ name: string }>;
 
     assert.deepEqual(secondRows, firstRows);
-    assert.equal(secondRows.length, 1);
-    assert.equal(secondRows[0].version, 1);
-    assert.match(secondRows[0].applied_at, /^\d{4}-\d{2}-\d{2}T/);
+    assert.deepEqual(secondRows.map(({ version }) => version), [1, 2]);
+    for (const row of secondRows) assert.match(row.applied_at, /^\d{4}-\d{2}-\d{2}T/);
     assert.deepEqual(
       tables.map(({ name }) => name),
       ["context_deliveries", "evidence_events", "schema_migrations", "tasks", "transformation_receipts"],
     );
+  } finally {
+    db.close();
+  }
+});
+
+// Storage schema != wire protocol. Protocol v1 is frozen and ContextDelivery gains no field, but
+// the local store is Kage's own: migration 002 adds the measured context-composition latency, which
+// is the only thing that can make the Phase A latency percentiles anything but null.
+test("migration 002 adds context-composition latency to context_deliveries, and only that", () => {
+  const db = openVnextDatabase(":memory:");
+
+  try {
+    migrateLocalDatabase(db);
+    const columns = db
+      .prepare("PRAGMA table_info(context_deliveries)")
+      .all() as unknown as Array<{ name: string; type: string; notnull: number; pk: number }>;
+
+    assert.deepEqual(
+      columns.map(({ name }) => name),
+      [
+        "delivery_id",
+        "capsule_id",
+        "task_id",
+        "adapter_id",
+        "injection_location",
+        "delivered_at",
+        "added_bytes",
+        "added_tokens",
+        "measurement_quality",
+        "status",
+        "reason",
+        "composition_latency_ms",
+      ],
+    );
+    const latency = columns[columns.length - 1];
+    assert.equal(latency.type.toUpperCase(), "REAL");
+    // Nullable on purpose: an attempt that never composed a capsule (a failed-open) has NO latency,
+    // and a zero there would be an invented measurement.
+    assert.equal(latency.notnull, 0);
+    assert.equal(latency.pk, 0);
+  } finally {
+    db.close();
+  }
+});
+
+// The upgrade path that actually exists on a dogfooding machine: a store created before this change
+// carries schema version 1 and real rows. It must gain the column and keep every row.
+test("migration 002 upgrades an existing version 1 database without losing rows", () => {
+  const db = openVnextDatabase(":memory:");
+
+  try {
+    migrateLocalDatabase(db);
+    db.exec("DELETE FROM schema_migrations WHERE version = 2");
+    db.exec("ALTER TABLE context_deliveries DROP COLUMN composition_latency_ms");
+    db.prepare(`
+      INSERT INTO context_deliveries (
+        delivery_id, capsule_id, task_id, adapter_id, injection_location, delivered_at,
+        added_bytes, added_tokens, measurement_quality, status, reason
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "delivery-legacy",
+      "capsule-legacy",
+      "task-legacy",
+      "claude-code-hooks",
+      "user_turn",
+      "2026-07-14T00:00:00.000Z",
+      120,
+      null,
+      "partial",
+      "delivered",
+      "delivered",
+    );
+
+    migrateLocalDatabase(db);
+
+    const versions = db
+      .prepare("SELECT version FROM schema_migrations ORDER BY version")
+      .all() as Array<{ version: number }>;
+    assert.deepEqual(versions.map(({ version }) => version), [1, 2]);
+    const rows = new DeliveryStore(db).list();
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].delivery_id, "delivery-legacy");
+    // The pre-existing row has no measured latency, and migration does not invent one.
+    assert.equal(rows[0].composition_latency_ms, null);
   } finally {
     db.close();
   }
@@ -515,15 +604,15 @@ test("migration rejects databases newer than the supported schema version", () =
   try {
     migrateLocalDatabase(db);
     db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)").run(
-      2,
+      3,
       "2026-07-13T00:00:00.000Z",
     );
 
-    assert.throws(() => migrateLocalDatabase(db), /schema version 2.*newer than supported version 1/i);
+    assert.throws(() => migrateLocalDatabase(db), /schema version 3.*newer than supported version 2/i);
     const versions = db
       .prepare("SELECT version FROM schema_migrations ORDER BY version")
       .all() as Array<{ version: number }>;
-    assert.deepEqual(versions.map(({ version }) => version), [1, 2]);
+    assert.deepEqual(versions.map(({ version }) => version), [1, 2, 3]);
   } finally {
     db.close();
   }
@@ -541,7 +630,7 @@ test("migration reports an unsupported schema error for future versions beyond s
 
     assert.throws(
       () => migrateLocalDatabase(db),
-      /schema version 9007199254740992.*newer than supported version 1/i,
+      /schema version 9007199254740992.*newer than supported version 2/i,
     );
   } finally {
     db.close();
@@ -578,7 +667,7 @@ test("migration rejects and preserves a ledger-only database recorded as schema 
   }
 });
 
-test("migration validates ordered columns, types, nullability, and primary keys for schema version 1", () => {
+test("migration validates ordered columns, types, nullability, and primary keys for the current schema", () => {
   const mutations: Array<[string, (sql: string) => string]> = [
     [
       "column order",
@@ -606,7 +695,7 @@ test("migration validates ordered columns, types, nullability, and primary keys 
 
       assert.throws(
         () => migrateLocalDatabase(db),
-        /schema version 1.*incompatible.*tasks.*columns/i,
+        /schema version 2.*incompatible.*tasks.*columns/i,
         name,
       );
     } finally {
@@ -615,7 +704,7 @@ test("migration validates ordered columns, types, nullability, and primary keys 
   }
 });
 
-test("migration validates required unique keys for schema version 1", () => {
+test("migration validates required unique keys for the current schema", () => {
   const requiredUniqueKeys = [
     ["evidence_events", "source_fingerprint"],
     ["transformation_receipts", "request_id"],
@@ -634,7 +723,7 @@ test("migration validates required unique keys for schema version 1", () => {
 
       assert.throws(
         () => migrateLocalDatabase(db),
-        new RegExp(`schema version 1.*incompatible.*${table}.*${column}.*unique`, "i"),
+        new RegExp(`schema version 2.*incompatible.*${table}.*${column}.*unique`, "i"),
         `${table}.${column}`,
       );
     } finally {
@@ -1118,5 +1207,196 @@ test("receipt store preserves unavailable measurement instead of estimating", ()
     assert.deepEqual(stored, receipt);
   } finally {
     db.close();
+  }
+});
+
+// --- context deliveries -----------------------------------------------------------------
+//
+// A delivery is the ONLY evidence that Kage ever attached (or failed to attach) context to a real
+// session. Before this store existed, nothing in shipped code wrote one, so attachment_success_rate
+// and the context latency percentiles were structurally null forever and the Phase A completion
+// gate could not be met no matter how long an audit ran.
+
+function fixtureDelivery(overrides: Partial<StoredContextDelivery> = {}): StoredContextDelivery {
+  return {
+    delivery_id: "delivery-1",
+    capsule_id: "capsule-1",
+    task_id: "task-1",
+    adapter_id: "claude-code-hooks",
+    injection_location: "user_turn",
+    delivered_at: "2026-07-15T00:00:00.000Z",
+    added_bytes: 512,
+    added_tokens: null,
+    measurement_quality: "partial",
+    status: "delivered",
+    reason: "delivered",
+    composition_latency_ms: 42.5,
+    ...overrides,
+  };
+}
+
+function skippedDelivery(overrides: Partial<StoredContextDelivery> = {}): StoredContextDelivery {
+  return fixtureDelivery({
+    delivery_id: "delivery-skipped",
+    injection_location: "none",
+    added_bytes: 0,
+    measurement_quality: "unavailable",
+    status: "skipped",
+    reason: "audit_mode_no_injection",
+    ...overrides,
+  });
+}
+
+test("delivery store is append-only and round-trips a measured delivery", () => {
+  const db = openVnextDatabase(":memory:");
+  migrateLocalDatabase(db);
+  const store = new DeliveryStore(db);
+  const delivery = fixtureDelivery();
+
+  try {
+    assert.equal(store.write(delivery).inserted, true);
+    // A delivery_id is written once. A retried spool file must never overwrite the recorded facts.
+    assert.equal(store.write({ ...delivery, added_bytes: 999_999 }).inserted, false);
+    assert.deepEqual(store.forTask("task-1"), [delivery]);
+    assert.deepEqual(store.list(), [delivery]);
+    assert.equal("update" in store, false);
+    assert.equal("delete" in store, false);
+  } finally {
+    db.close();
+  }
+});
+
+test("delivery store keeps every status separable and never invents a token count", () => {
+  const db = openVnextDatabase(":memory:");
+  migrateLocalDatabase(db);
+  const store = new DeliveryStore(db);
+
+  try {
+    store.write(fixtureDelivery());
+    store.write(skippedDelivery({ delivered_at: "2026-07-15T00:00:01.000Z" }));
+    store.write(fixtureDelivery({
+      delivery_id: "delivery-failed",
+      delivered_at: "2026-07-15T00:00:02.000Z",
+      capsule_id: "capsule_unavailable",
+      injection_location: "none",
+      added_bytes: 0,
+      measurement_quality: "unavailable",
+      status: "failed_open",
+      reason: "unreachable",
+      // Nothing composed, so there is no composition latency. Zero would be a fabricated number.
+      composition_latency_ms: null,
+    }));
+
+    const rows = store.list();
+    assert.deepEqual(rows.map((row) => row.status), ["delivered", "skipped", "failed_open"]);
+    // added_tokens is null on every row: nothing measured the injected block's token count, and a
+    // bytes/4 estimate is exactly the fabricated number this phase exists to prevent.
+    assert.deepEqual(rows.map((row) => row.added_tokens), [null, null, null]);
+    assert.deepEqual(rows.map((row) => row.composition_latency_ms), [42.5, 42.5, null]);
+  } finally {
+    db.close();
+  }
+});
+
+// The invariants that keep a delivery row from being able to lie about what the user's session saw.
+test("delivery store rejects a row that claims an attachment it cannot have made", () => {
+  const db = openVnextDatabase(":memory:");
+  migrateLocalDatabase(db);
+  const store = new DeliveryStore(db);
+
+  const invalid: Array<[string, StoredContextDelivery]> = [
+    ["delivered into nowhere", fixtureDelivery({ injection_location: "none" })],
+    ["delivered zero bytes", fixtureDelivery({ added_bytes: 0 })],
+    ["skipped but injected somewhere", skippedDelivery({ injection_location: "system" })],
+    ["skipped but added bytes", skippedDelivery({ added_bytes: 128 })],
+    ["negative latency", fixtureDelivery({ composition_latency_ms: -1 })],
+    ["negative added bytes", fixtureDelivery({ added_bytes: -1 })],
+    ["fractional added bytes", fixtureDelivery({ added_bytes: 1.5 })],
+    ["unknown status", fixtureDelivery({ status: "ok" as StoredContextDelivery["status"] })],
+    [
+      "unknown injection location",
+      fixtureDelivery({ injection_location: "prompt" as StoredContextDelivery["injection_location"] }),
+    ],
+  ];
+
+  try {
+    for (const [name, delivery] of invalid) {
+      assert.throws(() => store.write(delivery), /Invalid context_deliveries\./i, name);
+    }
+    assert.equal(store.list().length, 0);
+  } finally {
+    db.close();
+  }
+});
+
+// The spool is how a delivery reaches the store from a process that has no SQLite handle — and,
+// critically, from a hook whose daemon is DEAD. A failed-open cannot be posted to the runtime that
+// just failed; it can always be written to a 0600 file inside the runtime's own 0700 directory.
+test("the delivery spool carries a record into the store and then removes it", () => {
+  const project = mkdtempSync(join(tmpdir(), "kage-spool-"));
+  const db = openVnextDatabase(":memory:");
+  migrateLocalDatabase(db);
+
+  try {
+    assert.equal(spoolContextDelivery(project, fixtureDelivery()), true);
+    assert.equal(spoolContextDelivery(project, skippedDelivery()), true);
+
+    const spool = deliverySpoolDirectory(project);
+    assert.equal(lstatSync(spool).mode & 0o777, 0o700);
+    assert.equal(drainDeliverySpool(db, project), 2);
+
+    const rows = new DeliveryStore(db).list();
+    assert.deepEqual(rows.map((row) => row.status).sort(), ["delivered", "skipped"]);
+    assert.deepEqual(rows.find((row) => row.status === "delivered"), fixtureDelivery());
+    // Drained files are removed, so the spool cannot grow without bound and a second drain is a
+    // no-op rather than a double count.
+    assert.equal(drainDeliverySpool(db, project), 0);
+    assert.equal(new DeliveryStore(db).list().length, 2);
+  } finally {
+    db.close();
+    rmSync(project, { recursive: true, force: true });
+  }
+});
+
+test("the delivery spool drops a malformed or lying record instead of storing it", () => {
+  const project = mkdtempSync(join(tmpdir(), "kage-spool-bad-"));
+  const db = openVnextDatabase(":memory:");
+  migrateLocalDatabase(db);
+
+  try {
+    const spool = deliverySpoolDirectory(project);
+    mkdirSync(spool, { recursive: true, mode: 0o700 });
+    writeFileSync(join(spool, "garbage.json"), "{not json", { mode: 0o600 });
+    writeFileSync(
+      join(spool, "lying.json"),
+      JSON.stringify({ ...fixtureDelivery(), status: "delivered", injection_location: "none" }),
+      { mode: 0o600 },
+    );
+    writeFileSync(join(spool, "estimated.json"), JSON.stringify({ ...fixtureDelivery(), added_tokens: 128.5 }), {
+      mode: 0o600,
+    });
+
+    assert.equal(drainDeliverySpool(db, project), 0);
+    assert.equal(new DeliveryStore(db).list().length, 0);
+    // Unusable files are consumed too: a permanently unparseable record must not make the spool
+    // grow forever, and it is not evidence of anything.
+    assert.equal(existsSync(join(spool, "garbage.json")), false);
+  } finally {
+    db.close();
+    rmSync(project, { recursive: true, force: true });
+  }
+});
+
+test("spooling a delivery never throws, whatever the filesystem does", () => {
+  // A delivery write must NEVER break a user's session. An unwritable spool is a lost measurement,
+  // which is a lie of omission at worst — a thrown error would be a broken agent.
+  const project = mkdtempSync(join(tmpdir(), "kage-spool-ro-"));
+  mkdirSync(join(project, ".agent_memory", "daemon"), { recursive: true });
+  writeFileSync(join(project, ".agent_memory", "daemon", "vnext"), "not a directory", "utf8");
+
+  try {
+    assert.equal(spoolContextDelivery(project, fixtureDelivery()), false);
+  } finally {
+    rmSync(project, { recursive: true, force: true });
   }
 });

@@ -58,7 +58,7 @@ print("http://127.0.0.1:%d %s" % (port, mode))
 ' >/dev/null 2>&1; then
   exit 0
 fi
-# kage-hooks-v4
+# kage-hooks-v5
 # Resolve the kage CLI: repo-local, PATH, then the package runner.
 export PATH="$CWD/node_modules/.bin:$PATH"
 if command -v kage >/dev/null 2>&1; then

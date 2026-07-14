@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { TransformationReceipt } from "../protocol/index.js";
+import type { StoredContextDelivery } from "../storage/delivery-store.js";
 import {
   createRuntimeClient,
   probeRuntimeHealth,
@@ -302,6 +303,96 @@ export function costDelta(receipts: readonly TransformationReceipt[]): CostDelta
 }
 
 // ---------------------------------------------------------------------------------------------
+// attachment and context latency — measured from real delivery rows, or null
+// ---------------------------------------------------------------------------------------------
+
+export interface AttachmentReport {
+  /** Context actually reached the agent. */
+  delivered: number;
+  /** Kage composed context and deliberately attached none of it (audit mode; an empty capsule). */
+  skipped: number;
+  /** Kage could not compose or attach, and let the session carry on. */
+  failed_open: number;
+  attempted: number;
+  /** delivered / attempted. Null when nothing was attempted. */
+  success_rate: number | null;
+}
+
+export interface ContextLatencyReport {
+  available: boolean;
+  reason: string | null;
+  /** Deliveries whose composition latency was MEASURED. Nothing else can enter a percentile. */
+  samples: number;
+  p50_ms: number | null;
+  p95_ms: number | null;
+  source: "context_delivery.composition_latency_ms" | null;
+}
+
+export function unavailableContextLatency(reason: string): ContextLatencyReport {
+  return { available: false, reason, samples: 0, p50_ms: null, p95_ms: null, source: null };
+}
+
+/**
+ * ATTACHMENT SUCCESS RATE, defined once, here:
+ *
+ *     attachment_success_rate = delivered / (delivered + skipped + failed_open)
+ *
+ * A SKIP IS IN THE DENOMINATOR. A capsule Kage composed and did not inject — every audit-mode
+ * attempt, and every empty capsule — is an attempt that attached nothing, and counting it as a
+ * success (or dropping it from the denominator, which is the same thing) would turn "Kage attached
+ * context once in four tries" into "Kage attaches context 100% of the time".
+ *
+ * Null, not 1.0 and not 0.0, when NOTHING was attempted: no attempt is not a perfect record, and it
+ * is not a total failure either. It is an absence of measurement.
+ */
+export function attachmentReport(deliveries: readonly StoredContextDelivery[]): AttachmentReport {
+  const delivered = deliveries.filter((row) => row.status === "delivered").length;
+  const skipped = deliveries.filter((row) => row.status === "skipped").length;
+  const failedOpen = deliveries.filter((row) => row.status === "failed_open").length;
+  const attempted = delivered + skipped + failedOpen;
+  return {
+    delivered,
+    skipped,
+    failed_open: failedOpen,
+    attempted,
+    success_rate: attempted ? delivered / attempted : null,
+  };
+}
+
+// Nearest-rank, deliberately: every number reported is a latency that was really measured on some
+// real request. Interpolation would print a millisecond value that never happened, which on a small
+// sample (and a first internal audit IS a small sample) is exactly the kind of invented precision
+// this phase refuses.
+function percentile(sorted: readonly number[], fraction: number): number {
+  const rank = Math.max(1, Math.ceil(fraction * sorted.length));
+  return sorted[Math.min(rank, sorted.length) - 1];
+}
+
+/**
+ * Context-composition latency percentiles from the deliveries that MEASURED one. A failed-open
+ * composed nothing, so it has no latency and contributes no sample: putting its timeout into the
+ * percentiles would report a failure as if it were a composition time.
+ *
+ * Zero samples => null. A tiny sample is still an honest number and is reported as one, with the
+ * sample count beside it so nobody can mistake it for a population statistic.
+ */
+export function contextLatency(deliveries: readonly StoredContextDelivery[]): ContextLatencyReport {
+  const samples = deliveries
+    .map((row) => row.composition_latency_ms)
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+    .sort((left, right) => left - right);
+  if (!samples.length) return unavailableContextLatency("no_measured_composition");
+  return {
+    available: true,
+    reason: null,
+    samples: samples.length,
+    p50_ms: percentile(samples, 0.5),
+    p95_ms: percentile(samples, 0.95),
+    source: "context_delivery.composition_latency_ms",
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
 // status
 // ---------------------------------------------------------------------------------------------
 
@@ -327,6 +418,13 @@ export interface VnextStatusReport {
   measurement_scope: "transformed_requests";
   token_delta: TokenDeltaReport;
   cost_delta: CostDeltaReport;
+  deliveries: { available: boolean; reason: string | null; total: number | null };
+  /**
+   * Null — not three zeros and a rate — when the delivery store could not be read: "we could not
+   * look" is not "Kage never tried to attach context".
+   */
+  attachment: AttachmentReport | null;
+  context_latency: ContextLatencyReport;
 }
 
 export async function vnextStatus(client: RuntimeClient): Promise<VnextStatusReport> {
@@ -336,6 +434,12 @@ export async function vnextStatus(client: RuntimeClient): Promise<VnextStatusRep
   const query = await client.receipts();
   const receipts = query.available ? query.receipts : [];
   const unreadable = query.available ? null : (query.reason ?? "receipts_unavailable");
+
+  const deliveryQuery = await client.deliveries();
+  const deliveries = deliveryQuery.available ? deliveryQuery.deliveries : [];
+  const deliveriesUnreadable = deliveryQuery.available
+    ? null
+    : (deliveryQuery.reason ?? "deliveries_unavailable");
 
   return {
     ok: true,
@@ -355,7 +459,33 @@ export async function vnextStatus(client: RuntimeClient): Promise<VnextStatusRep
     measurement_scope: "transformed_requests",
     token_delta: unreadable ? unavailableTokenDelta(unreadable) : tokenDelta(receipts),
     cost_delta: unreadable ? unavailableCostDelta(unreadable) : costDelta(receipts),
+    deliveries: {
+      available: deliveryQuery.available,
+      reason: deliveryQuery.reason,
+      total: deliveryQuery.available ? deliveries.length : null,
+    },
+    attachment: deliveriesUnreadable ? null : attachmentReport(deliveries),
+    context_latency: deliveriesUnreadable
+      ? unavailableContextLatency(deliveriesUnreadable)
+      : contextLatency(deliveries),
   };
+}
+
+function renderAttachment(report: VnextStatusReport): string[] {
+  if (!report.attachment) {
+    return [
+      `  attachment:    unavailable (${report.deliveries.reason}) — the delivery store could not be read, which is not the same as Kage never attaching context`,
+    ];
+  }
+  const { delivered, skipped, failed_open: failedOpen, success_rate: rate } = report.attachment;
+  return [
+    `  attachment:    ${delivered} delivered, ${skipped} skipped, ${failedOpen} failed open` +
+      `  →  ${rate === null ? "null (nothing attempted)" : rate.toFixed(3)} attached`,
+    `  failed-open:   ${failedOpen}`,
+    report.context_latency.available
+      ? `  context latency p50/p95:  ${report.context_latency.p50_ms} / ${report.context_latency.p95_ms} ms (measured on ${report.context_latency.samples} composition${report.context_latency.samples === 1 ? "" : "s"})`
+      : `  context latency p50/p95:  unavailable (${report.context_latency.reason})`,
+  ];
 }
 
 function renderTokenDelta(delta: TokenDeltaReport): string {
@@ -386,6 +516,9 @@ export function renderStatus(report: VnextStatusReport): string {
   }
 
   lines.push(
+    "",
+    "Context attachment (every attempt: an audit-mode skip attaches nothing and is counted as a skip):",
+    ...renderAttachment(report),
     "",
     "Measurement of transformed requests (a request Kage did not transform writes no receipt):",
     report.measurement

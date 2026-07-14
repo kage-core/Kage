@@ -2,7 +2,7 @@
 # Kage vNext adapter hook — the single fail-open bridge from Claude Code hooks to the local Kage
 # runtime (kaged). Posts protocol-v1 evidence to 127.0.0.1 and injects the runtime's context block.
 # Silent, and exits 0, whenever the runtime is absent, unreachable, slow, or unhappy.
-# kage-hooks-v4
+# kage-hooks-v5
 set -uo pipefail
 
 PAYLOAD="$(cat || true)"
@@ -93,14 +93,97 @@ if "node" not in comm:
     dead()
 print("http://127.0.0.1:%d %s" % (port, mode))
 ' 2>/dev/null || echo "")"
-[[ -n "$PROBE" ]] || exit 0
 CONNECTION=""
 MODE=""
-read -r CONNECTION MODE <<< "$PROBE"
-[[ -n "$CONNECTION" && -n "$MODE" ]] || exit 0
+[[ -n "$PROBE" ]] && read -r CONNECTION MODE <<< "$PROBE"
+[[ -n "$CONNECTION" && -n "$MODE" ]] || { CONNECTION=""; MODE=""; }
 
-TOKEN="$(tr -d '\r\n' < "$RUNTIME_DIR/token" 2>/dev/null || echo "")"
-[[ -n "$TOKEN" ]] || exit 0
+TOKEN=""
+if [[ -n "$CONNECTION" ]]; then
+  TOKEN="$(tr -d '\r\n' < "$RUNTIME_DIR/token" 2>/dev/null || echo "")"
+  # A runtime we cannot authenticate to is a runtime we cannot reach.
+  [[ -n "$TOKEN" ]] || { CONNECTION=""; MODE=""; }
+fi
+
+# Where a context DELIVERY is recorded. Not an endpoint: the delivery Kage most needs to record is
+# the one where the daemon was unreachable, and there is no posting that to the process that just
+# failed. One 0600 file per delivery, inside the runtime's own 0700 directory, drained into SQLite
+# by the runtime (or by the next `kage status` / audit report). It costs no round trip and it cannot
+# fail a session.
+SPOOL="$RUNTIME_DIR/deliveries"
+
+# The runtime is gone. For a hook that WOULD have attached context, that is a failed-open — the one
+# attachment outcome that can never be posted anywhere, and the one an honest audit must still
+# count. Every other hook exits silently, exactly as before.
+if [[ -z "$CONNECTION" ]]; then
+  case "$HOOK_EVENT" in
+    SessionStart|UserPromptSubmit) ;;
+    *) exit 0 ;;
+  esac
+  REMOTE="$(git -C "$CWD" config --get remote.origin.url 2>/dev/null || echo "")"
+  PAYLOAD="$PAYLOAD" KAGE_ROOT="$CWD" KAGE_REMOTE="$REMOTE" KAGE_SPOOL="$SPOOL" python3 -c 'import hashlib, json, os, uuid
+from datetime import datetime, timezone
+
+MAX_SPOOL_FILES = 2000
+
+try:
+    d = json.loads(os.environ.get("PAYLOAD") or "{}")
+except Exception:
+    raise SystemExit(0)
+if not isinstance(d, dict):
+    raise SystemExit(0)
+
+root = os.environ.get("KAGE_ROOT") or ""
+remote = (os.environ.get("KAGE_REMOTE") or "").strip() or None
+spool = os.environ["KAGE_SPOOL"]
+
+def sha(value):
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+session = d.get("session_id") or d.get("sessionId")
+session_id = (session[:256].strip() if isinstance(session, str) else "") or "default"
+repo_id = "repo_" + sha(remote or root)[:32]
+task_id = "task_" + sha(repo_id + "|" + session_id)[:32]
+now = datetime.now(timezone.utc)
+
+# capsule_id is NOT NULL and no capsule was composed: a fixed token says so instead of inventing an
+# id. composition_latency_ms is null for the same reason — a failed round trip is not a composition.
+record = {
+    "delivery_id": "delivery_" + str(uuid.uuid4()),
+    "capsule_id": "capsule_unavailable",
+    "task_id": task_id,
+    "adapter_id": "claude-code-hooks",
+    "injection_location": "none",
+    "delivered_at": now.strftime("%Y-%m-%dT%H:%M:%S.") + ("%03dZ" % (now.microsecond // 1000)),
+    "added_bytes": 0,
+    "added_tokens": None,
+    "measurement_quality": "unavailable",
+    "status": "failed_open",
+    "reason": "unreachable",
+    "composition_latency_ms": None,
+}
+
+try:
+    os.makedirs(spool, mode=0o700, exist_ok=True)
+    # A dead daemon means a failed-open on every prompt, forever. True, but it must not become an
+    # unbounded directory: past the cap Kage stops recording rather than let measurement eat a disk.
+    if len(os.listdir(spool)) >= MAX_SPOOL_FILES:
+        raise SystemExit(0)
+    name = str(uuid.uuid4())
+    temporary = os.path.join(spool, "." + name + ".tmp")
+    handle = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        os.write(handle, json.dumps(record, separators=(",", ":")).encode("utf-8"))
+    finally:
+        os.close(handle)
+    # Renamed into place, so a reader only ever sees a complete record.
+    os.rename(temporary, os.path.join(spool, name + ".json"))
+except Exception:
+    # A measurement Kage could not record is a gap in a report. Never a broken session.
+    pass
+' 2>/dev/null || true
+  exit 0
+fi
 
 WORK="$(mktemp -d 2>/dev/null || echo "")"
 [[ -n "$WORK" ]] || exit 0
@@ -259,19 +342,26 @@ if hook == "SessionStart":
 
 # Audit mode NEVER mutates the prompt. It is the measurement baseline: if the hook injected context
 # in audit, the "original" bytes would already contain Kage context and the exact-versus-partial
-# savings number would be meaningless. Only assist injects, and only at session start and prompt
-# submit.
-if mode == "assist":
-    query = prompt[:1000] if hook == "UserPromptSubmit" else ("orient in this repository" if hook == "SessionStart" else "")
-    if query:
-        write("context.json", {
-            "repository": repository,
-            "task": task,
-            "query": query,
-            "targets": [],
-            "changed_files": [],
-            "token_budget": 2000,
-        })
+# savings number would be meaningless.
+#
+# But audit still MEASURES. It composes the capsule it would have injected and records the attempt
+# as a SKIP — which is how an audit period gets a real context-composition latency and a real,
+# non-null attachment denominator at all. Composing costs the session nothing (the capsule is
+# thrown away); injecting would cost it the baseline, so only assist injects.
+query = prompt[:1000] if hook == "UserPromptSubmit" else ("orient in this repository" if hook == "SessionStart" else "")
+if query:
+    write("context.json", {
+        "repository": repository,
+        "task": task,
+        "query": query,
+        "targets": [],
+        "changed_files": [],
+        "token_budget": 2000,
+    })
+    write("identity.json", {"repo_id": repo_id, "task_id": task_id})
+    # The location the block WOULD go to. It is recorded as the delivery location only when the
+    # block is actually injected; a skipped capsule went nowhere and says "none".
+    if mode == "assist":
         with open(os.path.join(work, "inject"), "w", encoding="utf-8") as handle:
             handle.write("systemMessage" if hook == "SessionStart" else "additionalContext")
 ' 2>/dev/null || exit 0
@@ -286,41 +376,155 @@ post_context() {
   # Context composition is allowed 500 ms and NO MORE — a cold code-graph build takes tens of
   # seconds and this hook will not wait for it: it fails open and the warm cache serves the next
   # prompt. Waiting would hang the user's agent, which is the one thing Kage must never do.
-  curl -sf --max-time 0.5 -X POST -H "content-type: application/json" -H "authorization: Bearer $TOKEN" --data-binary "@$2" "$CONNECTION$1" 2>/dev/null
+  #
+  # The body goes to a file and the status line to stdout, so the round trip is MEASURED by the
+  # HTTP client itself (time_total) instead of being estimated by a second python start-up.
+  curl -s -o "$3" -w '%{http_code} %{time_total}' --max-time 0.5 -X POST -H "content-type: application/json" -H "authorization: Bearer $TOKEN" --data-binary "@$2" "$CONNECTION$1" 2>/dev/null
 }
 
 [[ -f "$WORK/handshake.json" ]] && post_evidence /v2/handshakes "$WORK/handshake.json" >/dev/null 2>&1
 [[ -f "$WORK/event.json" ]] && post_evidence /v2/events "$WORK/event.json" >/dev/null 2>&1
 
 if [[ -f "$WORK/context.json" ]]; then
-  CAPSULE="$(post_context /v2/context "$WORK/context.json" || echo "")"
-  if [[ -n "$CAPSULE" ]]; then
-    # A truncated or off-protocol capsule prints nothing at all rather than injecting half a block.
-    KAGE_CAPSULE="$CAPSULE" KAGE_INJECT="$(cat "$WORK/inject" 2>/dev/null || echo "")" python3 -c 'import json, os
+  TRANSPORT_STATUS=0
+  METRICS="$(post_context /v2/context "$WORK/context.json" "$WORK/capsule.json")" || TRANSPORT_STATUS=$?
+
+  # One pass decides what the session gets AND records what happened. A capsule that is truncated,
+  # off-protocol, or empty prints nothing at all rather than injecting half a block — and is still
+  # recorded, because "Kage tried and attached nothing" is a fact an audit has to be able to count.
+  KAGE_METRICS="$METRICS" KAGE_TRANSPORT_STATUS="$TRANSPORT_STATUS" KAGE_MODE="$MODE" KAGE_WORK="$WORK" KAGE_SPOOL="$SPOOL" python3 -c 'import json, os, uuid
+from datetime import datetime, timezone
+
+MAX_SPOOL_FILES = 2000
+
+work = os.environ["KAGE_WORK"]
+spool = os.environ["KAGE_SPOOL"]
+mode = os.environ.get("KAGE_MODE") or ""
+
 try:
-    capsule = json.loads(os.environ.get("KAGE_CAPSULE") or "null")
+    with open(os.path.join(work, "identity.json"), "r", encoding="utf-8") as handle:
+        identity = json.load(handle)
+    task_id = identity["task_id"]
 except Exception:
     raise SystemExit(0)
-field = os.environ.get("KAGE_INJECT") or ""
-if not isinstance(capsule, dict) or capsule.get("protocol_version") != 1:
-    raise SystemExit(0)
-if field not in ("systemMessage", "additionalContext"):
-    raise SystemExit(0)
-sections = capsule.get("sections")
-if not isinstance(sections, list) or not sections:
-    raise SystemExit(0)
-rendered = []
-for section in sections:
-    if not isinstance(section, dict):
-        raise SystemExit(0)
-    title, body, kind = section.get("title"), section.get("body"), section.get("kind")
-    if not isinstance(title, str) or not isinstance(body, str) or not isinstance(kind, str):
-        raise SystemExit(0)
-    rendered.append("## %s (%s)\n%s" % (title, kind, body))
-block = "<<<KAGE_CONTEXT>>>\n" + "\n\n".join(rendered) + "\n<<<END_KAGE_CONTEXT>>>\n"
-print(json.dumps({field: block}))
+
+try:
+    field = open(os.path.join(work, "inject"), "r", encoding="utf-8").read().strip()
+except Exception:
+    field = ""
+
+http_code, seconds = 0, None
+parts = (os.environ.get("KAGE_METRICS") or "").split()
+if len(parts) == 2:
+    try:
+        http_code, seconds = int(parts[0]), float(parts[1])
+    except Exception:
+        http_code, seconds = 0, None
+
+try:
+    transport_status = int(os.environ.get("KAGE_TRANSPORT_STATUS") or "0")
+except Exception:
+    transport_status = 1
+
+capsule = None
+if transport_status == 0 and http_code == 200:
+    try:
+        with open(os.path.join(work, "capsule.json"), "r", encoding="utf-8") as handle:
+            capsule = json.load(handle)
+    except Exception:
+        capsule = None
+    if not isinstance(capsule, dict) or capsule.get("protocol_version") != 1:
+        capsule = None
+    elif not isinstance(capsule.get("sections"), list):
+        capsule = None
+    elif not isinstance(capsule.get("capsule_id"), str) or not capsule.get("capsule_id"):
+        capsule = None
+
+# Every reason is a fixed token — the same vocabulary the TypeScript adapter uses. Nothing derived
+# from a prompt, a file, or a response body ever enters one, because reasons are stored and printed.
+def failure_reason():
+    if transport_status == 28:
+        return "timeout"
+    if transport_status != 0 or http_code == 0:
+        return "unreachable"
+    if http_code in (401, 403):
+        return "unauthorized"
+    if http_code in (400, 409, 413, 415):
+        return "invalid_protocol"
+    if http_code == 200:
+        return "malformed_response"
+    return "runtime_error"
+
+block = ""
+if capsule is not None:
+    rendered = []
+    for section in capsule["sections"]:
+        if not isinstance(section, dict):
+            rendered = []
+            break
+        title, body, kind = section.get("title"), section.get("body"), section.get("kind")
+        if not isinstance(title, str) or not isinstance(body, str) or not isinstance(kind, str):
+            rendered = []
+            break
+        rendered.append("## %s (%s)\n%s" % (title, kind, body))
+    if rendered:
+        block = "<<<KAGE_CONTEXT>>>\n" + "\n\n".join(rendered) + "\n<<<END_KAGE_CONTEXT>>>\n"
+
+injects = bool(block) and mode == "assist" and field in ("systemMessage", "additionalContext")
+
+if capsule is None:
+    status, reason, location = "failed_open", failure_reason(), "none"
+elif not block:
+    status, reason, location = "skipped", "empty_capsule", "none"
+elif not injects:
+    # Audit composed the capsule and threw it away. A skip is NOT an attachment, and it is recorded
+    # as a skip so no report can ever quietly count it as one.
+    status, reason, location = "skipped", "audit_mode_no_injection", "none"
+else:
+    status = "delivered"
+    reason = "delivered"
+    location = "system" if field == "systemMessage" else "user_turn"
+
+now = datetime.now(timezone.utc)
+record = {
+    "delivery_id": "delivery_" + str(uuid.uuid4()),
+    # No capsule was composed => there is no capsule id. A fixed token, never an invented one.
+    "capsule_id": capsule["capsule_id"] if capsule is not None else "capsule_unavailable",
+    "task_id": task_id,
+    "adapter_id": "claude-code-hooks",
+    "injection_location": location if status == "delivered" else "none",
+    "delivered_at": now.strftime("%Y-%m-%dT%H:%M:%S.") + ("%03dZ" % (now.microsecond // 1000)),
+    # Exactly the bytes this hook put into the session. Zero when it put none.
+    "added_bytes": len(block.encode("utf-8")) if status == "delivered" else 0,
+    # Nobody counted the block TOKENS. bytes/4 would be a fabricated number, so this stays null and
+    # the row says "partial": bytes exact, tokens unmeasured.
+    "added_tokens": None,
+    "measurement_quality": "partial" if status == "delivered" else "unavailable",
+    "status": status,
+    "reason": reason,
+    # The MEASURED composition round trip, in milliseconds. Null when nothing was composed: a
+    # timeout is not a composition time, and putting it in the percentiles would invent one.
+    "composition_latency_ms": (seconds * 1000.0) if (capsule is not None and seconds is not None) else None,
+}
+
+try:
+    os.makedirs(spool, mode=0o700, exist_ok=True)
+    if len(os.listdir(spool)) < MAX_SPOOL_FILES:
+        name = str(uuid.uuid4())
+        temporary = os.path.join(spool, "." + name + ".tmp")
+        handle = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        try:
+            os.write(handle, json.dumps(record, separators=(",", ":")).encode("utf-8"))
+        finally:
+            os.close(handle)
+        os.rename(temporary, os.path.join(spool, name + ".json"))
+except Exception:
+    # A measurement Kage could not record is a gap in a report. Never a broken session.
+    pass
+
+if injects:
+    print(json.dumps({field: block}))
 ' 2>/dev/null || true
-  fi
 fi
 
 exit 0

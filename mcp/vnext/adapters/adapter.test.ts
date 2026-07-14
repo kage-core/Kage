@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -10,11 +19,14 @@ import type { ContextRequest } from "../context/source.js";
 import {
   ADAPTER_CONTEXT_TIMEOUT_MS,
   ADAPTER_EVENT_TIMEOUT_MS,
+  attachAdapterContext,
   readAdapterConnection,
   requestAdapterContext,
   sendAdapterEvent,
   sendAdapterHandshake,
 } from "./client.js";
+import { deliverySpoolDirectory } from "../storage/delivery-spool.js";
+import type { StoredContextDelivery } from "../storage/delivery-store.js";
 import {
   CLAUDE_ADAPTER_ID,
   claudeEventType,
@@ -460,6 +472,167 @@ test("adapter timeouts are the budgeted 150 ms and 500 ms", () => {
   assert.equal(ADAPTER_CONTEXT_TIMEOUT_MS, 500);
 });
 
+// --- Context deliveries: the record that makes attachment and latency measurable ----------
+//
+// Until this existed, NOTHING in shipped code wrote a context_deliveries row: the table, the
+// protocol type and a hand-written row in the gate test were the only things that ever touched it.
+// So attachment_success_rate and the context latency percentiles were null forever, and Phase A's
+// own completion gate could not be met however long an audit ran. Every context ATTEMPT now leaves
+// a record — delivered, skipped, or failed_open — and the record is what the report counts.
+
+function spooledDeliveries(project: string): StoredContextDelivery[] {
+  const directory = deliverySpoolDirectory(project);
+  if (!existsSync(directory)) return [];
+  return readdirSync(directory)
+    .filter((name) => name.endsWith(".json"))
+    .map((name) => JSON.parse(readFileSync(join(directory, name), "utf8")) as StoredContextDelivery);
+}
+
+test("an injected capsule is recorded as delivered, with where it went and what it added", async () => {
+  const capsule = fixtureCapsule();
+  const stub = await startStubRuntime(acceptEverything(capsule));
+  const project = stubProject(runtimeStatus(Number(new URL(stub.url).port), "assist"));
+  try {
+    const attempt = await attachAdapterContext({
+      project_dir: project,
+      connection: readAdapterConnection(project)!,
+      adapter_id: CLAUDE_ADAPTER_ID,
+      request: fixtureContextRequest(),
+      injection_location: "user_turn",
+    });
+
+    assert.equal(attempt.status, "delivered");
+    assert.ok(attempt.block.includes(KAGE_CONTEXT_BEGIN));
+
+    const [delivery] = spooledDeliveries(project);
+    assert.equal(delivery.status, "delivered");
+    assert.equal(delivery.reason, "delivered");
+    assert.equal(delivery.capsule_id, "capsule_1");
+    assert.equal(delivery.adapter_id, CLAUDE_ADAPTER_ID);
+    // Truthful, not decorative: this is where the block actually went in the session.
+    assert.equal(delivery.injection_location, "user_turn");
+    assert.equal(delivery.added_bytes, Buffer.byteLength(attempt.block, "utf8"));
+    // Bytes are measured exactly; the block's TOKEN count is measured by nobody, so it stays null
+    // and the row says "partial" rather than pretending to a number it does not have.
+    assert.equal(delivery.added_tokens, null);
+    assert.equal(delivery.measurement_quality, "partial");
+    // A real, measured round trip — the only thing that can ever populate the latency percentiles.
+    assert.equal(typeof delivery.composition_latency_ms, "number");
+    assert.ok((delivery.composition_latency_ms as number) >= 0);
+  } finally {
+    rmSync(project, { recursive: true, force: true });
+    await stub.close();
+  }
+});
+
+test("audit mode composes a capsule, injects nothing, and records the skip as a skip", async () => {
+  // The honesty rule this protects: a capsule that was NOT injected is never counted as an
+  // attachment. Audit still must not touch the session — but it must still MEASURE.
+  const stub = await startStubRuntime(acceptEverything(fixtureCapsule()));
+  const project = stubProject(runtimeStatus(Number(new URL(stub.url).port), "audit"));
+  try {
+    const attempt = await attachAdapterContext({
+      project_dir: project,
+      connection: readAdapterConnection(project)!,
+      adapter_id: CLAUDE_ADAPTER_ID,
+      request: fixtureContextRequest(),
+      injection_location: "user_turn",
+    });
+
+    assert.equal(attempt.status, "skipped");
+    assert.equal(attempt.block, "", "audit injects nothing into the session");
+
+    const [delivery] = spooledDeliveries(project);
+    assert.equal(delivery.status, "skipped");
+    assert.equal(delivery.reason, "audit_mode_no_injection");
+    assert.equal(delivery.injection_location, "none");
+    assert.equal(delivery.added_bytes, 0);
+    // The capsule WAS composed, so its latency is real and measurable even in an audit period.
+    assert.equal(typeof delivery.composition_latency_ms, "number");
+  } finally {
+    rmSync(project, { recursive: true, force: true });
+    await stub.close();
+  }
+});
+
+test("an empty capsule is a skip, never a delivery of nothing", async () => {
+  const stub = await startStubRuntime(acceptEverything({ ...fixtureCapsule(), sections: [] }));
+  const project = stubProject(runtimeStatus(Number(new URL(stub.url).port), "assist"));
+  try {
+    const attempt = await attachAdapterContext({
+      project_dir: project,
+      connection: readAdapterConnection(project)!,
+      adapter_id: CLAUDE_ADAPTER_ID,
+      request: fixtureContextRequest(),
+      injection_location: "system",
+    });
+
+    assert.equal(attempt.status, "skipped");
+    const [delivery] = spooledDeliveries(project);
+    assert.equal(delivery.reason, "empty_capsule");
+    assert.equal(delivery.injection_location, "none");
+    assert.equal(delivery.added_bytes, 0);
+  } finally {
+    rmSync(project, { recursive: true, force: true });
+    await stub.close();
+  }
+});
+
+test("a daemon outage records a failed_open with no invented latency", async () => {
+  // Port 1 is never listening. This is the delivery that CANNOT be posted to the runtime — the
+  // runtime is the thing that failed — and it is exactly the one the audit needs to count.
+  const project = stubProject(runtimeStatus(1, "assist"));
+  try {
+    const attempt = await attachAdapterContext({
+      project_dir: project,
+      connection: readAdapterConnection(project)!,
+      adapter_id: CLAUDE_ADAPTER_ID,
+      request: fixtureContextRequest(),
+      injection_location: "user_turn",
+      timeout_ms: 100,
+    });
+
+    assert.equal(attempt.status, "failed_open");
+    assert.equal(attempt.block, "");
+
+    const [delivery] = spooledDeliveries(project);
+    assert.equal(delivery.status, "failed_open");
+    assert.equal(delivery.reason, "unreachable");
+    assert.equal(delivery.injection_location, "none");
+    assert.equal(delivery.added_bytes, 0);
+    // No capsule was composed, so there is no composition latency. Recording the failed round trip
+    // as a "latency" would put the timeout into the percentiles as if it were a composition.
+    assert.equal(delivery.composition_latency_ms, null);
+    assert.equal(delivery.capsule_id, "capsule_unavailable");
+  } finally {
+    rmSync(project, { recursive: true, force: true });
+  }
+});
+
+test("an unwritable delivery spool loses the measurement and never the session", async () => {
+  const stub = await startStubRuntime(acceptEverything(fixtureCapsule()));
+  const project = stubProject(runtimeStatus(Number(new URL(stub.url).port), "assist"));
+  // A file where the spool directory needs to be: every write will fail.
+  writeFileSync(join(deliverySpoolDirectory(project)), "not a directory", "utf8");
+  try {
+    const attempt = await attachAdapterContext({
+      project_dir: project,
+      connection: readAdapterConnection(project)!,
+      adapter_id: CLAUDE_ADAPTER_ID,
+      request: fixtureContextRequest(),
+      injection_location: "user_turn",
+    });
+    // The capsule still reaches the session. A measurement Kage could not record is a gap in a
+    // report; a thrown error would be a broken agent.
+    assert.equal(attempt.status, "delivered");
+    assert.equal(attempt.recorded, false);
+    assert.ok(attempt.block.includes(KAGE_CONTEXT_BEGIN));
+  } finally {
+    rmSync(project, { recursive: true, force: true });
+    await stub.close();
+  }
+});
+
 // --- Runtime connection discovery ------------------------------------------------------
 
 test("the adapter reads url, token, and mode from the runtime status file", () => {
@@ -755,6 +928,10 @@ test("the shell adapter never emits a file event for a path outside the repo", a
 test("audit mode observes and never injects; assist mode injects", async () => {
   // Phase A's whole purpose is a clean baseline: if the hook injects context in audit, the
   // "original" bytes it measures already contain Kage's context and the savings number is wrong.
+  //
+  // Audit DOES compose the capsule — that is how an audit period measures composition latency and
+  // gets a real attachment denominator at all — and then throws it away. Composing costs the
+  // session nothing; injecting would cost it the baseline.
   const capsule = fixtureCapsule();
   for (const [mode, injects] of [["audit", false], ["assist", true]] as const) {
     const stub = await startStubRuntime(acceptEverything(capsule));
@@ -768,13 +945,116 @@ test("audit mode observes and never injects; assist mode injects", async () => {
       });
       assert.equal(run.status, 0);
       assert.equal((await postedEvents(stub)).length, 1, `${mode} still records the evidence`);
-      const asked = stub.requests.some((entry) => entry.path === "/v2/context");
-      assert.equal(asked, injects, `${mode}: context is requested only in assist`);
+      assert.ok(
+        stub.requests.some((entry) => entry.path === "/v2/context"),
+        `${mode}: the capsule is composed and measured in both modes`,
+      );
       assert.equal(run.stdout.trim() !== "", injects, `${mode}: context is injected only in assist`);
+
+      // ...and the DELIVERY says which of those two things actually happened to the session.
+      const [delivery] = spooledDeliveries(project);
+      assert.equal(delivery.status, injects ? "delivered" : "skipped");
+      assert.equal(delivery.reason, injects ? "delivered" : "audit_mode_no_injection");
+      assert.equal(delivery.injection_location, injects ? "user_turn" : "none");
+      assert.equal(delivery.added_bytes > 0, injects, `${mode}: bytes are added only when injected`);
+      assert.equal(delivery.added_tokens, null, "no token count is invented for the block");
+      assert.equal(typeof delivery.composition_latency_ms, "number");
     } finally {
       rmSync(project, { recursive: true, force: true });
       await stub.close();
     }
+  }
+});
+
+test("the shell adapter records a dead daemon as a failed_open it could never have posted", async () => {
+  // The runtime is gone, so there is nothing to POST a delivery to — and this is precisely the
+  // attachment outcome an honest audit must still count. It goes to the local spool instead.
+  const project = stubProject(runtimeStatus(1));
+  try {
+    const run = await runAdapter(project, {
+      hook_event_name: "UserPromptSubmit",
+      cwd: project,
+      session_id: "session-1",
+      prompt: "fix the refund flow",
+    });
+    assert.equal(run.status, 0);
+    assert.equal(run.stdout.trim(), "");
+
+    const [delivery] = spooledDeliveries(project);
+    assert.equal(delivery.status, "failed_open");
+    assert.equal(delivery.injection_location, "none");
+    assert.equal(delivery.added_bytes, 0);
+    assert.equal(delivery.capsule_id, "capsule_unavailable");
+    assert.equal(delivery.composition_latency_ms, null, "a failed round trip is not a composition time");
+    assert.equal(delivery.adapter_id, CLAUDE_ADAPTER_ID);
+  } finally {
+    rmSync(project, { recursive: true, force: true });
+  }
+});
+
+test("the shell adapter records nothing for a hook that never attaches context", async () => {
+  // A dead daemon must not turn every tool call into a failed-open row: only a hook that WOULD have
+  // attached context (session start, prompt submit) can fail to attach one.
+  const project = stubProject(runtimeStatus(1));
+  try {
+    await runAdapter(project, {
+      hook_event_name: "PostToolUse",
+      cwd: project,
+      session_id: "session-1",
+      tool_name: "Read",
+      tool_input: { file_path: join(project, "src", "app.ts") },
+    });
+    assert.deepEqual(spooledDeliveries(project), []);
+  } finally {
+    rmSync(project, { recursive: true, force: true });
+  }
+});
+
+test("the shell adapter and the TypeScript adapter record the same delivery shape", async () => {
+  // Two shipped adapters write into one table. If their records drift, the report is aggregating
+  // two different things and its counts mean nothing.
+  const capsule = fixtureCapsule();
+  const stub = await startStubRuntime(acceptEverything(capsule));
+  const project = stubProject(runtimeStatus(Number(new URL(stub.url).port), "assist"));
+  const twin = stubProject(runtimeStatus(Number(new URL(stub.url).port), "assist"));
+  try {
+    await runAdapter(project, {
+      hook_event_name: "UserPromptSubmit",
+      cwd: project,
+      session_id: "session-1",
+      prompt: "fix the refund flow",
+    });
+    const shell = spooledDeliveries(project)[0];
+
+    const attempt = await attachAdapterContext({
+      project_dir: twin,
+      connection: readAdapterConnection(twin)!,
+      adapter_id: CLAUDE_ADAPTER_ID,
+      request: {
+        repository: claudeRepositoryIdentity(project),
+        task: claudeTaskIdentity(claudeRepositoryIdentity(project), "session-1"),
+        query: "fix the refund flow",
+        targets: [],
+        changed_files: [],
+        token_budget: 2_000,
+      },
+      injection_location: "user_turn",
+    });
+    const typescript = attempt.delivery;
+
+    assert.deepEqual(Object.keys(shell).sort(), Object.keys(typescript).sort());
+    assert.equal(shell.task_id, typescript.task_id, "one task id across both adapters");
+    assert.equal(shell.capsule_id, typescript.capsule_id);
+    assert.equal(shell.adapter_id, typescript.adapter_id);
+    assert.equal(shell.status, typescript.status);
+    assert.equal(shell.reason, typescript.reason);
+    assert.equal(shell.injection_location, typescript.injection_location);
+    assert.equal(shell.added_bytes, typescript.added_bytes, "the same block is the same byte count");
+    assert.equal(shell.measurement_quality, typescript.measurement_quality);
+  } finally {
+    rmSync(project, { recursive: true, force: true });
+    rmSync(twin, { recursive: true, force: true });
+    await stub.close();
   }
 });
 

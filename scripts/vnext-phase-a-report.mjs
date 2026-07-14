@@ -17,6 +17,9 @@
 //      body that was NOT sent is measured with count_tokens, which reports a token TOTAL and
 //      nothing about caching — so its cost is null and the cost delta is UNAVAILABLE, never zero.
 //      A one-sided cost is unusable: `before - 0` would report the entire request as a saving.
+//   4. A SKIPPED capsule is not an attachment. attachment_success_rate is
+//      delivered / (delivered + skipped + failed_open), and an audit-mode skip sits in that
+//      denominator: Kage composed context and attached none of it, which is a 0, not a 1.
 //
 // Usage: node scripts/vnext-phase-a-report.mjs --project <dir> [--json]
 
@@ -56,6 +59,7 @@ function unavailable(reason) {
     context_latency_p50_ms: null,
     context_latency_p95_ms: null,
     context_latency_source: null,
+    context_latency_samples: null,
     failed_open_requests: null,
     prompt_mutations: null,
     token_delta: { available: false, reason, receipts: 0, before_input_tokens: null, after_input_tokens: null, delta_tokens: null },
@@ -66,7 +70,8 @@ function unavailable(reason) {
 
 const NOTES = [
   "measurement_scope=transformed_requests: Kage writes a receipt only for a request it actually transformed, so these counts describe transformed requests, not all agent traffic.",
-  "context latency is not stored by protocol v1: no context-composition latency is recorded anywhere, so the percentiles are null even when the period is not empty. A number here would be invented.",
+  "attachment_success_rate = delivered / (delivered + skipped + failed_open). An audit-mode attempt COMPOSES a capsule and injects none of it, so it is recorded as a skip and sits in that denominator: a correct audit period therefore attaches 0% by design. A skip is never counted as a success.",
+  "context latency percentiles are the MEASURED composition latency of the attempts that actually composed a capsule (the hook adapter's /v2/context round trip; the proxy's in-process composition). A failed-open composed nothing and contributes no sample — a timeout is not a composition time. Percentiles are nearest-rank, so every value printed is a latency that really happened, and they are null when no composition was measured.",
   "an exact token delta is not an exact cost delta: an audit-mode receipt measures the unsent candidate with count_tokens, which reports a token total and nothing about caching, so provider_input_cost_after_usd stays null and the cost delta is unavailable rather than zero.",
   "prompt_mutations counts receipts whose transformed body was actually FORWARDED. In audit mode Kage forwards the client's exact bytes, so a correct audit period measures 0 — it is not assumed to be 0.",
 ];
@@ -94,13 +99,18 @@ function report() {
   if (!receiptQuery.available) return unavailable(receiptQuery.reason ?? "receipt_store_unreadable");
   const receipts = receiptQuery.receipts;
 
+  // Deliveries come through the same shipped reader the CLI uses, which DRAINS the adapters' spool
+  // first. That matters most for the record no endpoint could ever have taken: a failed-open, which
+  // by definition happened while the daemon was unreachable.
+  const deliveryQuery = client.readLocalDeliveries(projectDir);
+  if (!deliveryQuery.available) return unavailable(deliveryQuery.reason ?? "delivery_store_unreadable");
+  const deliveries = deliveryQuery.deliveries;
+
   let db;
   let tasks;
-  let deliveries;
   try {
     db = database.openVnextDatabase(runtimePaths.databasePath);
     tasks = Number(db.prepare("SELECT COUNT(*) AS count FROM tasks").get().count);
-    deliveries = db.prepare("SELECT status FROM context_deliveries").all();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return unavailable(message.includes("Node 22.5") ? "runtime_unsupported" : "receipt_store_unreadable");
@@ -117,12 +127,10 @@ function report() {
   // was taken at all.
   if (!tasks && !receipts.length && !deliveries.length) return { ...unavailable("empty_audit_period"), available: true, empty: true };
 
-  const attachment = {
-    delivered: deliveries.filter((row) => row.status === "delivered").length,
-    skipped: deliveries.filter((row) => row.status === "skipped").length,
-    failed_open: deliveries.filter((row) => row.status === "failed_open").length,
-  };
-  const attempted = attachment.delivered + attachment.skipped + attachment.failed_open;
+  // Both aggregates are the SAME functions `kage status` uses. The report cannot drift into its own
+  // more flattering arithmetic.
+  const attachment = commands.attachmentReport(deliveries);
+  const latency = commands.contextLatency(deliveries);
 
   const measurement = { exact: 0, partial: 0, unavailable: 0 };
   for (const receipt of receipts) measurement[receipt.measurement_quality] += 1;
@@ -140,17 +148,23 @@ function report() {
     mode: modes.length === 1 ? modes[0] : null,
     modes_observed: modes,
     tasks,
-    attachment,
+    attachment: {
+      delivered: attachment.delivered,
+      skipped: attachment.skipped,
+      failed_open: attachment.failed_open,
+    },
     // Deliveries are the only attachment evidence there is. Null when nothing was attempted:
-    // 0 attempts is not a 0% success rate, and it is certainly not a 100% one.
-    attachment_success_rate: attempted ? attachment.delivered / attempted : null,
+    // 0 attempts is not a 0% success rate, and it is certainly not a 100% one. An audit period that
+    // composed capsules and injected none of them is a MEASURED 0.0 — not a null, and not a 1.0.
+    attachment_success_rate: attachment.success_rate,
     measurement: receipts.length ? measurement : null,
     measurement_scope: "transformed_requests",
-    // Protocol v1 stores no context-composition latency. Null, always, until a schema that records
-    // it exists — the receipts' latency_ms is the PROXY round trip and is not the same quantity.
-    context_latency_p50_ms: null,
-    context_latency_p95_ms: null,
-    context_latency_source: null,
+    // Measured composition latency, from the delivery rows. Null when no attempt ever composed a
+    // capsule — a failed round trip is not a composition time and does not enter a percentile.
+    context_latency_p50_ms: latency.p50_ms,
+    context_latency_p95_ms: latency.p95_ms,
+    context_latency_source: latency.source,
+    context_latency_samples: latency.samples,
     failed_open_requests: attachment.failed_open,
     // Measured: a receipt whose transformed body was actually forwarded. Audit forwards the
     // client's exact bytes, so an audit-only period measures 0 here — it does not assume it.
@@ -178,7 +192,7 @@ function render(value) {
     `  mode:                     ${value.mode ?? `mixed (${value.modes_observed.join(", ")})`}`,
     `  tasks:                    ${value.tasks}`,
     `  attachment:               ${value.attachment.delivered} delivered, ${value.attachment.skipped} skipped, ${value.attachment.failed_open} failed open`,
-    `  attachment success rate:  ${value.attachment_success_rate === null ? "null (nothing attempted)" : value.attachment_success_rate.toFixed(3)}`,
+    `  attachment success rate:  ${value.attachment_success_rate === null ? "null (nothing attempted)" : value.attachment_success_rate.toFixed(3)} (delivered / delivered+skipped+failed_open; an audit-mode skip attaches nothing)`,
     `  failed-open requests:     ${value.failed_open_requests}`,
     `  prompt mutations:         ${value.prompt_mutations} (measured, not assumed)`,
     "",
@@ -186,7 +200,9 @@ function render(value) {
     value.measurement
       ? `    exact ${value.measurement.exact}, partial ${value.measurement.partial}, unavailable ${value.measurement.unavailable}`
       : "    null (no request was transformed)",
-    `  context latency p50/p95:  null / null (protocol v1 records no context-composition latency)`,
+    value.context_latency_p50_ms === null
+      ? `  context latency p50/p95:  null / null (no attempt composed a capsule, so there is nothing to take a percentile of)`
+      : `  context latency p50/p95:  ${value.context_latency_p50_ms} / ${value.context_latency_p95_ms} ms (nearest-rank over ${value.context_latency_samples} measured composition(s))`,
     "",
     value.token_delta.available
       ? `  input tokens:  before ${value.token_delta.before_input_tokens} → after ${value.token_delta.after_input_tokens} (delta ${value.token_delta.delta_tokens}, measured on ${value.token_delta.receipts} receipt(s))`

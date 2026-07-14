@@ -1,5 +1,6 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { TransformationReceipt } from "../protocol/index.js";
+import type { StoredContextDelivery } from "../storage/delivery-store.js";
 import { buildTransformationReceipt } from "../measurement/receipt.js";
 import {
   measuredCount,
@@ -128,6 +129,57 @@ export function buildProxyReceipt(input: ProxyReceiptInput): TransformationRecei
     now: input.now,
     snapshots: input.snapshots,
   });
+}
+
+/**
+ * What the proxy RECORDS about attaching context, as opposed to what it measured about tokens.
+ *
+ * A receipt says what the transformation cost. A delivery says whether it ever reached the agent —
+ * and those are different facts. Without this row, attachment_success_rate and the context latency
+ * percentiles have no input at all and stay null forever, which is what made Phase A's completion
+ * gate unmeetable.
+ *
+ * Null when nothing was composed: a request with no recall hit has no context to deliver, and a row
+ * for it would put a phantom attempt into the denominator.
+ */
+export function buildProxyDelivery(input: {
+  task_id: string;
+  mode: ProxyMode;
+  plan: ProxyForwardPlan;
+  /** MEASURED: how long composing the candidate body actually took, in milliseconds. */
+  composition_latency_ms: number;
+  now?: Date;
+}): StoredContextDelivery | null {
+  const { plan } = input;
+  if (!plan.transformations.length) return null;
+
+  // Derived from the bytes, not from the flag: "delivered" means the transformed body is what
+  // actually went upstream. In audit the client's original bytes are forwarded, so nothing was
+  // attached and the row is a SKIP.
+  const delivered = !plan.forwarded.equals(plan.original);
+  const addedBytes = plan.measured.length - plan.original.length;
+
+  return {
+    delivery_id: `delivery_${randomUUID()}`,
+    // The proxy composes from legacy recall rather than from a protocol capsule, so its capsule id
+    // is content-addressed: the same composed body is the same capsule, and no id is invented for a
+    // composition that never happened.
+    capsule_id: `capsule_${createHash("sha256").update(plan.measured).digest("hex").slice(0, 32)}`,
+    task_id: input.task_id,
+    adapter_id: ANTHROPIC_PROXY_ADAPTER_ID,
+    // The proxy appends to the LAST USER TURN, never the system prompt (a modified system prompt is
+    // rejected by subscription tokens). The record says exactly where the bytes went.
+    injection_location: delivered ? "user_turn" : "none",
+    delivered_at: (input.now ?? new Date()).toISOString(),
+    added_bytes: delivered && addedBytes > 0 ? addedBytes : 0,
+    // The injected block's TOKEN count is measured by nobody here. A bytes/4 estimate would be a
+    // fabricated number, so this stays null and the row is honestly "partial".
+    added_tokens: null,
+    measurement_quality: delivered ? "partial" : "unavailable",
+    status: delivered ? "delivered" : "skipped",
+    reason: delivered ? "delivered" : "audit_mode_no_injection",
+    composition_latency_ms: input.composition_latency_ms,
+  };
 }
 
 // Headers that identify and authorize the client to the provider. A count_tokens probe is the

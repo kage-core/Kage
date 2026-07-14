@@ -2420,8 +2420,13 @@ test("setup generates all-agent MCP configuration and writes Codex config idempo
   execFileSync("bash", ["-n", vnextAdapterPath]);
   // Evidence gets 150 ms, context 500 ms — the two budgets Phase A commits to.
   assert.match(vnextAdapter, /curl -sf --max-time 0\.15/);
-  assert.match(vnextAdapter, /curl -sf --max-time 0\.5 /);
+  // The context call also MEASURES itself (%{time_total}) and keeps the response code, because a
+  // context delivery records the real composition latency and the real failure reason.
+  assert.match(vnextAdapter, /curl -s -o "\$3" -w '%\{http_code\} %\{time_total\}' --max-time 0\.5 /);
   assert.match(vnextAdapter, /exit 0/);
+  // Every context attempt leaves a delivery record — the evidence that attachment happened at all.
+  assert.match(vnextAdapter, /SPOOL="\$RUNTIME_DIR\/deliveries"/);
+  assert.match(vnextAdapter, /"status": "failed_open"/, "a dead daemon is recorded, not silently dropped");
   // The adapter is stamped like every other hook, so a stale copy on disk is reported, not run.
   assert.match(vnextAdapter, new RegExp(`^# kage-hooks-v${KAGE_HOOKS_VERSION}$`, "m"));
   for (const hookName of ["session-start.sh", "observe.sh", "stop.sh", "kage-read-context.sh", "kage-edit-context.sh"]) {
