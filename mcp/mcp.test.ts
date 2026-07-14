@@ -830,6 +830,25 @@ test("kage_learn refuses to write a packet with no learning text", async () => {
   assert.deepEqual(written, [], "an empty learning must not produce a packet");
 });
 
+// Evidence and verified_by both feed the packet body, so checking only the composed body lets
+// a dropped `learning` through: the packet is written carrying nothing but its own provenance.
+// This actually happened while capturing memory for this change.
+test("kage_learn refuses a packet whose only content is its own provenance", async () => {
+  const project = tempProject();
+  writeFileSync(join(project, "app.ts"), "export const app = 1;\n", "utf8");
+  const result = await callTool("kage_learn", {
+    project_dir: project,
+    evidence: "Measured against the old path: 1 health probe in 600ms.",
+    verified_by: "npm test --prefix mcp (546/546)",
+    paths: ["app.ts"],
+  });
+
+  assert.equal(result.isError, true);
+  const packets = join(project, ".agent_memory", "packets");
+  const written = existsSync(packets) ? readdirSync(packets) : [];
+  assert.deepEqual(written, [], "evidence alone must not produce a packet");
+});
+
 test("kage_supersede names the unknown parameter instead of failing as self-supersede", async () => {
   const project = tempProject();
   const result = await callTool("kage_supersede", {

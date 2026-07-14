@@ -16930,7 +16930,11 @@ export function learn(input: LearnInput): LearnResult {
   // occupies the slot of the insight it was supposed to carry, while the loss shows
   // up only as a soft "body is empty" validation warning much later. Reject the write
   // at capture time, the same way an uncited learning is rejected below.
-  if (!body) {
+  //
+  // Guard `learning` itself, not just the composed body: evidence/verifiedBy alone make
+  // the body non-empty, so a dropped or misnamed `learning` would still write a packet
+  // whose only content is its own provenance. That is the failure this check exists for.
+  if (!input.learning.trim() || !body) {
     return {
       ok: false,
       errors: [
