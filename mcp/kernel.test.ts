@@ -2412,6 +2412,21 @@ test("setup generates all-agent MCP configuration and writes Codex config idempo
     assert.match(hookText, /--package=@kage-core\/kage-graph-mcp kage/, `${hookName} missing package-runner fallback`);
     assert.match(hookText, /\[\[ -f ".*cli\.js" \]\]/, `${hookName} missing baked cli path fallback`);
   }
+  // The vNext adapter ships with the install: one fail-open script that talks to the local runtime
+  // instead of spawning a Kage CLI per hook. Legacy scripts hand over to it only when kaged is up.
+  const vnextAdapterPath = join(home, ".claude", "kage", "hooks", "kage-vnext-adapter.sh");
+  const vnextAdapter = readFileSync(vnextAdapterPath, "utf8");
+  execFileSync("bash", ["-n", vnextAdapterPath]);
+  assert.match(vnextAdapter, /curl -sf --max-time 0\.5/);
+  assert.match(vnextAdapter, /exit 0/);
+  for (const hookName of ["session-start.sh", "observe.sh", "stop.sh", "kage-read-context.sh", "kage-edit-context.sh"]) {
+    assert.match(
+      readFileSync(join(home, ".claude", "kage", "hooks", hookName), "utf8"),
+      /\.agent_memory\/daemon\/vnext\/status\.json/,
+      `${hookName} missing the vNext stand-down guard`,
+    );
+  }
+
   // PreToolUse(Read) memory injection: dedicated script + a "Read"-matcher hook entry.
   const readContextHookPath = join(home, ".claude", "kage", "hooks", "kage-read-context.sh");
   const readContextHook = readFileSync(readContextHookPath, "utf8");
@@ -2419,7 +2434,9 @@ test("setup generates all-agent MCP configuration and writes Codex config idempo
   assert.match(readContextHook, /kage file-context --project "\$CWD" --path "\$FILE_PATH"/);
   assert.match(readContextHook, /hookSpecificOutput/);
   assert.match(readContextHook, /additionalContext/);
-  assert.equal(claudeSettings.hooks.PreToolUse.length, 3);
+  // Three legacy entries plus the vNext adapter, which is appended last and never displaces them.
+  assert.equal(claudeSettings.hooks.PreToolUse.length, 4);
+  assert.match(claudeSettings.hooks.PreToolUse[3].hooks[0].command, /kage-vnext-adapter\.sh/);
   assert.equal(claudeSettings.hooks.PreToolUse[1].matcher, "Read");
   assert.match(claudeSettings.hooks.PreToolUse[1].hooks[0].command, /kage-read-context\.sh/);
   // Enforcement: recall before an edit. Dedicated script + an Edit|Write|MultiEdit matcher.

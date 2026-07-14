@@ -7,7 +7,17 @@ PAYLOAD="$(cat || true)"
 CWD="$(printf "%s" "$PAYLOAD" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('cwd',''))" 2>/dev/null || echo "")"
 
 [[ -d "$CWD/.agent_memory" ]] || exit 0
-# kage-hooks-v2
+if KAGE_VNEXT_STATUS="$CWD/.agent_memory/daemon/vnext/status.json" python3 -c 'import json, os, sys
+try:
+    with open(os.environ["KAGE_VNEXT_STATUS"], "r", encoding="utf-8") as handle:
+        mode = json.load(handle).get("mode")
+except Exception:
+    mode = None
+sys.exit(0 if mode in ("audit", "assist") else 1)
+' 2>/dev/null; then
+  exit 0
+fi
+# kage-hooks-v3
 # Resolve the kage CLI: repo-local, PATH, then the package runner.
 export PATH="$CWD/node_modules/.bin:$PATH"
 if command -v kage >/dev/null 2>&1; then

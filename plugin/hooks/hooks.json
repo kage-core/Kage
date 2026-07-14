@@ -10,6 +10,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/kage-vnext-adapter.sh\"",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -19,6 +29,16 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/observe.sh\"",
             "timeout": 12
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/kage-vnext-adapter.sh\"",
+            "timeout": 5
           }
         ]
       }
@@ -53,6 +73,16 @@
             "timeout": 6
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/kage-vnext-adapter.sh\"",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -65,6 +95,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/kage-vnext-adapter.sh\"",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PostToolUseFailure": [
@@ -74,6 +114,16 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/observe.sh\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/kage-vnext-adapter.sh\"",
             "timeout": 5
           }
         ]
@@ -109,6 +159,16 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/observe.sh\"",
             "timeout": 20
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/kage-vnext-adapter.sh\"",
+            "timeout": 5
           }
         ]
       }
