@@ -7,6 +7,15 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { daemonDoctor, readDaemonStatus, startDaemon, startViewer, stopDaemon } from "./daemon.js";
 import {
+  connectProject,
+  renderConnect,
+  renderReceipts,
+  renderStatus,
+  runtimeClientFor,
+  vnextReceipts,
+  vnextStatus,
+} from "./vnext/runtime/commands.js";
+import {
   SETUP_AGENTS,
   auditClaudeMemStore,
   auditProject,
@@ -169,6 +178,10 @@ Core commands:
   kage doctor --project <dir>                health check
   kage repair --project <dir>                fix what doctor finds (indexes, broken packets, wiring)
   kage viewer --project <dir>                local dashboard
+  kage connect --project <dir>               attach the vNext runtime + adapters in audit mode (no prompt is changed)
+  kage status --project <dir>                memory + runtime health and measurement coverage
+  kage open --project <dir>                  open the dashboard
+  kage receipts --project <dir>              measured before/after receipts for transformed requests
 
 Run 'kage help --all' for the full command list (lifecycle, CI, benchmarks, daemon, workspace).`;
 
@@ -301,6 +314,10 @@ Usage:
   kage gate list --project <dir> [--stage <stage>] [--json]
   kage gate review --project <dir>
   kage validate --project <dir>
+  kage connect --project <dir> [--agents claude-code,proxy] [--no-start] [--json]   audit mode only; connect never enables prompt mutation
+  kage status --project <dir> [--json]   legacy memory health + vNext attachment and measurement coverage (exact/partial/unavailable)
+  kage open --project <dir> [--port <n>]   launch the local dashboard
+  kage receipts --project <dir> [--task <id>] [--limit <n>] [--json]   measured fields only; an unmeasured cost prints as unavailable, never as 0
 
 Types:
   ${MEMORY_TYPES.join(", ")}`;
@@ -1105,7 +1122,12 @@ async function main(): Promise<void> {
     const action = args[1];
     const projectDir = projectArg(args);
     if (action === "start") {
-      await startDaemon(projectDir, { restPort: numberArg(args, "--port", 3111) });
+      await startDaemon(projectDir, {
+        restPort: numberArg(args, "--port", 3111),
+        // Opt-in, and audit-only: startOptionalVnextRuntime starts the local runtime in audit mode
+        // and leaves the legacy daemon serving if it cannot.
+        vnext: args.includes("--vnext"),
+      });
       return;
     }
     if (action === "stop") {
@@ -1140,6 +1162,70 @@ async function main(): Promise<void> {
 
   if (command === "viewer") {
     await startViewer(projectArg(args), { port: numberArg(args, "--port", 3113) });
+    return;
+  }
+
+  // `open` is today's viewer under the vNext name, so the connect → status → open → receipts
+  // surface is complete now and Phase C can replace the dashboard behind it without renaming a
+  // command a user has already learned.
+  if (command === "open") {
+    await startViewer(projectArg(args), { port: numberArg(args, "--port", 3113) });
+    return;
+  }
+
+  if (command === "connect") {
+    const project = projectArg(args);
+    const json = args.includes("--json");
+    // There is no --mode flag, by design: Phase A connects in audit mode, and audit forwards the
+    // agent's exact bytes. Enabling prompt mutation is not something a connect default may do.
+    const result = await connectProject({
+      project_dir: project,
+      agents: listArg(takeArg(args, "--agents")),
+      start: !args.includes("--no-start"),
+      initialize_memory: (dir) => { initProject(dir, { policy: false }); },
+    });
+    if (json) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(renderConnect(result));
+    return;
+  }
+
+  if (command === "status") {
+    const project = projectArg(args);
+    const report = await vnextStatus(runtimeClientFor(project));
+    const validation = validateProject(project);
+    const memory = {
+      ok: validation.ok,
+      errors: validation.errors.length,
+      warnings: validation.warnings.length,
+    };
+    if (args.includes("--json")) {
+      console.log(JSON.stringify({ ...report, memory }, null, 2));
+      if (!validation.ok) process.exit(2);
+      return;
+    }
+    console.log(renderStatus(report));
+    console.log("");
+    console.log(`Memory: ${memory.ok ? "valid" : "INVALID"} (${memory.errors} errors, ${memory.warnings} warnings)`);
+    if (!validation.ok) process.exit(2);
+    return;
+  }
+
+  if (command === "receipts") {
+    const project = projectArg(args);
+    const taskId = takeArg(args, "--task");
+    const limit = args.includes("--limit") ? numberArg(args, "--limit", 0) : undefined;
+    const report = await vnextReceipts(runtimeClientFor(project), {
+      task_id: taskId,
+      limit: Number.isSafeInteger(limit) && (limit as number) > 0 ? limit : undefined,
+    });
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(report, null, 2));
+      return;
+    }
+    console.log(renderReceipts(report));
     return;
   }
 

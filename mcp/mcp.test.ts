@@ -35,6 +35,29 @@ test("MCP default tool surface is the agent-facing core only", () => {
   assert.equal(core.includes("kage_xray"), false);
 });
 
+// Phase A of the vNext program adds CLI surfaces (connect/status/open/receipts) and automatic
+// adapters, and REMOVES NOTHING from the MCP surface. Tool reduction is a later, major-version
+// step that may only happen once the adapters have real usage evidence and a migration path — an
+// agent whose config names one of these tools today must keep working after Phase A.
+test("Phase A changes no default MCP tool names", () => {
+  const core = listTools().map((tool) => tool.name).sort();
+  assert.deepEqual(core, [
+    "kage_check",
+    "kage_context",
+    "kage_decisions",
+    "kage_dependency_path",
+    "kage_docs_search",
+    "kage_feedback",
+    "kage_learn",
+    "kage_pr_check",
+    "kage_refresh",
+    "kage_risk",
+    "kage_skills",
+    "kage_supersede",
+  ]);
+  assert.equal(core.length, 12);
+});
+
 test("MCP full mode exposes the complete repo-local memory tool registry", () => {
   const prev = process.env.KAGE_TOOLS;
   process.env.KAGE_TOOLS = "full";

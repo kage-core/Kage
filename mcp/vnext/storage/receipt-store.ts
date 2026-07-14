@@ -148,7 +148,50 @@ export class ReceiptStore {
       `)
       .all(taskId) as unknown as TransformationReceiptRow[];
 
-    return rows.map((row) => ({
+    return rows.map((row) => this.toReceipt(row));
+  }
+
+  /**
+   * Every receipt, newest last, optionally capped. Reporting surfaces read receipts through this
+   * instead of inventing their own SQL, so a receipt reaches a report only in the exact shape it
+   * was written — no derived, defaulted, or zero-filled column can be introduced on the way out.
+   */
+  list(options: { limit?: number } = {}): TransformationReceipt[] {
+    const limit = Number.isSafeInteger(options.limit) && (options.limit as number) > 0
+      ? (options.limit as number)
+      : -1;
+    const rows = this.db
+      .prepare(`
+        SELECT
+          receipt_id,
+          task_id,
+          request_id,
+          provider,
+          model,
+          mode,
+          measurement_quality,
+          before_input_bytes,
+          after_input_bytes,
+          before_input_tokens,
+          after_input_tokens,
+          output_tokens,
+          kage_processing_cost_usd,
+          provider_input_cost_before_usd,
+          provider_input_cost_after_usd,
+          latency_ms,
+          transformations_json,
+          created_at
+        FROM transformation_receipts
+        ORDER BY created_at, receipt_id
+        LIMIT ?
+      `)
+      .all(limit) as unknown as TransformationReceiptRow[];
+
+    return rows.map((row) => this.toReceipt(row));
+  }
+
+  private toReceipt(row: TransformationReceiptRow): TransformationReceipt {
+    return ({
       receipt_id: row.receipt_id,
       task_id: row.task_id,
       request_id: row.request_id,
@@ -170,6 +213,6 @@ export class ReceiptStore {
         `transformation_receipts.transformations_json for receipt_id "${row.receipt_id}"`,
       ),
       created_at: row.created_at,
-    }));
+    });
   }
 }
