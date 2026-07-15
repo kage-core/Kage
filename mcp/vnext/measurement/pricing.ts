@@ -16,6 +16,11 @@ export interface ProviderPriceSnapshot {
   cache_write_1h_usd_per_million: number | null;
   effective_from: string; // ISO date (YYYY-MM-DD) the price took effect.
   source: string;         // The URL the price was read from.
+  // The prompt-size ceiling (in tokens) at or below which these rates apply. Some providers bill a
+  // HIGHER rate above a threshold (Gemini 2.5 Pro: >200k tokens). Rather than model the upper tier,
+  // a prompt above this ceiling prices to NULL (unknown) — an under-priced cost at the base rate
+  // would be a flattering, wrong number, which the honesty gates forbid. Null = no tier ceiling.
+  max_prompt_tokens?: number | null;
 }
 
 const ANTHROPIC_PRICING_SOURCE = "https://platform.claude.com/docs/en/pricing";
@@ -125,6 +130,7 @@ function gemini(
   model: string,
   inputUsdPerMillion: number,
   cacheReadUsdPerMillion: number | null,
+  maxPromptTokens: number | null = null,
   effectiveFrom: string = GEMINI_READ_ON,
 ): ProviderPriceSnapshot {
   return {
@@ -136,6 +142,7 @@ function gemini(
     cache_write_1h_usd_per_million: null,
     effective_from: effectiveFrom,
     source: GEMINI_PRICING_SOURCE,
+    max_prompt_tokens: maxPromptTokens,
   };
 }
 
@@ -144,7 +151,9 @@ function gemini(
 // its cache-read rate is null (and extractGeminiUsage reports 0 cached tokens for it, so cost stays
 // defined).
 export const GEMINI_PRICE_SNAPSHOTS: readonly ProviderPriceSnapshot[] = [
-  gemini("gemini-2.5-pro", 1.25, 0.125),      // base tier; >200k prompts bill $2.50 / $0.25 (not modeled)
+  // 2.5 Pro is tiered: base $1.25/$0.125 at ≤200k, $2.50/$0.25 above. Rather than misprice a >200k
+  // prompt at the base rate, the ceiling makes its cost null (unknown) — honest over flattering.
+  gemini("gemini-2.5-pro", 1.25, 0.125, 200_000),
   gemini("gemini-2.5-flash", 0.3, 0.03),
   gemini("gemini-2.5-flash-lite", 0.1, 0.01),
   gemini("gemini-2.0-flash", 0.1, 0.025),
@@ -220,6 +229,11 @@ export function promptInputCostUsd(
   snapshot: ProviderPriceSnapshot | null,
 ): number | null {
   if (!breakdown || !snapshot) return null;
+  // Above the snapshot's tier ceiling these rates no longer apply, and Kage does not model the
+  // upper tier — so the cost is unknown (null), never the wrong base-rate number.
+  const promptTotal = breakdown.uncached_input_tokens + breakdown.cache_write_5m_tokens
+    + breakdown.cache_write_1h_tokens + breakdown.cache_read_tokens;
+  if (snapshot.max_prompt_tokens != null && promptTotal > snapshot.max_prompt_tokens) return null;
   const parts = [
     rateCostUsd(breakdown.uncached_input_tokens, snapshot.input_usd_per_million),
     rateCostUsd(breakdown.cache_write_5m_tokens, snapshot.cache_write_5m_usd_per_million ?? null),

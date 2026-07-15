@@ -23,6 +23,7 @@ import {
   parseGeminiFunctionCalls,
 } from "./gemini-proxy.js";
 import { promptTokenBreakdown, totalPromptTokens } from "../measurement/token-count.js";
+import { findPriceSnapshot, promptInputCostUsd } from "../measurement/pricing.js";
 import type { TransformationReceipt } from "../protocol/index.js";
 
 const MEM = "# Verified repo memory (injected by Kage — follow it)";
@@ -310,6 +311,21 @@ test("Gemini price snapshots are dated, sourced, and price cached READS; unknown
   assert.ok(geminiGateway.priceSnapshots.some((s) => s.model === "gemini-2.5-pro"));
   assert.ok(geminiGateway.priceSnapshots.some((s) => s.model === "gemini-2.0-flash"));
   assert.equal(geminiGateway.priceSnapshots.some((s) => s.model === "gemini-3-ultra"), false);
+});
+
+test("a Gemini 2.5 Pro prompt above the 200k tier prices to null, not the wrong base rate", () => {
+  const snapshot = findPriceSnapshot({ provider: "gemini", model: "gemini-2.5-pro", snapshots: geminiGateway.priceSnapshots });
+  assert.ok(snapshot, "2.5 Pro has a base-tier snapshot");
+  // At/below 200k the base rate applies and yields a real cost.
+  const within = { uncached_input_tokens: 199_000, cache_write_5m_tokens: 0, cache_write_1h_tokens: 0, cache_read_tokens: 1_000 };
+  assert.equal(typeof promptInputCostUsd(within, snapshot), "number");
+  // Above 200k the provider bills a HIGHER tier Kage does not model. Pricing at the base rate would
+  // under-report ~50% — a flattering, wrong number — so the honest result is null.
+  const above = { uncached_input_tokens: 250_000, cache_write_5m_tokens: 0, cache_write_1h_tokens: 0, cache_read_tokens: 0 };
+  assert.equal(promptInputCostUsd(above, snapshot), null);
+  // A flat-rate model (no ceiling) still prices a large prompt normally.
+  const flat = findPriceSnapshot({ provider: "gemini", model: "gemini-2.5-flash", snapshots: geminiGateway.priceSnapshots });
+  assert.equal(typeof promptInputCostUsd(above, flat), "number");
 });
 
 // --- captureEvents: prompt + tool_result, arguments never leak, stable fingerprints ----------
