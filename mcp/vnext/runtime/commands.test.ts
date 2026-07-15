@@ -4,6 +4,12 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { buildTransformationReceipt } from "../measurement/receipt.js";
+import {
+  ANTHROPIC_PRICE_SNAPSHOTS,
+  GEMINI_PRICE_SNAPSHOTS,
+  OPENAI_PRICE_SNAPSHOTS,
+  type ProviderPriceSnapshot,
+} from "../measurement/pricing.js";
 import type { TransformationReceipt } from "../protocol/index.js";
 import { readVnextConfig, vnextConfigPath } from "./config.js";
 import type {
@@ -40,6 +46,15 @@ const UNCACHED = (tokens: number) => ({
 
 let receiptCounter = 0;
 
+// A real model + its own price table per provider, so an openai/gemini receipt actually PRICES
+// (with the anthropic default table + a claude model, a non-anthropic receipt would price to null
+// on BOTH sides and a one-sided-cost test would pass for the wrong reason).
+function priceFor(provider: string): { model: string; snapshots: readonly ProviderPriceSnapshot[] } {
+  if (provider === "openai") return { model: "gpt-4o", snapshots: OPENAI_PRICE_SNAPSHOTS };
+  if (provider === "gemini") return { model: "gemini-2.5-flash", snapshots: GEMINI_PRICE_SNAPSHOTS };
+  return { model: "claude-opus-4-8", snapshots: ANTHROPIC_PRICE_SNAPSHOTS };
+}
+
 // A receipt exactly as Task 6 writes one. The audit-mode shape is the important case: the
 // provider MEASURED both token totals, but only the `before` side has a billing breakdown, so
 // `provider_input_cost_after_usd` is null. That is the one-sided cost every aggregate here must
@@ -57,12 +72,14 @@ function receipt(options: {
   const after = options.after_tokens ?? 1_200;
   const beforeTokens = options.quality === "unavailable" ? null : before;
   const afterTokens = options.quality === "exact" ? after : null;
+  const price = priceFor(options.provider ?? "anthropic");
   return buildTransformationReceipt({
     task_id: options.task_id ?? "task_fixture",
     request_id: `req_${receiptCounter}`,
     receipt_id: `receipt_${receiptCounter}`,
     provider: options.provider ?? "anthropic",
-    model: "claude-opus-4-8",
+    model: price.model,
+    snapshots: price.snapshots,
     mode: "audit",
     before: Buffer.alloc(10),
     after: Buffer.alloc(12),
@@ -500,19 +517,30 @@ test("byProvider omits a provider with no receipts: absence is no traffic, never
 test("byProvider prices each provider independently; a one-sided-cost provider is unavailable, not zero", () => {
   const map = byProvider([
     receipt({ quality: "exact", provider: "anthropic", cost_both_sides: true }),
-    receipt({ quality: "exact", provider: "openai" }), // audit one-sided: after cost stays null
+    receipt({ quality: "exact", provider: "openai" }), // audit one-sided: real gpt-4o before cost, null after
   ]);
   assert.equal(map.anthropic.cost_delta.available, true);
   assert.ok((map.anthropic.cost_delta.before_usd ?? 0) > 0);
-  // openai's receipt measured a before cost but a null after cost (the count_tokens side knows
-  // nothing about caching), so its cost delta is UNAVAILABLE — never before-0 as a full saving,
-  // never a fabricated $0.
+  // openai's receipt is priced with a REAL gpt-4o rate (not the null-both-sides a claude model +
+  // the anthropic table would give), so this is the genuine one-sided case: a real before cost, a
+  // null after cost. The aggregate refuses to price it — UNAVAILABLE, never before-0 as a full
+  // saving, never a fabricated $0.
   assert.equal(map.openai.cost_delta.available, false);
   assert.equal(map.openai.cost_delta.reason, "no_two_sided_cost_measurement");
   assert.equal(map.openai.cost_delta.delta_usd, null);
   // ...but openai's TOKEN delta IS available (both token totals measured). Tokens and cost stay
   // strictly apart per provider, exactly as they do overall.
   assert.equal(map.openai.token_delta.available, true);
+});
+
+test("byProvider prices a genuinely two-sided OpenAI receipt with its own gpt-4o rate", () => {
+  // Guards that OpenAI pricing is actually exercised end-to-end: a two-sided openai receipt must
+  // produce a REAL dollar cost off the OpenAI table — not null (which a claude model + the default
+  // anthropic table would silently yield, making the one-sided test above pass for the wrong reason).
+  const map = byProvider([receipt({ quality: "exact", provider: "openai", cost_both_sides: true })]);
+  assert.equal(map.openai.cost_delta.available, true);
+  assert.ok((map.openai.cost_delta.before_usd ?? 0) > 0, "a two-sided openai receipt prices to a real cost");
+  assert.ok((map.openai.cost_delta.after_usd ?? 0) > 0);
 });
 
 test("status exposes by_provider alongside the overall total, never instead of it", async () => {

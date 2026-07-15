@@ -38,6 +38,7 @@ import {
   sendAdapterHandshake,
 } from "./adapters/client.js";
 import { buildTransformationReceipt } from "./measurement/receipt.js";
+import { OPENAI_PRICE_SNAPSHOTS } from "./measurement/pricing.js";
 import { validateEvidenceEvent, validateHandshake, type TransformationReceipt } from "./protocol/index.js";
 import { drainDeliverySpool } from "./storage/delivery-spool.js";
 import { DeliveryStore } from "./storage/delivery-store.js";
@@ -568,7 +569,7 @@ test("the report and status break measurement out per provider, and a zero-traff
     // UNAVAILABLE, and it must NOT be counted into the overall cost as a $0.
     store.write(buildTransformationReceipt({
       task_id: "task_o", request_id: "req_openai_1", receipt_id: "r_openai_1",
-      provider: "openai", model: "gpt-4o", mode: "audit",
+      provider: "openai", model: "gpt-4o", snapshots: OPENAI_PRICE_SNAPSHOTS, mode: "audit",
       before: Buffer.alloc(10), after: Buffer.alloc(20),
       before_tokens: 500, after_tokens: 700,
       before_breakdown: UNCACHED(500), after_breakdown: null,
