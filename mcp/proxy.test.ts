@@ -880,3 +880,25 @@ test("the proxy serves traffic normally and never blocks when the evidence runti
     fakeUpstream.close();
   }
 });
+
+test("the proxy resolves the runtime connection at most once per TTL, not once per request", async () => {
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  // Count how often the proxy consults the runtime connection. In the real path this is a `ps`
+  // subprocess that verifies the runtime pid; per-request it would block the proxy's event loop.
+  let resolves = 0;
+  const proxy = startProxy(project, {
+    port: 0, upstream: url, mode: "assist", receiptSink: null,
+    resolveAdapterConnection: () => { resolves += 1; return null; },
+  });
+  const port = await listeningPort(proxy);
+  try {
+    for (let i = 0; i < 5; i++) await proxyRequest(port, "/v1/messages", QUESTION);
+    // Five requests inside the 3s TTL → the connection is resolved once, then served from cache.
+    assert.equal(resolves, 1, `expected 1 connection resolve across 5 requests, got ${resolves}`);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});

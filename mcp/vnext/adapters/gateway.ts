@@ -170,16 +170,22 @@ export const anthropicGateway: ProviderGateway = {
     // One tool_result per assistant tool-use block the provider returned. Only the tool NAME is
     // carried — the tool's arguments are never turned into evidence. Each block's own signal makes
     // the fingerprint stable, so a duplicate post of the same exchange deduplicates.
-    for (const block of parseResponseToolUses(context.responseBody)) {
+    parseResponseToolUses(context.responseBody).forEach((block, index) => {
+      // block.index disambiguates two same-named blocks that both lack an id, so their signals — and
+      // therefore their fingerprints — stay distinct and neither is dropped as a false duplicate.
+      // Real provider responses always populate id; this guards a malformed/truncated body.
+      const payload = block.id
+        ? { tool: block.name, tool_use_id: block.id }
+        : { tool: block.name, block_index: index };
       events.push(assembleEvidenceEvent({
         event_type: "tool_result",
         repository: context.repository,
         sessionId: context.sessionId,
         privacy_class: "local_raw",
-        payload: block.id ? { tool: block.name, tool_use_id: block.id } : { tool: block.name },
+        payload,
         now,
       }));
-    }
+    });
 
     return events;
   },

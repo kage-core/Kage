@@ -33,7 +33,7 @@ import {
   type ProviderGateway,
 } from "./vnext/adapters/gateway.js";
 import { claudeRepositoryIdentity } from "./vnext/adapters/claude.js";
-import { readAdapterConnection, sendAdapterEvent } from "./vnext/adapters/client.js";
+import { readAdapterConnection, sendAdapterEvent, type AdapterConnection } from "./vnext/adapters/client.js";
 import { totalPromptTokens, type ProviderUsage } from "./vnext/measurement/token-count.js";
 import { openReceiptSink, type ReceiptSink } from "./vnext/measurement/receipt-sink.js";
 import { spoolContextDelivery } from "./vnext/storage/delivery-spool.js";
@@ -149,6 +149,10 @@ export interface ProxyOptions {
   // Opt-in: spend one extra provider round trip per transformed request to MEASURE the token count
   // of the body that was not sent, which is the only way a receipt can honestly be "exact".
   countTokens?: boolean;
+  // Injectable for tests: how the proxy resolves the local runtime connection for evidence emission.
+  // Defaults to readAdapterConnection. Exposed so a test can prove the per-request `ps` liveness
+  // spawn is cached rather than run on every request.
+  resolveAdapterConnection?: (projectDir: string) => AdapterConnection | null;
 }
 
 export function startProxy(projectDir: string, options: ProxyOptions = {}): Server {
@@ -257,6 +261,23 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
   // only after the client has been answered, inside a catch-all: if the runtime is down/unreachable
   // the proxy serves traffic normally and the event is simply not recorded. It never blocks or
   // changes the client response.
+  // readAdapterConnection verifies the runtime pid is live by spawning `ps` (client.ts). That is
+  // right for the one-shot hook adapter, but the long-lived proxy would spawn it on every request
+  // and block its single event loop, stuttering concurrent streams. Cache the resolved connection
+  // per project for a few seconds: the liveness/ownership re-verification still runs regularly, just
+  // not per request. A null (no runtime) is cached too, so a proxy-only user pays nothing.
+  const connectionCache = new Map<string, { at: number; connection: AdapterConnection | null }>();
+  const CONNECTION_TTL_MS = 3_000;
+  const readConnection = options.resolveAdapterConnection ?? readAdapterConnection;
+  function resolveConnection(projectDir: string): AdapterConnection | null {
+    const cached = connectionCache.get(projectDir);
+    const now = Date.now();
+    if (cached && now - cached.at < CONNECTION_TTL_MS) return cached.connection;
+    const connection = readConnection(projectDir);
+    connectionCache.set(projectDir, { at: now, connection });
+    return connection;
+  }
+
   async function emitEvidence(args: {
     gateway: ProviderGateway;
     requestProjectDir: string;
@@ -264,7 +285,7 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
     responseBody: string;
   }): Promise<void> {
     try {
-      const connection = readAdapterConnection(args.requestProjectDir);
+      const connection = resolveConnection(args.requestProjectDir);
       if (!connection) return;
       const repository = claudeRepositoryIdentity(args.requestProjectDir);
       const events = args.gateway.captureEvents({
