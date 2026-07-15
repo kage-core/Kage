@@ -446,7 +446,10 @@ export function attachmentByProvider(
   const groups = new Map<string, StoredContextDelivery[]>();
   const unattributedRows: StoredContextDelivery[] = [];
   for (const row of deliveries) {
-    const provider = row.provider ?? null;
+    // The store rejects an empty-string provider, so a blank here would only arrive via a direct SQL
+    // insert bypassing the write door. Treat a blank as unattributed rather than minting a "" bucket:
+    // read-side defense-in-depth, since the migration column has no CHECK constraint.
+    const provider = typeof row.provider === "string" && row.provider.trim() ? row.provider : null;
     if (provider === null) {
       unattributedRows.push(row);
       continue;

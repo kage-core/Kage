@@ -668,6 +668,19 @@ test("attachmentByProvider with only hook rows has no provider buckets, only una
   assert.equal(report.unattributed?.success_rate, 0.5);
 });
 
+test("attachmentByProvider treats a blank provider (bypassed store) as unattributed, not a '' bucket", () => {
+  // The store rejects an empty-string provider, so this can only arrive via a direct SQL insert
+  // past the write door. The read side must not mint a "" provider bucket for it.
+  const report = attachmentByProvider([
+    { ...delivery({ status: "delivered", provider: "openai" }) },
+    { ...delivery({ status: "delivered" }), provider: "" },
+    { ...delivery({ status: "skipped" }), provider: "   " },
+  ]);
+  assert.deepEqual(Object.keys(report.providers), ["openai"]);
+  assert.equal("" in report.providers, false);
+  assert.equal(report.unattributed?.attempted, 2, "the blank-provider rows fall into unattributed");
+});
+
 test("status exposes attachment_by_provider alongside the overall attachment, never instead of it", async () => {
   const project = tempProject();
   const report = await vnextStatus(fixtureRuntimeClient({
