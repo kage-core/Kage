@@ -3,6 +3,7 @@ import { isRecord } from "../../type-guards.js";
 import { extractProviderUsage, type ProviderUsage, type TokenCounter } from "../measurement/token-count.js";
 import {
   ANTHROPIC_PRICE_SNAPSHOTS,
+  GEMINI_PRICE_SNAPSHOTS,
   OPENAI_PRICE_SNAPSHOTS,
   type ProviderPriceSnapshot,
 } from "../measurement/pricing.js";
@@ -38,6 +39,17 @@ import {
   openAiSystemText,
   parseOpenAiToolCalls,
 } from "./openai-proxy.js";
+import {
+  GEMINI_PROXY_ADAPTER_ID,
+  GEMINI_PROXY_PROVIDER,
+  extractGeminiUsage,
+  geminiLastUserText,
+  geminiModelFromPath,
+  geminiSystemText,
+  injectGemini,
+  isGeminiGenerateRequest,
+  parseGeminiFunctionCalls,
+} from "./gemini-proxy.js";
 
 // The ProviderGateway seam. The proxy CORE is provider-neutral — it owns listen/route, eligibility
 // dispatch, fail-open, byte-identical audit forward, streaming passthrough, receipt + delivery
@@ -69,8 +81,14 @@ export interface ProviderGateway {
   readonly provider: string;
   /** Is this an eligible completion request for this provider? */
   matches(method: string | undefined, path: string | undefined, body: Record<string, unknown> | null): boolean;
-  /** Extract the neutral request view from a parsed provider body. */
-  parseRequest(body: Record<string, unknown>): ParsedProviderRequest;
+  /**
+   * Extract the neutral request view from a parsed provider body. `path` is the request path, passed
+   * because some providers put the model IN THE PATH rather than the body (Gemini:
+   * /v1beta/models/{model}:generateContent). Anthropic and OpenAI read the model from the body and
+   * ignore it — so it is optional, and the recall-query callers that only need lastUserText (which is
+   * always body-derived) omit it. This is the one place the seam grew for Task 3.
+   */
+  parseRequest(body: Record<string, unknown>, path?: string): ParsedProviderRequest;
   /**
    * Rewrite the body into this provider's request shape with the composed memory text attached
    * (the assist candidate). `applied` is false when there was nowhere to attach it, and the core
@@ -290,10 +308,98 @@ export const openaiGateway: ProviderGateway = {
   priceSnapshots: OPENAI_PRICE_SNAPSHOTS,
 };
 
-// The gateways the proxy dispatches across, in priority order. Anthropic first (its exact-match paths
-// never overlap OpenAI's), then the OpenAI-compatible gateway. Task 3 appends the Gemini gateway here
-// with no change to the core.
-export const defaultGateways: readonly ProviderGateway[] = [anthropicGateway, openaiGateway];
+// The third gateway: the Gemini generateContent / streamGenerateContent proxy. It owns every piece of
+// Gemini wire semantics — path eligibility (the model is IN THE PATH, /v1beta/models/{model}:...),
+// the contents/systemInstruction request shape, response functionCall parsing, and usage attribution
+// (usageMetadata.promptTokenCount is the FULL prompt INCLUDING cached, like OpenAI and the opposite of
+// Anthropic — see gemini-proxy.ts). Gemini's :countTokens IS a real endpoint, but it is model-specific
+// and the model lives in the request PATH, which the counter seam ({upstream, headers}) does not carry;
+// rather than extend a second seam to exact-measure a deprioritized path, createTokenCounter is null
+// and a transformed receipt is honestly `partial`, exactly like OpenAI. Nothing here knows about
+// Kage's runtime or storage.
+export const geminiGateway: ProviderGateway = {
+  adapter_id: GEMINI_PROXY_ADAPTER_ID,
+  provider: GEMINI_PROXY_PROVIDER,
+
+  matches(method, path) {
+    return isGeminiGenerateRequest(method, path);
+  },
+
+  // Gemini bodies carry NO `model` field — it is the /models/{model} segment of the request path, so
+  // this is the one gateway that reads the seam's `path` argument. (Anthropic and OpenAI ignore it.)
+  parseRequest(body, path) {
+    return {
+      model: geminiModelFromPath(path),
+      systemText: geminiSystemText(body),
+      lastUserText: geminiLastUserText(body),
+    };
+  },
+
+  inject(body, memoryText) {
+    return injectGemini(body, memoryText);
+  },
+
+  extractUsage(responseBody) {
+    return extractGeminiUsage(responseBody);
+  },
+
+  // Gemini's :countTokens endpoint is model-specific (/v1beta/models/{model}:countTokens) and the model
+  // is in the PATH, which this seam does not receive — so, like OpenAI, exact measurement is only
+  // possible when the response's own usage reports the prompt count; otherwise the receipt is honestly
+  // partial. No probe is invented (and a wrong exact number is worse than an honest partial).
+  createTokenCounter() {
+    return null;
+  },
+
+  buildReceipt(input) {
+    return buildGatewayReceipt(input, { provider: GEMINI_PROXY_PROVIDER, snapshots: GEMINI_PRICE_SNAPSHOTS });
+  },
+
+  captureEvents(context) {
+    const now = context.now ?? new Date();
+    const events: EvidenceEvent[] = [];
+
+    // A prompt is user text: local_raw, and never emitted for an empty prompt — same contract as the
+    // Anthropic and OpenAI gateways, so all three providers' evidence dedupes and aggregates identically.
+    if (context.userPrompt.trim()) {
+      events.push(assembleEvidenceEvent({
+        event_type: "prompt",
+        repository: context.repository,
+        sessionId: context.sessionId,
+        privacy_class: "local_raw",
+        payload: { text: context.userPrompt },
+        now,
+      }));
+    }
+
+    // One tool_result per functionCall Gemini returned — the tool NAME only, never its arguments.
+    // Gemini's functionCall carries NO id (unlike Anthropic tool_use / OpenAI tool_call), so every call
+    // is disambiguated by its block index: two same-named calls stay distinct and neither is dropped as
+    // a false duplicate. The fingerprint hashes the signal, so a duplicate post of the same exchange
+    // deduplicates in the store.
+    parseGeminiFunctionCalls(context.responseBody).forEach((call, index) => {
+      events.push(assembleEvidenceEvent({
+        event_type: "tool_result",
+        repository: context.repository,
+        sessionId: context.sessionId,
+        privacy_class: "local_raw",
+        payload: { tool: call.name, block_index: index },
+        now,
+      }));
+    });
+
+    return events;
+  },
+
+  priceSnapshots: GEMINI_PRICE_SNAPSHOTS,
+};
+
+// The gateways the proxy dispatches across, in priority order. Their matchers are mutually DISJOINT
+// (Anthropic: exactly /v1/messages; OpenAI: exactly /v1/chat/completions or /v1/responses; Gemini:
+// a POST to /models/{model}:generateContent|:streamGenerateContent — none of which collide), so order
+// is not correctness-critical, only a tie-break that never triggers. A new provider is a new entry
+// here with no change to the core.
+export const defaultGateways: readonly ProviderGateway[] = [anthropicGateway, openaiGateway, geminiGateway];
 
 // Eligibility dispatch: the first gateway that claims this request handles it. No match ⇒ a strict
 // passthrough the core measures nothing about (count_tokens, non-POSTs, unknown providers).

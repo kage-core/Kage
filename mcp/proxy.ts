@@ -328,7 +328,11 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
       try {
         const parsed = JSON.parse(raw.toString("utf8")) as Record<string, unknown>;
         requestProjectDir = resolveRequestProjectDir(projectDir, options.workspace, parsed);
-        model = gateway.parseRequest(parsed).model;
+        // The request PATH is passed because some providers put the model there rather than in the
+        // body (Gemini: /v1beta/models/{model}:generateContent). Anthropic and OpenAI read it from the
+        // body and ignore the argument. Composition below only needs lastUserText, which is always
+        // body-derived, so it does not thread the path.
+        model = gateway.parseRequest(parsed, clientReq.url).model;
         let transformed: Buffer | null = null;
         // --no-inject forwards the exact original bytes (diagnostic: proves whether the proxy can
         // carry subscription traffic at all, independent of any memory injection).

@@ -99,6 +99,58 @@ export const OPENAI_PRICE_SNAPSHOTS: readonly ProviderPriceSnapshot[] = [
   openai("gpt-4.1-nano", 0.1, 0.025, "2025-04-14"),
 ];
 
+// Gemini, like OpenAI, publishes per-model dollar rates and bills NO separate cache-WRITE token line:
+// the "context caching" price is the discounted cache-READ rate for tokens served from cache, so each
+// record carries an input rate and a cache-READ rate, with both cache-WRITE rates null (safe because
+// extractGeminiUsage reports 0 cache-creation tokens, and rateCostUsd charges nothing for 0 tokens
+// regardless of a missing rate). Only models that can be sourced are encoded; every other id (preview
+// `-preview-MM-DD` variants, `-latest`, `-001` version aliases, or an unknown family) has no snapshot
+// and therefore a null cost — the honest, expected outcome, never a fabricated rate.
+//
+// TWO honest limitations, encoded deliberately rather than guessed at:
+//  1. TIERED pricing. Gemini charges more for prompts over 200k tokens (e.g. 2.5 Pro: $1.25/M at
+//     <=200k, $2.50/M above). Only the BASE (<=200k) tier is encoded here; a >200k prompt is
+//     UNDER-priced. Modeling tiers needs a token-count-dependent rate the receipt path does not carry
+//     today, so it is left as a known gap, not approximated.
+//  2. MODALITY. The rates below are the text / image / video input rates; audio input bills higher on
+//     some models (e.g. 2.5 Flash audio $1.00/M vs $0.30/M text). The neutral usage carries one
+//     promptTokenCount with no modality split, so all prompt tokens price at the text rate.
+const GEMINI_PRICING_SOURCE = "https://ai.google.dev/gemini-api/docs/pricing";
+// Gemini publishes no dated price history, so — mirroring the Anthropic table's READ_ON convention —
+// this records the date the rates were read from the source above, not a claimed historical
+// effective date. A price change is a new record with a later effective_from, not an edit.
+const GEMINI_READ_ON = "2026-07-15";
+
+function gemini(
+  model: string,
+  inputUsdPerMillion: number,
+  cacheReadUsdPerMillion: number | null,
+  effectiveFrom: string = GEMINI_READ_ON,
+): ProviderPriceSnapshot {
+  return {
+    provider: "gemini",
+    model,
+    input_usd_per_million: inputUsdPerMillion,
+    cache_read_usd_per_million: cacheReadUsdPerMillion,
+    cache_write_5m_usd_per_million: null,
+    cache_write_1h_usd_per_million: null,
+    effective_from: effectiveFrom,
+    source: GEMINI_PRICING_SOURCE,
+  };
+}
+
+// Standard paid-tier, base (<=200k) input rates and context-caching (cache-read) rates, read from the
+// pricing source on GEMINI_READ_ON. gemini-2.0-flash-lite lists context caching as "Not available", so
+// its cache-read rate is null (and extractGeminiUsage reports 0 cached tokens for it, so cost stays
+// defined).
+export const GEMINI_PRICE_SNAPSHOTS: readonly ProviderPriceSnapshot[] = [
+  gemini("gemini-2.5-pro", 1.25, 0.125),      // base tier; >200k prompts bill $2.50 / $0.25 (not modeled)
+  gemini("gemini-2.5-flash", 0.3, 0.03),
+  gemini("gemini-2.5-flash-lite", 0.1, 0.01),
+  gemini("gemini-2.0-flash", 0.1, 0.025),
+  gemini("gemini-2.0-flash-lite", 0.075, null), // context caching not available for this model
+];
+
 // A DATED model id (claude-opus-4-8-20260101) is the same model as its family alias, so it prices
 // off the family snapshot. Any other suffix is a DIFFERENT product (a `-fast` premium tier, a
 // long-context variant) with its own price — matching it to the family would silently misprice it,
