@@ -18,20 +18,29 @@ import { existsSync, statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { resolve as resolvePath, sep } from "node:path";
 import { memoryRoot, observe, recall, type MemoryPacket } from "./kernel.js";
-import { isRecord } from "./type-guards.js";
 import {
   buildProxyDelivery,
-  buildProxyReceipt,
-  createUpstreamTokenCounter,
   planProxyForward,
   proxyTaskId,
-  requestModel,
+  systemToText,
   type ProxyForwardPlan,
   type ProxyMode,
 } from "./vnext/adapters/anthropic-proxy.js";
-import { extractProviderUsage, totalPromptTokens, type ProviderUsage } from "./vnext/measurement/token-count.js";
+import {
+  anthropicGateway,
+  defaultGateways,
+  selectGateway,
+  type ProviderGateway,
+} from "./vnext/adapters/gateway.js";
+import { claudeRepositoryIdentity } from "./vnext/adapters/claude.js";
+import { readAdapterConnection, sendAdapterEvent } from "./vnext/adapters/client.js";
+import { totalPromptTokens, type ProviderUsage } from "./vnext/measurement/token-count.js";
 import { openReceiptSink, type ReceiptSink } from "./vnext/measurement/receipt-sink.js";
 import { spoolContextDelivery } from "./vnext/storage/delivery-spool.js";
+
+// isCompletionsRequest lives in the Anthropic gateway now (path eligibility is provider-specific),
+// but it stays part of the proxy module's public surface for callers and tests that import it here.
+export { isCompletionsRequest } from "./vnext/adapters/anthropic-proxy.js";
 
 const MEMORY_HEADER = "# Verified repo memory (injected by Kage — follow it, it is checked against this code)";
 const MAX_MEMORY_CHARS = 6000; // ~1.5k tokens, so injection never dominates the prompt
@@ -54,35 +63,6 @@ function readBody(req: IncomingMessage): Promise<Buffer> {
     req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", () => resolve(Buffer.concat(chunks)));
   });
-}
-
-function lastUserText(body: Record<string, unknown>): string {
-  const messages = Array.isArray(body.messages) ? body.messages : [];
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i] as Record<string, unknown> | undefined;
-    if (!message || message.role !== "user") continue;
-    const content = message.content;
-    if (typeof content === "string") return content;
-    if (Array.isArray(content)) {
-      const text = content
-        .filter((block): block is { type: string; text: string } => isRecord(block) && block.type === "text" && typeof block.text === "string")
-        .map((block) => block.text)
-        .join("\n");
-      if (text) return text;
-    }
-  }
-  return "";
-}
-
-function systemToText(system: unknown): string {
-  if (typeof system === "string") return system;
-  if (Array.isArray(system)) {
-    return system
-      .filter((block): block is { text: string } => isRecord(block) && typeof block.text === "string")
-      .map((block) => block.text)
-      .join("\n");
-  }
-  return "";
 }
 
 // Claude Code's real system prompt (confirmed against a live 2.1.202 request, not guessed)
@@ -111,16 +91,6 @@ export function resolveRequestProjectDir(defaultProjectDir: string, workspaceRoo
   return candidate;
 }
 
-// Only a POST to exactly /v1/messages is a completion we inject into. IMPORTANT: the
-// sibling endpoint /v1/messages/count_tokens also starts with "/v1/messages" — injecting
-// into it would pollute Claude Code's own token accounting (making it think its context is
-// larger than it is) and inflate the injected counter. Match the path exactly, sans query.
-export function isCompletionsRequest(method: string | undefined, url: string | undefined): boolean {
-  if (method !== "POST") return false;
-  const path = (url ?? "").split("?")[0];
-  return path === "/v1/messages";
-}
-
 // Build the injected memory text from recall hits. The top BODY_PACKET_COUNT packets emit their
 // FULL body (capped per-packet) so the agent can ANSWER from memory instead of re-reading the
 // code; the rest stay as one-line title+summary pointers. Pure + exported for unit testing.
@@ -140,34 +110,29 @@ export function buildInjectedMemory(results: Array<{ packet: MemoryPacket }>): s
   return sections.join("\n\n");
 }
 
-// Pure + exported so it is unit-testable without a network: given an Anthropic Messages
-// request body, return it with relevant memory appended to the last user message. No memory => no change.
-export function injectMemory(projectDir: string, body: Record<string, unknown>): { body: Record<string, unknown>; injected: number } {
-  const query = lastUserText(body).slice(0, 1000);
+// Provider-neutral composition: read the recall query from the gateway, compose memory from repo
+// recall (both provider-agnostic), and let the gateway attach it in ITS request shape. This is the
+// one place the core turns memory into a transformed candidate body; the gateway decides where the
+// bytes go (Anthropic: the last user turn). No memory, or nowhere to attach it => no change.
+export function composeInjection(
+  gateway: ProviderGateway,
+  projectDir: string,
+  body: Record<string, unknown>,
+): { body: Record<string, unknown>; injected: number } {
+  const query = gateway.parseRequest(body).lastUserText.slice(0, 1000);
   if (!query.trim()) return { body, injected: 0 };
   const result = recall(projectDir, query, 4, false);
   if (!result.results.length) return { body, injected: 0 };
   const memoryText = buildInjectedMemory(result.results).slice(0, MAX_MEMORY_CHARS);
+  const injected = gateway.inject(body, memoryText);
+  return injected.applied ? { body: injected.body, injected: result.results.length } : { body, injected: 0 };
+}
 
-  // Inject into the LAST USER MESSAGE, never the system prompt. Subscription/OAuth tokens
-  // (Claude Code on a plan, not an API key) require the system prompt's first block to be the
-  // exact Claude Code identity string; prepending to it makes Anthropic reject the request
-  // (observed: 429 rate_limit_error on /v1/messages?beta=true, every request). Appending to the
-  // user turn keeps `system` byte-identical and works for both OAuth and API-key requests.
-  const messages = Array.isArray(body.messages) ? [...body.messages] : [];
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
-    if (!isRecord(message) || message.role !== "user") continue;
-    if (typeof message.content === "string") {
-      messages[i] = { ...message, content: `${message.content}\n\n${memoryText}` };
-    } else if (Array.isArray(message.content)) {
-      messages[i] = { ...message, content: [...message.content, { type: "text", text: memoryText }] };
-    } else {
-      messages[i] = { ...message, content: memoryText };
-    }
-    return { body: { ...body, messages }, injected: result.results.length };
-  }
-  return { body, injected: 0 };
+// Pure + exported so it is unit-testable without a network: given an Anthropic Messages request
+// body, return it with relevant memory appended to the last user message. No memory => no change.
+// A thin binding over the neutral seam to the Anthropic gateway, preserving the historical signature.
+export function injectMemory(projectDir: string, body: Record<string, unknown>): { body: Record<string, unknown>; injected: number } {
+  return composeInjection(anthropicGateway, projectDir, body);
 }
 
 export interface ProxyOptions {
@@ -225,6 +190,7 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
   // Measurement is best-effort, always. It runs after the client has already been answered, it
   // catches everything, and it can only ever fail to record — never fail a request.
   async function recordReceipt(args: {
+    gateway: ProviderGateway;
     requestProjectDir: string;
     requestId: string;
     model: string | null;
@@ -262,12 +228,16 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
       // honestly "partial". Nothing here ever fills the gap with an estimate.
       let measuredInputTokens: number | null = null;
       if (options.countTokens) {
-        const counter = createUpstreamTokenCounter({ upstream: upstreamUrl, headers: args.headers });
-        const unsent = args.plan.forwarded.equals(args.plan.original) ? args.plan.measured : args.plan.original;
-        measuredInputTokens = await counter(unsent);
+        // The probe is the gateway's: Anthropic has count_tokens, a provider without a cheap
+        // equivalent returns null here and the receipt stays honestly "partial".
+        const counter = args.gateway.createTokenCounter({ upstream: upstreamUrl, headers: args.headers });
+        if (counter) {
+          const unsent = args.plan.forwarded.equals(args.plan.original) ? args.plan.measured : args.plan.original;
+          measuredInputTokens = await counter(unsent);
+        }
       }
 
-      sink.write(buildProxyReceipt({
+      sink.write(args.gateway.buildReceipt({
         task_id: proxyTaskId(args.requestProjectDir, sessionId),
         request_id: args.requestId,
         model: args.model,
@@ -281,16 +251,49 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
     } catch { /* a receipt is never worth breaking a session over */ }
   }
 
+  // Capture unification: emit protocol-v1 evidence to the local runtime's /v2/events via the
+  // fail-open adapter client. This is the SAME evidence stream the Claude hook adapter feeds, so the
+  // proxy is a first-class evidence source, not just a receipt writer. Like recordReceipt it runs
+  // only after the client has been answered, inside a catch-all: if the runtime is down/unreachable
+  // the proxy serves traffic normally and the event is simply not recorded. It never blocks or
+  // changes the client response.
+  async function emitEvidence(args: {
+    gateway: ProviderGateway;
+    requestProjectDir: string;
+    userPrompt: string;
+    responseBody: string;
+  }): Promise<void> {
+    try {
+      const connection = readAdapterConnection(args.requestProjectDir);
+      if (!connection) return;
+      const repository = claudeRepositoryIdentity(args.requestProjectDir);
+      const events = args.gateway.captureEvents({
+        repository,
+        sessionId,
+        userPrompt: args.userPrompt,
+        responseBody: args.responseBody,
+      });
+      for (const event of events) {
+        await sendAdapterEvent({ url: connection.url, token: connection.token, event });
+      }
+    } catch { /* evidence capture is never worth breaking a session over */ }
+  }
+
   async function handle(clientReq: IncomingMessage, clientRes: ServerResponse): Promise<void> {
     const startedAt = Date.now();
     const raw = await readBody(clientReq);
-    const isMessages = isCompletionsRequest(clientReq.method, clientReq.url);
+    // Eligibility dispatch: the neutral core asks the registered gateways which one owns this
+    // request. No match (count_tokens, non-POSTs) is a strict passthrough Kage measures nothing
+    // about. The Anthropic gateway is the only one for Task 1, matching exactly what the proxy used
+    // to hardcode as isCompletionsRequest.
+    const gateway = selectGateway(defaultGateways, clientReq.method, clientReq.url, null);
+    const isMessages = gateway !== null;
 
     let injected = 0;
     let userPrompt = "";
     let model: string | null = null;
     // What bytes go on the wire, and what bytes the receipt describes. Null for anything that is
-    // not an eligible, parseable POST /v1/messages — count_tokens included, which stays a strict
+    // not an eligible, parseable completion — count_tokens included, which stays a strict
     // passthrough and is never measured.
     let plan: ProxyForwardPlan | null = null;
     // MEASURED, not estimated: the wall time Kage spent composing the context it would attach. It
@@ -300,18 +303,18 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
     // (see resolveRequestProjectDir); with no --workspace this is always the fixed projectDir,
     // identical to pre-multi-repo behavior.
     let requestProjectDir = projectDir;
-    if (isMessages && raw.length) {
+    if (gateway && raw.length) {
       try {
         const parsed = JSON.parse(raw.toString("utf8")) as Record<string, unknown>;
         requestProjectDir = resolveRequestProjectDir(projectDir, options.workspace, parsed);
-        model = requestModel(parsed);
+        model = gateway.parseRequest(parsed).model;
         let transformed: Buffer | null = null;
         // --no-inject forwards the exact original bytes (diagnostic: proves whether the proxy can
         // carry subscription traffic at all, independent of any memory injection).
         if (!options.noInject && existsSync(memoryRoot(requestProjectDir))) {
-          userPrompt = lastUserText(parsed);
+          userPrompt = gateway.parseRequest(parsed).lastUserText;
           const composeStartedAt = performance.now();
-          const result = injectMemory(requestProjectDir, parsed);
+          const result = composeInjection(gateway, requestProjectDir, parsed);
           if (result.injected) {
             injected = result.injected;
             transformed = Buffer.from(JSON.stringify(result.body), "utf8");
@@ -370,7 +373,10 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
             const body = status >= 300 ? Buffer.concat(tap).toString("utf8").slice(0, 300).replace(/\s+/g, " ") : "";
             console.log(`\n[proxy] ${clientReq.method} ${clientReq.url} -> ${status}${body ? `  ${body}` : ""}`);
           }
-          if (!isMessages) return;
+          // gateway is non-null exactly when isMessages is true; narrowing on it keeps the neutral
+          // core's per-request handler typed without a separate flag.
+          if (!gateway) return;
+          const responseBody = Buffer.concat(tap).toString("utf8");
           const latencyMs = Date.now() - startedAt;
           stats.requests += 1;
           // In audit mode nothing was injected on the wire, so nothing may be counted as injected.
@@ -380,16 +386,19 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
             // null (unmeasured), never 0. The counter shows PROMPT tokens (uncached + cache writes
             // + cache reads) — `usage.input_tokens` alone is only the uncached remainder and would
             // under-report a cached session by an order of magnitude.
-            const usage = extractProviderUsage(Buffer.concat(tap).toString("utf8"));
+            const usage = gateway.extractUsage(responseBody);
             stats.input_tokens += totalPromptTokens(usage) ?? 0;
             stats.output_tokens += usage.output_tokens ?? 0;
             // Capture the exchange into the memory loop — no hook required, agent-agnostic.
             if (status < 300 && userPrompt.trim()) {
               observe(requestProjectDir, { type: "user_prompt", agent: "kage-proxy", session_id: sessionId, text: userPrompt.slice(0, 4000), summary: userPrompt.slice(0, 200) });
               stats.captured += 1;
+              // ...and feed the SAME exchange into the vNext evidence stream (fail-open, never blocks).
+              void emitEvidence({ gateway, requestProjectDir, userPrompt, responseBody });
             }
             if (status < 300 && plan) {
               void recordReceipt({
+                gateway,
                 requestProjectDir,
                 requestId: `${sessionId}:${stats.requests}`,
                 model,

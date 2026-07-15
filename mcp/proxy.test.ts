@@ -1,14 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, mkdirSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createServer, request as httpRequest, type Server } from "node:http";
 import { capture, loadObservations } from "./kernel.js";
 import { injectMemory, isCompletionsRequest, resolveRequestProjectDir, startProxy } from "./proxy.js";
-import type { TransformationReceipt } from "./vnext/protocol/index.js";
+import { anthropicGateway, defaultGateways, selectGateway } from "./vnext/adapters/gateway.js";
+import { claudeRepositoryIdentity } from "./vnext/adapters/claude.js";
+import type { EvidenceEvent, TransformationReceipt } from "./vnext/protocol/index.js";
 import { openVnextDatabase } from "./vnext/storage/database.js";
 import { resolveRuntimePaths } from "./vnext/runtime/paths.js";
+import { startLocalRuntime } from "./vnext/runtime/server.js";
 import { assertVnextRuntime } from "./vnext/runtime/runtime-version.js";
 
 // The literal shape Claude Code 2.1.202 actually sends (confirmed via a live captured
@@ -728,4 +731,152 @@ test("proxy leaves the request untouched when nothing relevant is recalled", () 
   assert.equal(injected, 0);
   assert.equal(body.system, "unchanged");
   assert.deepEqual(body.messages, request.messages);
+});
+
+// --- The ProviderGateway seam: the proxy core is provider-neutral, Anthropic is one gateway ---
+
+test("the proxy seam dispatches an eligible POST /v1/messages to the Anthropic gateway, nothing else", () => {
+  // The core routes by asking each registered gateway whether it matches. The Anthropic gateway is
+  // the first (and, for Task 1, only) one, and it matches exactly what isCompletionsRequest matched.
+  assert.equal(selectGateway(defaultGateways, "POST", "/v1/messages", null), anthropicGateway);
+  assert.equal(selectGateway(defaultGateways, "POST", "/v1/messages?beta=true", null), anthropicGateway);
+  // The sibling token-counting endpoint and non-POSTs dispatch to NO gateway — a strict passthrough.
+  assert.equal(selectGateway(defaultGateways, "POST", "/v1/messages/count_tokens?beta=true", null), null);
+  assert.equal(selectGateway(defaultGateways, "GET", "/v1/messages", null), null);
+  assert.equal(selectGateway(defaultGateways, "POST", "/v1/models", null), null);
+  // The gateway names the provider it speaks for — this is what a per-provider report keys on.
+  assert.equal(anthropicGateway.provider, "anthropic");
+  // The seam's matches() is exactly the eligibility the core used to hardcode.
+  assert.equal(anthropicGateway.matches("POST", "/v1/messages", null), isCompletionsRequest("POST", "/v1/messages"));
+  assert.equal(anthropicGateway.matches("POST", "/v1/messages/count_tokens", null), isCompletionsRequest("POST", "/v1/messages/count_tokens"));
+});
+
+test("the Anthropic gateway maps response tool-use blocks to protocol-v1 tool_result evidence", () => {
+  // Capture unification: the provider-specific parse (Anthropic response content blocks) lives in
+  // the gateway; the protocol-v1 event assembly and the source_fingerprint construction are shared.
+  const repository = claudeRepositoryIdentity("/repo");
+  const events = anthropicGateway.captureEvents({
+    repository,
+    sessionId: "session-1",
+    userPrompt: "make the payment flow idempotent",
+    responseBody: JSON.stringify({
+      content: [
+        { type: "text", text: "sure" },
+        { type: "tool_use", id: "tu_1", name: "Bash", input: { command: "rm -rf secrets" } },
+      ],
+      usage: { input_tokens: 1, output_tokens: 1 },
+    }),
+  });
+  const prompt = events.find((event) => event.event_type === "prompt");
+  const tool = events.find((event) => event.event_type === "tool_result");
+  assert.ok(prompt, "a prompt event is captured");
+  assert.equal(prompt.privacy_class, "local_raw");
+  assert.equal(prompt.payload.text, "make the payment flow idempotent");
+  assert.ok(tool, "a tool_result event is captured from the response tool_use block");
+  assert.equal(tool.payload.tool, "Bash");
+  // The fingerprint hashes the SIGNAL, never a random id — a duplicate post deduplicates in the store.
+  assert.match(tool.source_fingerprint, /^[a-f0-9]{64}$/);
+  assert.notEqual(tool.source_fingerprint, tool.event_id);
+  // The tool's arguments are never copied into the event — only that the tool was invoked.
+  assert.ok(!JSON.stringify(events).includes("rm -rf secrets"), "tool arguments never ride along");
+});
+
+// --- Capture unification: the proxy is a first-class protocol-v1 evidence source ------------
+//
+// The proxy already writes receipts + deliveries + a legacy observation. Task 1 Part B makes it
+// ALSO feed the vNext evidence stream via the fail-open adapter client: a `prompt` event per
+// eligible request. This must never sit in the request path and must never break a session — it
+// runs after the client has been answered, inside a catch-all, exactly like recordReceipt.
+
+function skipWithoutVnextRuntime(t: import("node:test").TestContext): boolean {
+  try {
+    assertVnextRuntime();
+    return false;
+  } catch {
+    t.skip("node:sqlite is unavailable on this runtime; the proxy emits no evidence and still serves traffic");
+    return true;
+  }
+}
+
+// A runtime status file pointing at a chosen port, written with the exact ownership and 0600/0700
+// permissions the adapter client demands (see readAdapterConnection). pid is THIS process so the
+// liveness probe passes; the port is the caller's choice — a dead one exercises the fail-open path.
+function writeRuntimeStatusStub(project: string, port: number): void {
+  const paths = resolveRuntimePaths(project);
+  mkdirSync(paths.runtimeDirectory, { recursive: true, mode: 0o700 });
+  chmodSync(paths.runtimeDirectory, 0o700);
+  writeFileSync(paths.statusPath, JSON.stringify({
+    protocol_version: 1,
+    pid: process.pid,
+    host: "127.0.0.1",
+    port,
+    mode: "assist",
+    started_at: new Date().toISOString(),
+    database_path: paths.databasePath,
+    token_path: paths.tokenPath,
+  }), { mode: 0o600 });
+  chmodSync(paths.statusPath, 0o600);
+  writeFileSync(paths.tokenPath, `klt_${"0".repeat(43)}\n`, { mode: 0o600 });
+  chmodSync(paths.tokenPath, 0o600);
+}
+
+test("the proxy emits a protocol-v1 prompt evidence event via the shipped path when a runtime is up", async (t) => {
+  if (skipWithoutVnextRuntime(t)) return;
+
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  // A REAL runtime on the same repo: it writes status.json + token and owns the evidence store the
+  // proxy will POST into. No receiptSink override — this is the fully shipped wiring.
+  const runtime = await startLocalRuntime({ projectDir: project, port: 0, mode: "assist" });
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "assist" });
+  const port = await listeningPort(proxy);
+
+  try {
+    await proxyRequest(port, "/v1/messages", QUESTION);
+    let rows: Array<{ event_type: string; privacy_class: string; payload_json: string }> = [];
+    // The event is emitted AFTER the client was answered, so poll rather than race it. It is read
+    // straight out of the runtime's own SQLite handle — the store the shipped /v2/events wrote to.
+    for (let attempt = 0; attempt < 100 && rows.length === 0; attempt++) {
+      rows = runtime.database.prepare("SELECT event_type, privacy_class, payload_json FROM evidence_events").all() as never;
+      if (!rows.length) await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    const prompt = rows.find((row) => row.event_type === "prompt");
+    assert.ok(prompt, "a prompt evidence event reached the runtime's event store");
+    // A prompt is user text: it is local_raw, the tier that never leaves this machine.
+    assert.equal(prompt.privacy_class, "local_raw");
+    // The signal that was captured is the user's actual prompt, not an invented placeholder.
+    assert.match(prompt.payload_json, /idempotent/);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+    await runtime.close();
+  }
+});
+
+test("the proxy serves traffic normally and never blocks when the evidence runtime is down (fail open)", async (t) => {
+  const project = projectWithMemory();
+  // A status file that names a dead port: readAdapterConnection returns a connection, the POST to
+  // /v2/events cannot land, and the whole thing must be invisible to the client.
+  writeRuntimeStatusStub(project, 1);
+  const seen: Array<{ path: string; body: string }> = [];
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "assist", receiptSink: null });
+  const port = await listeningPort(proxy);
+
+  try {
+    const startedAt = Date.now();
+    const first = await proxyRequest(port, "/v1/messages", QUESTION);
+    const elapsed = Date.now() - startedAt;
+    assert.equal(first.status, 200);
+    assert.match(first.body, /"text":"ok"/);
+    // Evidence emission runs only after the client is answered, so a dead endpoint cannot slow it.
+    assert.equal(elapsed < 1_000, true, `client waited ${elapsed}ms with a dead evidence endpoint`);
+    // The process keeps serving after the failed-open evidence post.
+    const second = await proxyRequest(port, "/v1/messages", QUESTION);
+    assert.equal(second.status, 200);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
 });

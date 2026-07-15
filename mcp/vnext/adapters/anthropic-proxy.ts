@@ -59,6 +59,108 @@ export function requestModel(body: Record<string, unknown>): string | null {
   return typeof model === "string" && model.trim() ? model : null;
 }
 
+// --- Anthropic Messages request shape ---------------------------------------------------------
+// These are the provider-specific ways to read and rewrite an Anthropic /v1/messages body. They
+// live in the gateway (not the neutral proxy core) because message/system layout is per-provider.
+
+// Only a POST to exactly /v1/messages is a completion we inject into. IMPORTANT: the sibling
+// endpoint /v1/messages/count_tokens also starts with "/v1/messages" — injecting into it would
+// pollute the client's own token accounting (making it think its context is larger than it is) and
+// inflate the injected counter. Match the path exactly, sans query.
+export function isCompletionsRequest(method: string | undefined, url: string | undefined): boolean {
+  if (method !== "POST") return false;
+  const path = (url ?? "").split("?")[0];
+  return path === "/v1/messages";
+}
+
+export function lastUserText(body: Record<string, unknown>): string {
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i] as Record<string, unknown> | undefined;
+    if (!message || message.role !== "user") continue;
+    const content = message.content;
+    if (typeof content === "string") return content;
+    if (Array.isArray(content)) {
+      const text = content
+        .filter((block): block is { type: string; text: string } => isRecord(block) && block.type === "text" && typeof block.text === "string")
+        .map((block) => block.text)
+        .join("\n");
+      if (text) return text;
+    }
+  }
+  return "";
+}
+
+export function systemToText(system: unknown): string {
+  if (typeof system === "string") return system;
+  if (Array.isArray(system)) {
+    return system
+      .filter((block): block is { text: string } => isRecord(block) && typeof block.text === "string")
+      .map((block) => block.text)
+      .join("\n");
+  }
+  return "";
+}
+
+// Append composed memory text into the LAST USER MESSAGE, never the system prompt. Subscription/
+// OAuth tokens (Claude Code on a plan, not an API key) require the system prompt's first block to be
+// the exact Claude Code identity string; prepending to it makes Anthropic reject the request
+// (observed: 429 rate_limit_error on /v1/messages?beta=true, every request). Appending to the user
+// turn keeps `system` byte-identical and works for both OAuth and API-key requests. `applied` is
+// false when there is no user turn to append to — the caller then treats the body as untransformed.
+export function injectLastUserTurn(
+  body: Record<string, unknown>,
+  memoryText: string,
+): { body: Record<string, unknown>; applied: boolean } {
+  const messages = Array.isArray(body.messages) ? [...body.messages] : [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (!isRecord(message) || message.role !== "user") continue;
+    if (typeof message.content === "string") {
+      messages[i] = { ...message, content: `${message.content}\n\n${memoryText}` };
+    } else if (Array.isArray(message.content)) {
+      messages[i] = { ...message, content: [...message.content, { type: "text", text: memoryText }] };
+    } else {
+      messages[i] = { ...message, content: memoryText };
+    }
+    return { body: { ...body, messages }, applied: true };
+  }
+  return { body, applied: false };
+}
+
+// Parse the assistant tool-use blocks the provider returned, from either a non-streamed JSON body or
+// a streamed SSE transcript. Only the tool NAME is read — a tool's arguments are never turned into
+// evidence. Never throws: a malformed or truncated body yields no blocks, not an error.
+export function parseResponseToolUses(raw: string): Array<{ name: string; id: string }> {
+  const blocks: Array<{ name: string; id: string }> = [];
+  const push = (candidate: unknown): void => {
+    if (isRecord(candidate) && candidate.type === "tool_use" && typeof candidate.name === "string" && candidate.name.trim()) {
+      blocks.push({ name: candidate.name, id: typeof candidate.id === "string" ? candidate.id : "" });
+    }
+  };
+
+  const trimmed = raw.trimStart();
+  if (trimmed.startsWith("{")) {
+    try {
+      const json: unknown = JSON.parse(raw);
+      if (isRecord(json) && Array.isArray(json.content)) json.content.forEach(push);
+    } catch { /* not JSON we understand — no tool blocks */ }
+    return blocks;
+  }
+
+  for (const line of raw.split("\n")) {
+    if (!line.startsWith("data:")) continue;
+    const payload = line.slice(5).trim();
+    if (!payload || payload === "[DONE]") continue;
+    try {
+      const event: unknown = JSON.parse(payload);
+      // A tool_use block is announced by content_block_start; its later input deltas are ignored.
+      if (isRecord(event) && event.type === "content_block_start") push(event.content_block);
+    } catch { /* skip a malformed event rather than losing the whole transcript */ }
+  }
+  return blocks;
+}
+
 // Stable per-(repo, session) task id, in the same shape the Claude adapter uses, so proxy receipts
 // and hook events can be attributed to the same task later.
 export function proxyTaskId(projectRoot: string, sessionId: string): string {
