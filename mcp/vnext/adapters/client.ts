@@ -347,6 +347,11 @@ export async function attachAdapterContext(options: {
     status,
     reason,
     composition_latency_ms: capsule ? latencyMs : null,
+    // The hook injects context into the agent's turn from IDE events; it never sees which model or
+    // API the agent then calls, so it CANNOT know the provider. Null is the honest "unknown" — a
+    // guessed "anthropic" here would be exactly the fabricated attribution the honesty gates forbid.
+    // Only the proxy, which holds the gateway, records a real provider (see buildProxyDelivery).
+    provider: null,
   };
 
   return {

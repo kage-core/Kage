@@ -221,6 +221,9 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
       // dead, and a lost measurement must never become a broken session.
       const delivery = buildProxyDelivery({
         task_id: proxyTaskId(args.requestProjectDir, sessionId),
+        // The gateway that served this request IS the provider. Recorded on the delivery so the audit
+        // surfaces can attribute this attachment to the right provider.
+        provider: args.gateway.provider,
         mode,
         plan: args.plan,
         composition_latency_ms: args.compositionLatencyMs,

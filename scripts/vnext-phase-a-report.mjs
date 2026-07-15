@@ -54,10 +54,10 @@ function unavailable(reason) {
     tasks: null,
     attachment: null,
     attachment_success_rate: null,
-    // Per-provider attachment attribution is structurally impossible here AND everywhere: a delivery
-    // row carries no provider. `available: false` always; the reason names why we could not look at
-    // all when the store is unreadable, and the structural cause in a normal run.
-    attachment_by_provider: { available: false, reason },
+    // Unreadable/absent store: we could not look, so the per-provider attachment split is
+    // unavailable (with the reason), NOT an empty split. A READABLE run DOES split attachment per
+    // provider now — see the available path below.
+    attachment_by_provider: { available: false, reason, providers: {}, unattributed: null },
     measurement: null,
     // Null, not `{}`: an empty object would say "we read the receipts and no provider had traffic";
     // here there was nothing to read.
@@ -82,7 +82,7 @@ const NOTES = [
   "an exact token delta is not an exact cost delta: an audit-mode receipt measures the unsent candidate with count_tokens, which reports a token total and nothing about caching, so provider_input_cost_after_usd stays null and the cost delta is unavailable rather than zero.",
   "prompt_mutations counts receipts whose transformed body was actually FORWARDED. In audit mode Kage forwards the client's exact bytes, so a correct audit period measures 0 — it is not assumed to be 0.",
   "by_provider splits coverage, tokens, and cost by the receipt's provider (the proxy serves Anthropic, OpenAI, and Gemini). It is never conflated into one flattering number, and a provider with no receipts has NO entry — that absence is 'no traffic', not a fabricated {exact:0,partial:0,unavailable:0} or a $0 cost. The overall `measurement`/`token_delta`/`cost_delta` sit ALONGSIDE it; the overall cost still counts only two-sided-priced receipts, so a null-cost provider is excluded, never added in as $0.",
-  "attachment is reported OVERALL only. A context_deliveries row carries no provider column, so per-provider attachment attribution cannot be derived without fabrication; attachment_by_provider is therefore always unavailable. Splitting it needs the provider recorded on the delivery row (a storage migration), which protocol v1 being frozen does not block — the delivery is Kage's own record, not a wire value.",
+  "attachment_by_provider splits attachment by the provider RECORDED on each delivery row (migration 003 added a nullable provider column; protocol v1 stays frozen — the delivery is Kage's own record, not a wire value). Only the PROXY knows the provider (it holds the gateway); a Claude-HOOK delivery injects from IDE events and cannot know which API the agent called, so it records null and is counted under `unattributed`, NEVER guessed into a provider. A provider with no delivery has no bucket (absence is no traffic, not a 0%/100%). The overall `attachment`/`attachment_success_rate` are unchanged and still count every row, provider-attributed or not.",
 ];
 
 function report() {
@@ -166,9 +166,12 @@ function report() {
     // 0 attempts is not a 0% success rate, and it is certainly not a 100% one. An audit period that
     // composed capsules and injected none of them is a MEASURED 0.0 — not a null, and not a 1.0.
     attachment_success_rate: attachment.success_rate,
-    // Attachment cannot be split per provider: a delivery row has no provider column. Said plainly
-    // rather than faked, because a fabricated per-provider split is exactly what this workstream bans.
-    attachment_by_provider: { available: false, reason: "delivery_rows_have_no_provider" },
+    // Attachment IS now split per provider, from the provider RECORDED on each delivery row
+    // (migration 003), using the SAME shared function `kage status` uses. Only PROXY deliveries carry
+    // a provider; a hook delivery records null and lands in `unattributed`, never guessed into a
+    // provider. A provider with no delivery has no bucket; the overall `attachment` above is
+    // unchanged and still counts every row.
+    attachment_by_provider: commands.attachmentByProvider(deliveries),
     measurement: receipts.length ? measurement : null,
     // The per-provider split, from the SAME shared function `kage status` uses — so the two surfaces
     // cannot drift. Null (like `measurement`) when no request was transformed; a provider with no
@@ -189,6 +192,31 @@ function report() {
     cost_delta: commands.costDelta(receipts),
     notes: NOTES,
   };
+}
+
+// The per-provider ATTACHMENT block. Never one number; a provider with no attachment attempt has no
+// row; and hook deliveries (which carry no provider) appear under an explicit "unattributed"
+// heading that says why — never guessed into a provider.
+function renderAttachmentByProvider(byProvider) {
+  if (!byProvider || !byProvider.available) {
+    const reason = byProvider ? byProvider.reason : "unavailable";
+    return [`  attachment per provider:  unavailable (${reason}) — the delivery store could not be read`];
+  }
+  const rate = (a) => (a.success_rate === null ? "null (nothing attempted)" : a.success_rate.toFixed(3));
+  const providers = Object.keys(byProvider.providers);
+  if (!providers.length && !byProvider.unattributed) {
+    return ["  attachment per provider:  none — no context attachment was attempted"];
+  }
+  const lines = ["  attachment per provider (only the proxy knows the provider; a hook delivery is unattributed, never guessed):"];
+  for (const provider of providers) {
+    const a = byProvider.providers[provider];
+    lines.push(`    ${provider}:  ${a.delivered} delivered, ${a.skipped} skipped, ${a.failed_open} failed open  →  ${rate(a)} attached`);
+  }
+  if (byProvider.unattributed) {
+    const u = byProvider.unattributed;
+    lines.push(`    unattributed (hook deliveries — the hook cannot know the provider):  ${u.delivered} delivered, ${u.skipped} skipped, ${u.failed_open} failed open  →  ${rate(u)} attached`);
+  }
+  return lines;
 }
 
 // The per-provider block. Never one conflated number, and never a row for a provider that sent
@@ -229,7 +257,7 @@ function render(value) {
     `  tasks:                    ${value.tasks}`,
     `  attachment:               ${value.attachment.delivered} delivered, ${value.attachment.skipped} skipped, ${value.attachment.failed_open} failed open`,
     `  attachment success rate:  ${value.attachment_success_rate === null ? "null (nothing attempted)" : value.attachment_success_rate.toFixed(3)} (delivered / delivered+skipped+failed_open; an audit-mode skip attaches nothing)`,
-    `  attachment per provider:  unavailable (${value.attachment_by_provider.reason}) — a delivery row carries no provider, so attachment is OVERALL only`,
+    ...renderAttachmentByProvider(value.attachment_by_provider),
     `  failed-open requests:     ${value.failed_open_requests}`,
     `  prompt mutations:         ${value.prompt_mutations} (measured, not assumed)`,
     "",

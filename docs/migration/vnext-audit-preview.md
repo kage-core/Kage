@@ -110,13 +110,23 @@ provider's. Three rules hold the map honest:
   the overall cost, applied per provider. Exact *token* deltas are available far more often than
   exact *cost* deltas, and the two are never merged.
 
-**Attachment is reported overall only.** A `context_deliveries` row carries no `provider` column, so
-per-provider attachment attribution cannot be derived without inventing it. `attachment_by_provider`
-is therefore always `{ available: false, reason: "delivery_rows_have_no_provider" }`, and the honest
-overall `attachment` / `attachment_success_rate` stand. Splitting attachment per provider needs the
-provider recorded on the delivery row — a storage migration, which the frozen protocol v1 does not
-block (a delivery is Kage's own record, not a wire value). Until then the report says so rather than
-faking a split.
+**Attachment splits per provider — but only where the provider is actually known.** Migration 003
+adds a nullable `provider` column to `context_deliveries` (protocol v1 stays frozen; the delivery is
+Kage's own record, not a wire value), and `attachment_by_provider` splits attachment by it. The split
+is honest about a real asymmetry:
+
+- **Only the proxy knows the provider.** The proxy holds the gateway (`gateway.provider`), so its
+  deliveries carry `"anthropic"` / `"openai"` / `"gemini"`. The Claude *hook* injects context into the
+  agent's turn from IDE events and never sees which model or API the agent then calls, so its
+  deliveries record `null` — an honest "unknown", **never** a guessed `"anthropic"`.
+- **Null-provider rows are not attributed to any provider.** Every hook delivery lands in an explicit
+  `unattributed` bucket, and stays counted in the overall `attachment`. It is never folded into a
+  provider it cannot be proven to belong to.
+- **No traffic ⇒ no bucket.** A provider with no delivery has no key — the same "absence is no
+  traffic, not a 0%/100%" rule the receipt `by_provider` map follows. `available: false` (not an empty
+  split) when the delivery store could not be read at all.
+
+The overall `attachment` / `attachment_success_rate` are unchanged and still count every row, provider-attributed or not.
 
 **`prompt_mutations` is measured.** It counts receipts whose transformed body was actually
 forwarded. A correct audit period measures `0` because audit forwards your bytes — the report does
@@ -131,10 +141,10 @@ not assume it, and the same code counts `1` the moment an assist-mode request ap
   `null`, never at the wrong base rate. Any model with no dated price snapshot has a `null` cost. All
   of this shows up as a lower exact-*cost* share for those providers in `by_provider`, not as a defect
   papered over.
-- **Attachment has no per-provider split yet.** `context_deliveries` rows carry no `provider`, so
-  `attachment_by_provider` is always `unavailable`. See "Attachment is reported overall only" above.
-  Recording the provider on the delivery row is a storage migration (protocol v1 stays frozen; the
-  delivery is Kage's own record), not done in this preview.
+- **Hook attachment is unattributed by design.** Only the proxy can name the provider it attached
+  context for; the Claude hook cannot, so its deliveries record `null` and sit in the `unattributed`
+  bucket of `attachment_by_provider` rather than being guessed into a provider. See "Attachment splits
+  per provider" above.
 - **Cost deltas need a two-sided cost measurement.** Until the unsent body's cache breakdown can be
   measured, an audit period will usually report token savings and an unavailable cost — per provider
   and overall.

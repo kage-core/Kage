@@ -469,7 +469,7 @@ test("every migration records its version once and the ledger is idempotent", ()
       .all() as Array<{ name: string }>;
 
     assert.deepEqual(secondRows, firstRows);
-    assert.deepEqual(secondRows.map(({ version }) => version), [1, 2]);
+    assert.deepEqual(secondRows.map(({ version }) => version), [1, 2, 3]);
     for (const row of secondRows) assert.match(row.applied_at, /^\d{4}-\d{2}-\d{2}T/);
     assert.deepEqual(
       tables.map(({ name }) => name),
@@ -507,9 +507,13 @@ test("migration 002 adds context-composition latency to context_deliveries, and 
         "status",
         "reason",
         "composition_latency_ms",
+        // Migration 003 appends `provider` after latency; migration 002 still owns only the latency
+        // column, which this test verifies by name rather than by position.
+        "provider",
       ],
     );
-    const latency = columns[columns.length - 1];
+    const latency = columns.find(({ name }) => name === "composition_latency_ms");
+    assert.ok(latency, "migration 002 adds composition_latency_ms");
     assert.equal(latency.type.toUpperCase(), "REAL");
     // Nullable on purpose: an attempt that never composed a capsule (a failed-open) has NO latency,
     // and a zero there would be an invented measurement.
@@ -520,14 +524,17 @@ test("migration 002 adds context-composition latency to context_deliveries, and 
   }
 });
 
-// The upgrade path that actually exists on a dogfooding machine: a store created before this change
-// carries schema version 1 and real rows. It must gain the column and keep every row.
-test("migration 002 upgrades an existing version 1 database without losing rows", () => {
+// The upgrade path that actually exists on a dogfooding machine: a store created before these
+// changes carries schema version 1 and real rows. It must gain BOTH later columns (latency, then
+// provider) and keep every row — inventing neither a latency nor a provider for the old row.
+test("migrations 002 and 003 upgrade an existing version 1 database without losing rows", () => {
   const db = openVnextDatabase(":memory:");
 
   try {
     migrateLocalDatabase(db);
-    db.exec("DELETE FROM schema_migrations WHERE version = 2");
+    // Reconstruct a genuine version-1 store: drop both later columns and both later ledger rows.
+    db.exec("DELETE FROM schema_migrations WHERE version IN (2, 3)");
+    db.exec("ALTER TABLE context_deliveries DROP COLUMN provider");
     db.exec("ALTER TABLE context_deliveries DROP COLUMN composition_latency_ms");
     db.prepare(`
       INSERT INTO context_deliveries (
@@ -553,12 +560,107 @@ test("migration 002 upgrades an existing version 1 database without losing rows"
     const versions = db
       .prepare("SELECT version FROM schema_migrations ORDER BY version")
       .all() as Array<{ version: number }>;
-    assert.deepEqual(versions.map(({ version }) => version), [1, 2]);
+    assert.deepEqual(versions.map(({ version }) => version), [1, 2, 3]);
     const rows = new DeliveryStore(db).list();
     assert.equal(rows.length, 1);
     assert.equal(rows[0].delivery_id, "delivery-legacy");
-    // The pre-existing row has no measured latency, and migration does not invent one.
+    // The pre-existing row has neither a measured latency nor a known provider, and migration invents
+    // neither.
     assert.equal(rows[0].composition_latency_ms, null);
+    assert.equal(rows[0].provider, null);
+  } finally {
+    db.close();
+  }
+});
+
+// Storage schema != wire protocol, again. Protocol v1 stays frozen and ContextDelivery gains no
+// field; migration 003 adds `provider` to the local store so attachment can be split per provider.
+// It is NULLABLE on purpose: the proxy knows the provider (gateway.provider) but the Claude hook,
+// which injects from IDE events, never sees which API the agent called — so its rows record null,
+// never a guessed "anthropic".
+test("migration 003 adds a nullable provider column to context_deliveries, and only that", () => {
+  const db = openVnextDatabase(":memory:");
+
+  try {
+    migrateLocalDatabase(db);
+    const columns = db
+      .prepare("PRAGMA table_info(context_deliveries)")
+      .all() as unknown as Array<{ name: string; type: string; notnull: number; pk: number }>;
+
+    // The provider column is appended last, after migration 002's composition_latency_ms.
+    assert.deepEqual(
+      columns.map(({ name }) => name),
+      [
+        "delivery_id",
+        "capsule_id",
+        "task_id",
+        "adapter_id",
+        "injection_location",
+        "delivered_at",
+        "added_bytes",
+        "added_tokens",
+        "measurement_quality",
+        "status",
+        "reason",
+        "composition_latency_ms",
+        "provider",
+      ],
+    );
+    const provider = columns[columns.length - 1];
+    assert.equal(provider.name, "provider");
+    assert.equal(provider.type.toUpperCase(), "TEXT");
+    // Nullable: a hook delivery cannot know the provider, and a fabricated "anthropic" there is
+    // exactly the dishonest attribution this workstream forbids.
+    assert.equal(provider.notnull, 0);
+    assert.equal(provider.pk, 0);
+  } finally {
+    db.close();
+  }
+});
+
+// The upgrade path a dogfooding machine actually walks: a store migrated to version 2 (delivery
+// rows already present, provider column absent) must gain the column, keep every row, and leave the
+// existing rows' provider NULL — never invented.
+test("migration 003 upgrades a version 2 database, preserving delivery rows with a null provider", () => {
+  const db = openVnextDatabase(":memory:");
+
+  try {
+    migrateLocalDatabase(db);
+    db.exec("DELETE FROM schema_migrations WHERE version = 3");
+    db.exec("ALTER TABLE context_deliveries DROP COLUMN provider");
+    db.prepare(`
+      INSERT INTO context_deliveries (
+        delivery_id, capsule_id, task_id, adapter_id, injection_location, delivered_at,
+        added_bytes, added_tokens, measurement_quality, status, reason, composition_latency_ms
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "delivery-v2",
+      "capsule-v2",
+      "task-v2",
+      "claude-code-hooks",
+      "user_turn",
+      "2026-07-15T00:00:00.000Z",
+      120,
+      null,
+      "partial",
+      "delivered",
+      "delivered",
+      42.5,
+    );
+
+    migrateLocalDatabase(db);
+
+    const versions = db
+      .prepare("SELECT version FROM schema_migrations ORDER BY version")
+      .all() as Array<{ version: number }>;
+    assert.deepEqual(versions.map(({ version }) => version), [1, 2, 3]);
+    const rows = new DeliveryStore(db).list();
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].delivery_id, "delivery-v2");
+    // The pre-existing row keeps its measured latency and gains a null provider — migration invents
+    // neither a provider nor a latency.
+    assert.equal(rows[0].composition_latency_ms, 42.5);
+    assert.equal(rows[0].provider, null);
   } finally {
     db.close();
   }
@@ -604,15 +706,15 @@ test("migration rejects databases newer than the supported schema version", () =
   try {
     migrateLocalDatabase(db);
     db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)").run(
-      3,
+      4,
       "2026-07-13T00:00:00.000Z",
     );
 
-    assert.throws(() => migrateLocalDatabase(db), /schema version 3.*newer than supported version 2/i);
+    assert.throws(() => migrateLocalDatabase(db), /schema version 4.*newer than supported version 3/i);
     const versions = db
       .prepare("SELECT version FROM schema_migrations ORDER BY version")
       .all() as Array<{ version: number }>;
-    assert.deepEqual(versions.map(({ version }) => version), [1, 2, 3]);
+    assert.deepEqual(versions.map(({ version }) => version), [1, 2, 3, 4]);
   } finally {
     db.close();
   }
@@ -630,7 +732,7 @@ test("migration reports an unsupported schema error for future versions beyond s
 
     assert.throws(
       () => migrateLocalDatabase(db),
-      /schema version 9007199254740992.*newer than supported version 2/i,
+      /schema version 9007199254740992.*newer than supported version 3/i,
     );
   } finally {
     db.close();
@@ -695,7 +797,7 @@ test("migration validates ordered columns, types, nullability, and primary keys 
 
       assert.throws(
         () => migrateLocalDatabase(db),
-        /schema version 2.*incompatible.*tasks.*columns/i,
+        /schema version 3.*incompatible.*tasks.*columns/i,
         name,
       );
     } finally {
@@ -723,7 +825,7 @@ test("migration validates required unique keys for the current schema", () => {
 
       assert.throws(
         () => migrateLocalDatabase(db),
-        new RegExp(`schema version 2.*incompatible.*${table}.*${column}.*unique`, "i"),
+        new RegExp(`schema version 3.*incompatible.*${table}.*${column}.*unique`, "i"),
         `${table}.${column}`,
       );
     } finally {
@@ -1231,6 +1333,9 @@ function fixtureDelivery(overrides: Partial<StoredContextDelivery> = {}): Stored
     status: "delivered",
     reason: "delivered",
     composition_latency_ms: 42.5,
+    // Null by default: the fixture stands in for a Claude-hook delivery, which cannot know the
+    // provider. The proxy round-trip test below overrides this with a real provider.
+    provider: null,
     ...overrides,
   };
 }
@@ -1298,6 +1403,61 @@ test("delivery store keeps every status separable and never invents a token coun
   }
 });
 
+// The provider is a STORAGE concern — Kage's own record, added in migration 003 — and it is
+// nullable: the proxy knows it, the hook cannot. The store must round-trip both truthfully and never
+// coerce a null into a guessed provider.
+test("delivery store round-trips a proxy delivery's provider and a hook delivery's null provider", () => {
+  const db = openVnextDatabase(":memory:");
+  migrateLocalDatabase(db);
+  const store = new DeliveryStore(db);
+
+  try {
+    // A PROXY delivery: the gateway knows which API it forwarded to, so the row carries that provider.
+    assert.equal(
+      store.write(fixtureDelivery({
+        delivery_id: "delivery-proxy",
+        adapter_id: "anthropic-proxy",
+        provider: "anthropic",
+      })).inserted,
+      true,
+    );
+    // A HOOK delivery: injected from IDE events, blind to which API the agent called, so provider is
+    // null — an honest "unknown", never a fabricated "anthropic".
+    assert.equal(
+      store.write(fixtureDelivery({
+        delivery_id: "delivery-hook",
+        delivered_at: "2026-07-15T00:00:01.000Z",
+        adapter_id: "claude-code-hooks",
+        provider: null,
+      })).inserted,
+      true,
+    );
+
+    const rows = new DeliveryStore(db).list();
+    assert.deepEqual(rows.map((row) => row.provider), ["anthropic", null]);
+  } finally {
+    db.close();
+  }
+});
+
+// A provider is a real provider name or null. An empty string is neither — it is a dishonest
+// "attributed to nothing in particular", so the store refuses it at the only door into the table.
+test("delivery store rejects an empty-string provider", () => {
+  const db = openVnextDatabase(":memory:");
+  migrateLocalDatabase(db);
+  const store = new DeliveryStore(db);
+
+  try {
+    assert.throws(
+      () => store.write(fixtureDelivery({ provider: "  " })),
+      /Invalid context_deliveries\.provider/i,
+    );
+    assert.equal(store.list().length, 0);
+  } finally {
+    db.close();
+  }
+});
+
 // The invariants that keep a delivery row from being able to lie about what the user's session saw.
 test("delivery store rejects a row that claims an attachment it cannot have made", () => {
   const db = openVnextDatabase(":memory:");
@@ -1338,7 +1498,9 @@ test("the delivery spool carries a record into the store and then removes it", (
   migrateLocalDatabase(db);
 
   try {
-    assert.equal(spoolContextDelivery(project, fixtureDelivery()), true);
+    // The delivered row carries a provider (a proxy delivery would): the spool must carry it through
+    // to the store, since the proxy records its deliveries via this spool and nothing else.
+    assert.equal(spoolContextDelivery(project, fixtureDelivery({ provider: "anthropic" })), true);
     assert.equal(spoolContextDelivery(project, skippedDelivery()), true);
 
     const spool = deliverySpoolDirectory(project);
@@ -1347,7 +1509,7 @@ test("the delivery spool carries a record into the store and then removes it", (
 
     const rows = new DeliveryStore(db).list();
     assert.deepEqual(rows.map((row) => row.status).sort(), ["delivered", "skipped"]);
-    assert.deepEqual(rows.find((row) => row.status === "delivered"), fixtureDelivery());
+    assert.deepEqual(rows.find((row) => row.status === "delivered"), fixtureDelivery({ provider: "anthropic" }));
     // Drained files are removed, so the spool cannot grow without bound and a second drain is a
     // no-op rather than a double count.
     assert.equal(drainDeliverySpool(db, project), 0);

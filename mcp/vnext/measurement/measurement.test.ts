@@ -391,6 +391,7 @@ test("assist records a delivery into the user turn, measured in bytes it actuall
   const plan = planProxyForward({ mode: "assist", original: ORIGINAL_BODY, transformed: TRANSFORMED_BODY });
   const delivery = buildProxyDelivery({
     task_id: "task_x",
+    provider: "anthropic",
     mode: "assist",
     plan,
     composition_latency_ms: 12.25,
@@ -408,12 +409,15 @@ test("assist records a delivery into the user turn, measured in bytes it actuall
   assert.equal(delivery.measurement_quality, "partial");
   assert.equal(delivery.composition_latency_ms, 12.25);
   assert.equal(delivery.delivered_at, "2026-07-15T00:00:00.000Z");
+  // The proxy KNOWS the provider and records it — the input that lets attachment be split per provider.
+  assert.equal(delivery.provider, "anthropic");
 });
 
 test("audit records the same composition as a SKIP: nothing reached the request", () => {
   const plan = planProxyForward({ mode: "audit", original: ORIGINAL_BODY, transformed: TRANSFORMED_BODY });
   const delivery = buildProxyDelivery({
     task_id: "task_x",
+    provider: "anthropic",
     mode: "audit",
     plan,
     composition_latency_ms: 9,
@@ -428,6 +432,8 @@ test("audit records the same composition as a SKIP: nothing reached the request"
   assert.equal(delivery.added_bytes, 0);
   // The composition was real and its latency is real, even though it went nowhere.
   assert.equal(delivery.composition_latency_ms, 9);
+  // Even a SKIP carries the provider: the proxy still knows which API it audited.
+  assert.equal(delivery.provider, "anthropic");
 });
 
 test("a request with no composed context records no delivery at all", () => {
@@ -435,7 +441,7 @@ test("a request with no composed context records no delivery at all", () => {
   // row here would put a phantom attempt into the denominator.
   for (const mode of ["audit", "assist"] as const) {
     const plan = planProxyForward({ mode, original: ORIGINAL_BODY, transformed: null });
-    assert.equal(buildProxyDelivery({ task_id: "task_x", mode, plan, composition_latency_ms: 3 }), null);
+    assert.equal(buildProxyDelivery({ task_id: "task_x", provider: "anthropic", mode, plan, composition_latency_ms: 3 }), null);
   }
 });
 

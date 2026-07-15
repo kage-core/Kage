@@ -76,6 +76,9 @@ function projectDelivery(value: unknown): StoredContextDelivery | undefined {
     reason: value.reason,
     composition_latency_ms:
       value.composition_latency_ms === undefined ? null : value.composition_latency_ms,
+    // A spooled record from before the provider column, or from the hook, simply has no provider —
+    // stored as null, never coerced into a guessed one.
+    provider: value.provider === undefined ? null : value.provider,
   } as StoredContextDelivery;
   return candidate;
 }

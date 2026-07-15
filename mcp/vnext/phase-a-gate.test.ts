@@ -37,6 +37,7 @@ import {
   sendAdapterEvent,
   sendAdapterHandshake,
 } from "./adapters/client.js";
+import { buildProxyDelivery, planProxyForward } from "./adapters/anthropic-proxy.js";
 import { buildTransformationReceipt } from "./measurement/receipt.js";
 import { OPENAI_PRICE_SNAPSHOTS } from "./measurement/pricing.js";
 import { validateEvidenceEvent, validateHandshake, type TransformationReceipt } from "./protocol/index.js";
@@ -404,6 +405,29 @@ test("Gate A: evidence, context, and an audited receipt with no MCP call and no 
     // attachments. It is emphatically NOT 1.0, and it is not null.
     assert.deepEqual(report.attachment, { delivered: 0, skipped: 2, failed_open: 1 });
     assert.equal(report.attachment_success_rate, 0);
+
+    // Attachment now splits by the provider RECORDED on each delivery row (migration 003). The
+    // proxy's audit skip carried its provider ("anthropic"); the two hook rows — the adapter attempt
+    // and the dead-runtime shell hook — could not know the provider and recorded null, so they are
+    // UNATTRIBUTED, never guessed into a provider. The overall attachment above is unchanged.
+    const attachmentSplit = report.attachment_by_provider as Record<string, any>;
+    assert.equal(attachmentSplit.available, true);
+    assert.deepEqual(Object.keys(attachmentSplit.providers), ["anthropic"]);
+    assert.deepEqual(attachmentSplit.providers.anthropic, {
+      delivered: 0,
+      skipped: 1,
+      failed_open: 0,
+      attempted: 1,
+      success_rate: 0,
+    });
+    assert.deepEqual(attachmentSplit.unattributed, {
+      delivered: 0,
+      skipped: 1,
+      failed_open: 1,
+      attempted: 2,
+      success_rate: 0,
+    });
+
     assert.equal(report.failed_open_requests, 1, "a daemon outage is COUNTED, not hidden");
     // The percentiles are real numbers now, from the compositions that really happened. The
     // failed-open composed nothing and contributed no sample — a timeout is not a composition time.
@@ -575,6 +599,44 @@ test("the report and status break measurement out per provider, and a zero-traff
       before_breakdown: UNCACHED(500), after_breakdown: null,
       latency_ms: 5, transformations: ["context_append_last_user_turn"],
     }));
+
+    // Two deliveries into the SAME real store, so the shipped report reads the provider off each
+    // row. A PROXY delivery (built by the shipped builder) carries its provider; a HOOK delivery
+    // records null — the hook cannot know which API the agent called.
+    const deliveries = new DeliveryStore(runtime.database);
+    const proxyDelivery = buildProxyDelivery({
+      task_id: "task_a",
+      provider: "anthropic",
+      mode: "assist",
+      plan: planProxyForward({
+        mode: "assist",
+        original: Buffer.from("how do I make it idempotent?"),
+        transformed: Buffer.from("how do I make it idempotent?\n\n# memory"),
+      }),
+      composition_latency_ms: 7,
+    });
+    assert.ok(proxyDelivery, "an assist proxy transformation produces a delivery");
+    assert.equal(proxyDelivery.provider, "anthropic");
+    assert.equal(deliveries.write(proxyDelivery).inserted, true);
+    // A Claude-hook skip: no provider is known, so it is null — never a guessed "anthropic".
+    assert.equal(
+      deliveries.write({
+        delivery_id: "delivery_hook_1",
+        capsule_id: "capsule_unavailable",
+        task_id: "task_a",
+        adapter_id: "claude-code-hooks",
+        injection_location: "none",
+        delivered_at: "2026-07-16T00:00:00.000Z",
+        added_bytes: 0,
+        added_tokens: null,
+        measurement_quality: "unavailable",
+        status: "skipped",
+        reason: "audit_mode_no_injection",
+        composition_latency_ms: null,
+        provider: null,
+      }).inserted,
+      true,
+    );
   } finally {
     await runtime.close();
   }
@@ -612,10 +674,22 @@ test("the report and status break measurement out per provider, and a zero-traff
   assert.equal(report.cost_delta.available, true);
   assert.equal(report.cost_delta.receipts, 1);
 
-  // Attachment stays OVERALL: a delivery row carries no provider, so per-provider attachment cannot
-  // be derived. The report says so explicitly rather than inventing a split it cannot support.
-  assert.equal(report.attachment_by_provider.available, false);
-  assert.equal(report.attachment_by_provider.reason, "delivery_rows_have_no_provider");
+  // Attachment is now split per provider from the provider RECORDED on each delivery row. The proxy
+  // delivery carried "anthropic"; the hook delivery carried null and is unattributed, never guessed.
+  assert.equal(report.attachment_by_provider.available, true);
+  assert.deepEqual(Object.keys(report.attachment_by_provider.providers), ["anthropic"]);
+  assert.deepEqual(report.attachment_by_provider.providers.anthropic, {
+    delivered: 1, skipped: 0, failed_open: 0, attempted: 1, success_rate: 1,
+  });
+  // openai sent RECEIPTS but no delivery, so it has NO attachment bucket — absence is no traffic,
+  // never a fabricated {0,0,0}/0%. Gemini (no traffic at all) likewise absent.
+  assert.equal(report.attachment_by_provider.providers.openai, undefined);
+  assert.equal(report.attachment_by_provider.providers.gemini, undefined);
+  // The hook row lands in unattributed, and the OVERALL attachment still counts both rows.
+  assert.deepEqual(report.attachment_by_provider.unattributed, {
+    delivered: 0, skipped: 1, failed_open: 0, attempted: 1, success_rate: 0,
+  });
+  assert.deepEqual(report.attachment, { delivered: 1, skipped: 1, failed_open: 0 });
 
   // ---- the SHIPPED `kage status`, reading the same store, breaks out the same providers ----
   const status = JSON.parse(
@@ -625,4 +699,11 @@ test("the report and status break measurement out per provider, and a zero-traff
   assert.deepEqual(status.by_provider.anthropic.measurement, { exact: 2, partial: 0, unavailable: 0 });
   assert.deepEqual(status.by_provider.openai.measurement, { exact: 1, partial: 0, unavailable: 0 });
   assert.equal(status.by_provider.gemini, undefined);
+  // `kage status` splits attachment per provider from the same rows: the proxy delivery under
+  // anthropic, the hook delivery unattributed.
+  assert.equal(status.attachment_by_provider.available, true);
+  assert.deepEqual(Object.keys(status.attachment_by_provider.providers), ["anthropic"]);
+  assert.equal(status.attachment_by_provider.providers.anthropic.delivered, 1);
+  assert.equal(status.attachment_by_provider.providers.openai, undefined);
+  assert.equal(status.attachment_by_provider.unattributed.skipped, 1);
 });

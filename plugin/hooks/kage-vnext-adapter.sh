@@ -161,6 +161,10 @@ record = {
     "status": "failed_open",
     "reason": "unreachable",
     "composition_latency_ms": None,
+    # provider is null: this hook injects from IDE events and never sees which API the agent calls,
+    # so it cannot know the provider. A guessed "anthropic" would be a fabrication. Only the proxy,
+    # which holds the gateway, records a real provider.
+    "provider": None,
 }
 
 try:
@@ -505,6 +509,11 @@ record = {
     # The MEASURED composition round trip, in milliseconds. Null when nothing was composed: a
     # timeout is not a composition time, and putting it in the percentiles would invent one.
     "composition_latency_ms": (seconds * 1000.0) if (capsule is not None and seconds is not None) else None,
+    # provider is null: this hook injects into the agent turn from IDE events and never sees which
+    # API the agent then calls, so it cannot know the provider (a guessed one would be fabricated).
+    # Only the proxy, which holds the gateway, records a real provider. Kept in lockstep with the
+    # TypeScript adapter (client.ts) so both shipped hooks write an identical row shape.
+    "provider": None,
 }
 
 try:

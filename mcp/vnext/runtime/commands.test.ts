@@ -21,6 +21,7 @@ import type {
 } from "./client.js";
 import type { StoredContextDelivery } from "../storage/delivery-store.js";
 import {
+  attachmentByProvider,
   attachmentReport,
   byProvider,
   contextLatency,
@@ -100,6 +101,8 @@ let deliveryCounter = 0;
 function delivery(options: {
   status: StoredContextDelivery["status"];
   latency_ms?: number | null;
+  /** Omitted => a hook delivery (provider null). Set it for a proxy delivery. */
+  provider?: string | null;
 }): StoredContextDelivery {
   deliveryCounter += 1;
   const delivered = options.status === "delivered";
@@ -116,6 +119,7 @@ function delivery(options: {
     status: options.status,
     reason: options.status === "delivered" ? "delivered" : "audit_mode_no_injection",
     composition_latency_ms: options.latency_ms === undefined ? 10 : options.latency_ms,
+    provider: options.provider === undefined ? null : options.provider,
   };
 }
 
@@ -586,4 +590,119 @@ test("renderStatus prints each provider's coverage and never collapses to a tota
   const text = renderStatus(await vnextStatus(client));
   assert.match(text, /anthropic/);
   assert.match(text, /openai/);
+});
+
+// --- per-provider ATTACHMENT ------------------------------------------------------------------
+//
+// Deliveries can now carry the provider (migration 003). A PROXY delivery knows it; a Claude-HOOK
+// delivery does not (it injects from IDE events, blind to which API the agent calls) and records
+// null. So attachment splits per provider — but a null-provider row is NEVER guessed into a
+// provider; it lands in an explicit `unattributed` bucket and in the overall only.
+
+test("attachmentByProvider splits proxy deliveries by provider and never conflates them", () => {
+  const report = attachmentByProvider([
+    delivery({ status: "delivered", provider: "anthropic" }),
+    delivery({ status: "skipped", provider: "anthropic" }),
+    delivery({ status: "delivered", provider: "openai" }),
+  ]);
+  assert.equal(report.available, true);
+  assert.deepEqual(Object.keys(report.providers).sort(), ["anthropic", "openai"]);
+  // anthropic: 1 delivered, 1 skipped → a measured 0.5, from ITS rows only.
+  assert.equal(report.providers.anthropic.delivered, 1);
+  assert.equal(report.providers.anthropic.skipped, 1);
+  assert.equal(report.providers.anthropic.attempted, 2);
+  assert.equal(report.providers.anthropic.success_rate, 0.5);
+  // openai: 1 delivered → 1.0, kept strictly apart from anthropic's rate.
+  assert.equal(report.providers.openai.delivered, 1);
+  assert.equal(report.providers.openai.success_rate, 1);
+  // Every row carried a provider, so there is nothing unattributed.
+  assert.equal(report.unattributed, null);
+});
+
+test("attachmentByProvider omits a provider with no deliveries: absence is no traffic, never a zero bucket", () => {
+  const report = attachmentByProvider([delivery({ status: "delivered", provider: "anthropic" })]);
+  assert.equal("anthropic" in report.providers, true);
+  // The honesty gate: a provider that attached nothing has NO bucket. It is NOT a {0,0,0} with a 0%
+  // rate (which would claim "we saw openai and it attached nothing").
+  assert.equal("openai" in report.providers, false);
+  assert.equal(report.providers.openai, undefined);
+});
+
+test("attachmentByProvider puts hook (null-provider) rows in unattributed, never a fabricated provider", () => {
+  const deliveries = [
+    delivery({ status: "delivered", provider: "anthropic" }),
+    delivery({ status: "skipped" }), // hook: provider null
+    delivery({ status: "failed_open", latency_ms: null }), // hook: provider null
+  ];
+  const report = attachmentByProvider(deliveries);
+
+  // Only the proxy row's provider gets a bucket. The two hook rows are NOT guessed into "anthropic".
+  assert.deepEqual(Object.keys(report.providers), ["anthropic"]);
+  assert.equal(report.providers.anthropic.delivered, 1);
+  assert.equal(report.providers.anthropic.attempted, 1);
+  assert.equal(report.providers.anthropic.success_rate, 1);
+  // The null-provider rows land in an explicit unattributed bucket.
+  assert.equal(report.unattributed?.skipped, 1);
+  assert.equal(report.unattributed?.failed_open, 1);
+  assert.equal(report.unattributed?.attempted, 2);
+  assert.equal(report.unattributed?.success_rate, 0);
+
+  // The split never loses or invents an attempt: every provider bucket plus unattributed reconstruct
+  // the OVERALL attachment exactly.
+  const overall = attachmentReport(deliveries);
+  const buckets = [...Object.values(report.providers), report.unattributed!];
+  assert.equal(buckets.reduce((n, b) => n + b.delivered, 0), overall.delivered);
+  assert.equal(buckets.reduce((n, b) => n + b.skipped, 0), overall.skipped);
+  assert.equal(buckets.reduce((n, b) => n + b.failed_open, 0), overall.failed_open);
+});
+
+test("attachmentByProvider with only hook rows has no provider buckets, only unattributed", () => {
+  const report = attachmentByProvider([
+    delivery({ status: "delivered" }),
+    delivery({ status: "skipped" }),
+  ]);
+  // No provider knew this traffic. NOT one fabricated bucket — the whole thing is unattributed.
+  assert.deepEqual(report.providers, {});
+  assert.equal(report.unattributed?.delivered, 1);
+  assert.equal(report.unattributed?.attempted, 2);
+  assert.equal(report.unattributed?.success_rate, 0.5);
+});
+
+test("status exposes attachment_by_provider alongside the overall attachment, never instead of it", async () => {
+  const project = tempProject();
+  const report = await vnextStatus(fixtureRuntimeClient({
+    project_dir: project,
+    deliveries: [
+      delivery({ status: "delivered", provider: "anthropic" }),
+      delivery({ status: "skipped", provider: "anthropic" }),
+      delivery({ status: "skipped" }), // hook
+    ],
+  }));
+
+  // The overall attachment is unchanged by the split.
+  assert.equal(report.attachment?.delivered, 1);
+  assert.equal(report.attachment?.skipped, 2);
+  assert.equal(report.attachment?.attempted, 3);
+
+  // ...and the per-provider split sits beside it.
+  assert.equal(report.attachment_by_provider.available, true);
+  assert.equal(report.attachment_by_provider.providers.anthropic.delivered, 1);
+  assert.equal(report.attachment_by_provider.providers.anthropic.skipped, 1);
+  // A provider with no traffic has no bucket; the hook row is unattributed, never fabricated.
+  assert.equal(report.attachment_by_provider.providers.gemini, undefined);
+  assert.equal(report.attachment_by_provider.unattributed?.skipped, 1);
+});
+
+test("status reports attachment_by_provider as unavailable when the delivery store is unreadable, never as an empty split", async () => {
+  const project = tempProject();
+  const report = await vnextStatus(
+    fixtureRuntimeClient({ project_dir: project, available: false, reason: "runtime_unsupported" }),
+  );
+  // Same rule as the overall attachment: "we could not look" is unavailable, not "no provider
+  // attached anything".
+  assert.equal(report.attachment, null);
+  assert.equal(report.attachment_by_provider.available, false);
+  assert.equal(report.attachment_by_provider.reason, "runtime_unsupported");
+  assert.deepEqual(report.attachment_by_provider.providers, {});
+  assert.equal(report.attachment_by_provider.unattributed, null);
 });

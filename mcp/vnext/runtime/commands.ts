@@ -405,6 +405,68 @@ export function attachmentReport(deliveries: readonly StoredContextDelivery[]): 
   };
 }
 
+export interface AttachmentByProviderReport {
+  /** False only when the delivery store could not be read at all — the same rule as `attachment`. */
+  available: boolean;
+  reason: string | null;
+  /**
+   * Per-provider attachment, keyed by the provider RECORDED on the delivery row. A provider with no
+   * deliveries has NO key — absence is "no traffic", never a fabricated {0,0,0}/0%. Only PROXY
+   * deliveries carry a provider; a hook delivery records null and never appears here.
+   */
+  providers: Record<string, AttachmentReport>;
+  /**
+   * Deliveries with NO recorded provider — every Claude-hook delivery, because the hook cannot know
+   * which API the agent called. They are attributed to NO provider (guessing one would be a
+   * fabrication) but are still counted here and in the OVERALL attachment. Null when there are none.
+   */
+  unattributed: AttachmentReport | null;
+}
+
+export function unavailableAttachmentByProvider(reason: string): AttachmentByProviderReport {
+  return { available: false, reason, providers: {}, unattributed: null };
+}
+
+/**
+ * The per-provider split of ATTACHMENT, from the provider recorded on each delivery row (migration
+ * 003). It is the attachment analogue of `byProvider` for receipts, with one difference the honesty
+ * gates force: a delivery's provider is NULLABLE. The proxy knows it; the Claude hook does not, and
+ * records null rather than guessing.
+ *
+ *   - A provider with ≥1 delivery gets a real {delivered, skipped, failed_open} + rate, from ITS rows
+ *     only. A provider that attached nothing has NO key — that absence is "no traffic", categorically
+ *     not a 0%/100% rate we never measured.
+ *   - Null-provider rows (every hook delivery) are NEVER guessed into a provider. They go into an
+ *     explicit `unattributed` bucket, and they remain in the OVERALL `attachmentReport`, which is
+ *     unchanged. providers + unattributed reconstruct the overall exactly.
+ */
+export function attachmentByProvider(
+  deliveries: readonly StoredContextDelivery[],
+): AttachmentByProviderReport {
+  const groups = new Map<string, StoredContextDelivery[]>();
+  const unattributedRows: StoredContextDelivery[] = [];
+  for (const row of deliveries) {
+    const provider = row.provider ?? null;
+    if (provider === null) {
+      unattributedRows.push(row);
+      continue;
+    }
+    const existing = groups.get(provider);
+    if (existing) existing.push(row);
+    else groups.set(provider, [row]);
+  }
+  const providers: Record<string, AttachmentReport> = {};
+  for (const provider of [...groups.keys()].sort()) {
+    providers[provider] = attachmentReport(groups.get(provider) as StoredContextDelivery[]);
+  }
+  return {
+    available: true,
+    reason: null,
+    providers,
+    unattributed: unattributedRows.length ? attachmentReport(unattributedRows) : null,
+  };
+}
+
 // Nearest-rank, deliberately: every number reported is a latency that was really measured on some
 // real request. Interpolation would print a millisecond value that never happened, which on a small
 // sample (and a first internal audit IS a small sample) is exactly the kind of invented precision
@@ -478,6 +540,13 @@ export interface VnextStatusReport {
    * look" is not "Kage never tried to attach context".
    */
   attachment: AttachmentReport | null;
+  /**
+   * The same attachment, split by the provider recorded on each delivery. A PROXY delivery carries
+   * its provider; a HOOK delivery does not (it cannot know which API the agent called) and lands in
+   * `unattributed`, never guessed into a provider. `available: false` — not an empty split — when
+   * the delivery store could not be read, exactly like `attachment` being null.
+   */
+  attachment_by_provider: AttachmentByProviderReport;
   context_latency: ContextLatencyReport;
 }
 
@@ -520,6 +589,9 @@ export async function vnextStatus(client: RuntimeClient): Promise<VnextStatusRep
       total: deliveryQuery.available ? deliveries.length : null,
     },
     attachment: deliveriesUnreadable ? null : attachmentReport(deliveries),
+    attachment_by_provider: deliveriesUnreadable
+      ? unavailableAttachmentByProvider(deliveriesUnreadable)
+      : attachmentByProvider(deliveries),
     context_latency: deliveriesUnreadable
       ? unavailableContextLatency(deliveriesUnreadable)
       : contextLatency(deliveries),
@@ -541,6 +613,35 @@ function renderAttachment(report: VnextStatusReport): string[] {
       ? `  context latency p50/p95:  ${report.context_latency.p50_ms} / ${report.context_latency.p95_ms} ms (measured on ${report.context_latency.samples} composition${report.context_latency.samples === 1 ? "" : "s"})`
       : `  context latency p50/p95:  unavailable (${report.context_latency.reason})`,
   ];
+}
+
+function attachmentRate(report: AttachmentReport): string {
+  return report.success_rate === null ? "null (nothing attempted)" : report.success_rate.toFixed(3);
+}
+
+// The per-provider attachment block. Like the receipts by-provider block, it NEVER collapses to one
+// number, NEVER invents a provider for a delivery that had none (every hook delivery), and NEVER
+// prints a row for a provider that attached nothing. Null-provider rows are shown under an explicit
+// "unattributed" heading that says WHY they have no provider.
+function renderAttachmentByProvider(report: VnextStatusReport): string[] {
+  const split = report.attachment_by_provider;
+  if (!split.available) {
+    return [`  attachment by provider:  unavailable (${split.reason}) — the delivery store could not be read`];
+  }
+  const providers = Object.keys(split.providers);
+  if (!providers.length && !split.unattributed) {
+    return ["  attachment by provider:  none — no context attachment was attempted"];
+  }
+  const lines = ["  attachment by provider (only the proxy knows the provider; a hook delivery is unattributed, never guessed):"];
+  for (const provider of providers) {
+    const a = split.providers[provider];
+    lines.push(`    ${provider}:  ${a.delivered} delivered, ${a.skipped} skipped, ${a.failed_open} failed open  →  ${attachmentRate(a)} attached`);
+  }
+  if (split.unattributed) {
+    const u = split.unattributed;
+    lines.push(`    unattributed (hook deliveries — the hook cannot know the provider):  ${u.delivered} delivered, ${u.skipped} skipped, ${u.failed_open} failed open  →  ${attachmentRate(u)} attached`);
+  }
+  return lines;
 }
 
 function renderTokenDelta(delta: TokenDeltaReport): string {
@@ -600,7 +701,7 @@ export function renderStatus(report: VnextStatusReport): string {
     "",
     "Context attachment (every attempt: an audit-mode skip attaches nothing and is counted as a skip):",
     ...renderAttachment(report),
-    "  (attachment is measured OVERALL only — a delivery row carries no provider, so it cannot be split per provider)",
+    ...renderAttachmentByProvider(report),
     "",
     "Measurement of transformed requests (a request Kage did not transform writes no receipt):",
     report.measurement

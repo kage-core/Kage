@@ -262,6 +262,12 @@ export function buildProxyReceipt(input: ProxyReceiptInput): TransformationRecei
  */
 export function buildProxyDelivery(input: {
   task_id: string;
+  /**
+   * The provider this delivery was composed for — the proxy KNOWS it, because it holds the gateway
+   * (`gateway.provider`). Recorded on the row so attachment can be split per provider. This is the
+   * exact information the Claude hook lacks, which is why a hook delivery's provider is null.
+   */
+  provider: string;
   mode: ProxyMode;
   plan: ProxyForwardPlan;
   /** MEASURED: how long composing the candidate body actually took, in milliseconds. */
@@ -297,6 +303,9 @@ export function buildProxyDelivery(input: {
     status: delivered ? "delivered" : "skipped",
     reason: delivered ? "delivered" : "audit_mode_no_injection",
     composition_latency_ms: input.composition_latency_ms,
+    // The proxy knows exactly which provider it forwarded to, so the row carries it — the input that
+    // makes a per-provider attachment split possible.
+    provider: input.provider,
   };
 }
 

@@ -4,13 +4,22 @@ import type { LocalDatabase } from "./database.js";
 /**
  * A context delivery, as the LOCAL STORE holds it.
  *
- * Protocol v1 is frozen: `ContextDelivery` (the wire type) has no latency field and does not gain
- * one here. The storage schema is Kage's own, so migration 002 adds `composition_latency_ms` and
- * this type — a storage record, never a wire value — carries it. Null whenever no capsule was
- * composed (a failed-open has no composition to time), because a 0 would be an invented number.
+ * Protocol v1 is frozen: `ContextDelivery` (the wire type) has no latency or provider field and does
+ * not gain one here. The storage schema is Kage's own, so migration 002 adds `composition_latency_ms`
+ * and migration 003 adds `provider`; this type — a storage record, never a wire value — carries them.
+ *
+ * `composition_latency_ms` is null whenever no capsule was composed (a failed-open has no composition
+ * to time), because a 0 would be an invented number.
+ *
+ * `provider` is null whenever the writer does not KNOW the provider. Only the proxy does (it holds
+ * the gateway); the Claude hook injects from IDE events and never sees which model/API the agent
+ * calls, so its deliveries are null — an honest "unknown", never a guessed "anthropic". Optional so
+ * a caller that predates the column (or a hook) may simply omit it; an omitted provider is stored as
+ * null.
  */
 export interface StoredContextDelivery extends ContextDelivery {
   composition_latency_ms: number | null;
+  provider?: string | null;
 }
 
 interface ContextDeliveryRow {
@@ -26,6 +35,7 @@ interface ContextDeliveryRow {
   status: ContextDelivery["status"];
   reason: string;
   composition_latency_ms: number | null;
+  provider: string | null;
 }
 
 export interface DeliveryWriteResult {
@@ -64,6 +74,14 @@ function assertNonemptyString(field: string, value: unknown): void {
   if (typeof value !== "string" || !value.trim()) throw invalid(field, "expected a nonempty string.");
 }
 
+// provider is a real provider name (the proxy's gateway.provider) or null (unknown — every hook
+// delivery). An empty string is neither: it would be a row "attributed to nothing in particular",
+// so it is refused here rather than counted under a blank provider in a per-provider split.
+function assertNullableNonemptyString(field: string, value: unknown): void {
+  if (value === null || value === undefined) return;
+  if (typeof value !== "string" || !value.trim()) throw invalid(field, "expected null or a nonempty string.");
+}
+
 /**
  * The invariants that stop a delivery row from claiming an attachment the user's session never saw.
  * They are enforced here, at the only door into the table, because every downstream number
@@ -93,6 +111,7 @@ export function validateContextDelivery(delivery: StoredContextDelivery): void {
   assertNonnegativeSafeInteger("added_bytes", delivery.added_bytes);
   assertNonnegativeSafeInteger("added_tokens", delivery.added_tokens, true);
   assertNonnegativeFiniteNumber("composition_latency_ms", delivery.composition_latency_ms, true);
+  assertNullableNonemptyString("provider", delivery.provider);
 
   if (delivery.status === "delivered") {
     if (delivery.injection_location === "none") {
@@ -137,8 +156,9 @@ export class DeliveryStore {
           measurement_quality,
           status,
           reason,
-          composition_latency_ms
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          composition_latency_ms,
+          provider
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(delivery_id) DO NOTHING
       `)
       .run(
@@ -154,6 +174,8 @@ export class DeliveryStore {
         delivery.status,
         delivery.reason,
         delivery.composition_latency_ms,
+        // An omitted provider (a hook, or pre-column caller) is stored as null, never a guessed value.
+        delivery.provider ?? null,
       );
     return { inserted: result.changes !== 0 };
   }
@@ -194,7 +216,8 @@ const SELECT_DELIVERY = `
     measurement_quality,
     status,
     reason,
-    composition_latency_ms
+    composition_latency_ms,
+    provider
   FROM context_deliveries
 `;
 
@@ -212,5 +235,6 @@ function toDelivery(row: ContextDeliveryRow): StoredContextDelivery {
     status: row.status,
     reason: row.reason,
     composition_latency_ms: row.composition_latency_ms,
+    provider: row.provider,
   };
 }

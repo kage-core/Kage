@@ -1,6 +1,6 @@
 import type { LocalDatabase } from "./database.js";
 
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 3;
 
 const MIGRATION_LEDGER_SCHEMA = `
 CREATE TABLE schema_migrations (
@@ -120,9 +120,23 @@ ALTER TABLE context_deliveries ADD COLUMN composition_latency_ms REAL CHECK (
 );
 `;
 
+// Same reasoning as migration 002: protocol v1 is frozen and `ContextDelivery` gains no field, but
+// the store is Kage's own. Without a provider recorded on the delivery, attachment can only ever be
+// reported OVERALL — the report cannot say which provider Kage attached context for, and the
+// per-provider audit surfaces (which every other measurement already has) have a permanent hole.
+//
+// NULLABLE, deliberately: only the PROXY knows the provider (it holds the gateway). The Claude hook
+// injects into the agent's turn from IDE events and never sees which model/API the agent calls, so
+// its deliveries record NULL — an honest "unknown", never a guessed "anthropic". A TEXT column with
+// no CHECK: any provider string the gateways use is legal, and null is legal.
+const MIGRATION_003 = `
+ALTER TABLE context_deliveries ADD COLUMN provider TEXT;
+`;
+
 const MIGRATIONS: Readonly<Record<number, string>> = {
   1: MIGRATION_001,
   2: MIGRATION_002,
+  3: MIGRATION_003,
 };
 
 interface SchemaObjectRow {
@@ -204,15 +218,19 @@ const V1_TABLE_COLUMNS: Readonly<Record<string, readonly ExpectedColumn[]>> = {
   ],
 };
 
-// Migration 002 appends exactly one column to exactly one table. Everything else is byte-identical
-// to version 1, so the validator is expressed as "version 1, plus this".
+// Migrations 002 and 003 each append exactly one column to exactly one table (context_deliveries).
+// Everything else is byte-identical to version 1, so the validator is expressed as "version 1, plus
+// these", in the order the ALTERs applied them: latency (002), then provider (003).
 const V2_DELIVERY_LATENCY_COLUMN: ExpectedColumn = ["composition_latency_ms", "REAL", 0, 0];
+const V3_DELIVERY_PROVIDER_COLUMN: ExpectedColumn = ["provider", "TEXT", 0, 0];
 
 function expectedColumns(version: number): Readonly<Record<string, readonly ExpectedColumn[]>> {
   if (version < 2) return V1_TABLE_COLUMNS;
+  const contextDeliveries = [...V1_TABLE_COLUMNS.context_deliveries, V2_DELIVERY_LATENCY_COLUMN];
+  if (version >= 3) contextDeliveries.push(V3_DELIVERY_PROVIDER_COLUMN);
   return {
     ...V1_TABLE_COLUMNS,
-    context_deliveries: [...V1_TABLE_COLUMNS.context_deliveries, V2_DELIVERY_LATENCY_COLUMN],
+    context_deliveries: contextDeliveries,
   };
 }
 
