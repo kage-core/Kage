@@ -2,7 +2,7 @@
 
 **Created:** 2026-07-15
 **Branch:** `codex/kage-vnext-implementation`
-**Status:** Not started. New workstream, parallel to the Phase B–E program (which covers the knowledge model, portal, and commercial rollout, NOT provider breadth).
+**Status:** Task 1 complete & reviewed (`a5d1761`, gateway seam + capture unification, 670/670). Tasks 2–4 pending. New workstream, parallel to the Phase B–E program (which covers the knowledge model, portal, and commercial rollout, NOT provider breadth).
 
 ## Why this exists
 
@@ -40,7 +40,7 @@ Each **provider adapter** implements:
 
 ## Tasks
 
-### Task 1 — Gateway seam + capture unification (foundational, no behavior change to Anthropic)
+### Task 1 — Gateway seam + capture unification (foundational, no behavior change to Anthropic) — DONE `90fd714`+`a5d1761`
 Refactor `mcp/proxy.ts` + `mcp/vnext/adapters/anthropic-proxy.ts` so Anthropic becomes the first `ProviderGateway` implementation behind the neutral core. ALL existing proxy tests stay green byte-for-byte (this is a pure refactor for Anthropic). THEN add capture unification: the proxy emits protocol-v1 evidence events to `/v2/events` via the fail-open adapter client — a `prompt` event per eligible request and `tool_result` events parsed from response tool-use — so the proxy is a first-class evidence path, not just receipts + legacy observations. Files: `mcp/vnext/adapters/gateway.ts` (the seam), refactor the two proxy files, `mcp/proxy.test.ts`. Gate: existing behavior unchanged; new test proves an evidence event lands via the shipped proxy path AND that its failure is fail-open.
 
 ### Task 2 — OpenAI-compatible provider adapter
