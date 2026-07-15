@@ -58,6 +58,21 @@ So the immediate next action is to **run the audit**: `kage connect --project <r
 - `added_tokens` on a delivery is still null: nothing counts the injected block's tokens, and bytes/4 would be a fabrication.
 - Context composition is non-blocking and killable, but not fast. A cold code-graph build takes tens of seconds and will exceed the adapter's 500 ms budget; the adapter fails open while the build warms the cache on the worker.
 
+## Provider-neutral gateway workstream (2026-07-15) — COMPLETE
+
+Separate from Phase A–E. Direction: the proxy is Kage's PRIMARY path across every provider (zero per-agent wiring); the Claude hook adapter stays as a richer secondary. Plan: docs/superpowers/plans/2026-07-15-kage-provider-neutral-gateway.md.
+
+| Task | State | Commits |
+|---|---|---|
+| 1. Gateway seam + capture unification | Done & reviewed | `90fd714`, `a5d1761` |
+| 2. OpenAI-compatible adapter | Done & reviewed | `71b689d`, `63d07f5` |
+| 3. Gemini adapter | Done & reviewed | `14446bd`, `11212c1` |
+| 4. Per-provider gate + report | Done & reviewed | `c1b3898`, `7e8c69b` |
+
+Full suite 735/735, test:vnext 288/288, dogfood 12/12. The proxy now fronts Anthropic (/v1/messages), OpenAI (/v1/chat/completions, /v1/responses) and Gemini (:generateContent, :streamGenerateContent) behind one ProviderGateway seam; it emits protocol-v1 evidence to /v2/events (fail-open, connection cached so it never spawns ps per request); measurement is honest per provider (each provider's usage semantics encoded and source-verified: Anthropic input_tokens is the uncached remainder, OpenAI prompt_tokens and Gemini promptTokenCount are full totals); a Gemini prompt above the 200k tier prices to null not the wrong base rate; the audit report and kage status break down {exact,partial,unavailable}/token/cost PER PROVIDER, a zero-traffic provider is absent (not a $0 bucket).
+
+Honest boundaries: the proxy is provider-API-scoped (an agent on a provider without an adapter gets no coverage); OpenAI/Gemini exact-COST coverage is lower (no cheap count-tokens probe; tier ceilings null); per-provider delivery/attachment attribution needs a provider column on context_deliveries (a storage migration, not done); Azure OpenAI out of scope.
+
 ## Commit ledger
 
 ### Program and isolation
