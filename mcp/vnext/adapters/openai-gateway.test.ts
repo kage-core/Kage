@@ -394,6 +394,41 @@ test("captureEvents parses responses function_call output items, carrying the na
   assert.ok(!JSON.stringify(events).includes("limit"), "responses tool arguments never leak either");
 });
 
+test("captureEvents parses a STREAMED chat tool_call (name+id split across deltas), never arguments", () => {
+  // The common OpenAI chat mode: a tool call is split across SSE deltas keyed by `index` — the
+  // name + id land on the first delta, argument fragments on later ones (which must be ignored).
+  const body = [
+    'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_s1","type":"function","function":{"name":"run_sql","arguments":""}}]}}]}',
+    'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"q\\":\\"DROP TABLE secrets\\"}"}}]}}]}',
+    "data: [DONE]",
+    "",
+  ].join("\n");
+  const events = openaiGateway.captureEvents(captureContext({ userPrompt: "", responseBody: body }));
+  const tools = events.filter((e) => e.event_type === "tool_result");
+  assert.equal(tools.length, 1, "the split-delta tool call is captured exactly once");
+  assert.equal(tools[0].payload.tool, "run_sql");
+  assert.equal(tools[0].payload.tool_use_id, "call_s1");
+  // The streamed argument fragments must never become evidence.
+  assert.ok(!JSON.stringify(events).includes("DROP TABLE"), "streamed tool arguments never leak");
+});
+
+test("captureEvents parses a STREAMED responses function_call once across output_item.done and completed", () => {
+  // responses streams complete each call in response.output_item.done, then repeat it in the terminal
+  // response.completed output — it must be counted exactly once (deduped by call_id).
+  const body = [
+    'data: {"type":"response.output_item.done","item":{"type":"function_call","call_id":"fc_s1","name":"list_orders","arguments":"{\\"limit\\":10}"}}',
+    'data: {"type":"response.completed","response":{"output":[{"type":"function_call","call_id":"fc_s1","name":"list_orders","arguments":"{\\"limit\\":10}"}],"usage":{"input_tokens":3,"output_tokens":3}}}',
+    "data: [DONE]",
+    "",
+  ].join("\n");
+  const events = openaiGateway.captureEvents(captureContext({ userPrompt: "", responseBody: body }));
+  const tools = events.filter((e) => e.event_type === "tool_result");
+  assert.equal(tools.length, 1, "the repeated streamed call is deduped to one tool_result");
+  assert.equal(tools[0].payload.tool, "list_orders");
+  assert.equal(tools[0].payload.tool_use_id, "fc_s1");
+  assert.ok(!JSON.stringify(events).includes("limit"), "streamed responses arguments never leak");
+});
+
 test("captureEvents fingerprints are stable/deduplicating; id-less calls disambiguate by index", () => {
   const body = JSON.stringify({
     choices: [{ message: { tool_calls: [
