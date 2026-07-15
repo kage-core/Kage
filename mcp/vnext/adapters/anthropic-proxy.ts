@@ -192,12 +192,19 @@ export interface ProxyReceiptInput {
 // 1. ATTRIBUTION. The provider's usage always describes THE BODY THAT WAS SENT. In audit mode that
 //    is the original (the BEFORE side); in assist mode it is the transformed body (the AFTER
 //    side). Copying one count into both sides would claim a measured zero-savings result.
-// 2. COMMENSURABILITY. `usage.input_tokens` is the UNCACHED REMAINDER, while count_tokens returns
-//    the size of the WHOLE body. Putting those two on opposite sides of a receipt is what made a
-//    cached session look like injecting context saved 98% of the prompt. Both sides here are TOTAL
-//    prompt tokens (uncached + cache writes + cache reads), which is the same quantity count_tokens
-//    reports — and null the moment any component of that total is missing.
-export function buildProxyReceipt(input: ProxyReceiptInput): TransformationReceipt {
+// 2. COMMENSURABILITY. Both sides here are the TOTAL prompt tokens (the whole prompt the provider
+//    processed, cached included), which is the same quantity count_tokens reports — and null the
+//    moment any component of that total is missing. Anthropic's usage.input_tokens is only the
+//    UNCACHED REMAINDER; putting that against a whole-body count is what made a cached session look
+//    like injecting context saved 98% of the prompt. totalPromptTokens/promptTokenBreakdown collapse
+//    every provider's usage into that one commensurable quantity, so this attribution logic is
+//    PROVIDER-NEUTRAL: only the provider string and the default price table differ (see buildProxyReceipt
+//    for Anthropic, and the OpenAI gateway for the second provider). It lives here because the neutral
+//    proxy plumbing (planProxyForward, ProxyForwardPlan) does too.
+export function buildGatewayReceipt(
+  input: ProxyReceiptInput,
+  options: { provider: string; snapshots?: readonly ProviderPriceSnapshot[] },
+): TransformationReceipt {
   const forwardedIsOriginal = input.plan.forwarded.equals(input.plan.original);
   // When nothing was transformed, before and after are the SAME BYTES, so the provider's one
   // measurement describes both. An identity, not an inference.
@@ -216,7 +223,7 @@ export function buildProxyReceipt(input: ProxyReceiptInput): TransformationRecei
   return buildTransformationReceipt({
     task_id: input.task_id,
     request_id: input.request_id,
-    provider: ANTHROPIC_PROXY_PROVIDER,
+    provider: options.provider,
     model: input.model,
     mode: input.mode,
     before: input.plan.original,
@@ -229,8 +236,17 @@ export function buildProxyReceipt(input: ProxyReceiptInput): TransformationRecei
     latency_ms: input.latency_ms,
     transformations: input.plan.transformations,
     now: input.now,
-    snapshots: input.snapshots,
+    // input.snapshots (a test override) wins; otherwise the gateway's own default table. Anthropic
+    // passes none, so this resolves to undefined and buildTransformationReceipt falls back to the
+    // Anthropic default — byte-identical to before this was made provider-neutral.
+    snapshots: input.snapshots ?? options.snapshots,
   });
+}
+
+// The Anthropic binding of the neutral receipt builder: provider "anthropic", default price table
+// left to buildTransformationReceipt's Anthropic default.
+export function buildProxyReceipt(input: ProxyReceiptInput): TransformationReceipt {
+  return buildGatewayReceipt(input, { provider: ANTHROPIC_PROXY_PROVIDER });
 }
 
 /**

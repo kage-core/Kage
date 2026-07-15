@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { isRecord } from "../../type-guards.js";
 import { extractProviderUsage, type ProviderUsage, type TokenCounter } from "../measurement/token-count.js";
-import { ANTHROPIC_PRICE_SNAPSHOTS, type ProviderPriceSnapshot } from "../measurement/pricing.js";
+import {
+  ANTHROPIC_PRICE_SNAPSHOTS,
+  OPENAI_PRICE_SNAPSHOTS,
+  type ProviderPriceSnapshot,
+} from "../measurement/pricing.js";
 import {
   KAGE_PROTOCOL_VERSION,
   type EvidenceEvent,
@@ -13,6 +17,7 @@ import { claudeSourceFingerprint, claudeTaskIdentity } from "./claude.js";
 import {
   ANTHROPIC_PROXY_ADAPTER_ID,
   ANTHROPIC_PROXY_PROVIDER,
+  buildGatewayReceipt,
   buildProxyReceipt,
   createUpstreamTokenCounter,
   injectLastUserTurn,
@@ -23,6 +28,16 @@ import {
   systemToText,
   type ProxyReceiptInput,
 } from "./anthropic-proxy.js";
+import {
+  OPENAI_PROXY_ADAPTER_ID,
+  OPENAI_PROXY_PROVIDER,
+  extractOpenAiUsage,
+  injectOpenAi,
+  isOpenAiCompletionsRequest,
+  openAiLastUserText,
+  openAiSystemText,
+  parseOpenAiToolCalls,
+} from "./openai-proxy.js";
 
 // The ProviderGateway seam. The proxy CORE is provider-neutral — it owns listen/route, eligibility
 // dispatch, fail-open, byte-identical audit forward, streaming passthrough, receipt + delivery
@@ -193,9 +208,92 @@ export const anthropicGateway: ProviderGateway = {
   priceSnapshots: ANTHROPIC_PRICE_SNAPSHOTS,
 };
 
-// The gateways the proxy dispatches across, in priority order. Task 1 ships exactly one; Tasks 2–3
-// append the OpenAI-compatible and Gemini gateways here with no change to the core.
-export const defaultGateways: readonly ProviderGateway[] = [anthropicGateway];
+// The second gateway: the OpenAI-compatible /v1/chat/completions and /v1/responses proxy. It owns
+// every piece of OpenAI wire semantics — path eligibility, the two request shapes, response tool-call
+// parsing, usage attribution (usage.prompt_tokens is the FULL prompt INCLUDING cached, the opposite of
+// Anthropic — see openai-proxy.ts), and the GPT price table. OpenAI exposes no cheap count-tokens
+// endpoint, so createTokenCounter is null and a transformed receipt is honestly `partial` unless the
+// response's own usage already reports the count. Nothing here knows about Kage's runtime or storage.
+export const openaiGateway: ProviderGateway = {
+  adapter_id: OPENAI_PROXY_ADAPTER_ID,
+  provider: OPENAI_PROXY_PROVIDER,
+
+  matches(method, path) {
+    return isOpenAiCompletionsRequest(method, path);
+  },
+
+  parseRequest(body) {
+    return {
+      model: requestModel(body),
+      systemText: openAiSystemText(body),
+      lastUserText: openAiLastUserText(body),
+    };
+  },
+
+  inject(body, memoryText) {
+    return injectOpenAi(body, memoryText);
+  },
+
+  extractUsage(responseBody) {
+    return extractOpenAiUsage(responseBody);
+  },
+
+  // OpenAI has no cheap count-tokens endpoint (Anthropic's /v1/messages/count_tokens has no OpenAI
+  // equivalent). Returning null means exact measurement is only possible when the response's own usage
+  // already reports the prompt count; otherwise the receipt is honestly partial. No probe is invented.
+  createTokenCounter() {
+    return null;
+  },
+
+  buildReceipt(input) {
+    return buildGatewayReceipt(input, { provider: OPENAI_PROXY_PROVIDER, snapshots: OPENAI_PRICE_SNAPSHOTS });
+  },
+
+  captureEvents(context) {
+    const now = context.now ?? new Date();
+    const events: EvidenceEvent[] = [];
+
+    // A prompt is user text: local_raw, and never emitted for an empty prompt — same contract as the
+    // Anthropic gateway, so the two providers' evidence dedupes and aggregates identically.
+    if (context.userPrompt.trim()) {
+      events.push(assembleEvidenceEvent({
+        event_type: "prompt",
+        repository: context.repository,
+        sessionId: context.sessionId,
+        privacy_class: "local_raw",
+        payload: { text: context.userPrompt },
+        now,
+      }));
+    }
+
+    // One tool_result per assistant tool call OpenAI returned — the tool NAME only, never its
+    // arguments. A call carrying an id keys on it; one lacking an id is disambiguated by index so two
+    // same-named calls stay distinct (mirrors the Anthropic gateway). The fingerprint hashes the
+    // signal, so a duplicate post of the same exchange deduplicates in the store.
+    parseOpenAiToolCalls(context.responseBody).forEach((call, index) => {
+      const payload = call.id
+        ? { tool: call.name, tool_use_id: call.id }
+        : { tool: call.name, block_index: index };
+      events.push(assembleEvidenceEvent({
+        event_type: "tool_result",
+        repository: context.repository,
+        sessionId: context.sessionId,
+        privacy_class: "local_raw",
+        payload,
+        now,
+      }));
+    });
+
+    return events;
+  },
+
+  priceSnapshots: OPENAI_PRICE_SNAPSHOTS,
+};
+
+// The gateways the proxy dispatches across, in priority order. Anthropic first (its exact-match paths
+// never overlap OpenAI's), then the OpenAI-compatible gateway. Task 3 appends the Gemini gateway here
+// with no change to the core.
+export const defaultGateways: readonly ProviderGateway[] = [anthropicGateway, openaiGateway];
 
 // Eligibility dispatch: the first gateway that claims this request handles it. No match ⇒ a strict
 // passthrough the core measures nothing about (count_tokens, non-POSTs, unknown providers).

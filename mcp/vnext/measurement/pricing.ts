@@ -61,6 +61,44 @@ export const ANTHROPIC_PRICE_SNAPSHOTS: readonly ProviderPriceSnapshot[] = [
   anthropic("claude-haiku-4-5", 1),
 ];
 
+// OpenAI publishes per-model dollar rates (not multiples of a base rate), and — unlike Anthropic —
+// bills NO separate cache-WRITE token line: prompt caching is automatic and only the cached READ is
+// discounted. So each record carries an input rate and a cache-READ rate, and both cache-WRITE rates
+// are null. That is safe because extractUsage reports 0 cache-creation tokens for OpenAI, and
+// rateCostUsd charges nothing for 0 tokens regardless of a missing rate. Only rates that can be
+// sourced are encoded; every other model (o-series, gpt-4-turbo, dated `-YYYY-MM-DD` ids, …) has no
+// snapshot and therefore a null cost — the honest, expected outcome, never a fabricated rate.
+const OPENAI_PRICING_SOURCE = "https://openai.com/api/pricing/";
+
+function openai(
+  model: string,
+  inputUsdPerMillion: number,
+  cacheReadUsdPerMillion: number,
+  effectiveFrom: string,
+): ProviderPriceSnapshot {
+  return {
+    provider: "openai",
+    model,
+    input_usd_per_million: inputUsdPerMillion,
+    cache_read_usd_per_million: cacheReadUsdPerMillion,
+    cache_write_5m_usd_per_million: null,
+    cache_write_1h_usd_per_million: null,
+    effective_from: effectiveFrom,
+    source: OPENAI_PRICING_SOURCE,
+  };
+}
+
+export const OPENAI_PRICE_SNAPSHOTS: readonly ProviderPriceSnapshot[] = [
+  // Highest confidence: gpt-4o / gpt-4o-mini list prices have been stable and widely documented since
+  // the 2024-08-06 4o price cut. Cached input bills at 50% of the input rate for this family.
+  openai("gpt-4o", 2.5, 1.25, "2024-08-06"),
+  openai("gpt-4o-mini", 0.15, 0.075, "2024-07-18"),
+  // gpt-4.1 family launch pricing (2025-04-14). Cached input bills at 25% of the input rate here.
+  openai("gpt-4.1", 2, 0.5, "2025-04-14"),
+  openai("gpt-4.1-mini", 0.4, 0.1, "2025-04-14"),
+  openai("gpt-4.1-nano", 0.1, 0.025, "2025-04-14"),
+];
+
 // A DATED model id (claude-opus-4-8-20260101) is the same model as its family alias, so it prices
 // off the family snapshot. Any other suffix is a DIFFERENT product (a `-fast` premium tier, a
 // long-context variant) with its own price — matching it to the family would silently misprice it,
