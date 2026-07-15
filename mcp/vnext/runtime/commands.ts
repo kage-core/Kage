@@ -303,6 +303,52 @@ export function costDelta(receipts: readonly TransformationReceipt[]): CostDelta
 }
 
 // ---------------------------------------------------------------------------------------------
+// per-provider breakdown — the proxy is multi-provider, so nothing here may be conflated
+// ---------------------------------------------------------------------------------------------
+
+export interface ProviderBreakdown {
+  provider: string;
+  /** Transformed-request receipts carrying THIS provider. */
+  receipts: number;
+  measurement: MeasurementCoverage;
+  token_delta: TokenDeltaReport;
+  cost_delta: CostDeltaReport;
+}
+
+/**
+ * The per-provider split of measurement, token, and cost. The proxy now serves Anthropic, OpenAI,
+ * and Gemini, so a single conflated number would hide which provider a token or a dollar came from
+ * — and "anthropic + gemini" summed into one figure is exactly the kind of flattering aggregate
+ * this workstream exists to forbid.
+ *
+ * EVIDENCE-DRIVEN, not config-driven: a bucket exists for a provider ONLY when at least one receipt
+ * carries it. A provider that sent nothing has NO key. That absence is the honest "no traffic", and
+ * it is categorically NOT a `{exact:0, partial:0, unavailable:0}` coverage (which would claim "we
+ * measured it and it transformed nothing") and NOT a `$0` cost. Each bucket reads only its own
+ * provider's receipts, so no provider's tokens or costs leak into another's.
+ */
+export function byProvider(receipts: readonly TransformationReceipt[]): Record<string, ProviderBreakdown> {
+  const groups = new Map<string, TransformationReceipt[]>();
+  for (const receipt of receipts) {
+    const existing = groups.get(receipt.provider);
+    if (existing) existing.push(receipt);
+    else groups.set(receipt.provider, [receipt]);
+  }
+  const breakdown: Record<string, ProviderBreakdown> = {};
+  for (const provider of [...groups.keys()].sort()) {
+    const group = groups.get(provider) as TransformationReceipt[];
+    breakdown[provider] = {
+      provider,
+      receipts: group.length,
+      measurement: coverageOf(group),
+      token_delta: tokenDelta(group),
+      cost_delta: costDelta(group),
+    };
+  }
+  return breakdown;
+}
+
+// ---------------------------------------------------------------------------------------------
 // attachment and context latency — measured from real delivery rows, or null
 // ---------------------------------------------------------------------------------------------
 
@@ -418,6 +464,14 @@ export interface VnextStatusReport {
   measurement_scope: "transformed_requests";
   token_delta: TokenDeltaReport;
   cost_delta: CostDeltaReport;
+  /**
+   * The same coverage, token, and cost aggregates split by the receipt's provider, so a reader
+   * never sees the overall total without seeing which provider each number came from. Keyed by
+   * provider; a provider with no receipts has NO key (its absence is "no traffic", never a
+   * fabricated `{0,0,0}` or `$0`). Null — not `{}` — when the receipt store could not be read at
+   * all: "we could not look" is not "no provider had traffic".
+   */
+  by_provider: Record<string, ProviderBreakdown> | null;
   deliveries: { available: boolean; reason: string | null; total: number | null };
   /**
    * Null — not three zeros and a rate — when the delivery store could not be read: "we could not
@@ -459,6 +513,7 @@ export async function vnextStatus(client: RuntimeClient): Promise<VnextStatusRep
     measurement_scope: "transformed_requests",
     token_delta: unreadable ? unavailableTokenDelta(unreadable) : tokenDelta(receipts),
     cost_delta: unreadable ? unavailableCostDelta(unreadable) : costDelta(receipts),
+    by_provider: unreadable ? null : byProvider(receipts),
     deliveries: {
       available: deliveryQuery.available,
       reason: deliveryQuery.reason,
@@ -501,6 +556,32 @@ function renderCostDelta(delta: CostDeltaReport): string {
   return `  input cost:    before $${(delta.before_usd as number).toFixed(6)} → after $${(delta.after_usd as number).toFixed(6)} (delta $${(delta.delta_usd as number).toFixed(6)}, measured on ${delta.receipts} receipt${delta.receipts === 1 ? "" : "s"})`;
 }
 
+// The per-provider block. It NEVER collapses to one number and it NEVER invents a row for a
+// provider that sent nothing — a provider with no receipts simply has no line, which is the honest
+// "no traffic", not a zero.
+function renderByProvider(report: VnextStatusReport): string[] {
+  if (report.by_provider === null) {
+    return [`  by provider:   unavailable (${report.receipts.reason}) — the receipt store could not be read`];
+  }
+  const providers = Object.keys(report.by_provider);
+  if (!providers.length) {
+    return ["  by provider:   none — no request was transformed for any provider"];
+  }
+  const lines = ["  by provider (a provider with no traffic has no row, which is not a zero):"];
+  for (const provider of providers) {
+    const bucket = report.by_provider[provider];
+    const coverage = `exact ${bucket.measurement.exact}, partial ${bucket.measurement.partial}, unavailable ${bucket.measurement.unavailable}`;
+    const tokensPart = bucket.token_delta.available
+      ? `tokens ${bucket.token_delta.before_input_tokens}→${bucket.token_delta.after_input_tokens}`
+      : `tokens unavailable (${bucket.token_delta.reason})`;
+    const costPart = bucket.cost_delta.available
+      ? `cost delta $${(bucket.cost_delta.delta_usd as number).toFixed(6)}`
+      : `cost unavailable (${bucket.cost_delta.reason})`;
+    lines.push(`    ${provider}:  ${coverage}  |  ${tokensPart}  |  ${costPart}`);
+  }
+  return lines;
+}
+
 export function renderStatus(report: VnextStatusReport): string {
   const lines = [
     `Kage vNext status — ${report.project_dir}`,
@@ -519,13 +600,15 @@ export function renderStatus(report: VnextStatusReport): string {
     "",
     "Context attachment (every attempt: an audit-mode skip attaches nothing and is counted as a skip):",
     ...renderAttachment(report),
+    "  (attachment is measured OVERALL only — a delivery row carries no provider, so it cannot be split per provider)",
     "",
     "Measurement of transformed requests (a request Kage did not transform writes no receipt):",
     report.measurement
-      ? `  exact ${report.measurement.exact}, partial ${report.measurement.partial}, unavailable ${report.measurement.unavailable}`
+      ? `  exact ${report.measurement.exact}, partial ${report.measurement.partial}, unavailable ${report.measurement.unavailable}  (overall, across every provider)`
       : `  unavailable (${report.receipts.reason}) — the receipt store could not be read, which is not the same as no request being transformed`,
     renderTokenDelta(report.token_delta),
     renderCostDelta(report.cost_delta),
+    ...renderByProvider(report),
   );
   return lines.join("\n");
 }

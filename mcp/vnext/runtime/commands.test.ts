@@ -16,6 +16,7 @@ import type {
 import type { StoredContextDelivery } from "../storage/delivery-store.js";
 import {
   attachmentReport,
+  byProvider,
   contextLatency,
   connectProject,
   renderReceipts,
@@ -49,6 +50,7 @@ function receipt(options: {
   after_tokens?: number;
   cost_both_sides?: boolean;
   task_id?: string;
+  provider?: string;
 }): TransformationReceipt {
   receiptCounter += 1;
   const before = options.before_tokens ?? 1_000;
@@ -59,7 +61,7 @@ function receipt(options: {
     task_id: options.task_id ?? "task_fixture",
     request_id: `req_${receiptCounter}`,
     receipt_id: `receipt_${receiptCounter}`,
-    provider: "anthropic",
+    provider: options.provider ?? "anthropic",
     model: "claude-opus-4-8",
     mode: "audit",
     before: Buffer.alloc(10),
@@ -459,4 +461,101 @@ test("status distinguishes an unreadable delivery store from a period with no at
   assert.equal(report.attachment, null);
   assert.equal(report.context_latency.available, false);
   assert.equal(report.context_latency.reason, "runtime_unsupported");
+});
+
+// --- per-provider breakdown ------------------------------------------------------------------
+//
+// The proxy is multi-provider now, so every measurement surface must split by the receipt's
+// provider and NEVER conflate two providers into one flattering number. A provider with no
+// receipts is absent (no traffic), never a fabricated {0,0,0} coverage or a $0 cost.
+
+test("byProvider splits coverage by provider and never conflates them", () => {
+  const map = byProvider([
+    receipt({ quality: "exact", provider: "anthropic" }),
+    receipt({ quality: "partial", provider: "anthropic" }),
+    receipt({ quality: "exact", provider: "openai" }),
+    receipt({ quality: "unavailable", provider: "openai" }),
+  ]);
+  assert.deepEqual(Object.keys(map).sort(), ["anthropic", "openai"]);
+  assert.deepEqual(map.anthropic.measurement, { exact: 1, partial: 1, unavailable: 0 });
+  assert.deepEqual(map.openai.measurement, { exact: 1, partial: 0, unavailable: 1 });
+  assert.equal(map.anthropic.receipts, 2);
+  assert.equal(map.openai.receipts, 2);
+  // No conflation: each provider's token pair is measured on ITS receipts only. Each provider has
+  // exactly one exact receipt (a measured pair), so the two token aggregates are independent — not
+  // a shared sum that hides which provider a token came from.
+  assert.equal(map.anthropic.token_delta.receipts, 1);
+  assert.equal(map.openai.token_delta.receipts, 1);
+});
+
+test("byProvider omits a provider with no receipts: absence is no traffic, never a zero bucket", () => {
+  const map = byProvider([receipt({ quality: "exact", provider: "anthropic" })]);
+  assert.equal("anthropic" in map, true);
+  // The whole honesty gate: a provider that sent nothing has NO bucket. It is NOT {0,0,0} coverage
+  // (which would claim "we measured openai and it transformed nothing") and it is NOT a $0 cost.
+  assert.equal("openai" in map, false);
+  assert.equal(map.openai, undefined);
+});
+
+test("byProvider prices each provider independently; a one-sided-cost provider is unavailable, not zero", () => {
+  const map = byProvider([
+    receipt({ quality: "exact", provider: "anthropic", cost_both_sides: true }),
+    receipt({ quality: "exact", provider: "openai" }), // audit one-sided: after cost stays null
+  ]);
+  assert.equal(map.anthropic.cost_delta.available, true);
+  assert.ok((map.anthropic.cost_delta.before_usd ?? 0) > 0);
+  // openai's receipt measured a before cost but a null after cost (the count_tokens side knows
+  // nothing about caching), so its cost delta is UNAVAILABLE — never before-0 as a full saving,
+  // never a fabricated $0.
+  assert.equal(map.openai.cost_delta.available, false);
+  assert.equal(map.openai.cost_delta.reason, "no_two_sided_cost_measurement");
+  assert.equal(map.openai.cost_delta.delta_usd, null);
+  // ...but openai's TOKEN delta IS available (both token totals measured). Tokens and cost stay
+  // strictly apart per provider, exactly as they do overall.
+  assert.equal(map.openai.token_delta.available, true);
+});
+
+test("status exposes by_provider alongside the overall total, never instead of it", async () => {
+  const project = tempProject();
+  const client = fixtureRuntimeClient({
+    project_dir: project,
+    receipts: [
+      receipt({ quality: "exact", provider: "anthropic" }),
+      receipt({ quality: "partial", provider: "anthropic" }),
+      receipt({ quality: "exact", provider: "openai" }),
+    ],
+  });
+  const report = await vnextStatus(client);
+  // The overall total is still present (token counts are comparable across providers, so a total is
+  // honest)...
+  assert.deepEqual(report.measurement, { exact: 2, partial: 1, unavailable: 0 });
+  // ...AND the per-provider split sits beside it, so no reader sees the total without seeing which
+  // provider each count came from.
+  assert.deepEqual(report.by_provider?.anthropic.measurement, { exact: 1, partial: 1, unavailable: 0 });
+  assert.deepEqual(report.by_provider?.openai.measurement, { exact: 1, partial: 0, unavailable: 0 });
+  // A provider with no receipts has no bucket — null traffic, not a zero.
+  assert.equal(report.by_provider?.gemini, undefined);
+});
+
+test("status reports by_provider as null when the receipt store is unreadable, never as {}", async () => {
+  const project = tempProject();
+  const report = await vnextStatus(
+    fixtureRuntimeClient({ project_dir: project, available: false, reason: "runtime_unsupported" }),
+  );
+  // Not {}: an empty object would say "we looked and no provider had traffic". We could not look.
+  assert.equal(report.by_provider, null);
+});
+
+test("renderStatus prints each provider's coverage and never collapses to a total-only line", async () => {
+  const project = tempProject();
+  const client = fixtureRuntimeClient({
+    project_dir: project,
+    receipts: [
+      receipt({ quality: "exact", provider: "anthropic" }),
+      receipt({ quality: "unavailable", provider: "openai" }),
+    ],
+  });
+  const text = renderStatus(await vnextStatus(client));
+  assert.match(text, /anthropic/);
+  assert.match(text, /openai/);
 });

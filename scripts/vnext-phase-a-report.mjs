@@ -54,7 +54,14 @@ function unavailable(reason) {
     tasks: null,
     attachment: null,
     attachment_success_rate: null,
+    // Per-provider attachment attribution is structurally impossible here AND everywhere: a delivery
+    // row carries no provider. `available: false` always; the reason names why we could not look at
+    // all when the store is unreadable, and the structural cause in a normal run.
+    attachment_by_provider: { available: false, reason },
     measurement: null,
+    // Null, not `{}`: an empty object would say "we read the receipts and no provider had traffic";
+    // here there was nothing to read.
+    by_provider: null,
     measurement_scope: "transformed_requests",
     context_latency_p50_ms: null,
     context_latency_p95_ms: null,
@@ -74,6 +81,8 @@ const NOTES = [
   "context latency percentiles are the MEASURED composition latency of the attempts that actually composed a capsule (the hook adapter's /v2/context round trip; the proxy's in-process composition). A failed-open composed nothing and contributes no sample — a timeout is not a composition time. Percentiles are nearest-rank, so every value printed is a latency that really happened, and they are null when no composition was measured.",
   "an exact token delta is not an exact cost delta: an audit-mode receipt measures the unsent candidate with count_tokens, which reports a token total and nothing about caching, so provider_input_cost_after_usd stays null and the cost delta is unavailable rather than zero.",
   "prompt_mutations counts receipts whose transformed body was actually FORWARDED. In audit mode Kage forwards the client's exact bytes, so a correct audit period measures 0 — it is not assumed to be 0.",
+  "by_provider splits coverage, tokens, and cost by the receipt's provider (the proxy serves Anthropic, OpenAI, and Gemini). It is never conflated into one flattering number, and a provider with no receipts has NO entry — that absence is 'no traffic', not a fabricated {exact:0,partial:0,unavailable:0} or a $0 cost. The overall `measurement`/`token_delta`/`cost_delta` sit ALONGSIDE it; the overall cost still counts only two-sided-priced receipts, so a null-cost provider is excluded, never added in as $0.",
+  "attachment is reported OVERALL only. A context_deliveries row carries no provider column, so per-provider attachment attribution cannot be derived without fabrication; attachment_by_provider is therefore always unavailable. Splitting it needs the provider recorded on the delivery row (a storage migration), which protocol v1 being frozen does not block — the delivery is Kage's own record, not a wire value.",
 ];
 
 function report() {
@@ -157,7 +166,14 @@ function report() {
     // 0 attempts is not a 0% success rate, and it is certainly not a 100% one. An audit period that
     // composed capsules and injected none of them is a MEASURED 0.0 — not a null, and not a 1.0.
     attachment_success_rate: attachment.success_rate,
+    // Attachment cannot be split per provider: a delivery row has no provider column. Said plainly
+    // rather than faked, because a fabricated per-provider split is exactly what this workstream bans.
+    attachment_by_provider: { available: false, reason: "delivery_rows_have_no_provider" },
     measurement: receipts.length ? measurement : null,
+    // The per-provider split, from the SAME shared function `kage status` uses — so the two surfaces
+    // cannot drift. Null (like `measurement`) when no request was transformed; a provider with no
+    // receipts simply has no key, never a fabricated zero.
+    by_provider: receipts.length ? commands.byProvider(receipts) : null,
     measurement_scope: "transformed_requests",
     // Measured composition latency, from the delivery rows. Null when no attempt ever composed a
     // capsule — a failed round trip is not a composition time and does not enter a percentile.
@@ -173,6 +189,26 @@ function report() {
     cost_delta: commands.costDelta(receipts),
     notes: NOTES,
   };
+}
+
+// The per-provider block. Never one conflated number, and never a row for a provider that sent
+// nothing — a provider with no receipts simply has no line, which is the honest "no traffic".
+function renderProviderBreakdown(byProvider) {
+  const providers = byProvider ? Object.keys(byProvider) : [];
+  if (!providers.length) return ["  per provider:             null (no request was transformed)"];
+  const lines = ["  per provider (a provider with no traffic has no row, which is not a zero):"];
+  for (const provider of providers) {
+    const bucket = byProvider[provider];
+    const m = bucket.measurement;
+    const tokensPart = bucket.token_delta.available
+      ? `tokens ${bucket.token_delta.before_input_tokens}→${bucket.token_delta.after_input_tokens} (delta ${bucket.token_delta.delta_tokens})`
+      : `tokens unavailable (${bucket.token_delta.reason})`;
+    const costPart = bucket.cost_delta.available
+      ? `cost delta $${bucket.cost_delta.delta_usd.toFixed(6)}`
+      : `cost unavailable (${bucket.cost_delta.reason})`;
+    lines.push(`    ${provider}:  exact ${m.exact}, partial ${m.partial}, unavailable ${m.unavailable}  |  ${tokensPart}  |  ${costPart}`);
+  }
+  return lines;
 }
 
 function render(value) {
@@ -193,12 +229,13 @@ function render(value) {
     `  tasks:                    ${value.tasks}`,
     `  attachment:               ${value.attachment.delivered} delivered, ${value.attachment.skipped} skipped, ${value.attachment.failed_open} failed open`,
     `  attachment success rate:  ${value.attachment_success_rate === null ? "null (nothing attempted)" : value.attachment_success_rate.toFixed(3)} (delivered / delivered+skipped+failed_open; an audit-mode skip attaches nothing)`,
+    `  attachment per provider:  unavailable (${value.attachment_by_provider.reason}) — a delivery row carries no provider, so attachment is OVERALL only`,
     `  failed-open requests:     ${value.failed_open_requests}`,
     `  prompt mutations:         ${value.prompt_mutations} (measured, not assumed)`,
     "",
     "  Measurement of TRANSFORMED requests (a request Kage did not transform writes no receipt):",
     value.measurement
-      ? `    exact ${value.measurement.exact}, partial ${value.measurement.partial}, unavailable ${value.measurement.unavailable}`
+      ? `    exact ${value.measurement.exact}, partial ${value.measurement.partial}, unavailable ${value.measurement.unavailable} (overall, across every provider)`
       : "    null (no request was transformed)",
     value.context_latency_p50_ms === null
       ? `  context latency p50/p95:  null / null (no attempt composed a capsule, so there is nothing to take a percentile of)`
@@ -210,6 +247,8 @@ function render(value) {
     value.cost_delta.available
       ? `  input cost:    before $${value.cost_delta.before_usd.toFixed(6)} → after $${value.cost_delta.after_usd.toFixed(6)} (delta $${value.cost_delta.delta_usd.toFixed(6)}, measured on ${value.cost_delta.receipts} receipt(s))`
       : `  input cost:    unavailable (${value.cost_delta.reason}) — an exact token delta is not an exact cost delta`,
+    "",
+    ...renderProviderBreakdown(value.by_provider),
   );
   return lines.join("\n");
 }

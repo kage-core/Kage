@@ -37,9 +37,11 @@ import {
   sendAdapterEvent,
   sendAdapterHandshake,
 } from "./adapters/client.js";
+import { buildTransformationReceipt } from "./measurement/receipt.js";
 import { validateEvidenceEvent, validateHandshake, type TransformationReceipt } from "./protocol/index.js";
 import { drainDeliverySpool } from "./storage/delivery-spool.js";
 import { DeliveryStore } from "./storage/delivery-store.js";
+import { ReceiptStore } from "./storage/receipt-store.js";
 import { readLocalReceipts } from "./runtime/client.js";
 import { startLocalRuntime } from "./runtime/server.js";
 import { assertVnextRuntime } from "./runtime/runtime-version.js";
@@ -49,6 +51,8 @@ const FIXTURES = join(__dirname, "..", "..", "vnext", "fixtures", "protocol-v1")
 // dist/vnext -> repo root is three levels up (mcp/dist/vnext).
 const REPO_ROOT = join(__dirname, "..", "..", "..");
 const REPORT_SCRIPT = join(REPO_ROOT, "scripts", "vnext-phase-a-report.mjs");
+// dist/vnext -> dist is one level up; the shipped CLI whose `status --json` a user actually runs.
+const CLI = join(__dirname, "..", "cli.js");
 
 function fixture(name: string): unknown {
   return JSON.parse(readFileSync(join(FIXTURES, `${name}.json`), "utf8")) as unknown;
@@ -510,4 +514,114 @@ test("the audit report reports an unreadable store as null, never as a successfu
   assert.equal(report.context_latency_p95_ms, null);
   assert.equal(report.failed_open_requests, null);
   assert.equal(report.prompt_mutations, null);
+  // The per-provider surface is null too — not {} — when there is no store to read. An empty object
+  // would say "we looked and no provider had traffic"; there was nothing to look at.
+  assert.equal(report.by_provider, null);
+});
+
+// The multi-provider gate. The proxy now serves Anthropic, OpenAI, and Gemini, so the audit
+// surfaces must break down by the receipt's provider and NEVER conflate them. This drives receipts
+// from more than one provider through the REAL store (the same SQLite file the shipped report and
+// `kage status` read) and proves: two providers produce two separate buckets each with its own
+// coverage; a provider with no traffic is absent (null), never a fabricated {0,0,0} or $0; a
+// one-sided/null cost is unavailable per provider AND excluded from the overall cost rather than
+// summed in as $0.
+const UNCACHED = (tokens: number) => ({
+  uncached_input_tokens: tokens,
+  cache_write_5m_tokens: 0,
+  cache_write_1h_tokens: 0,
+  cache_read_tokens: 0,
+});
+
+test("the report and status break measurement out per provider, and a zero-traffic provider is null not zero", { concurrency: false }, async (t) => {
+  if (!supportsVnextRuntime()) {
+    t.skip("node:sqlite is unavailable on this runtime");
+    return;
+  }
+
+  // A real, migrated store — startLocalRuntime creates and migrates the exact SQLite file the
+  // shipped report and CLI read back.
+  const project = projectWithMemory();
+  const runtime = await startLocalRuntime({ projectDir: project, port: 0, mode: "audit" });
+  try {
+    const store = new ReceiptStore(runtime.database);
+
+    // anthropic: a two-sided-cost receipt (before AND after billed) — a real, priceable cost delta.
+    store.write(buildTransformationReceipt({
+      task_id: "task_a", request_id: "req_anthropic_1", receipt_id: "r_anthropic_1",
+      provider: "anthropic", model: "claude-opus-4-8", mode: "assist",
+      before: Buffer.alloc(10), after: Buffer.alloc(12),
+      before_tokens: 1_000, after_tokens: 1_200,
+      before_breakdown: UNCACHED(1_000), after_breakdown: UNCACHED(1_200),
+      latency_ms: 5, transformations: ["context_append_last_user_turn"],
+    }));
+    // anthropic: an audit one-sided receipt — exact tokens, but the after cost is null.
+    store.write(buildTransformationReceipt({
+      task_id: "task_a", request_id: "req_anthropic_2", receipt_id: "r_anthropic_2",
+      provider: "anthropic", model: "claude-opus-4-8", mode: "audit",
+      before: Buffer.alloc(10), after: Buffer.alloc(14),
+      before_tokens: 800, after_tokens: 900,
+      before_breakdown: UNCACHED(800), after_breakdown: null,
+      latency_ms: 5, transformations: ["context_append_last_user_turn"],
+    }));
+    // openai: an audit one-sided receipt — a real before cost, a null after cost. Its cost delta is
+    // UNAVAILABLE, and it must NOT be counted into the overall cost as a $0.
+    store.write(buildTransformationReceipt({
+      task_id: "task_o", request_id: "req_openai_1", receipt_id: "r_openai_1",
+      provider: "openai", model: "gpt-4o", mode: "audit",
+      before: Buffer.alloc(10), after: Buffer.alloc(20),
+      before_tokens: 500, after_tokens: 700,
+      before_breakdown: UNCACHED(500), after_breakdown: null,
+      latency_ms: 5, transformations: ["context_append_last_user_turn"],
+    }));
+  } finally {
+    await runtime.close();
+  }
+
+  // ---- the SHIPPED report script, reading the real multi-provider store ----
+  const report = JSON.parse(
+    execFileSync(process.execPath, [REPORT_SCRIPT, "--project", project, "--json"], { encoding: "utf8" }),
+  ) as Record<string, any>;
+
+  assert.equal(report.available, true);
+  // Two provider buckets, each with ITS OWN coverage — never conflated into one number.
+  assert.deepEqual(Object.keys(report.by_provider).sort(), ["anthropic", "openai"]);
+  assert.deepEqual(report.by_provider.anthropic.measurement, { exact: 2, partial: 0, unavailable: 0 });
+  assert.deepEqual(report.by_provider.openai.measurement, { exact: 1, partial: 0, unavailable: 0 });
+
+  // The zero-traffic provider: NO bucket. It is not {0,0,0} and it is not a $0 cost — Gemini simply
+  // sent nothing, and the report says nothing about it rather than fabricating a clean-looking zero.
+  assert.equal(report.by_provider.gemini, undefined);
+  assert.equal("gemini" in report.by_provider, false);
+
+  // Cost is per-provider and honest. anthropic has one two-sided receipt → a real cost delta.
+  assert.equal(report.by_provider.anthropic.cost_delta.available, true);
+  assert.equal(report.by_provider.anthropic.cost_delta.receipts, 1);
+  // openai's only receipt is one-sided (after cost null) → UNAVAILABLE, never a $0.
+  assert.equal(report.by_provider.openai.cost_delta.available, false);
+  assert.equal(report.by_provider.openai.cost_delta.reason, "no_two_sided_cost_measurement");
+  // Token deltas ARE available for both (exact token pairs), kept strictly apart from cost.
+  assert.equal(report.by_provider.anthropic.token_delta.available, true);
+  assert.equal(report.by_provider.openai.token_delta.available, true);
+
+  // The overall total sits ALONGSIDE the split. Coverage sums (comparable across providers)...
+  assert.deepEqual(report.measurement, { exact: 3, partial: 0, unavailable: 0 });
+  // ...and the overall cost counts ONLY the two-sided anthropic receipt: the null-cost openai
+  // receipt is excluded, not silently added in as $0.
+  assert.equal(report.cost_delta.available, true);
+  assert.equal(report.cost_delta.receipts, 1);
+
+  // Attachment stays OVERALL: a delivery row carries no provider, so per-provider attachment cannot
+  // be derived. The report says so explicitly rather than inventing a split it cannot support.
+  assert.equal(report.attachment_by_provider.available, false);
+  assert.equal(report.attachment_by_provider.reason, "delivery_rows_have_no_provider");
+
+  // ---- the SHIPPED `kage status`, reading the same store, breaks out the same providers ----
+  const status = JSON.parse(
+    execFileSync(process.execPath, [CLI, "status", "--project", project, "--json"], { encoding: "utf8" }),
+  ) as Record<string, any>;
+  assert.deepEqual(Object.keys(status.by_provider).sort(), ["anthropic", "openai"]);
+  assert.deepEqual(status.by_provider.anthropic.measurement, { exact: 2, partial: 0, unavailable: 0 });
+  assert.deepEqual(status.by_provider.openai.measurement, { exact: 1, partial: 0, unavailable: 0 });
+  assert.equal(status.by_provider.gemini, undefined);
 });
