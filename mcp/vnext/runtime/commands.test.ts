@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
 import { createServer, type AddressInfo } from "node:net";
 import { join } from "node:path";
@@ -23,14 +23,24 @@ import type {
 } from "./client.js";
 import type { StoredContextDelivery } from "../storage/delivery-store.js";
 import {
+  probeLocalPort,
+  proxyDaemonPaths,
+  proxyDaemonState,
+  writeProxyDaemonState,
+  type ProxyDaemonRecord,
+} from "./proxy-daemon.js";
+import {
   attachmentByProvider,
   attachmentReport,
   byProvider,
   contextLatency,
   connectProject,
+  downProject,
+  renderDown,
   renderReceipts,
   renderStatus,
   renderUp,
+  runtimeDownFrom,
   runWithProxy,
   upProject,
   vnextReceipts,
@@ -935,4 +945,328 @@ test("kage help lists up and run, and the full usage documents up's audit defaul
   const upLine = full.split("\n").find((line) => line.trimStart().startsWith("kage up "));
   assert.ok(upLine, "expected a kage up usage line");
   assert.ok(upLine.includes("audit"));
+});
+
+test("kage help documents the background lifecycle: up in the background, down to stop it", () => {
+  const cli = join(__dirname, "..", "..", "cli.js");
+  const core = execFileSync(process.execPath, [cli, "help"], { encoding: "utf8" });
+  assert.ok(core.includes("kage down"));
+
+  const full = execFileSync(process.execPath, [cli, "help", "--all"], { encoding: "utf8" });
+  assert.ok(full.includes("kage down [--project <dir>]"));
+  const upLine = full.split("\n").find((line) => line.trimStart().startsWith("kage up "));
+  assert.ok(upLine, "expected a kage up usage line");
+  assert.ok(upLine.includes("--foreground"));
+  assert.ok(upLine.toLowerCase().includes("background"));
+  // Honest about the one lifecycle gap: a reboot stops the proxy; there is no system service.
+  assert.ok(upLine.toLowerCase().includes("reboot"));
+});
+
+// ---------------------------------------------------------------------------------------------
+// the background proxy lifecycle: up plans around VERIFIED daemon state, down stops the stack
+// ---------------------------------------------------------------------------------------------
+
+function daemonRecord(projectDir: string, overrides: Partial<ProxyDaemonRecord> = {}): ProxyDaemonRecord {
+  return {
+    pid: process.pid,
+    port: 8788,
+    mode: "audit",
+    project_dir: projectDir,
+    started_at: new Date().toISOString(),
+    log_path: join(projectDir, ".agent_memory", "daemon", "proxy.log"),
+    ...overrides,
+  };
+}
+
+test("up reuses a verified running background proxy: the running port and mode win, and nothing starts", async () => {
+  const project = tempProject();
+  const state = daemonRecord(project, { pid: 4242, port: 9999, mode: "assist" });
+  const result = await upProject({
+    project_dir: project,
+    port: 8788,
+    start_runtime: false,
+    probe_daemon: async () => ({ running: true, state }),
+    // A verified daemon already answered the question; probing the requested port would only
+    // re-ask it of a listener we cannot attribute.
+    probe_port: async () => { throw new Error("probe_port must not be called when a verified daemon is running"); },
+  });
+
+  assert.equal(result.proxy.action, "reuse_running");
+  assert.equal(result.proxy.daemon?.pid, 4242);
+  // The RUNNING proxy's coordinates are the truth the instructions must print — not the flags.
+  assert.equal(result.port, 9999);
+  assert.equal(result.mode, "assist");
+  assert.equal(result.base_url, "http://localhost:9999");
+  assert.ok(result.instructions.join("\n").includes("http://localhost:9999"));
+  // The user asked for a different port; the reuse says so instead of silently ignoring the flag.
+  assert.ok(result.warnings.some((warning) => warning.includes("--port")));
+
+  const rendered = renderUp(result);
+  assert.ok(rendered.includes("already running"));
+  assert.ok(rendered.includes("4242"));
+  assert.ok(rendered.includes("kage down"));
+});
+
+test("up cleans a stale proxy state, says so honestly, and starts fresh", async () => {
+  const project = tempProject();
+  const result = await upProject({
+    project_dir: project,
+    start_runtime: false,
+    probe_daemon: async () => ({ running: false, state: null, reason: "stale_state_removed" }),
+    probe_port: async () => false,
+  });
+
+  assert.equal(result.proxy.action, "start");
+  assert.ok(result.warnings.some((warning) => warning.toLowerCase().includes("stale")));
+  assert.ok(renderUp(result).toLowerCase().includes("stale"));
+});
+
+test("renderUp is honest about the process model: background by default, foreground on request", async () => {
+  const project = tempProject();
+  const result = await upProject({
+    project_dir: project,
+    start_runtime: false,
+    probe_daemon: async () => ({ running: false, state: null, reason: "no_state" }),
+    probe_port: async () => false,
+  });
+  assert.equal(result.proxy.action, "start");
+  const background = renderUp(result);
+  assert.ok(background.toLowerCase().includes("background"));
+  assert.equal(background.includes("Ctrl-C stops it"), false);
+  const foreground = renderUp(result, { foreground: true });
+  assert.ok(foreground.includes("Ctrl-C"));
+});
+
+test("down reports each component honestly and is ok when the end state is nothing-running", async () => {
+  const project = tempProject();
+  const result = await downProject({
+    project_dir: project,
+    stop_proxy: async () => ({ status: "stopped", pid: 71, forced: false }),
+    stop_runtime: () => ({ status: "stopped", detail: "Sent SIGTERM to Kage daemon pid 72." }),
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.proxy.status, "stopped");
+  assert.equal(result.runtime.status, "stopped");
+  const rendered = renderDown(result);
+  assert.ok(rendered.includes("71"));
+  assert.ok(rendered.includes("72"));
+  assert.match(rendered, /proxy/i);
+  assert.match(rendered, /runtime/i);
+});
+
+test("down when nothing runs is a clean no-op, never an error", async () => {
+  const project = tempProject();
+  const result = await downProject({
+    project_dir: project,
+    stop_proxy: async () => ({ status: "was_not_running" }),
+    stop_runtime: () => ({ status: "was_not_running", detail: null }),
+  });
+  assert.equal(result.ok, true);
+  const rendered = renderDown(result);
+  assert.match(rendered, /was not running/);
+});
+
+test("down surfaces a proxy that would not die as a failure, not a shrug", async () => {
+  const project = tempProject();
+  const result = await downProject({
+    project_dir: project,
+    stop_proxy: async () => ({ status: "stop_failed", pid: 9, detail: "pid 9 is still alive after SIGTERM and SIGKILL" }),
+    stop_runtime: () => ({ status: "was_not_running", detail: null }),
+  });
+  assert.equal(result.ok, false);
+  assert.ok(renderDown(result).includes("still alive"));
+});
+
+test("runtimeDownFrom maps the legacy stopDaemon outcomes to honest per-component states", () => {
+  const stopped = runtimeDownFrom(() => ({ ok: true, message: "Sent SIGTERM to Kage daemon pid 88.", status: { pid: 88 } }), "/tmp/x");
+  assert.equal(stopped.status, "stopped");
+  assert.ok(stopped.detail?.includes("88"));
+
+  const missing = runtimeDownFrom(() => ({ ok: false, message: "No daemon status file found." }), "/tmp/x");
+  assert.equal(missing.status, "was_not_running");
+
+  // A SIGKILL'd daemon leaves its status file behind; SIGTERM to its pid throws ESRCH. That is a
+  // stale status, not a live daemon and not a successful stop.
+  const stale = runtimeDownFrom(() => ({ ok: false, message: "kill ESRCH", status: { pid: 89 } }), "/tmp/x");
+  assert.equal(stale.status, "stale_status");
+});
+
+// ---------------------------------------------------------------------------------------------
+// kage run — auto-discovery of the background proxy's verified port
+// ---------------------------------------------------------------------------------------------
+
+test("run auto-discovers the background proxy's recorded port when --port is not given", async () => {
+  const project = tempProject();
+  const listener = await listenOnLoopback();
+  const envFile = join(project, "child-env.txt");
+  try {
+    // A REAL verified state: this test process is a live node pid and the listener accepts.
+    writeProxyDaemonState(project, daemonRecord(project, { port: listener.port }));
+    const result = await runWithProxy({
+      project_dir: project,
+      command: [
+        process.execPath,
+        "-e",
+        'require("fs").writeFileSync(process.argv[1], process.env.ANTHROPIC_BASE_URL ?? "unset"); process.exit(0);',
+        envFile,
+      ],
+      stdio: "ignore",
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.base_url, `http://localhost:${listener.port}`);
+    assert.equal(readFileSync(envFile, "utf8"), `http://localhost:${listener.port}`);
+  } finally {
+    await listener.close();
+  }
+});
+
+test("run without a verified proxy falls back to the default port and fails fast with the kage-up hint", async () => {
+  const project = tempProject();
+  const result = await runWithProxy({
+    project_dir: project,
+    command: [process.execPath, "-e", "process.exit(0)"],
+    discover_port: async () => null,
+    probe_port: async () => false,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.exit_code, 1);
+  assert.equal(result.base_url, "http://localhost:8788");
+  assert.ok(result.hint?.includes("kage up"));
+});
+
+// ---------------------------------------------------------------------------------------------
+// kage status — the proxy block comes from the VERIFIED state, never from the file alone
+// ---------------------------------------------------------------------------------------------
+
+test("status reports the verified background proxy and never fabricates one", async () => {
+  const project = tempProject();
+  const listener = await listenOnLoopback();
+  try {
+    writeProxyDaemonState(project, daemonRecord(project, { port: listener.port, mode: "audit" }));
+    const report = await vnextStatus(fixtureRuntimeClient({ project_dir: project }));
+    assert.equal(report.proxy.running, true);
+    assert.equal(report.proxy.pid, process.pid);
+    assert.equal(report.proxy.port, listener.port);
+    assert.equal(report.proxy.mode, "audit");
+    assert.ok(report.proxy.log_path?.endsWith("proxy.log"));
+    assert.equal(report.proxy.reason, null);
+    assert.match(renderStatus(report), /proxy:/);
+  } finally {
+    await listener.close();
+  }
+});
+
+test("status reports a stale proxy state as not running with the reason, and cleans the file", async () => {
+  const project = tempProject();
+  // The 860a272 shape: a state file whose pid is alive (this process) but whose port is dead.
+  writeProxyDaemonState(project, daemonRecord(project, { port: await freeLoopbackPort() }));
+  const report = await vnextStatus(fixtureRuntimeClient({ project_dir: project }));
+  assert.equal(report.proxy.running, false);
+  assert.equal(report.proxy.reason, "stale_state_removed");
+  assert.equal(report.proxy.pid, null);
+  assert.equal(report.proxy.port, null);
+  assert.equal(existsSync(proxyDaemonPaths(project).statePath), false);
+});
+
+test("status with no proxy state says not running with no_state, not a fabricated proxy", async () => {
+  const project = tempProject();
+  const report = await vnextStatus(fixtureRuntimeClient({ project_dir: project }));
+  assert.equal(report.proxy.running, false);
+  assert.equal(report.proxy.reason, "no_state");
+  assert.match(renderStatus(report), /proxy:\s+not running \(no_state\)/);
+});
+
+// ---------------------------------------------------------------------------------------------
+// end to end: the REAL `kage proxy` child, driven through up (background) -> run -> down
+// ---------------------------------------------------------------------------------------------
+
+function pidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function waitFor(condition: () => boolean | Promise<boolean>, timeoutMs = 15_000, stepMs = 150): Promise<void> {
+  const startedAt = Date.now();
+  while (!(await condition())) {
+    if (Date.now() - startedAt > timeoutMs) throw new Error(`condition not reached within ${timeoutMs} ms`);
+    await new Promise((done) => setTimeout(done, stepMs));
+  }
+}
+
+test("end to end: kage up starts a real background proxy that outlives it; run wraps it; down stops it", async () => {
+  const project = tempProject();
+  const port = await freeLoopbackPort();
+  const cli = join(__dirname, "..", "..", "cli.js");
+  const kage = (...cliArgs: string[]) =>
+    execFileSync(process.execPath, [cli, ...cliArgs], { encoding: "utf8" });
+  let pid = 0;
+  try {
+    // up: the CLI process exits (execFileSync returns) while the detached proxy keeps serving —
+    // that IS the survives-the-parent proof.
+    const upOut = kage("up", "--project", project, "--port", String(port), "--no-runtime");
+    const pidMatch = upOut.match(/background \(pid (\d+)/);
+    assert.ok(pidMatch, `expected the up output to name the background pid, got:\n${upOut}`);
+    pid = Number(pidMatch[1]);
+    assert.ok(upOut.includes("kage down"));
+
+    const probe = await proxyDaemonState(project);
+    assert.equal(probe.running, true);
+    if (probe.running) {
+      assert.equal(probe.state.pid, pid);
+      assert.equal(probe.state.port, port);
+      assert.equal(probe.state.mode, "audit");
+    }
+    assert.equal(await probeLocalPort(port), true, "the proxy must still accept after the parent exited");
+
+    // Second up: a no-op reuse, exit 0, naming the live pid.
+    const again = kage("up", "--project", project, "--port", String(port), "--no-runtime");
+    assert.match(again, /already running/);
+    assert.ok(again.includes(String(pid)));
+
+    // run with NO --port: auto-discovers the recorded port and wraps the child env.
+    const envFile = join(project, "run-env.txt");
+    kage(
+      "run", "--project", project, "--",
+      process.execPath, "-e",
+      `require("fs").writeFileSync(${JSON.stringify(envFile)}, process.env.ANTHROPIC_BASE_URL ?? "unset");`,
+    );
+    assert.equal(readFileSync(envFile, "utf8"), `http://localhost:${port}`);
+
+    // down: the pid is really gone, the state file is removed, the port refuses.
+    const downOut = kage("down", "--project", project);
+    assert.match(downOut, /stopped/);
+    await waitFor(() => !pidAlive(pid), 5_000);
+    assert.equal(existsSync(proxyDaemonPaths(project).statePath), false);
+    assert.equal(await probeLocalPort(port), false);
+
+    // down again: a clean no-op.
+    const downAgain = kage("down", "--project", project);
+    assert.match(downAgain, /was not running/);
+  } finally {
+    if (pid && pidAlive(pid)) {
+      try { process.kill(pid, "SIGKILL"); } catch { /* already gone */ }
+    }
+  }
+});
+
+test("up --foreground keeps the proxy in the terminal and writes no daemon state", async () => {
+  const project = tempProject();
+  const port = await freeLoopbackPort();
+  const cli = join(__dirname, "..", "..", "cli.js");
+  const child = spawn(
+    process.execPath,
+    [cli, "up", "--project", project, "--port", String(port), "--no-runtime", "--foreground"],
+    { stdio: "ignore" },
+  );
+  try {
+    await waitFor(() => probeLocalPort(port));
+    // The foreground proxy is user-managed: no state file, so `kage down` has nothing to claim.
+    assert.equal(existsSync(proxyDaemonPaths(project).statePath), false);
+  } finally {
+    child.kill("SIGKILL");
+  }
 });

@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { connect as connectTcp } from "node:net";
 import { constants as osConstants } from "node:os";
 import { join, resolve } from "node:path";
 import type { TransformationReceipt } from "../protocol/index.js";
@@ -22,7 +21,34 @@ import {
   type VnextMode,
 } from "./config.js";
 import { resolveRuntimePaths } from "./paths.js";
+import {
+  probeLocalPort,
+  proxyDaemonState,
+  stopProxyDaemon,
+  type PortProbe,
+  type ProxyDaemonProbe,
+  type ProxyDaemonRecord,
+  type StopProxyDaemonResult,
+} from "./proxy-daemon.js";
 import { assertVnextRuntime } from "./runtime-version.js";
+
+// The daemon-lifecycle helpers are part of this module's public surface: the CLI (and the tests)
+// reach the whole `up`/`run`/`down`/`status` toolkit through one import.
+export {
+  probeLocalPort,
+  proxyDaemonPaths,
+  proxyDaemonState,
+  startProxyDaemon,
+  stopProxyDaemon,
+  writeProxyDaemonState,
+} from "./proxy-daemon.js";
+export type {
+  PortProbe,
+  ProxyDaemonProbe,
+  ProxyDaemonRecord,
+  StartProxyDaemonResult,
+  StopProxyDaemonResult,
+} from "./proxy-daemon.js";
 
 // ---------------------------------------------------------------------------------------------
 // connect
@@ -187,31 +213,8 @@ export function renderConnect(result: ConnectResult): string {
 }
 
 // ---------------------------------------------------------------------------------------------
-// up — the one-command onramp: connect (audit config) + runtime daemon + a foreground-proxy plan
+// up — the one-command onramp: connect (audit config) + runtime daemon + a background-proxy plan
 // ---------------------------------------------------------------------------------------------
-
-export type PortProbe = (port: number) => Promise<boolean>;
-
-/**
- * True when something already accepts TCP connections on 127.0.0.1:<port>. Bounded — connect,
- * refuse, or time out within `timeoutMs` — because both `up` (idempotency check) and `run`
- * (fail-fast hint) sit on an interactive path where a hang is worse than a conservative "no".
- */
-export function probeLocalPort(port: number, timeoutMs = 400): Promise<boolean> {
-  return new Promise((resolveProbe) => {
-    const socket = connectTcp({ port, host: "127.0.0.1" });
-    let settled = false;
-    const settle = (value: boolean) => {
-      if (settled) return;
-      settled = true;
-      socket.destroy();
-      resolveProbe(value);
-    };
-    socket.setTimeout(timeoutMs, () => settle(false));
-    socket.once("connect", () => settle(true));
-    socket.once("error", () => settle(false));
-  });
-}
 
 export interface UpOptions {
   project_dir: string;
@@ -230,21 +233,30 @@ export interface UpOptions {
   /** Injected by the CLI so this module never imports the legacy kernel. */
   initialize_memory?: MemoryInitializer;
   runtime_starter?: RuntimeStarter;
-  /** Injectable for tests. Defaults to the bounded TCP probe above. */
+  /** Injectable for tests. Defaults to the bounded TCP probe in proxy-daemon.ts. */
   probe_port?: PortProbe;
+  /** Injectable for tests. Defaults to the VERIFIED daemon-state read (pid + port checked). */
+  probe_daemon?: (projectDir: string) => Promise<ProxyDaemonProbe>;
 }
 
 export interface UpProxyPlan {
   /**
-   * The one decision the CLI acts on. "start": nothing owns the port, so start the proxy in the
-   * FOREGROUND (it is the long-lived thing the user watches; Ctrl-C stops it).
-   * "already_listening": a previous `kage up` — or something else — owns the port, so print the
-   * same instructions and exit 0: idempotent, never a failure. upProject itself never starts the
-   * proxy, which keeps the whole plan spawn-free and testable.
+   * The one decision the CLI acts on.
+   * "reuse_running": the VERIFIED daemon state (pid alive AND port accepting — never the file
+   *   alone) says our background proxy already serves this project. Print its coordinates and
+   *   exit 0; start nothing.
+   * "start": no verified daemon and nothing owns the port, so start the proxy — detached into
+   *   the background by default, or in the foreground when the user asked for it.
+   * "already_listening": something we did NOT record owns the port. We cannot tell whose
+   *   listener it is, so say exactly that, suggest --port, and exit 0 without overwriting any
+   *   state. upProject itself never starts the proxy, which keeps the plan spawn-free and
+   *   testable.
    */
-  action: "start" | "already_listening";
+  action: "start" | "already_listening" | "reuse_running";
   port: number;
   mode: VnextMode;
+  /** The verified daemon record behind "reuse_running"; null for every other action. */
+  daemon: ProxyDaemonRecord | null;
 }
 
 export interface UpResult {
@@ -280,15 +292,20 @@ function upInstructions(projectDir: string, port: number, mode: VnextMode): stri
 /**
  * Everything `kage up` decides, with no side effect beyond what `connect` already does (write the
  * audit config; start the detached runtime daemon when supported and requested — the singleton
- * lease and the health probe make a second daemon impossible). The foreground proxy is
- * deliberately NOT started here: the CLI does that after printing the instructions, so the plan
- * stays testable without spawning long-lived processes and `--json` has a complete document to
- * print before the proxy owns stdout.
+ * lease and the health probe make a second daemon impossible) plus the stale-state cleanup the
+ * verified daemon read performs. The proxy is deliberately NOT started here: the CLI does that
+ * after the plan, so the plan stays testable without spawning long-lived processes and `--json`
+ * has a complete document to print.
+ *
+ * The proxy decision runs on the VERIFIED daemon state first (see proxy-daemon.ts: pid alive AND
+ * port accepting, never the file alone — the 860a272 lesson), and only then on the raw port
+ * probe. A verified running proxy is reused with ITS port and mode: the flags do not beat a
+ * process that is already serving, and the reuse says so instead of silently ignoring them.
  */
 export async function upProject(options: UpOptions): Promise<UpResult> {
   const projectDir = resolve(options.project_dir);
-  const port = options.port ?? 8788;
-  const mode: VnextMode = options.mode ?? "audit";
+  const requestedPort = options.port ?? 8788;
+  const requestedMode: VnextMode = options.mode ?? "audit";
 
   // connect is byte-idempotent and audit-only: an already-connected project is re-confirmed, not
   // rewritten, and --mode assist cannot leak into the config (connect has no mode to pass).
@@ -299,19 +316,47 @@ export async function upProject(options: UpOptions): Promise<UpResult> {
     initialize_memory: options.initialize_memory,
     start_runtime: options.runtime_starter,
   });
+  const warnings = [...connected.warnings];
 
-  const listening = await (options.probe_port ?? probeLocalPort)(port);
+  const daemon = await (options.probe_daemon ?? proxyDaemonState)(projectDir);
+
+  let proxy: UpProxyPlan;
+  if (daemon.running) {
+    proxy = { action: "reuse_running", port: daemon.state.port, mode: daemon.state.mode, daemon: daemon.state };
+    if (options.port !== undefined && options.port !== daemon.state.port) {
+      warnings.push(
+        `--port ${options.port} ignored: the background proxy is already running on port ${daemon.state.port} — run \`kage down\` first to change ports.`,
+      );
+    }
+    if (options.mode !== undefined && options.mode !== daemon.state.mode) {
+      warnings.push(
+        `--mode ${options.mode} ignored: the background proxy is already running in ${daemon.state.mode} mode — run \`kage down\` first to change modes.`,
+      );
+    }
+  } else {
+    if (daemon.reason === "stale_state_removed") {
+      warnings.push(
+        "a previous background-proxy state file was stale (its process or port was gone) — removed it; starting fresh.",
+      );
+    } else if (daemon.reason === "untrusted_state") {
+      warnings.push(
+        "found a proxy state file this user does not own (or with lax permissions) — ignoring it; remove .agent_memory/daemon/proxy.json yourself if it is unexpected.",
+      );
+    }
+    const listening = await (options.probe_port ?? probeLocalPort)(requestedPort);
+    proxy = { action: listening ? "already_listening" : "start", port: requestedPort, mode: requestedMode, daemon: null };
+  }
 
   return {
     ok: true,
     project_dir: projectDir,
-    port,
-    mode,
-    base_url: `http://localhost:${port}`,
+    port: proxy.port,
+    mode: proxy.mode,
+    base_url: `http://localhost:${proxy.port}`,
     connect: connected,
-    proxy: { action: listening ? "already_listening" : "start", port, mode },
-    instructions: upInstructions(projectDir, port, mode),
-    warnings: connected.warnings,
+    proxy,
+    instructions: upInstructions(projectDir, proxy.port, proxy.mode),
+    warnings,
   };
 }
 
@@ -332,18 +377,134 @@ function renderUpRuntime(state: ConnectRuntimeState): string {
   }
 }
 
-export function renderUp(result: UpResult): string {
+function renderUpProxyLine(result: UpResult, foreground: boolean): string {
+  switch (result.proxy.action) {
+    case "reuse_running": {
+      const daemon = result.proxy.daemon as ProxyDaemonRecord;
+      return `  proxy:    already running in the background (pid ${daemon.pid}, port ${daemon.port}, mode ${daemon.mode}) — reusing it; stop with \`kage down\``;
+    }
+    case "start":
+      return foreground
+        ? `  proxy:    starting on ${result.base_url} (${result.mode}) — foreground; Ctrl-C stops it`
+        : `  proxy:    starting in the background on ${result.base_url} (${result.mode}) — stop with \`kage down\``;
+    default:
+      return `  proxy:    port ${result.port} already has a listener that is not our recorded proxy — cannot tell whose it is, so reusing it and exiting 0 (if that isn't a Kage proxy, rerun with --port <n>)`;
+  }
+}
+
+export function renderUp(result: UpResult, options: { foreground?: boolean } = {}): string {
   const lines = [
     `Kage up — ${result.project_dir}`,
     "",
     `  config:   ${result.connect.config_path}   (audit-only; up never enables prompt mutation on disk)`,
     `  runtime:  ${renderUpRuntime(result.connect.runtime)}`,
-    result.proxy.action === "start"
-      ? `  proxy:    starting on ${result.base_url} (${result.mode}) — foreground; Ctrl-C stops it`
-      : `  proxy:    port ${result.port} already has a listener — reusing it and exiting 0 (if that isn't a Kage proxy, rerun with --port <n>)`,
+    renderUpProxyLine(result, options.foreground === true),
   ];
   for (const warning of result.warnings) lines.push(`  note:     ${warning}`);
   lines.push("", ...result.instructions);
+  return lines.join("\n");
+}
+
+// ---------------------------------------------------------------------------------------------
+// down — the symmetric other half of up: stop the background proxy AND the runtime daemon
+// ---------------------------------------------------------------------------------------------
+
+export interface DownRuntimeReport {
+  status: "stopped" | "was_not_running" | "stale_status" | "stop_failed";
+  detail: string | null;
+}
+
+export type LegacyDaemonStop = (projectDir: string) => { ok: boolean; message: string; status?: { pid: number } };
+
+/**
+ * Adapt the legacy `stopDaemon` result (daemon.ts — the same code path `kage daemon stop` runs)
+ * into an honest per-component state. The legacy daemon hosts the vNext runtime when `up` started
+ * it with --vnext, so SIGTERM to that pid stops both. A stale status file — the daemon was
+ * SIGKILL'd and its pid now throws ESRCH — is reported as stale, never as "stopped" (nothing was
+ * stopped) and never as an error (nothing is running, which is what down promises).
+ */
+export function runtimeDownFrom(stop: LegacyDaemonStop, projectDir: string): DownRuntimeReport {
+  const result = stop(projectDir);
+  if (result.ok) return { status: "stopped", detail: result.message };
+  if (/no daemon status file/i.test(result.message)) return { status: "was_not_running", detail: null };
+  if (/ESRCH/.test(result.message)) {
+    return {
+      status: "stale_status",
+      detail: `the daemon status file names pid ${result.status?.pid ?? "?"}, which is no longer running`,
+    };
+  }
+  return { status: "stop_failed", detail: result.message };
+}
+
+export interface DownOptions {
+  project_dir: string;
+  /** Injectable for tests. Defaults to the verified stop in proxy-daemon.ts. */
+  stop_proxy?: (projectDir: string) => Promise<StopProxyDaemonResult>;
+  /** Injected by the CLI (wrapping daemon.ts's stopDaemon) so this module never imports the legacy kernel. */
+  stop_runtime: (projectDir: string) => DownRuntimeReport;
+}
+
+export interface DownResult {
+  ok: boolean;
+  project_dir: string;
+  proxy: StopProxyDaemonResult;
+  runtime: DownRuntimeReport;
+}
+
+/**
+ * Stop the whole stack `up` started. `ok` means the END STATE is "nothing running" — stopped,
+ * was-not-running, and stale-state-cleaned all qualify; a process that survived SIGKILL or a
+ * state file we refuse to trust does not, and the CLI exits 1 so the failure cannot pass silently.
+ */
+export async function downProject(options: DownOptions): Promise<DownResult> {
+  const projectDir = resolve(options.project_dir);
+  const proxy = await (options.stop_proxy ?? stopProxyDaemon)(projectDir);
+  const runtime = options.stop_runtime(projectDir);
+  const proxyDown = proxy.status === "stopped" || proxy.status === "was_not_running" || proxy.status === "stale_state_cleaned";
+  const runtimeDown = runtime.status !== "stop_failed";
+  return { ok: proxyDown && runtimeDown, project_dir: projectDir, proxy, runtime };
+}
+
+function renderDownProxy(proxy: StopProxyDaemonResult): string {
+  switch (proxy.status) {
+    case "stopped":
+      return `  proxy:    stopped (pid ${proxy.pid}${proxy.forced ? ", forced with SIGKILL after the grace period" : ""}) — state file removed`;
+    case "was_not_running":
+      return "  proxy:    was not running (no background-proxy state; a foreground `kage proxy` is stopped with Ctrl-C in its own terminal)";
+    case "stale_state_cleaned":
+      return "  proxy:    was not running — a stale state file was left behind (its process or port was gone); cleaned it";
+    case "untrusted_state":
+      return `  proxy:    refusing to act on ${proxy.state_path}: this user does not own it (or its permissions are too open) — remove it yourself if it is unexpected`;
+    default:
+      return `  proxy:    FAILED to stop: ${proxy.detail}`;
+  }
+}
+
+function renderDownRuntime(runtime: DownRuntimeReport): string {
+  switch (runtime.status) {
+    case "stopped":
+      return `  runtime:  stopped — ${runtime.detail}`;
+    case "was_not_running":
+      return "  runtime:  was not running";
+    case "stale_status":
+      return `  runtime:  was not running (${runtime.detail ?? "stale daemon status file"})`;
+    default:
+      return `  runtime:  FAILED to stop: ${runtime.detail}`;
+  }
+}
+
+export function renderDown(result: DownResult): string {
+  const lines = [
+    `Kage down — ${result.project_dir}`,
+    renderDownProxy(result.proxy),
+    renderDownRuntime(result.runtime),
+  ];
+  lines.push(
+    "",
+    result.ok
+      ? "Nothing kage-managed is left running for this project. Bring it back with `kage up`."
+      : "Something is still running (see above) — nothing was hidden to make this exit clean.",
+  );
   return lines.join("\n");
 }
 
@@ -358,6 +519,12 @@ export interface RunOptions {
   command: string[];
   /** Injectable for tests. Defaults to the same bounded TCP probe `up` uses. */
   probe_port?: PortProbe;
+  /**
+   * Injectable for tests. Defaults to the VERIFIED background-proxy state: when --port is not
+   * given, `run` uses the port the daemon record names — after the pid and the port itself have
+   * been re-verified — and falls back to 8788 when nothing verified exists.
+   */
+  discover_port?: (projectDir: string) => Promise<number | null>;
   /** Defaults to "inherit" so interactive agents own the terminal. Tests pass "ignore". */
   stdio?: "inherit" | "ignore";
 }
@@ -371,24 +538,36 @@ export interface RunResult {
   hint: string | null;
 }
 
+// The default discovery: the verified daemon state's port, or null when nothing verified exists.
+// proxyDaemonState re-checks the pid AND the port, so a stale record can never point a child at a
+// port whose listener died (and the stale file is cleaned as a side effect of looking).
+async function discoverDaemonPort(projectDir: string): Promise<number | null> {
+  const probe = await proxyDaemonState(projectDir);
+  return probe.running ? probe.state.port : null;
+}
+
 /**
  * Sets ANTHROPIC_BASE_URL=http://localhost:<port> in the child's environment — and nothing else —
  * then runs the command with inherited stdio and reports the child's exit code. It NEVER starts
  * the proxy: `up` owns that lifecycle, and folding two lifecycles into one command would make
- * ownership ambiguous (whose Ctrl-C stops what?). When nothing listens on the port it fails fast
- * with a one-line hint instead of hanging or half-working.
+ * ownership ambiguous (whose Ctrl-C stops what?). With no --port it asks the verified daemon
+ * state where the background proxy listens, falling back to the historical 8788 probe. When
+ * nothing listens it fails fast with a one-line hint instead of hanging or half-working.
  */
 export async function runWithProxy(options: RunOptions): Promise<RunResult> {
-  const port = options.port ?? 8788;
-  const baseUrl = `http://localhost:${port}`;
   if (!options.command.length) {
     return {
       ok: false,
       exit_code: 2,
-      base_url: baseUrl,
+      base_url: `http://localhost:${options.port ?? 8788}`,
       hint: "Usage: kage run [--project <dir>] [--port <n>] -- <command> [args...]   e.g. kage run -- claude",
     };
   }
+
+  const port = options.port
+    ?? (await (options.discover_port ?? discoverDaemonPort)(options.project_dir))
+    ?? 8788;
+  const baseUrl = `http://localhost:${port}`;
 
   const listening = await (options.probe_port ?? probeLocalPort)(port);
   if (!listening) {
@@ -396,7 +575,7 @@ export async function runWithProxy(options: RunOptions): Promise<RunResult> {
       ok: false,
       exit_code: 1,
       base_url: baseUrl,
-      hint: `Nothing is listening on ${baseUrl} — run \`kage up --project ${options.project_dir}\` first (run never starts the proxy; up owns that lifecycle).`,
+      hint: `Nothing is listening on ${baseUrl} — start the background proxy once with \`kage up --project ${options.project_dir}\` (run never starts the proxy; up owns that lifecycle).`,
     };
   }
 
@@ -754,6 +933,34 @@ export function contextLatency(deliveries: readonly StoredContextDelivery[]): Co
 // status
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * The background proxy as `status` reports it — from the VERIFIED daemon state (pid alive AND
+ * port accepting), never from the file alone. When it is not running, every field is null and
+ * `reason` says why ("no_state", "stale_state_removed", "untrusted_state"): absence with a
+ * reason, never a fabricated proxy.
+ */
+export interface ProxyDaemonStatusReport {
+  running: boolean;
+  pid: number | null;
+  port: number | null;
+  mode: VnextMode | null;
+  log_path: string | null;
+  reason: "no_state" | "stale_state_removed" | "untrusted_state" | null;
+}
+
+export function proxyDaemonReport(probe: ProxyDaemonProbe): ProxyDaemonStatusReport {
+  return probe.running
+    ? {
+      running: true,
+      pid: probe.state.pid,
+      port: probe.state.port,
+      mode: probe.state.mode,
+      log_path: probe.state.log_path,
+      reason: null,
+    }
+    : { running: false, pid: null, port: null, mode: null, log_path: null, reason: probe.reason };
+}
+
 export interface VnextStatusReport {
   ok: boolean;
   project_dir: string;
@@ -762,6 +969,8 @@ export interface VnextStatusReport {
   gateway: "audit" | "assist" | null;
   adapters: VnextAdapter[];
   runtime: RuntimeHealth;
+  /** The background proxy, verified — see ProxyDaemonStatusReport. */
+  proxy: ProxyDaemonStatusReport;
   receipts: { available: boolean; reason: string | null; total: number | null; tasks: number | null };
   /**
    * Three counts, never one percentage: a single "measured %" would hide the unavailable slice,
@@ -800,10 +1009,14 @@ export interface VnextStatusReport {
   context_latency: ContextLatencyReport;
 }
 
-export async function vnextStatus(client: RuntimeClient): Promise<VnextStatusReport> {
+export async function vnextStatus(
+  client: RuntimeClient,
+  options: { probe_daemon?: (projectDir: string) => Promise<ProxyDaemonProbe> } = {},
+): Promise<VnextStatusReport> {
   const projectDir = resolve(client.project_dir);
   const config = readVnextConfig(projectDir);
   const runtime = await client.health();
+  const proxy = proxyDaemonReport(await (options.probe_daemon ?? proxyDaemonState)(projectDir));
   const query = await client.receipts();
   const receipts = query.available ? query.receipts : [];
   const unreadable = query.available ? null : (query.reason ?? "receipts_unavailable");
@@ -822,6 +1035,7 @@ export async function vnextStatus(client: RuntimeClient): Promise<VnextStatusRep
     gateway: config?.vnext.gateway ?? null,
     adapters: config?.vnext.adapters ?? [],
     runtime,
+    proxy,
     receipts: {
       available: query.available,
       reason: query.reason,
@@ -939,6 +1153,9 @@ export function renderStatus(report: VnextStatusReport): string {
     `  connected:     ${report.connected ? `yes (runtime ${report.mode}, gateway ${report.gateway})` : "no — run `kage connect --project <dir>`"}`,
     `  adapters:      ${report.adapters.length ? report.adapters.join(", ") : "none"}`,
     `  runtime:       ${report.runtime.running ? `running at ${report.runtime.url} (protocol v${report.runtime.protocol_version})` : `not running (${report.runtime.reason})`}`,
+    report.proxy.running
+      ? `  proxy:         running in the background (pid ${report.proxy.pid}, port ${report.proxy.port}, mode ${report.proxy.mode}) — log: ${report.proxy.log_path}; stop with \`kage down\``
+      : `  proxy:         not running (${report.proxy.reason}) — start it once with \`kage up\``,
   ];
 
   if (!report.receipts.available) {

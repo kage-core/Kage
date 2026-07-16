@@ -8,12 +8,16 @@ import { stdin as input, stdout as output } from "node:process";
 import { daemonDoctor, readDaemonStatus, startDaemon, startViewer, stopDaemon } from "./daemon.js";
 import {
   connectProject,
+  downProject,
   renderConnect,
+  renderDown,
   renderReceipts,
   renderStatus,
   renderUp,
   runtimeClientFor,
+  runtimeDownFrom,
   runWithProxy,
+  startProxyDaemon,
   upProject,
   vnextReceipts,
   vnextStatus,
@@ -166,8 +170,9 @@ const CORE_USAGE = `Kage — code-grounded memory for coding agents
 
 Core commands:
   kage install [--project <dir>]             one-shot: init + index + auto-wire detected agents
-  kage up [--project <dir>]                  bring the ambient stack up: audit config + runtime + foreground proxy
-  kage run -- <command>                      run any agent through the proxy (sets ANTHROPIC_BASE_URL for it)
+  kage up [--project <dir>]                  bring the ambient stack up ONCE: audit config + runtime + background proxy
+  kage run -- <command>                      run any agent through the proxy, from any terminal (sets ANTHROPIC_BASE_URL for it)
+  kage down [--project <dir>]                stop the background proxy + runtime daemon that \`kage up\` started
   kage check [--project <dir>]               verify CLAUDE.md/AGENTS.md/docs claims against the code — counted, not estimated
   kage scan --project <dir>                  truth report on any repo, in seconds (zero setup)
   kage init --project <dir>                  create repo memory (.agent_memory only)
@@ -230,8 +235,9 @@ Usage:
   kage savings --project <dir> [--queries <n>] [--json]   deterministic token-reduction receipt (no LLM on the measurement path)
   kage team --project <dir> [--json]   team memory health: contributors, pending review, stale-withheld, contradictions
   kage proxy --project <dir> [--port 8788] [--upstream <url>] [--workspace <dir>] [--mode audit|assist] [--count-tokens] [--no-receipts] [--no-inject] [--verbose]   drop-in proxy: inject memory outbound, capture exchanges inbound, record measured transformation receipts (--mode audit forwards your exact bytes and only measures)
-  kage up [--project <dir>] [--port 8788] [--mode audit|assist] [--json]   one command: connect (audit-only config) + vNext runtime + FOREGROUND proxy on --port; --mode governs the proxy process alone and defaults to audit = measurement only (deliberately unlike bare \`kage proxy\`, which keeps assist as its back-compat default); exits 0 with the same instructions when the port is already served
-  kage run [--project <dir>] [--port 8788] -- <command> [args...]   exec <command> with ANTHROPIC_BASE_URL=http://localhost:<port> in its env (and nothing else), inheriting your terminal; fails fast with a \`kage up\` hint when nothing listens — run never starts the proxy (up owns that lifecycle)
+  kage up [--project <dir>] [--port 8788] [--mode audit|assist] [--foreground] [--no-runtime] [--json]   one command: connect (audit-only config) + vNext runtime + BACKGROUND proxy on --port — detached, survives this terminal (a machine reboot stops it: run kage up once afterwards; no system service), stopped with kage down; --mode governs the proxy process alone and defaults to audit = measurement only (deliberately unlike bare \`kage proxy\`, which keeps assist as its back-compat default); re-running reuses a VERIFIED live proxy (pid + port checked, never the state file alone) and exits 0, cleaning a stale record first; --foreground keeps the proxy in this terminal with no daemon state (kage down does not manage it); --no-runtime skips the vNext runtime daemon
+  kage down [--project <dir>] [--json]   stop what kage up started: SIGTERM the verified background proxy (SIGKILL after a bounded grace), remove its state file, and stop the runtime daemon; per-component honest output (stopped / was not running / stale state cleaned); exits 0 when the end state is nothing-running; a foreground proxy is stopped with Ctrl-C instead
+  kage run [--project <dir>] [--port 8788] -- <command> [args...]   exec <command> with ANTHROPIC_BASE_URL=http://localhost:<port> in its env (and nothing else), inheriting your terminal; with no --port it uses the background proxy's verified recorded port, falling back to 8788; fails fast with a \`kage up\` hint when nothing listens — run never starts the proxy (up owns that lifecycle)
   kage memory-access --project <dir> [--json]
   kage activity --project <dir> [--json]
   kage memory-audit --project <dir> [--limit <n>] [--json]
@@ -649,9 +655,11 @@ async function main(): Promise<void> {
       console.log("        kage run -- claude");
       console.log("");
       console.log("Sets ANTHROPIC_BASE_URL=http://localhost:<port> in the child's environment (and nothing");
-      console.log("else), inherits your terminal, and exits with the child's exit code. If nothing is");
-      console.log("listening it fails fast with a hint to start `kage up` — run never starts the proxy");
-      console.log("itself: up owns the proxy lifecycle, run only points a command at it.");
+      console.log("else), inherits your terminal, and exits with the child's exit code. With no --port it");
+      console.log("uses the background proxy's recorded port — verified live (pid + port), never trusted");
+      console.log("from the state file alone — and falls back to 8788. If nothing is listening it fails");
+      console.log("fast with a hint to start `kage up` — run never starts the proxy itself: up owns the");
+      console.log("proxy lifecycle, run only points a command at it.");
       return;
     }
     const childCommand = separator === -1 ? [] : rest.slice(separator + 1);
@@ -661,11 +669,40 @@ async function main(): Promise<void> {
     }
     const result = await runWithProxy({
       project_dir: projectArg(own),
-      port: own.includes("--port") ? numberArg(own, "--port", 8788) : 8788,
+      // No --port means "ask the verified daemon state, then fall back to 8788" — see runWithProxy.
+      port: own.includes("--port") ? numberArg(own, "--port", 8788) : undefined,
       command: childCommand,
     });
     if (result.hint) console.error(result.hint);
     process.exit(result.exit_code);
+  }
+
+  if (command === "down") {
+    if (args.includes("--help")) {
+      console.log("kage down — stop what `kage up` started: the background proxy and the runtime daemon.");
+      console.log("");
+      console.log("Usage:  kage down [--project <dir>] [--json]");
+      console.log("");
+      console.log("Verifies the recorded proxy is really ours (pid alive + port accepting) before sending");
+      console.log("SIGTERM, escalates to SIGKILL after a bounded grace, removes the state file, and stops");
+      console.log("the runtime daemon. A stale record (left by a crash or SIGKILL) is cleaned and reported");
+      console.log("as stale — never signalled. Exits 0 whenever the end state is nothing-running.");
+      console.log("");
+      console.log("Note: `kage down` manages only the background proxy `kage up` recorded. A foreground");
+      console.log("proxy (`kage proxy` or `kage up --foreground`) is stopped with Ctrl-C in its terminal.");
+      return;
+    }
+    const project = projectArg(args);
+    const result = await downProject({
+      project_dir: project,
+      // The runtime daemon is the legacy daemon process (it hosts the vNext runtime when up
+      // started it with --vnext), so down reuses the exact `kage daemon stop` code path.
+      stop_runtime: (dir) => runtimeDownFrom(stopDaemon, dir),
+    });
+    if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
+    else console.log(renderDown(result));
+    if (!result.ok) process.exit(1);
+    return;
   }
 
   await ensureTreeSitterLanguages();
@@ -1271,20 +1308,25 @@ async function main(): Promise<void> {
 
   if (command === "up") {
     if (args.includes("--help")) {
-      console.log("kage up — bring the ambient stack up with one command; the proxy stays in the foreground.");
+      console.log("kage up — bring the ambient stack up with one command; the proxy runs in the background.");
       console.log("");
-      console.log("Usage:  kage up [--project <dir>] [--port 8788] [--mode audit|assist] [--json]");
+      console.log("Usage:  kage up [--project <dir>] [--port 8788] [--mode audit|assist] [--foreground] [--no-runtime] [--json]");
       console.log("");
       console.log("In order: (1) connect — writes the audit-only vNext config (up NEVER writes assist config;");
       console.log("--mode governs the proxy process alone, exactly like kage proxy --mode); (2) starts the");
       console.log("vNext runtime daemon (detached) when this Node supports it — if it can't run, the proxy");
-      console.log("still works and evidence just isn't captured to /v2/events; (3) starts the proxy in the");
-      console.log("FOREGROUND on --port (default 8788). Ctrl-C stops it.");
+      console.log("still works and evidence just isn't captured to /v2/events (--no-runtime skips it); (3)");
+      console.log("starts the proxy DETACHED in the background on --port (default 8788): it survives this");
+      console.log("terminal closing, and `kage down` stops it. A machine reboot stops it too — run `kage up`");
+      console.log("once afterwards; there is no system service. --foreground keeps the proxy in this");
+      console.log("terminal instead (Ctrl-C stops it; no daemon state is written, so `kage down` does not");
+      console.log("manage it).");
       console.log("");
       console.log("Default --mode audit: measurement only, nothing injected — the safe onboarding default.");
       console.log("Note: bare `kage proxy` keeps its historical assist default; `kage up` deliberately does not.");
-      console.log("Already running? up exits 0 and reprints the instructions instead of failing.");
-      console.log("Then: kage run -- <agent>   or   export ANTHROPIC_BASE_URL=http://localhost:<port>");
+      console.log("Already running? up verifies the recorded proxy (pid alive + port accepting — never the");
+      console.log("state file alone), reuses it, and exits 0; a stale record is cleaned and started fresh.");
+      console.log("Then, in ANY terminal: kage run -- <agent>   or   export ANTHROPIC_BASE_URL=http://localhost:<port>");
       return;
     }
     const project = projectArg(args);
@@ -1296,12 +1338,14 @@ async function main(): Promise<void> {
       return;
     }
     const mode = modeArg === "assist" ? ("assist" as const) : ("audit" as const);
+    const foreground = args.includes("--foreground");
     let result;
     try {
       result = await upProject({
         project_dir: project,
         port,
         mode,
+        start_runtime: !args.includes("--no-runtime"),
         initialize_memory: (dir) => { initProject(dir, { policy: false }); },
       });
     } catch (error) {
@@ -1310,17 +1354,45 @@ async function main(): Promise<void> {
       console.error(`kage up: ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
     }
+
+    // The default path: start the proxy DETACHED, confirm it listens, record it, exit 0. The
+    // state file is written by this parent only after liveness is confirmed (proxy-daemon.ts),
+    // so a failed start leaves nothing behind but the log.
+    if (result.proxy.action === "start" && !foreground) {
+      const started = await startProxyDaemon({ project_dir: project, port: result.port, mode: result.mode });
+      if (!started.ok) {
+        if (args.includes("--json")) {
+          console.log(JSON.stringify({ ...result, daemon: { running: false, ...started } }, null, 2));
+        }
+        console.error(`kage up: the background proxy did not start — ${started.detail}. Log: ${started.log_path}`);
+        process.exit(1);
+      }
+      if (args.includes("--json")) {
+        const daemon = { running: true, pid: started.state.pid, port: started.state.port, mode: started.state.mode, log_path: started.state.log_path, reason: null };
+        console.log(JSON.stringify({ ...result, daemon }, null, 2));
+        return;
+      }
+      console.log(renderUp(result));
+      console.log("");
+      console.log(`Proxy running in the background (pid ${started.state.pid}, log: ${started.state.log_path}). Stop it with \`kage down --project ${project}\`.`);
+      console.log("It survives this terminal; a machine reboot stops it — run `kage up` once afterwards.");
+      return;
+    }
+
+    // reuse_running carries the verified daemon record inside result.proxy.daemon, so --json
+    // consumers see the live pid/port/mode without a separate field.
     if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
-    else console.log(renderUp(result));
-    // Idempotent: a listener already owns the port. The instructions above are the same ones a
-    // fresh start prints, so the user is set either way. Exit 0, never a failure.
-    if (result.proxy.action === "already_listening") return;
+    else console.log(renderUp(result, { foreground }));
+    // reuse_running: the verified daemon already serves this project — exit 0, nothing to start.
+    // already_listening: a listener we did not record owns the port; the honest message printed
+    // above suggests --port and we exit 0 without touching any state.
+    if (result.proxy.action !== "start") return;
     console.log("");
-    const server = startProxy(project, { port, mode });
+    const server = startProxy(project, { port: result.port, mode: result.mode });
     server.on("error", (error) => {
       const code = (error as NodeJS.ErrnoException).code;
       console.error(code === "EADDRINUSE"
-        ? `kage up: port ${port} was claimed between the check and the start. If that's another Kage proxy you're already set; otherwise rerun with --port <n>.`
+        ? `kage up: port ${result.port} was claimed between the check and the start. If that's another Kage proxy you're already set; otherwise rerun with --port <n>.`
         : `kage up: the proxy could not start — ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
     });

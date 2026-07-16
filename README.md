@@ -49,25 +49,32 @@ It creates `.agent_memory/`, builds the code graph, writes the `AGENTS.md` / `CL
 policy that tells agents to use Kage, auto-detects and wires your agents, and configures
 `.gitignore` + the packet merge driver. Requires Node.js 18+. No account, no API key.
 
-**Ambient proxy — the zero-wiring path.** Two steps: install once, then `kage up`. Every
+**Ambient proxy — the zero-wiring path.** Two steps: install once, then `kage up` once. Every
 Anthropic-API agent (Claude Code, Codex CLI, aider, ...) flows through Kage with no per-agent
 config at all.
 
 ```bash
 npx -y @kage-core/kage-graph-mcp install   # once per repo
-kage up                                    # audit-only config + runtime + foreground proxy
+kage up                                    # audit-only config + runtime + background proxy (once)
 ```
 
-Then, in the terminal where your agent runs:
+Then, in **any** terminal:
 
 ```bash
 kage run -- claude       # or: export ANTHROPIC_BASE_URL=http://localhost:8788
+kage down                # stop the background proxy + runtime when you are done
 ```
+
+`kage up` starts the proxy **in the background**: it keeps serving after you close the terminal,
+so new terminals only ever need `kage run`. Re-running `kage up` verifies the recorded proxy is
+really alive (pid + port, never the state file alone), reuses it, and exits 0; a stale record —
+say after a crash — is cleaned up and started fresh. To be honest about the one gap: a machine
+reboot stops the proxy (there is no system service), so run `kage up` once afterwards. Prefer the
+old behavior? `kage up --foreground` keeps the proxy in your terminal, where Ctrl-C stops it.
 
 `kage up` defaults to **audit mode**: measurement only — your bytes are forwarded unchanged and
 nothing is injected. When you want verified memory injected into prompts, run
-`kage up --mode assist`. Re-running `kage up` while the proxy is already up just reprints the
-instructions and exits 0. See what it measured with `kage status --project .`.
+`kage up --mode assist`. See what it measured with `kage status --project .`.
 
 **Or just ask your agent to set it up.** Paste this into Claude Code, Cursor, or any coding agent:
 
