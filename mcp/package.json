@@ -24,7 +24,8 @@
     "dev": "ts-node index.ts",
     "test": "npm run build && node --test 'dist/**/*.test.js' && npm run test:dogfood",
     "test:vnext": "npm run build && node --test 'dist/vnext/**/*.test.js'",
-    "test:dogfood": "node --test ../evals/agent-trajectory/replay.test.mjs"
+    "test:dogfood": "node --test ../evals/agent-trajectory/replay.test.mjs",
+    "bench:injection": "node ../benchmarks/injection-relevance-kage.mjs"
   },
   "keywords": [
     "mcp",

@@ -147,6 +147,70 @@ Current local run on 2026-05-18:
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | 240 | 20 | 530 ms | 100.00% | 100.00% | 1.0000 | 1.0000 | 21 ms | 95.36% | pass, 2 sources in top 4 |
 
+## Injection Relevance
+
+`injection-relevance-kage.mjs` answers, repeatably: does the proxy's automatic
+memory injection attach the RIGHT memories, and only when the prompt deserves
+them? The decision under test is `composeInjection` in `mcp/proxy.ts` — it
+injects whatever `recall(projectDir, query, 4, false)` returns, with NO
+relevance gate. The harness imports the REAL compiled `composeInjection` from
+`mcp/dist/proxy.js` and drives it through a recording fake gateway, so the eval
+cannot drift from production; a byte-identical diagnostic `recall` call
+(non-mutating, `trackAccess: false`) attaches packet identities and scores, and
+any disagreement between the two is reported as a per-case error, never
+skipped.
+
+It seeds two deterministic stores at runtime through the kernel's own
+`capture()` — a 3-packet SMALL store (payments-idempotency, test-runbook,
+deploy-gotcha) and a 150-packet LARGE store (the same 3 topics plus 12
+hand-written collision carriers and 135 template-synthesized packets across
+decision/gotcha/runbook/convention) — then scores labeled queries in three
+classes: CONTENT-FREE ("Reply with the single word: pong", "thanks, looks
+good", "ok continue", "yes do it", "hello", "fix it" — should inject nothing),
+REAL-RELEVANT (should inject; the top hit must be the labeled packet), and
+REAL-BUT-ABSENT (genuine questions whose topic has no packet — injection is
+noise).
+
+```sh
+npm run build --prefix mcp
+node benchmarks/injection-relevance-kage.mjs                  # summary JSON on stdout, baseline block on stderr
+node benchmarks/injection-relevance-kage.mjs --json           # full report with the per-case table
+node benchmarks/injection-relevance-kage.mjs --out /tmp/kage-injection.json
+node benchmarks/injection-relevance-kage.mjs --assert-baseline  # exit 1 only on regression below the recorded baseline
+npm run bench:injection --prefix mcp
+```
+
+This eval MEASURES; it does not flatter. The recorded 2026-07-16 baseline is
+the current ungated injector and it is known-imperfect — the harness records
+it and exits 0. It is NOT part of `npm test`. `--assert-baseline` fails only
+when a metric regresses below the recorded baseline (or any case errors).
+
+Recorded 2026-07-16 baseline (31 cases, 0 errors):
+
+| Metric | Baseline | Reading |
+| --- | ---: | --- |
+| injection_precision | 0.1538 | of prompts that injected, how often EVERY injected packet was labeled relevant |
+| false_injection_rate (large store) | 1.0000 | every content-free prompt injects on the 150-packet store — the pong problem |
+| false_injection_rate (small store) | 0.3333 | "ok continue" and "fix it" inject even on 3 packets |
+| small_store_recall | 1.0000 | small-store real questions always inject their expected packet — the metric an absolute score floor destroys |
+| expected_top_hit_rate | 1.0000 | when a real question injects, the labeled packet ranks first |
+| absent_injection_rate (overall) | 0.8750 | genuine questions on absent topics still attract weakly-related noise |
+
+The score bands reproduce the measured negative result (see the
+`negative_result` packet "recall scores are not corpus-normalized"): a
+genuinely relevant small-store hit for a naturally-phrased question scores
+25.03 — inside the large store's content-free noise band (max 34.64) — and
+"fix it" (34.39) outscores a real question's top hit (30.80). Recall scores
+are match-strength sums, not corpus-normalized relevance, so no absolute
+injection floor can remove large-store noise without silencing small/new
+repos.
+
+This harness is the acceptance gate for the "corpus-normalized relevance"
+kernel task: a real fix moves false_injection_rate and absent_injection_rate
+down and injection_precision up WITHOUT moving small_store_recall or
+expected_top_hit_rate down. Run it with `--assert-baseline` before and after
+that change.
+
 ## Memory Scale
 
 `scale-kage-memory.mjs` measures whether Kage can search a growing repo-memory
