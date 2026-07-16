@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import { createServer, type AddressInfo } from "node:net";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { buildTransformationReceipt } from "../measurement/receipt.js";
@@ -28,6 +30,9 @@ import {
   connectProject,
   renderReceipts,
   renderStatus,
+  renderUp,
+  runWithProxy,
+  upProject,
   vnextReceipts,
   vnextStatus,
 } from "./commands.js";
@@ -718,4 +723,216 @@ test("status reports attachment_by_provider as unavailable when the delivery sto
   assert.equal(report.attachment_by_provider.reason, "runtime_unsupported");
   assert.deepEqual(report.attachment_by_provider.providers, {});
   assert.equal(report.attachment_by_provider.unattributed, null);
+});
+
+// ---------------------------------------------------------------------------------------------
+// kage up — one command for the whole ambient stack
+// ---------------------------------------------------------------------------------------------
+
+function listenOnLoopback(): Promise<{ port: number; close: () => Promise<void> }> {
+  const server = createServer(() => { /* accept and hold; the probe only needs a TCP accept */ });
+  return new Promise((resolveListener) => {
+    server.listen(0, "127.0.0.1", () => {
+      const port = (server.address() as AddressInfo).port;
+      resolveListener({
+        port,
+        close: () => new Promise((done) => server.close(() => done())),
+      });
+    });
+  });
+}
+
+// A port with nothing behind it: bind, read the assigned port, release it.
+async function freeLoopbackPort(): Promise<number> {
+  const listener = await listenOnLoopback();
+  await listener.close();
+  return listener.port;
+}
+
+// `up` is the onboarding command, so its defaults are the safety posture: audit-only config on
+// disk, audit proxy plan, and NO process spawned when the runtime seam says not to — the same
+// start:false-style seam the connect tests use, so this test never launches a real daemon.
+test("up on an unconnected project writes the audit config and plans runtime + proxy without spawning", async () => {
+  const project = tempProject();
+  const result = await upProject({
+    project_dir: project,
+    start_runtime: false,
+    probe_port: async () => false,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.mode, "audit"); // the safe onboarding default — bare `kage proxy` keeps assist
+  assert.equal(result.port, 8788);
+  assert.equal(result.base_url, "http://localhost:8788");
+
+  // The config on disk is the audit-only connect config; `up` can never write anything else.
+  const written = readVnextConfig(project);
+  assert.equal(written?.vnext.runtime, "audit");
+  assert.equal(written?.vnext.gateway, "audit");
+  assert.equal(result.connect.mutates_prompts, false);
+
+  // Nothing listens on the port, so the CLI's job is to start the foreground proxy...
+  assert.equal(result.proxy.action, "start");
+  // ...and no long-lived process was spawned by the plan itself.
+  assert.equal(result.connect.runtime.started, false);
+  assert.equal(existsSync(join(project, ".agent_memory", "daemon", "vnext", "status.json")), false);
+
+  // The crisp block: the one export line, the kage run alternative, and where results land.
+  const text = result.instructions.join("\n");
+  assert.ok(text.includes("export ANTHROPIC_BASE_URL=http://localhost:8788"));
+  assert.ok(text.includes("kage run -- "));
+  assert.ok(text.includes("kage status --project"));
+});
+
+// --mode governs the PROXY PROCESS alone, exactly like `kage proxy --mode`. The config written to
+// disk — what the hook adapter reads to decide whether it may touch a prompt — stays audit-only.
+test("up --mode assist affects only the proxy plan; the connect config stays audit-only", async () => {
+  const project = tempProject();
+  const result = await upProject({
+    project_dir: project,
+    mode: "assist",
+    start_runtime: false,
+    probe_port: async () => false,
+  });
+
+  assert.equal(result.mode, "assist");
+  assert.equal(result.proxy.mode, "assist");
+  const raw = readFileSync(vnextConfigPath(project), "utf8");
+  assert.equal(raw.includes("assist"), false);
+});
+
+// Honest output is a feature: audit must say measurement-only, assist must say memory will be
+// injected — and neither may borrow the other's claim.
+test("up mode honesty: audit says measurement-only, assist says memory will be injected", async () => {
+  const project = tempProject();
+  const audit = await upProject({ project_dir: project, start_runtime: false, probe_port: async () => false });
+  const auditText = audit.instructions.join("\n").toLowerCase();
+  assert.ok(auditText.includes("measurement only"));
+  assert.ok(auditText.includes("injects nothing"));
+  assert.equal(auditText.includes("will be injected"), false);
+
+  const assist = await upProject({ project_dir: project, mode: "assist", start_runtime: false, probe_port: async () => false });
+  const assistText = assist.instructions.join("\n").toLowerCase();
+  assert.ok(assistText.includes("will be injected"));
+  assert.equal(assistText.includes("injects nothing"), false);
+});
+
+// Re-running `kage up` while a listener already owns the port must be a no-op that still helps:
+// same audit config bytes, same instructions, exit 0 — never a failure. The listener is real and
+// the probe is the real TCP probe, so this covers the end-to-end idempotency path.
+test("up is idempotent when a listener already owns the port", async () => {
+  const project = tempProject();
+  await connectProject({ project_dir: project, start: false });
+  const firstConfig = readFileSync(vnextConfigPath(project), "utf8");
+
+  const listener = await listenOnLoopback();
+  try {
+    const result = await upProject({ project_dir: project, port: listener.port, start_runtime: false });
+    assert.equal(result.ok, true);
+    assert.equal(result.proxy.action, "already_listening");
+    // The same instructions as a fresh start — the user gets the export line either way.
+    assert.ok(result.instructions.join("\n").includes(`export ANTHROPIC_BASE_URL=http://localhost:${listener.port}`));
+    // And the config was not rewritten (byte-idempotent, like connect).
+    assert.equal(readFileSync(vnextConfigPath(project), "utf8"), firstConfig);
+    // The render says so in one calm line, not a failure.
+    assert.ok(renderUp(result).includes("already has a listener"));
+  } finally {
+    await listener.close();
+  }
+});
+
+// Fail-open ethos: a runtime that cannot start must never take `up` down with it. The proxy is
+// still the plan, and the render carries an honest one-line note (the reason, not a stack trace).
+test("up survives a runtime that fails to start: proxy still planned, honest note rendered", async () => {
+  const project = tempProject();
+  const result = await upProject({
+    project_dir: project,
+    runtime_starter: async () => { throw new Error("daemon exploded"); },
+    probe_port: async () => false,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.proxy.action, "start");
+  assert.equal(result.connect.runtime.reason, "start_failed");
+
+  const rendered = renderUp(result);
+  assert.ok(rendered.includes("daemon exploded"));
+  // The degradation is stated for what it is: the proxy works, evidence capture does not.
+  assert.ok(rendered.toLowerCase().includes("evidence"));
+});
+
+// ---------------------------------------------------------------------------------------------
+// kage run — env-wrapped exec through the local proxy
+// ---------------------------------------------------------------------------------------------
+
+test("run fails fast with a one-line kage-up hint when nothing listens", async () => {
+  const project = tempProject();
+  const port = await freeLoopbackPort();
+  const result = await runWithProxy({
+    project_dir: project,
+    port,
+    command: [process.execPath, "-e", "process.exit(0)"],
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.exit_code, 1);
+  assert.ok(result.hint?.includes("kage up"));
+  // One human line, not a paragraph and not a stack.
+  assert.equal(result.hint?.includes("\n"), false);
+});
+
+test("run refuses an empty command with a usage hint", async () => {
+  const project = tempProject();
+  const result = await runWithProxy({ project_dir: project, command: [] });
+  assert.equal(result.ok, false);
+  assert.equal(result.exit_code, 2);
+  assert.ok(result.hint?.includes("kage run"));
+});
+
+// The real end-to-end path: a live loopback listener satisfies the probe, a real child process
+// observes ANTHROPIC_BASE_URL (written to a file, since stdio is not captured), and the child's
+// exit code comes back verbatim.
+test("run sets ANTHROPIC_BASE_URL for the child and propagates its exit code", async () => {
+  const project = tempProject();
+  const listener = await listenOnLoopback();
+  const envFile = join(project, "child-env.txt");
+  try {
+    const result = await runWithProxy({
+      project_dir: project,
+      port: listener.port,
+      command: [
+        process.execPath,
+        "-e",
+        'require("fs").writeFileSync(process.argv[1], process.env.ANTHROPIC_BASE_URL ?? "unset"); process.exit(7);',
+        envFile,
+      ],
+      stdio: "ignore",
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.exit_code, 7);
+    assert.equal(result.hint, null);
+    assert.equal(readFileSync(envFile, "utf8"), `http://localhost:${listener.port}`);
+  } finally {
+    await listener.close();
+  }
+});
+
+// ---------------------------------------------------------------------------------------------
+// help text — both commands are discoverable, with up's audit default called out
+// ---------------------------------------------------------------------------------------------
+
+test("kage help lists up and run, and the full usage documents up's audit default", () => {
+  const cli = join(__dirname, "..", "..", "cli.js");
+  const core = execFileSync(process.execPath, [cli, "help"], { encoding: "utf8" });
+  assert.ok(core.includes("kage up"));
+  assert.ok(core.includes("kage run"));
+
+  const full = execFileSync(process.execPath, [cli, "help", "--all"], { encoding: "utf8" });
+  assert.ok(full.includes("kage up [--project <dir>] [--port 8788] [--mode audit|assist]"));
+  assert.ok(full.includes("kage run [--project <dir>] [--port 8788] -- <command> [args...]"));
+  // The one sharp edge worth documenting: up defaults to audit; bare `kage proxy` keeps assist.
+  const upLine = full.split("\n").find((line) => line.trimStart().startsWith("kage up "));
+  assert.ok(upLine, "expected a kage up usage line");
+  assert.ok(upLine.includes("audit"));
 });

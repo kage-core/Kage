@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import { connect as connectTcp } from "node:net";
+import { constants as osConstants } from "node:os";
 import { join, resolve } from "node:path";
 import type { TransformationReceipt } from "../protocol/index.js";
 import type { StoredContextDelivery } from "../storage/delivery-store.js";
@@ -17,6 +19,7 @@ import {
   writeVnextConfig,
   type VnextAdapter,
   type VnextConfig,
+  type VnextMode,
 } from "./config.js";
 import { resolveRuntimePaths } from "./paths.js";
 import { assertVnextRuntime } from "./runtime-version.js";
@@ -181,6 +184,250 @@ export function renderConnect(result: ConnectResult): string {
   ];
   for (const warning of result.warnings) lines.push(`  warning:  ${warning}`);
   return lines.join("\n");
+}
+
+// ---------------------------------------------------------------------------------------------
+// up — the one-command onramp: connect (audit config) + runtime daemon + a foreground-proxy plan
+// ---------------------------------------------------------------------------------------------
+
+export type PortProbe = (port: number) => Promise<boolean>;
+
+/**
+ * True when something already accepts TCP connections on 127.0.0.1:<port>. Bounded — connect,
+ * refuse, or time out within `timeoutMs` — because both `up` (idempotency check) and `run`
+ * (fail-fast hint) sit on an interactive path where a hang is worse than a conservative "no".
+ */
+export function probeLocalPort(port: number, timeoutMs = 400): Promise<boolean> {
+  return new Promise((resolveProbe) => {
+    const socket = connectTcp({ port, host: "127.0.0.1" });
+    let settled = false;
+    const settle = (value: boolean) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolveProbe(value);
+    };
+    socket.setTimeout(timeoutMs, () => settle(false));
+    socket.once("connect", () => settle(true));
+    socket.once("error", () => settle(false));
+  });
+}
+
+export interface UpOptions {
+  project_dir: string;
+  /** Proxy port. Default 8788, same as `kage proxy`. */
+  port?: number;
+  /**
+   * Governs the PROXY PROCESS alone, mirroring `kage proxy --mode`. The config `up` writes is
+   * the audit-only connect config regardless — enabling prompt mutation on disk is not something
+   * an onboarding command may do. Default audit, the safe onboarding default (bare `kage proxy`
+   * keeps its historical assist default; the help text states the difference).
+   */
+  mode?: VnextMode;
+  agents?: string[];
+  /** Defaults to true. `false` plans without launching the runtime — the test seam, mirroring connect's start:false. */
+  start_runtime?: boolean;
+  /** Injected by the CLI so this module never imports the legacy kernel. */
+  initialize_memory?: MemoryInitializer;
+  runtime_starter?: RuntimeStarter;
+  /** Injectable for tests. Defaults to the bounded TCP probe above. */
+  probe_port?: PortProbe;
+}
+
+export interface UpProxyPlan {
+  /**
+   * The one decision the CLI acts on. "start": nothing owns the port, so start the proxy in the
+   * FOREGROUND (it is the long-lived thing the user watches; Ctrl-C stops it).
+   * "already_listening": a previous `kage up` — or something else — owns the port, so print the
+   * same instructions and exit 0: idempotent, never a failure. upProject itself never starts the
+   * proxy, which keeps the whole plan spawn-free and testable.
+   */
+  action: "start" | "already_listening";
+  port: number;
+  mode: VnextMode;
+}
+
+export interface UpResult {
+  ok: boolean;
+  project_dir: string;
+  port: number;
+  mode: VnextMode;
+  base_url: string;
+  /** The audit-only connect result — config path, adapters, runtime state, warnings. */
+  connect: ConnectResult;
+  proxy: UpProxyPlan;
+  /** The crisp block printed before the proxy takes the terminal: what to do, where results land. */
+  instructions: string[];
+  warnings: string[];
+}
+
+function upInstructions(projectDir: string, port: number, mode: VnextMode): string[] {
+  const baseUrl = `http://localhost:${port}`;
+  return [
+    "Point your agent through Kage — one thing left to do (either form):",
+    "",
+    `  export ANTHROPIC_BASE_URL=${baseUrl}    # in the terminal where your agent runs`,
+    "  kage run -- claude                                 # or wrap a single command; no export needed",
+    "",
+    `See what Kage measured:  kage status --project ${projectDir}   (per-request: kage receipts --project ${projectDir})`,
+    "",
+    mode === "audit"
+      ? "Mode: audit — measurement only. Kage forwards your agent's exact bytes and injects nothing."
+      : "Mode: assist — verified repo memory will be injected into your agent's prompts (the last user turn).",
+  ];
+}
+
+/**
+ * Everything `kage up` decides, with no side effect beyond what `connect` already does (write the
+ * audit config; start the detached runtime daemon when supported and requested — the singleton
+ * lease and the health probe make a second daemon impossible). The foreground proxy is
+ * deliberately NOT started here: the CLI does that after printing the instructions, so the plan
+ * stays testable without spawning long-lived processes and `--json` has a complete document to
+ * print before the proxy owns stdout.
+ */
+export async function upProject(options: UpOptions): Promise<UpResult> {
+  const projectDir = resolve(options.project_dir);
+  const port = options.port ?? 8788;
+  const mode: VnextMode = options.mode ?? "audit";
+
+  // connect is byte-idempotent and audit-only: an already-connected project is re-confirmed, not
+  // rewritten, and --mode assist cannot leak into the config (connect has no mode to pass).
+  const connected = await connectProject({
+    project_dir: projectDir,
+    agents: options.agents,
+    start: options.start_runtime !== false,
+    initialize_memory: options.initialize_memory,
+    start_runtime: options.runtime_starter,
+  });
+
+  const listening = await (options.probe_port ?? probeLocalPort)(port);
+
+  return {
+    ok: true,
+    project_dir: projectDir,
+    port,
+    mode,
+    base_url: `http://localhost:${port}`,
+    connect: connected,
+    proxy: { action: listening ? "already_listening" : "start", port, mode },
+    instructions: upInstructions(projectDir, port, mode),
+    warnings: connected.warnings,
+  };
+}
+
+// The runtime is optional by design: the proxy measures and serves traffic without it — evidence
+// just isn't captured to /v2/events. Every degraded state below says exactly that, in one line.
+function renderUpRuntime(state: ConnectRuntimeState): string {
+  switch (state.reason) {
+    case "started":
+      return `running at ${state.url} — proxy evidence lands in /v2/events`;
+    case "already_running":
+      return `already running at ${state.url} — reusing it (the runtime is a singleton; no second one started)`;
+    case "start_failed":
+      return "did not start — the proxy still works; evidence just isn't captured to /v2/events";
+    case "runtime_unsupported":
+      return "unsupported on this Node — the proxy still works; evidence just isn't captured to /v2/events";
+    default:
+      return "not started (runtime start was not requested)";
+  }
+}
+
+export function renderUp(result: UpResult): string {
+  const lines = [
+    `Kage up — ${result.project_dir}`,
+    "",
+    `  config:   ${result.connect.config_path}   (audit-only; up never enables prompt mutation on disk)`,
+    `  runtime:  ${renderUpRuntime(result.connect.runtime)}`,
+    result.proxy.action === "start"
+      ? `  proxy:    starting on ${result.base_url} (${result.mode}) — foreground; Ctrl-C stops it`
+      : `  proxy:    port ${result.port} already has a listener — reusing it and exiting 0 (if that isn't a Kage proxy, rerun with --port <n>)`,
+  ];
+  for (const warning of result.warnings) lines.push(`  note:     ${warning}`);
+  lines.push("", ...result.instructions);
+  return lines.join("\n");
+}
+
+// ---------------------------------------------------------------------------------------------
+// run — env-wrapped exec: point ONE command at the local proxy and get out of the way
+// ---------------------------------------------------------------------------------------------
+
+export interface RunOptions {
+  project_dir: string;
+  port?: number;
+  /** argv after `--`: the command and its args, exec'd as-is (no shell). */
+  command: string[];
+  /** Injectable for tests. Defaults to the same bounded TCP probe `up` uses. */
+  probe_port?: PortProbe;
+  /** Defaults to "inherit" so interactive agents own the terminal. Tests pass "ignore". */
+  stdio?: "inherit" | "ignore";
+}
+
+export interface RunResult {
+  ok: boolean;
+  /** The child's exit code verbatim; 1/2/127 when the child never ran (see hint). */
+  exit_code: number;
+  base_url: string;
+  /** One human line when the child never ran; null once the child owned the terminal. */
+  hint: string | null;
+}
+
+/**
+ * Sets ANTHROPIC_BASE_URL=http://localhost:<port> in the child's environment — and nothing else —
+ * then runs the command with inherited stdio and reports the child's exit code. It NEVER starts
+ * the proxy: `up` owns that lifecycle, and folding two lifecycles into one command would make
+ * ownership ambiguous (whose Ctrl-C stops what?). When nothing listens on the port it fails fast
+ * with a one-line hint instead of hanging or half-working.
+ */
+export async function runWithProxy(options: RunOptions): Promise<RunResult> {
+  const port = options.port ?? 8788;
+  const baseUrl = `http://localhost:${port}`;
+  if (!options.command.length) {
+    return {
+      ok: false,
+      exit_code: 2,
+      base_url: baseUrl,
+      hint: "Usage: kage run [--project <dir>] [--port <n>] -- <command> [args...]   e.g. kage run -- claude",
+    };
+  }
+
+  const listening = await (options.probe_port ?? probeLocalPort)(port);
+  if (!listening) {
+    return {
+      ok: false,
+      exit_code: 1,
+      base_url: baseUrl,
+      hint: `Nothing is listening on ${baseUrl} — run \`kage up --project ${options.project_dir}\` first (run never starts the proxy; up owns that lifecycle).`,
+    };
+  }
+
+  const child = spawn(options.command[0], options.command.slice(1), {
+    stdio: options.stdio ?? "inherit",
+    env: { ...process.env, ANTHROPIC_BASE_URL: baseUrl },
+  });
+
+  // Ctrl-C belongs to the interactive agent in the foreground: the wrapper must not die first and
+  // orphan a live session. The child shares the process group, so it still receives the SIGINT —
+  // the wrapper just waits for the child to act on it and then reports how it exited.
+  const ignoreSigint = () => { /* the child decides what Ctrl-C means */ };
+  process.on("SIGINT", ignoreSigint);
+  try {
+    return await new Promise<RunResult>((resolveRun) => {
+      child.once("error", (error) => {
+        resolveRun({
+          ok: false,
+          exit_code: 127,
+          base_url: baseUrl,
+          hint: `${options.command[0]}: ${error.message}`,
+        });
+      });
+      child.once("exit", (code, signal) => {
+        const signalCode = signal ? 128 + (osConstants.signals[signal] ?? 0) : null;
+        resolveRun({ ok: true, exit_code: code ?? signalCode ?? 1, base_url: baseUrl, hint: null });
+      });
+    });
+  } finally {
+    process.removeListener("SIGINT", ignoreSigint);
+  }
 }
 
 // ---------------------------------------------------------------------------------------------

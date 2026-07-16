@@ -463,8 +463,11 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
       console.log(`Falls back to ${projectDir} for clients that don't report one (e.g. aider, codex) or report one outside the workspace.`);
     } else {
       console.log(`\nThen use Claude Code normally in ${projectDir}.`);
+      // The banner may not claim an injection audit mode will never perform: say what THIS mode does.
       console.log(hasMemory
-        ? `Kage will inject verified memory outbound and capture the exchange inbound. Ctrl-C to stop.`
+        ? (mode === "audit"
+          ? `Kage will measure what memory injection would have saved and capture the exchange inbound — nothing is injected. Ctrl-C to stop.`
+          : `Kage will inject verified memory outbound and capture the exchange inbound. Ctrl-C to stop.`)
         : `No .agent_memory here yet — run \`kage init\` first, or the proxy is a plain passthrough. Ctrl-C to stop.`);
     }
     console.log(mode === "audit"

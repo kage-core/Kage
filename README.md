@@ -49,6 +49,26 @@ It creates `.agent_memory/`, builds the code graph, writes the `AGENTS.md` / `CL
 policy that tells agents to use Kage, auto-detects and wires your agents, and configures
 `.gitignore` + the packet merge driver. Requires Node.js 18+. No account, no API key.
 
+**Ambient proxy — the zero-wiring path.** Two steps: install once, then `kage up`. Every
+Anthropic-API agent (Claude Code, Codex CLI, aider, ...) flows through Kage with no per-agent
+config at all.
+
+```bash
+npx -y @kage-core/kage-graph-mcp install   # once per repo
+kage up                                    # audit-only config + runtime + foreground proxy
+```
+
+Then, in the terminal where your agent runs:
+
+```bash
+kage run -- claude       # or: export ANTHROPIC_BASE_URL=http://localhost:8788
+```
+
+`kage up` defaults to **audit mode**: measurement only — your bytes are forwarded unchanged and
+nothing is injected. When you want verified memory injected into prompts, run
+`kage up --mode assist`. Re-running `kage up` while the proxy is already up just reprints the
+instructions and exits 0. See what it measured with `kage status --project .`.
+
 **Or just ask your agent to set it up.** Paste this into Claude Code, Cursor, or any coding agent:
 
 > Set up Kage (verified memory for coding agents, https://github.com/kage-core/Kage)
