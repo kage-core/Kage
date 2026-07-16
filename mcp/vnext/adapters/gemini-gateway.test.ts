@@ -375,14 +375,17 @@ test("captureEvents parses functionCall parts spread across a STREAMED JSON arra
   const body = JSON.stringify([
     { candidates: [{ content: { parts: [{ text: "thinking" }] } }] },
     { candidates: [{ content: { parts: [{ functionCall: { name: "list_orders", args: { limit: 10 } } }] } }] },
-    { candidates: [{ content: { parts: [{ functionCall: { name: "charge_card", args: { cents: 999 } } }] } }], usageMetadata: { promptTokenCount: 3, candidatesTokenCount: 3 } },
+    // The arg sentinel must not be able to occur by accident in the serialized events: event_id
+    // (random UUID hex), source_fingerprint (sha256 hex) and timestamps all contain digits, so a
+    // numeric sentinel like 999 flakes ~2% of runs when a fingerprint happens to contain it.
+    { candidates: [{ content: { parts: [{ functionCall: { name: "charge_card", args: { cents: "LEAKED_ARG_SENTINEL" } } }] } }], usageMetadata: { promptTokenCount: 3, candidatesTokenCount: 3 } },
   ]);
   const events = geminiGateway.captureEvents(captureContext({ userPrompt: "", responseBody: body }));
   const tools = events.filter((e) => e.event_type === "tool_result");
   assert.equal(tools.length, 2, "a functionCall in each streamed chunk is captured");
   assert.deepEqual(tools.map((t) => t.payload.tool), ["list_orders", "charge_card"]);
   assert.ok(!JSON.stringify(events).includes("limit"), "streamed functionCall args never leak");
-  assert.ok(!JSON.stringify(events).includes("999"));
+  assert.ok(!JSON.stringify(events).includes("LEAKED_ARG_SENTINEL"));
 });
 
 test("captureEvents parses a functionCall from a STREAMED SSE chunk (?alt=sse)", () => {
