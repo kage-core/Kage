@@ -93,6 +93,15 @@ function fixtureReview(overrides: Partial<ReviewItemRecord> = {}): ReviewItemRec
   };
 }
 
+// Mint an injectable `approved` claim the only legal way: create it `proposed`, attach an accepted
+// review item, then transition. Direct creation of an approved claim is (correctly) refused by the
+// store, so tests that need one must walk the real lifecycle.
+function approvedClaim(model: Repository, overrides: Partial<ClaimRecord> = {}): ClaimRecord {
+  const claim = model.createClaim(fixtureClaim({ ...overrides, trust_state: "proposed" }));
+  model.createReviewItem(fixtureReview({ claim_id: claim.claim_id, status: "accepted" }));
+  return model.transitionClaim(claim.claim_id, "approved", "reviewer");
+}
+
 function fixtureEntity(overrides: Partial<EntityRecord> = {}): EntityRecord {
   return {
     entity_id: randomUUID(),
@@ -110,8 +119,13 @@ function fixtureEntity(overrides: Partial<EntityRecord> = {}): EntityRecord {
 
 test("superseding a claim preserves history and excludes the old claim", () => {
   const model = fixtureModel();
-  const first = model.createClaim(fixtureClaim({ normalized_content: "Auth uses sessions." }));
-  const second = model.supersedeClaim(first.claim_id, fixtureClaim({ normalized_content: "Auth uses signed sessions." }));
+  const evidence = model.addEvidence(fixtureEvidence({ verification_state: "verified" }));
+  const first = approvedClaim(model, { normalized_content: "Auth uses sessions." });
+  const second = model.supersedeClaim(
+    first.claim_id,
+    fixtureClaim({ trust_state: "verified", normalized_content: "Auth uses signed sessions." }),
+    [{ evidence_id: evidence.evidence_id, stance: "supports" }],
+  );
   assert.equal(model.getClaim(first.claim_id)?.trust_state, "superseded");
   assert.equal(second.supersedes_claim_id, first.claim_id);
   assert.deepEqual(model.injectableClaims(first.entity_id).map((claim) => claim.claim_id), [second.claim_id]);
@@ -187,6 +201,35 @@ test("approved is allowed once an accepted review item exists", () => {
   assert.equal(approved.trust_state, "approved");
 });
 
+test("approved is unreachable from a non-proposed state without an accepted review item", () => {
+  // Path A of the hardening: the approved gate must not be scoped to `from === 'proposed'`. A claim
+  // that a compiler detected as disputed must not be launderable straight to the injectable
+  // `approved` state by an actor who never produced a review item.
+  const model = fixtureModel();
+  const claim = model.createClaim(fixtureClaim({ trust_state: "proposed" }));
+  model.transitionClaim(claim.claim_id, "disputed", "compiler");
+  assert.throws(() => model.transitionClaim(claim.claim_id, "approved", "attacker"), /review/i);
+  assert.deepEqual(model.injectableClaims("entity-1").map((c) => c.claim_id), []);
+});
+
+test("createClaim refuses an approved claim with no accepted review item", () => {
+  // Path B of the hardening: `approved` is an injectable state, so minting it at creation with no
+  // review item and no evidence would defeat the store-enforced honesty gate.
+  const model = fixtureModel();
+  assert.throws(() => model.createClaim(fixtureClaim({ trust_state: "approved" })), /review/i);
+});
+
+test("approval preserves the original creator's provenance", () => {
+  // Issue 2: transitioning to approved must never overwrite created_by with the approver, or the
+  // origin of the claim is destroyed and consumers read a fabricated author.
+  const model = fixtureModel();
+  const claim = model.createClaim(fixtureClaim({ trust_state: "proposed", created_by: "original-compiler" }));
+  model.createReviewItem(fixtureReview({ claim_id: claim.claim_id, status: "accepted" }));
+  const approved = model.transitionClaim(claim.claim_id, "approved", "reviewer-bob");
+  assert.equal(approved.created_by, "original-compiler");
+  assert.equal(model.getClaim(claim.claim_id)?.created_by, "original-compiler");
+});
+
 test("transitioning to verified requires verified supporting evidence", () => {
   const model = fixtureModel();
   const claim = model.createClaim(fixtureClaim({ trust_state: "proposed" }));
@@ -195,8 +238,8 @@ test("transitioning to verified requires verified supporting evidence", () => {
 
 test("no transition is allowed out of a superseded claim", () => {
   const model = fixtureModel();
-  const first = model.createClaim(fixtureClaim());
-  model.supersedeClaim(first.claim_id, fixtureClaim());
+  const first = model.createClaim(fixtureClaim({ trust_state: "proposed" }));
+  model.supersedeClaim(first.claim_id, fixtureClaim({ trust_state: "proposed" }));
   assert.throws(() => model.transitionClaim(first.claim_id, "verified", "compiler"), /superseded|terminal/i);
 });
 
@@ -209,7 +252,7 @@ test("no transition is allowed out of an archived claim", () => {
 
 test("feature read model surfaces only injectable claims but counts the rest in health", () => {
   const model = fixtureModel();
-  const injectable = model.createClaim(fixtureClaim({ trust_state: "approved", normalized_content: "A" }));
+  const injectable = approvedClaim(model, { normalized_content: "A" });
   model.createClaim(fixtureClaim({ trust_state: "proposed", normalized_content: "B" }));
   const disputed = model.createClaim(fixtureClaim({ trust_state: "proposed", normalized_content: "C" }));
   model.transitionClaim(disputed.claim_id, "disputed", "compiler");

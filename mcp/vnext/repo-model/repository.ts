@@ -92,7 +92,10 @@ const TERMINAL_STATES: ReadonlySet<TrustState> = new Set(["superseded", "archive
  * Every honesty gate lives here, not in callers:
  *  - a claim is injectable only when its trust_state is `verified` or `approved`;
  *  - a `verified` claim must be backed by at least one verified supporting evidence row;
- *  - `proposed -> approved` requires a completed (accepted) review item;
+ *  - `approved` is reachable ONLY with a completed (accepted) review item, on every write path —
+ *    at creation, at supersession, and on any transition into `approved` regardless of the state it
+ *    came from (a disputed or stale claim cannot be laundered straight to approved);
+ *  - a transition never rewrites `created_by`: the original author's provenance is immutable;
  *  - `superseded`/`archived` are terminal — no transition leaves them;
  *  - claim content is never mutated in place: supersession mints a new version and links back.
  *
@@ -226,7 +229,7 @@ export class Repository {
     return this.tx(() => {
       this.insertClaimRow(input);
       this.linkEvidence(input.claim_id, evidence);
-      this.enforceTrustEvidence(input.claim_id, input.trust_state);
+      this.enforceTrustGates(input.claim_id, input.trust_state);
       const created = this.getClaim(input.claim_id);
       if (!created) throw new Error(`Claim ${input.claim_id} disappeared during creation.`);
       return created;
@@ -244,7 +247,7 @@ export class Repository {
       const linked: ClaimRecord = { ...replacement, supersedes_claim_id: claimId };
       this.insertClaimRow(linked);
       this.linkEvidence(linked.claim_id, evidence);
-      this.enforceTrustEvidence(linked.claim_id, linked.trust_state);
+      this.enforceTrustGates(linked.claim_id, linked.trust_state);
       // Retire the original: superseded is terminal and non-injectable.
       this.db
         .prepare(`UPDATE claims SET trust_state = 'superseded', updated_at = ? WHERE claim_id = ?`)
@@ -264,17 +267,24 @@ export class Repository {
       if (TERMINAL_STATES.has(from)) {
         throw new Error(`Claim ${claimId} is ${from}; no transition is allowed out of a terminal claim.`);
       }
-      if (to === "approved" && from === "proposed" && !this.hasAcceptedReview(claimId)) {
+      // The approved gate is on the DESTINATION, not the origin: any move into `approved` (from
+      // proposed, disputed, stale, ...) demands a completed review item. Scoping it to `proposed`
+      // would let a known-disputed claim be laundered straight into the injectable state.
+      if (to === "approved" && !this.hasAcceptedReview(claimId)) {
         throw new Error(
-          `Claim ${claimId} cannot move proposed -> approved without a completed (accepted) review item.`,
+          `Claim ${claimId} cannot become approved without a completed (accepted) review item.`,
         );
       }
       if (to === "verified" && !this.hasVerifiedSupportingEvidence(claimId)) {
         throw new Error(`Claim ${claimId} cannot become verified without verified supporting evidence.`);
       }
+      // `actor` performs the transition but is NEVER written to `created_by`: the original author's
+      // provenance is immutable. The store has no last-actor column, so the transition actor is not
+      // persisted rather than being allowed to falsify the claim's origin.
+      void actor;
       this.db
-        .prepare(`UPDATE claims SET trust_state = ?, created_by = ?, updated_at = ? WHERE claim_id = ?`)
-        .run(to, actor, new Date().toISOString(), claimId);
+        .prepare(`UPDATE claims SET trust_state = ?, updated_at = ? WHERE claim_id = ?`)
+        .run(to, new Date().toISOString(), claimId);
       const updated = this.getClaim(claimId);
       if (!updated) throw new Error(`Claim ${claimId} disappeared during transition.`);
       return updated;
@@ -426,13 +436,20 @@ export class Repository {
     }
   }
 
-  // A claim may only be born `verified` when a verified supporting evidence row backs it. Any other
-  // trust state (including `approved`, which is a human acceptance rather than an evidence assertion)
-  // is accepted as given by the caller; the transition guards police later lifecycle moves.
-  private enforceTrustEvidence(claimId: string, trustState: TrustState): void {
+  // Both injectable states are gated at every write path (createClaim, supersedeClaim), not only on
+  // transitions: a claim may be born/persisted `verified` only when a verified supporting evidence
+  // row backs it, and `approved` only when a completed (accepted) review item backs it. Because a
+  // review item foreign-keys the claim, no accepted review can pre-exist a brand-new claim, so this
+  // correctly refuses any attempt to mint an injectable `approved` claim out of thin air.
+  private enforceTrustGates(claimId: string, trustState: TrustState): void {
     if (trustState === "verified" && !this.hasVerifiedSupportingEvidence(claimId)) {
       throw new Error(
         `Claim ${claimId} is marked verified but has no verified supporting evidence; refusing to persist.`,
+      );
+    }
+    if (trustState === "approved" && !this.hasAcceptedReview(claimId)) {
+      throw new Error(
+        `Claim ${claimId} is marked approved but has no completed (accepted) review item; refusing to persist.`,
       );
     }
   }
