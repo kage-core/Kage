@@ -128,6 +128,56 @@ test("out-of-order events are grouped by chronological order within a task", () 
   assert.equal(episodes[0].outcome, "verified_success");
 });
 
+test("delimiter chars in ids do not collide across distinct (repository, task) pairs", () => {
+  // A single delimiter char is not collision-proof: whatever byte joins (repository_id, task_id),
+  // an id may contain that same byte. protocol-valid ids can contain NUL (requiredString only
+  // rejects trim()-empty strings, and NUL is not whitespace), so ('repo\0x', 't') and ('repo',
+  // 'x\0t') both flatten to "repo\0x\0t" under a naive \0-join — merging two distinct work streams.
+  const D = "\u0000";
+  const episodes = buildEpisodes([
+    event("file_edit", 0, {}, `repo${D}x`, "t"),
+    event("file_edit", 2, {}, "repo", `x${D}t`),
+  ]);
+  assert.equal(episodes.length, 2);
+});
+
+test("two episodes in one group whose ids delimiter-join alike keep distinct episode_ids", () => {
+  // Same (repository, task); a session_end splits the group into two episodes. The event_ids embed
+  // the delimiter byte so a naive join of (repo, task, first_id, last_id, count) coincides:
+  //   episode 1: first "a\0b", last "c"   -> "r\0t\0a\0b\0c\02"
+  //   episode 2: first "a",    last "b\0c" -> "r\0t\0a\0b\0c\02"
+  const D = "\u0000";
+  const raw = (event_id: string, type: EvidenceEvent["event_type"], minute: number): EvidenceEvent => ({
+    protocol_version: KAGE_PROTOCOL_VERSION,
+    event_id,
+    event_type: type,
+    occurred_at: new Date(minute * 60_000).toISOString(),
+    repository_id: "r",
+    task_id: "t",
+    privacy_class: "local_raw",
+    source_fingerprint: `fp-${event_id}`,
+    payload: {},
+  });
+  const episodes = buildEpisodes([
+    raw(`a${D}b`, "file_edit", 0),
+    raw("c", "session_end", 1),
+    raw("a", "file_edit", 2),
+    raw(`b${D}c`, "file_edit", 3),
+  ]);
+  assert.equal(episodes.length, 2);
+  assert.notEqual(episodes[0].episode_id, episodes[1].episode_id);
+
+  const db = migratedDatabase();
+  try {
+    const result = persistEpisodes(db, episodes);
+    assert.equal(result.inserted, 2);
+    const count = db.prepare("SELECT COUNT(*) AS n FROM episodes").get() as { n: number };
+    assert.equal(count.n, 2);
+  } finally {
+    db.close();
+  }
+});
+
 test("reprocessing the same events persists no duplicate episode", () => {
   const db = migratedDatabase();
   try {
