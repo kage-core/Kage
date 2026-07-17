@@ -1,6 +1,7 @@
 import type { LocalDatabase } from "./database.js";
+import { REPOSITORY_MODEL_SCHEMA_SQL } from "../repo-model/schema.js";
 
-const CURRENT_SCHEMA_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 4;
 
 const MIGRATION_LEDGER_SCHEMA = `
 CREATE TABLE schema_migrations (
@@ -133,10 +134,18 @@ const MIGRATION_003 = `
 ALTER TABLE context_deliveries ADD COLUMN provider TEXT;
 `;
 
+// Phase B, migration 004: the canonical repository model (entities / claims / evidence /
+// claim_evidence / relations / episodes / review_items / compiler_checkpoints). This does NOT touch
+// the frozen protocol v1 wire messages — it extends Kage's own local store with new tables. The DDL
+// is owned by the model layer (repo-model/schema.ts) and imported verbatim so there is a single
+// source of truth for the schema.
+const MIGRATION_004 = REPOSITORY_MODEL_SCHEMA_SQL;
+
 const MIGRATIONS: Readonly<Record<number, string>> = {
   1: MIGRATION_001,
   2: MIGRATION_002,
   3: MIGRATION_003,
+  4: MIGRATION_004,
 };
 
 interface SchemaObjectRow {
@@ -224,14 +233,124 @@ const V1_TABLE_COLUMNS: Readonly<Record<string, readonly ExpectedColumn[]>> = {
 const V2_DELIVERY_LATENCY_COLUMN: ExpectedColumn = ["composition_latency_ms", "REAL", 0, 0];
 const V3_DELIVERY_PROVIDER_COLUMN: ExpectedColumn = ["provider", "TEXT", 0, 0];
 
+// Migration 004 (Phase B) adds the eight repository-model tables. The tuples below are transcribed
+// verbatim from `PRAGMA table_info` after applying the DDL — NOT hand-guessed — because the validator
+// demands an exact match on count, order, name, type, notnull, and pk. Two SQLite subtleties are
+// baked in: a `TEXT PRIMARY KEY` reports pk=1 with notnull=0 (SQLite does not imply NOT NULL for a
+// non-INTEGER primary key), and a COMPOSITE primary key reports pk as the 1-based position within the
+// key (claim_evidence -> claim_id pk=1, evidence_id pk=2; compiler_checkpoints likewise).
+const ENTITIES_COLUMNS: readonly ExpectedColumn[] = [
+  ["entity_id", "TEXT", 0, 1],
+  ["repository_id", "TEXT", 1, 0],
+  ["kind", "TEXT", 1, 0],
+  ["canonical_name", "TEXT", 1, 0],
+  ["slug", "TEXT", 1, 0],
+  ["summary", "TEXT", 1, 0],
+  ["status", "TEXT", 1, 0],
+  ["created_at", "TEXT", 1, 0],
+  ["updated_at", "TEXT", 1, 0],
+];
+const CLAIMS_COLUMNS: readonly ExpectedColumn[] = [
+  ["claim_id", "TEXT", 0, 1],
+  ["entity_id", "TEXT", 1, 0],
+  ["claim_kind", "TEXT", 1, 0],
+  ["normalized_content", "TEXT", 1, 0],
+  ["trust_state", "TEXT", 1, 0],
+  ["confidence", "REAL", 1, 0],
+  ["impact_class", "TEXT", 1, 0],
+  ["valid_from_commit", "TEXT", 0, 0],
+  ["valid_to_commit", "TEXT", 0, 0],
+  ["supersedes_claim_id", "TEXT", 0, 0],
+  ["review_policy", "TEXT", 1, 0],
+  ["created_by", "TEXT", 1, 0],
+  ["created_at", "TEXT", 1, 0],
+  ["updated_at", "TEXT", 1, 0],
+];
+const EVIDENCE_COLUMNS: readonly ExpectedColumn[] = [
+  ["evidence_id", "TEXT", 0, 1],
+  ["repository_id", "TEXT", 1, 0],
+  ["source_type", "TEXT", 1, 0],
+  ["source_uri", "TEXT", 1, 0],
+  ["source_fingerprint", "TEXT", 1, 0],
+  ["commit_hash", "TEXT", 0, 0],
+  ["path", "TEXT", 0, 0],
+  ["symbol", "TEXT", 0, 0],
+  ["line_start", "INTEGER", 0, 0],
+  ["line_end", "INTEGER", 0, 0],
+  ["verification_method", "TEXT", 1, 0],
+  ["verification_state", "TEXT", 1, 0],
+  ["privacy_class", "TEXT", 1, 0],
+  ["observed_at", "TEXT", 1, 0],
+];
+const CLAIM_EVIDENCE_COLUMNS: readonly ExpectedColumn[] = [
+  ["claim_id", "TEXT", 1, 1],
+  ["evidence_id", "TEXT", 1, 2],
+  ["stance", "TEXT", 1, 0],
+];
+const RELATIONS_COLUMNS: readonly ExpectedColumn[] = [
+  ["relation_id", "TEXT", 0, 1],
+  ["repository_id", "TEXT", 1, 0],
+  ["from_entity_id", "TEXT", 1, 0],
+  ["relation_type", "TEXT", 1, 0],
+  ["to_entity_id", "TEXT", 1, 0],
+  ["evidence_id", "TEXT", 0, 0],
+  ["created_at", "TEXT", 1, 0],
+];
+const EPISODES_COLUMNS: readonly ExpectedColumn[] = [
+  ["episode_id", "TEXT", 0, 1],
+  ["repository_id", "TEXT", 1, 0],
+  ["task_id", "TEXT", 0, 0],
+  ["episode_type", "TEXT", 1, 0],
+  ["title", "TEXT", 1, 0],
+  ["started_at", "TEXT", 1, 0],
+  ["ended_at", "TEXT", 1, 0],
+  ["event_ids_json", "TEXT", 1, 0],
+  ["outcome", "TEXT", 1, 0],
+];
+const REVIEW_ITEMS_COLUMNS: readonly ExpectedColumn[] = [
+  ["review_item_id", "TEXT", 0, 1],
+  ["repository_id", "TEXT", 1, 0],
+  ["claim_id", "TEXT", 1, 0],
+  ["reason", "TEXT", 1, 0],
+  ["required_role", "TEXT", 1, 0],
+  ["status", "TEXT", 1, 0],
+  ["assigned_to", "TEXT", 0, 0],
+  ["decided_by", "TEXT", 0, 0],
+  ["decided_at", "TEXT", 0, 0],
+  ["decision_note", "TEXT", 0, 0],
+  ["created_at", "TEXT", 1, 0],
+];
+const COMPILER_CHECKPOINTS_COLUMNS: readonly ExpectedColumn[] = [
+  ["compiler_name", "TEXT", 1, 1],
+  ["repository_id", "TEXT", 1, 2],
+  ["last_event_id", "TEXT", 0, 0],
+  ["updated_at", "TEXT", 1, 0],
+];
+
+const REPO_MODEL_COLUMNS: Readonly<Record<string, readonly ExpectedColumn[]>> = {
+  entities: ENTITIES_COLUMNS,
+  claims: CLAIMS_COLUMNS,
+  evidence: EVIDENCE_COLUMNS,
+  claim_evidence: CLAIM_EVIDENCE_COLUMNS,
+  relations: RELATIONS_COLUMNS,
+  episodes: EPISODES_COLUMNS,
+  review_items: REVIEW_ITEMS_COLUMNS,
+  compiler_checkpoints: COMPILER_CHECKPOINTS_COLUMNS,
+};
+
 function expectedColumns(version: number): Readonly<Record<string, readonly ExpectedColumn[]>> {
   if (version < 2) return V1_TABLE_COLUMNS;
   const contextDeliveries = [...V1_TABLE_COLUMNS.context_deliveries, V2_DELIVERY_LATENCY_COLUMN];
   if (version >= 3) contextDeliveries.push(V3_DELIVERY_PROVIDER_COLUMN);
-  return {
+  const base = {
     ...V1_TABLE_COLUMNS,
     context_deliveries: contextDeliveries,
   };
+  // The repository-model tables only exist from version 4 onward. This gating is load-bearing: the
+  // runner calls validateSchema(db, version - 1) BEFORE applying migration 004, and version 3 has no
+  // repo-model tables, so expectedColumns(3) must not mention them.
+  if (version < 4) return base;
+  return { ...base, ...REPO_MODEL_COLUMNS };
 }
 
 const V1_UNIQUE_KEYS = [

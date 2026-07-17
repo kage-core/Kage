@@ -2,6 +2,18 @@ export const KAGE_PROTOCOL_VERSION = 1 as const;
 
 export type ProtocolVersion = typeof KAGE_PROTOCOL_VERSION;
 export type PrivacyClass = "local_raw" | "team_metadata" | "team_approved";
+// TrustState is an internal repository-model lifecycle concept, NOT a wire field. It never appears on
+// any frozen protocol-v1 message (EvidenceEvent/ContextCapsule/ContextDelivery/TransformationReceipt/
+// AdapterHandshake); it lives here only so the model layer and the context seam share one definition.
+// Only `verified` and `approved` are injectable (see isInjectableTrustState in ../repo-model/types.ts).
+export type TrustState =
+  | "proposed"
+  | "verified"
+  | "approved"
+  | "disputed"
+  | "stale"
+  | "superseded"
+  | "archived";
 export type MeasurementQuality = "exact" | "partial" | "unavailable";
 export type AdapterCapability =
   | "session_start"
