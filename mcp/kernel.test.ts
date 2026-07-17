@@ -122,6 +122,8 @@ import {
   formatStaleCatch,
   valueSummary,
   formatTokenCount,
+  formatValueGains,
+  formatRecallValueReceipt,
   recordFeedback,
   refreshProject,
   reverifyMemory,
@@ -5386,6 +5388,61 @@ test("recall records value ledger receipts for served and withheld memory", () =
   const ledger = JSON.parse(readFileSync(join(project, ".agent_memory", "reports", "value.json"), "utf8"));
   assert.equal(ledger.events.some((event: { kind: string }) => event.kind === "recall_served"), true);
   assert.equal(ledger.events.some((event: { kind: string; packet_title?: string }) => event.kind === "stale_withheld" && event.packet_title === "Gone billing note"), true);
+});
+
+// Honesty guard: the reuse-savings token figure is an ESTIMATE and must be labeled as such
+// at the point of display, while stale_withheld / recalls are MEASURED counts. This test
+// FAILS if either the gains output or the recall receipt prints the estimate as a bare
+// measured "saved you N tokens" — the product's headline "savings" claim must never imply
+// measurement it does not have.
+test("gains output labels the estimated token figure and keeps measured counts distinct", () => {
+  const mkWindow = (tokens_saved: number, stale_withheld: number, stale_caught: number, recalls: number, caller_answers: number, replay_tokens = 0) => ({
+    tokens_saved,
+    replay_tokens,
+    stale_withheld,
+    stale_caught,
+    recalls,
+    caller_answers,
+    estimated_dollars: Number(((tokens_saved / 1_000_000) * VALUE_DOLLARS_PER_MILLION_TOKENS).toFixed(2)),
+  });
+  const summary = {
+    schema_version: 1,
+    project_dir: "/tmp/x",
+    today: mkWindow(1000, 2, 1, 3, 1, 500),
+    last_7d: mkWindow(5000, 4, 2, 6, 1, 2000),
+    all_time: mkWindow(9000, 10, 3, 12, 2, 4000),
+  };
+  const lines = formatValueGains(summary);
+  const out = lines.join("\n");
+
+  // The estimate is labeled estimated, and the measured counts are labeled measured — the
+  // two are visibly different kinds of number.
+  assert.match(out, /estimated/i, "gains must label the token/$ figures as estimated");
+  assert.match(out, /measured/i, "gains must mark the event counts as measured");
+
+  // Regression guard: the old phrasing presented the estimate as a measured fact.
+  assert.ok(!/saved you/i.test(out), `gains must not phrase the estimate as measured "saved you": ${out}`);
+
+  // Every line that prints a "~<count> tokens" savings figure must carry the estimated label.
+  for (const line of lines) {
+    if (/~\S+\s*tokens\b/i.test(line)) {
+      assert.ok(/estimated/i.test(line), `token savings line must be labeled estimated: "${line}"`);
+    }
+  }
+
+  // The measured stale-block COUNT is present and marked as a measured count, not folded into
+  // the token estimate.
+  assert.ok(/\b4\b/.test(out), "measured 7d stale-withheld count (4) must appear");
+});
+
+test("recall value receipt labels the estimated tokens and the measured withheld count", () => {
+  const line = formatRecallValueReceipt({ tokens_saved: 4000, stale_withheld: 2 });
+  assert.match(line, /4K|4000/, "the token figure must be shown");
+  assert.match(line, /estimated/i, "the token figure is an estimate and must say so");
+  assert.match(line, /2 stale/, "the measured withheld count must be shown");
+  assert.match(line, /measured/i, "the withheld count must be marked as measured");
+  // Regression guard against the old measured-sounding phrasing.
+  assert.ok(!/saved ~\S+ tokens vs reading source/i.test(line), `old measured phrasing must be gone: "${line}"`);
 });
 
 test("capture stores discovery_tokens: caller-reported values kept, conservative per-type defaults estimated", () => {

@@ -127,7 +127,6 @@ import {
   registryRecommendations,
   setupAgent,
   generatePluginHooks,
-  VALUE_DOLLARS_PER_MILLION_TOKENS,
   setupDoctor,
   setContextSlot,
   staleCatch,
@@ -149,6 +148,8 @@ import {
   validateProject,
   valueSummary,
   formatTokenCount,
+  formatValueGains,
+  formatRecallValueReceipt,
   verifyAgentActivation,
   writeCodeIndex,
   type CaptureInput,
@@ -180,7 +181,7 @@ Core commands:
   kage context "<query>" --project <dir>     validate + recall + code graph + knowledge graph in one call
   kage recall "<query>" --project <dir>      grounded recall from repo memory
   kage learn --project <dir> ...             capture a learning as a memory packet
-  kage gains --project <dir>                 what Kage saved you (tokens, cost, stale blocks)
+  kage gains --project <dir>                 value ledger: estimated token/$ savings + measured stale blocks and recalls
   kage team --project <dir>                  team memory health: contributors, pending review, stale, contradictions
   kage gate list --project <dir>             SDLC work items (proposals) and their stage; kage gate review to approve
   kage verify --project <dir>                check memory citations against code
@@ -2006,48 +2007,9 @@ async function main(): Promise<void> {
       console.log(JSON.stringify(summary, null, 2));
       return;
     }
-    const plural = (count: number, singular: string, pluralForm: string): string => (count === 1 ? singular : pluralForm);
-    const week = summary.last_7d;
-    if (!summary.all_time.recalls && !summary.all_time.stale_withheld && !summary.all_time.stale_caught && !summary.all_time.caller_answers) {
-      console.log("No value events recorded yet — this ledger fills up as your agent works.");
-      console.log("Every recall logs the tokens it saved (by not re-reading cited files) and every");
-      console.log("stale memory it withheld. Come back after a session and you'll see a receipt here.\n");
-      console.log("Start now:");
-      console.log("  kage scan --project .                  a Truth Report on this repo");
-      console.log("  kage scan --project . --scorecard      a shareable scorecard you can post");
-      console.log("  then just work — your agent captures and recalls, verified against this code.");
-      return;
-    }
-    console.log(
-      `This week Kage saved you ~${formatTokenCount(week.tokens_saved)} tokens (~$${week.estimated_dollars.toFixed(2)}), ` +
-      `blocked ${week.stale_withheld} stale ${plural(week.stale_withheld, "memory", "memories")}, ` +
-      `caught ${week.stale_caught} stale at change-time, ` +
-      `answered ${week.recalls} ${plural(week.recalls, "recall", "recalls")}.`
-    );
-    const windowLine = (label: string, window: typeof week): string =>
-      `  ${label} ~${formatTokenCount(window.tokens_saved)} tokens (~$${window.estimated_dollars.toFixed(2)}) · ` +
-      `${window.stale_withheld} stale blocked · ${window.stale_caught} stale caught at change-time · ` +
-      `${window.recalls} ${plural(window.recalls, "recall", "recalls")} · ` +
-      `${window.caller_answers} caller ${plural(window.caller_answers, "answer", "answers")}`;
-    console.log(windowLine("Today:   ", summary.today));
-    console.log(windowLine("All time:", summary.all_time));
-    if (summary.all_time.caller_answers > 0) {
-      console.log("  (caller answers: \"who calls this\" code-graph questions answered from the call-edge index)");
-    }
-    if (summary.all_time.replay_tokens > 0) {
-      console.log(
-        `Knowledge replay value: ~${formatTokenCount(week.replay_tokens)} tokens this week · ` +
-        `~${formatTokenCount(summary.all_time.replay_tokens)} all time ` +
-        `(discovery cost of served memories vs their compressed read cost)`
-      );
-    }
-    const usdOverridden = Number.isFinite(Number(process.env.KAGE_USD_PER_MTOK)) && Number(process.env.KAGE_USD_PER_MTOK) > 0;
-    console.log(
-      `\nDollars estimated at $${VALUE_DOLLARS_PER_MILLION_TOKENS}/1M input tokens ` +
-      `(${usdOverridden ? "via KAGE_USD_PER_MTOK" : "Sonnet-class default — set KAGE_USD_PER_MTOK for your model"}). ` +
-      `Ledger: .agent_memory/reports/value.json`
-    );
-    console.log(`This is your actual cumulative usage. For a reproducible before/after benchmark: kage savings.`);
+    // Rendering lives in the kernel (formatValueGains) so the measured/estimated honesty
+    // contract is unit-tested, not re-typed here where it could silently drift.
+    for (const line of formatValueGains(summary)) console.log(line);
     return;
   }
 
@@ -2878,7 +2840,7 @@ async function main(): Promise<void> {
     else {
       console.log(result.context_block);
       if (result.value_receipt) {
-        console.log(`\n↳ saved ~${formatTokenCount(result.value_receipt.tokens_saved)} tokens vs reading source · ${result.value_receipt.stale_withheld} stale withheld`);
+        console.log(formatRecallValueReceipt(result.value_receipt));
       }
     }
     return;

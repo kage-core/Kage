@@ -285,6 +285,105 @@ is silently stored as a redundant packet. A stronger near-duplicate matcher woul
 move this to 1.0 without moving anything else — run with `--assert-baseline`
 before and after that change.
 
+## Reuse Value
+
+`reuse-value-kage.mjs` validates Kage's headline claim — the **reuse-savings
+thesis**. Kage's proxy INJECTS memory, so on a single prompt it ADDS tokens; it
+does not compress. The claim is a REUSE claim: having the memory means the agent
+does not re-derive or re-read knowledge it already captured, saving tokens ACROSS
+a task. This harness measures the part of that thesis that is DETERMINISTICALLY
+measurable with no agent and no network: for a labeled (query, the fact needed to
+answer it, the file(s) that carry that fact), does the recalled memory BODY
+contain the fact, so the agent could answer from memory instead of opening those
+files?
+
+The decision under test is the REAL `recall()` imported from `mcp/dist/kernel.js`
+(non-mutating, `trackAccess: false`), not a mirror. It seeds a deterministic store
+through the kernel's own `capture()`: 5 RELEVANT packets whose body carries a
+non-obvious fact, each cited to real seeded files that ALSO contain that fact, plus
+4 CONTROL queries whose ANSWER fact is in NO packet body (three of them deliberately
+share topic vocabulary with a packet, so recall DOES return a packet — but not the
+answer). Two construction guards keep the labels fair and error loudly if violated:
+each relevant fact lives in exactly one packet body (and in each of its cited files),
+and each control's absent fact lives in zero packet bodies.
+
+```sh
+npm run build --prefix mcp
+node benchmarks/reuse-value-kage.mjs                 # summary JSON on stdout, per-case table + baseline block on stderr
+node benchmarks/reuse-value-kage.mjs --json          # full report with the per-case table
+node benchmarks/reuse-value-kage.mjs --out /tmp/kage-reuse.json
+node benchmarks/reuse-value-kage.mjs --assert-baseline  # exit 1 only on regression below the recorded baseline
+npm run bench:reuse --prefix mcp
+```
+
+This eval MEASURES; it does not flatter. It is NOT part of `npm test`.
+`--assert-baseline` fails only when a metric regresses below the recorded baseline
+(or any case errors).
+
+Recorded 2026-07-17 baseline (9 cases, 0 errors):
+
+| Metric | Baseline | Reading |
+| --- | ---: | --- |
+| answer_from_memory_rate | 1.0000 | RELEVANT queries whose recalled memory body contains the labeled fact (all 5 answered, each as the top hit) |
+| files_avoided | 8 | cited files the agent would not need to open across the answered relevant queries (of 8 possible) |
+| false_help_rate | 0.0000 | CONTROL queries the harness wrongly credited to memory — target 0 |
+
+The honesty proof is in the score bands: `control_recall_returned_rate` is 1.0 —
+every control DID recall a topical packet (1–2 each) — yet `false_help_rate` stays
+0, because the harness credits memory only when the ANSWER fact is actually present,
+never on mere recall. If someone weakened the harness to credit on recall alone, the
+topic-overlap controls would flip to false-help and this metric would jump.
+
+**Honest scope.** `answer_from_memory_rate` is a deterministic PROXY for reuse
+value: it shows the answer was PRESENT in memory, so the agent COULD skip the cited
+files. It is NOT the end-to-end TOKEN DELTA (an agent run WITH memory vs WITHOUT,
+netting the injection's own added tokens against the files not read). That delta
+needs a live A/B agent run and is deliberately NOT claimed here — no token-savings
+number is fabricated.
+
+### Receipts cross-check (the measured cost next to the estimate)
+
+The same script has a `--receipts` mode that puts the MEASURED cost of injection
+next to that estimate. It reads the real transformation receipts from the local
+vNext store through the same shipped runtime client the audit report uses
+(`readLocalReceipts`, `tokenDelta`, `costDelta`), and reports what injection
+actually ADDED.
+
+```sh
+node benchmarks/reuse-value-kage.mjs --receipts                       # cross-check the current repo's store
+node benchmarks/reuse-value-kage.mjs --receipts --project /path/repo  # a specific repo
+node benchmarks/reuse-value-kage.mjs --receipts --json
+```
+
+Three honesty rules it never breaks:
+
+- **Injected bytes are measured; tokens are only claimed two-sided.** Every
+  transformed receipt counts before/after input bytes, so `injected_bytes` is a real
+  measured footprint — but it is NEVER converted to tokens. `injected_tokens` needs a
+  receipt measured on BOTH sides (before AND after input tokens); an audit-mode
+  receipt measures only the forwarded original, so a pure audit store reports
+  `injected_tokens` as unavailable, not zero.
+- **No receipts → null with a reason, never a fabricated zero.** A repo with no store
+  reports `no_receipt_store`; a readable-but-empty store reports `empty_audit_period`.
+- **The saving stays an estimate.** `savings_status` is `estimated_only`: this mode
+  measures the COST of injection; the rediscovery SAVING it offsets is still the
+  estimate from `kage gains`, until a live A/B agent run exists.
+
+Recorded 2026-07-17 cross-check on the Kage repo's own store (8 receipts, all
+`measurement_quality: partial`):
+
+| Field | Value | Measured? |
+| --- | ---: | --- |
+| injected_bytes (added) | 38,737 bytes over 8 receipts (audit +30,449, assist +8,288) | MEASURED |
+| injected_tokens | unavailable (`no_measured_token_pair`) | not two-sided → not claimed |
+| input_cost | unavailable (`no_two_sided_cost_measurement`) | not priceable → not claimed |
+| savings_status | `estimated_only` | the reuse saving is an estimate until a live A/B |
+
+That is the whole point of the cross-check: even the injection COST is only
+byte-measured here (no receipt carried both token sides), and the rediscovery SAVING
+remains an estimate. The measured number sits next to the estimate, and neither
+pretends to be the other.
+
 ## Memory Scale
 
 `scale-kage-memory.mjs` measures whether Kage can search a growing repo-memory

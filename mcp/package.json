@@ -26,7 +26,8 @@
     "test:vnext": "npm run build && node --test 'dist/vnext/**/*.test.js'",
     "test:dogfood": "node --test ../evals/agent-trajectory/replay.test.mjs",
     "bench:injection": "node ../benchmarks/injection-relevance-kage.mjs",
-    "bench:capture": "node ../benchmarks/capture-quality-kage.mjs"
+    "bench:capture": "node ../benchmarks/capture-quality-kage.mjs",
+    "bench:reuse": "node ../benchmarks/reuse-value-kage.mjs"
   },
   "keywords": [
     "mcp",

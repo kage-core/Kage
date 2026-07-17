@@ -3371,6 +3371,74 @@ export function formatTokenCount(tokens: number): string {
   return String(count);
 }
 
+// The one-line receipt printed under a `kage recall`. tokens_saved is a per-recall
+// ESTIMATE (read-vs-source / discovery-cost heuristic in recallTokensSaved /
+// replayTokensSaved), so it must be labeled estimated at the point of display and never
+// read as a measured before/after. stale_withheld is a MEASURED COUNT of packets the
+// recall gate actually withheld, so it is presented as counted, distinct from the estimate.
+export function formatRecallValueReceipt(receipt: { tokens_saved: number; stale_withheld: number }): string {
+  return `\n↳ ~${formatTokenCount(receipt.tokens_saved)} tokens saved (estimated, vs re-reading cited source) · ${receipt.stale_withheld} stale withheld (measured)`;
+}
+
+// The full `kage gains` rendering, returned as lines so it is testable without spawning
+// the CLI. HONESTY CONTRACT: the token and dollar figures are ESTIMATES (the per-recall
+// discovery/read-vs-source heuristic accumulated in the value ledger), while stale blocks,
+// stale-caught, recalls and caller answers are MEASURED COUNTS of events that actually
+// fired. The two must stay visibly distinct, and no estimate may be phrased as a measured
+// "saved you N tokens".
+export function formatValueGains(summary: ValueSummary): string[] {
+  const plural = (count: number, singular: string, pluralForm: string): string => (count === 1 ? singular : pluralForm);
+  if (!summary.all_time.recalls && !summary.all_time.stale_withheld && !summary.all_time.stale_caught && !summary.all_time.caller_answers) {
+    return [
+      "No value events recorded yet — this ledger fills up as your agent works.",
+      "Every recall logs the estimated tokens it saved (by not re-reading cited files) and",
+      "counts every stale memory it withheld. Come back after a session for a receipt here.\n",
+      "Start now:",
+      "  kage scan --project .                  a Truth Report on this repo",
+      "  kage scan --project . --scorecard      a shareable scorecard you can post",
+      "  then just work — your agent captures and recalls, verified against this code.",
+    ];
+  }
+  const lines: string[] = [];
+  // Lead with the measured/estimated split so no figure below can be mistaken for the other.
+  lines.push(
+    "Kage value ledger — token and dollar figures are ESTIMATED (per-recall discovery / read-vs-source heuristic); " +
+    "stale blocks, stale-caught, recalls and caller answers are MEASURED counts.",
+  );
+  const windowLine = (label: string, window: ValueWindowSummary): string =>
+    `  ${label} ~${formatTokenCount(window.tokens_saved)} tokens saved (estimated) · ~$${window.estimated_dollars.toFixed(2)} (estimated) · ` +
+    `${window.stale_withheld} stale blocked · ${window.stale_caught} stale caught at change-time · ` +
+    `${window.recalls} ${plural(window.recalls, "recall", "recalls")} · ` +
+    `${window.caller_answers} caller ${plural(window.caller_answers, "answer", "answers")} (measured counts)`;
+  lines.push(windowLine("This week:", summary.last_7d));
+  lines.push(windowLine("Today:    ", summary.today));
+  lines.push(windowLine("All time: ", summary.all_time));
+  if (summary.all_time.caller_answers > 0) {
+    lines.push("  (caller answers: \"who calls this\" code-graph questions answered from the call-edge index)");
+  }
+  if (summary.all_time.replay_tokens > 0) {
+    lines.push(
+      `Knowledge replay value (estimated): ~${formatTokenCount(summary.last_7d.replay_tokens)} tokens this week · ` +
+      `~${formatTokenCount(summary.all_time.replay_tokens)} all time ` +
+      `(estimated discovery cost of served memories vs their compressed read cost)`
+    );
+  }
+  const usdOverridden = Number.isFinite(Number(process.env.KAGE_USD_PER_MTOK)) && Number(process.env.KAGE_USD_PER_MTOK) > 0;
+  lines.push(
+    `\nDollars estimated at $${VALUE_DOLLARS_PER_MILLION_TOKENS}/1M input tokens ` +
+    `(${usdOverridden ? "via KAGE_USD_PER_MTOK" : "Sonnet-class default — set KAGE_USD_PER_MTOK for your model"}). ` +
+    `Ledger: .agent_memory/reports/value.json`
+  );
+  // The counts are your actual cumulative usage; the token/$ savings are an estimate, not a
+  // measured before/after. Point at the two surfaces that carry real measurement.
+  lines.push(
+    "The event counts above are your actual cumulative usage (measured). The token/$ savings are " +
+    "ESTIMATED, not a measured before/after — for the measured injected-cost cross-check run " +
+    "`node benchmarks/reuse-value-kage.mjs --receipts`, and for a reproducible before/after: kage savings.",
+  );
+  return lines;
+}
+
 // Receipt math: tokens an agent would have spent reading the cited source files
 // of the served packets (bytes / 4) minus the tokens the recall context block
 // itself costs (length / 4). Floored at zero — a recall never "costs" savings.
