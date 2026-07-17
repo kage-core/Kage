@@ -211,6 +211,80 @@ down and injection_precision up WITHOUT moving small_store_recall or
 expected_top_hit_rate down. Run it with `--assert-baseline` before and after
 that change.
 
+## Capture Quality
+
+`capture-quality-kage.mjs` is the mirror image of Injection Relevance. That
+harness measures the EXTRACTION side (does recall/injection attach the right
+memories?); this one measures the INGESTION side — the gate BEFORE recall: does
+Kage capture the RIGHT things, quarantine junk, and refuse garbage, so that only
+useful, grounded memory ever becomes recall-visible? A memory that never should
+have been stored cannot be fixed by a better ranker.
+
+The decision under test is the REAL ingestion surface imported from
+`mcp/dist/kernel.js` — `learn()`, `capture()`, `observe()`, `distillSession()` —
+plus the REAL `recall()` used to prove visibility. Nothing is mirrored: if the
+signal gate (`observationSignalScore` / `AUTO_DISTILL_SIGNAL_THRESHOLD`), the
+empty-body reject, the citation reject, the ungrounded-utterance quarantine, the
+dedup flag, or recall's exclusion of pending/stale/superseded regresses, this
+eval moves. Recall-visibility is defined exactly as production defines it —
+`loadApprovedPackets` (the `packets` dir AND status `approved`) minus the
+just-in-time staleness gate — so "not recall-visible" here means the same thing
+it means to an agent at session start.
+
+It seeds one deterministic project at runtime (real source files so citations
+ground) and scores five labeled ingestion classes, several of them the golden
+cases the 2026-07-16 audit found by hand:
+
+- GOOD LEARNINGS (4, across decision/runbook/gotcha/convention): grounded,
+  substantive, cited to a real seeded file. Must be ACCEPTED (`ok` + `approved`)
+  AND recall-visible AND well-scored.
+- EMPTY/DEGENERATE (3): empty body, whitespace-only, and the golden
+  misnamed-param case (insight under the wrong param name, so `learning` is empty
+  but evidence makes the body non-empty). `learn()` must return `ok:false` and
+  write NO packet file (checked by counting `packets/` + `pending/` before/after).
+- UNGROUNDED (2): a learning citing only a nonexistent path (rejected), and an
+  ungrounded conversational outburst (quarantined to `pending`). Neither may
+  become a trusted recall-visible repo fact.
+- JUNK OBSERVATIONS (4): a raw shell line, a `Tool failed:{json}` command dump, a
+  content-free "thanks, looks good", and a generic "file changed" — fed through
+  `observe()` / `distillSession(auto)` as the Stop hook does, then asserted NOT
+  returned by `recall()` (they may sit gated in `pending`; that is correct).
+- DUPLICATES (2): the same substantive learning captured twice. The second must
+  be flagged (`quality.duplicate_candidates`), not silently stored.
+
+```sh
+npm run build --prefix mcp
+node benchmarks/capture-quality-kage.mjs                 # summary JSON on stdout, per-case table + baseline block on stderr
+node benchmarks/capture-quality-kage.mjs --json          # full report with the per-case table
+node benchmarks/capture-quality-kage.mjs --out /tmp/kage-capture.json
+node benchmarks/capture-quality-kage.mjs --assert-baseline  # exit 1 only on regression below the recorded baseline
+npm run bench:capture --prefix mcp
+```
+
+This eval MEASURES; it does not flatter. The recorded 2026-07-16 baseline is the
+current ingestion path, and it is honestly imperfect — the harness records it and
+exits 0. It is NOT part of `npm test`. `--assert-baseline` fails only when a
+metric regresses below the recorded baseline (or any case errors).
+
+Recorded 2026-07-16 baseline (15 cases, 0 errors):
+
+| Metric | Baseline | Reading |
+| --- | ---: | --- |
+| junk_quarantine_rate | 1.0000 | fraction of JUNK observations that end up NON-recall-visible (all 4 gate to `low_signal`, 0 approved candidates) |
+| false_ingest_rate | 0.0000 | JUNK that DID become recall-visible — the historical-leak metric; target 0 |
+| good_acceptance_rate | 1.0000 | GOOD learnings accepted AND recall-visible (quality score 100 each) |
+| empty_rejection_rate | 1.0000 | EMPTY/DEGENERATE inputs `learn()` refuses with no file written — includes the golden misnamed-param case |
+| ungrounded_containment_rate | 1.0000 | UNGROUNDED inputs that do NOT become trusted recall-visible facts (one rejected, one quarantined) |
+| dedup_rate | 0.5000 | DUPLICATE re-captures flagged — see below |
+
+The eval exposed one real ingestion weakness, recorded honestly rather than
+hidden: `dedup_rate` is 0.5. An exact re-capture of a learning is flagged
+(Jaccard ~0.9 against the original), but a moderate PARAPHRASE of the same
+learning falls below the kernel's 0.58 Jaccard duplicate-candidate threshold and
+is silently stored as a redundant packet. A stronger near-duplicate matcher would
+move this to 1.0 without moving anything else — run with `--assert-baseline`
+before and after that change.
+
 ## Memory Scale
 
 `scale-kage-memory.mjs` measures whether Kage can search a growing repo-memory
