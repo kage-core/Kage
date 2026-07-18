@@ -384,6 +384,42 @@ byte-measured here (no receipt carried both token sides), and the rediscovery SA
 remains an estimate. The measured number sits next to the estimate, and neither
 pretends to be the other.
 
+## Real-Body Compression (Phase D)
+
+`compression-realbody-kage.mjs` measures the OTHER half of Kage's savings story
+added in Phase D: the proxy's **protect mode** can now REVERSIBLY compress a request
+body (exact original stored in the content-addressed store, a `kage-content:<sha256>`
+marker embedded so nothing is irretrievably dropped). The Phase D gate test proves
+that mechanism is reversible, byte-preserving-on-failure, and net-negative — but it
+measures the savings NUMBER on a synthetic corpus engineered to compress (400
+identical log lines). This benchmark instead runs the SHIPPED built-in compressors
+over REAL repository bodies and reports the honest per-type savings.
+
+```sh
+npm run build --prefix mcp
+node benchmarks/compression-realbody-kage.mjs          # per-body table + real-body median net
+node benchmarks/compression-realbody-kage.mjs --json   # machine-readable
+npm run bench:compression --prefix mcp
+```
+
+Measured result (real bodies, shipped compressors, net of the retrieval marker):
+
+| Body | Net saving | Decision |
+| --- | ---: | --- |
+| real git diff (HEAD) | ~0.1% | keep (marginal) |
+| real source (transform.ts) | 0% | passthrough (no compressor supports code) |
+| real JSON (mcp/package.json) | negative | passthrough (net-of-marker does not shrink) |
+| synthetic repetitive log (contrast) | ~99% | keep |
+
+**The honest headline: real-body median NET saving is ~0%.** Compression pays off
+dramatically on genuinely repetitive payloads (repeated log/error runs — the ~99%
+row) but nets ~0% on typical diffs, code, and JSON. Crucially, the pipeline PASSES
+THROUGH byte-preserving whenever the compressed output plus its marker does not
+actually shrink the body, so it never claims a saving it did not achieve. This is
+why `kage up` keeps **audit** as the default and `lossy_compression` defaults false:
+the compression path is real and safe, but its value is payload-dependent and is
+measured, never estimated. This benchmark is NOT part of `npm test`.
+
 ## Memory Scale
 
 `scale-kage-memory.mjs` measures whether Kage can search a growing repo-memory

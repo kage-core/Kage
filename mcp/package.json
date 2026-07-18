@@ -27,7 +27,8 @@
     "test:dogfood": "node --test ../evals/agent-trajectory/replay.test.mjs",
     "bench:injection": "node ../benchmarks/injection-relevance-kage.mjs",
     "bench:capture": "node ../benchmarks/capture-quality-kage.mjs",
-    "bench:reuse": "node ../benchmarks/reuse-value-kage.mjs"
+    "bench:reuse": "node ../benchmarks/reuse-value-kage.mjs",
+    "bench:compression": "node ../benchmarks/compression-realbody-kage.mjs"
   },
   "keywords": [
     "mcp",
