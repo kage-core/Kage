@@ -54,10 +54,15 @@ describe("FeaturePage", () => {
     ).toBeInTheDocument();
   });
 
-  test("evidence links resolve to the source record", () => {
+  test("evidence coordinates are shown as verifiable text, never a dead link", () => {
     render(<FeaturePage feature={fixtureFeature()} />);
-    const link = screen.getAllByRole("link", { name: /server\.ts/ })[0];
-    expect(link).toHaveAttribute("href", "mcp/vnext/runtime/server.ts");
+    // The portal has no source-viewer route and no code-host base URL, so an internal evidence
+    // record locator must NOT be dressed up as a navigable <a href>. The coordinates are shown as
+    // text a reader can use to find the source themselves.
+    const coord = screen.getAllByText("mcp/vnext/runtime/server.ts:178-196")[0];
+    expect(coord).toBeInTheDocument();
+    expect(coord.closest("a")).toBeNull();
+    expect(screen.queryByRole("link", { name: /server\.ts/ })).toBeNull();
   });
 });
 
@@ -116,14 +121,36 @@ describe("DecisionPage", () => {
 });
 
 describe("EvidenceList", () => {
-  test("renders each anchor as a link to its source with verification and stance", () => {
+  test("renders each anchor's coordinates as text with verification and stance, never a dead link", () => {
     render(<EvidenceList evidence={[fixtureEvidence()]} />);
-    expect(screen.getByRole("link", { name: /server\.ts/ })).toHaveAttribute(
-      "href",
-      "mcp/vnext/runtime/server.ts",
-    );
+    expect(screen.getByText("mcp/vnext/runtime/server.ts:178-196")).toBeInTheDocument();
+    // No navigable target exists, so no fabricated link is presented.
+    expect(screen.queryByRole("link")).toBeNull();
     expect(screen.getByText("Verified")).toBeInTheDocument();
     expect(screen.getByText("Supports")).toBeInTheDocument();
+  });
+
+  test("an opaque backend record locator is shown as text, not a navigable link", () => {
+    // These are the shapes the backend actually emits for source_uri (schemes, bare paths); none of
+    // them is a URL the browser could resolve, so none may become a clickable <a href>.
+    for (const uri of ["fact:src/refunds.ts#refund", "source:src/auth.ts#login", "package.json"]) {
+      const { unmount } = render(
+        <EvidenceList
+          evidence={[
+            fixtureEvidence({
+              source_uri: uri,
+              path: null,
+              symbol: null,
+              line_start: null,
+              line_end: null,
+            }),
+          ]}
+        />,
+      );
+      expect(screen.getByText(uri)).toBeInTheDocument();
+      expect(screen.queryByRole("link")).toBeNull();
+      unmount();
+    }
   });
 
   test("empty evidence is stated honestly, not omitted", () => {
