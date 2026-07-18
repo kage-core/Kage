@@ -109,6 +109,36 @@ test("no capture events downgrades capture to unavailable", () => {
   assert.equal(result.capture, "unavailable");
 });
 
+test("capture fails closed on any capture_events that is not an integer > 0", () => {
+  // The honesty gate: capture may be certified "automatic" only when a positive
+  // integer number of events was actually observed. undefined / NaN / a
+  // non-integer float / a negative value must all fail CLOSED to "unavailable",
+  // never fall open to "automatic" (which could flip counts_as_automatic_attachment).
+  const base = {
+    surface: "cursor" as const,
+    requested_sentinel: "KAGE-CERT-123",
+    transcript: "agent received KAGE-CERT-123 once",
+    health: "healthy" as const,
+  };
+  const badEvents: unknown[] = [undefined, NaN, 2.5, -1.5, -3, Infinity];
+  for (const capture_events of badEvents) {
+    const result = certifySurface({
+      ...base,
+      capture_events: capture_events as number,
+    });
+    assert.equal(
+      result.capture,
+      "unavailable",
+      `capture_events=${String(capture_events)} must fail closed`,
+    );
+    assert.equal(
+      result.counts_as_automatic_attachment,
+      false,
+      `capture_events=${String(capture_events)} must not count as automatic`,
+    );
+  }
+});
+
 test("fixture fingerprint is deterministic and content-addressed", () => {
   const input = {
     surface: "cursor" as const,

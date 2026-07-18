@@ -134,7 +134,10 @@ export function certifySurface(input: CertifySurfaceInput): AgentSurfaceCertific
   if (!healthy) {
     capture = "unavailable";
     limitations.push("Surface health check failed; capabilities recorded as unavailable.");
-  } else if (input.capture_events <= 0) {
+  } else if (!Number.isInteger(input.capture_events) || input.capture_events <= 0) {
+    // Fail CLOSED: capture is "automatic" only on a positive integer count of
+    // observed events. undefined / NaN / non-integer / Infinity / negative all
+    // certify as unavailable — never fabricate an automatic capture label.
     capture = "unavailable";
     limitations.push("No capture events observed during the smoke test.");
   } else {
