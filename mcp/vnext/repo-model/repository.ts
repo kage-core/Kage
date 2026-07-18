@@ -2,6 +2,7 @@ import type { LocalDatabase } from "../storage/database.js";
 import { isInjectableTrustState } from "./types.js";
 import type {
   ClaimRecord,
+  CompilerCheckpointRecord,
   EntityKind,
   EntityRecord,
   EvidenceRecord,
@@ -9,6 +10,13 @@ import type {
   ReviewItemRecord,
   TrustState,
 } from "./types.js";
+
+// A supporting-evidence anchor: the path/symbol a claim is grounded in. Used by staleness to decide
+// which claims a source change invalidates.
+export interface ClaimEvidenceAnchors {
+  claim_id: string;
+  anchors: Array<{ path: string | null; symbol: string | null }>;
+}
 
 export type EvidenceStance = "supports" | "contradicts";
 export type EvidenceLink = { evidence_id: string; stance: EvidenceStance };
@@ -104,6 +112,13 @@ const TERMINAL_STATES: ReadonlySet<TrustState> = new Set(["superseded", "archive
  */
 export class Repository {
   constructor(private readonly db: LocalDatabase) {}
+
+  // The underlying handle, for compiler stages that persist through their own module-level helpers
+  // (episode-builder's `persistEpisodes`, the status lag/compiled-at queries). Read-only accessor:
+  // callers observe or append through the store's own helpers, never rewrite the schema underneath it.
+  get database(): LocalDatabase {
+    return this.db;
+  }
 
   // -- Entities ------------------------------------------------------------
 
@@ -304,6 +319,72 @@ export class Repository {
     return rows.map((row) => this.toClaim(row));
   }
 
+  countClaims(): number {
+    const row = this.db.prepare(`SELECT COUNT(*) AS n FROM claims`).get() as { n: number };
+    return Number(row.n);
+  }
+
+  /**
+   * The claim currently occupying a (entity, claim_kind) slot — the one a candidate for that slot is
+   * consolidated against. A slot holds at most one live claim: superseded/archived versions are
+   * excluded (they are terminal history, never the current occupant). When more than one live claim
+   * somehow shares the slot, the most recently created wins so consolidation is deterministic.
+   */
+  currentClaimInSlot(entityId: string, claimKind: string): ClaimRecord | null {
+    const row = this.db
+      .prepare(
+        `SELECT * FROM claims
+         WHERE entity_id = ? AND claim_kind = ? AND trust_state NOT IN ('superseded', 'archived')
+         ORDER BY created_at DESC, claim_id DESC
+         LIMIT 1`,
+      )
+      .get(entityId, claimKind) as ClaimRow | undefined;
+    return row ? this.toClaim(row) : null;
+  }
+
+  /**
+   * Every currently-injectable (verified/approved) claim, paired with the path/symbol anchors of its
+   * SUPPORTING evidence. Staleness reads this to decide which claims a source change invalidates. It
+   * spans every repository in the store on purpose: a source change is reported by ground-truth ref,
+   * not by repository, so the caller matches refs against anchors without needing a repository id.
+   */
+  allInjectableClaimAnchors(): ClaimEvidenceAnchors[] {
+    const rows = this.db
+      .prepare(
+        `SELECT c.claim_id AS claim_id, e.path AS path, e.symbol AS symbol
+         FROM claims c
+         JOIN claim_evidence ce ON ce.claim_id = c.claim_id AND ce.stance = 'supports'
+         JOIN evidence e ON e.evidence_id = ce.evidence_id
+         WHERE c.trust_state IN ('verified', 'approved')
+         ORDER BY c.claim_id`,
+      )
+      .all() as unknown as Array<{ claim_id: string; path: string | null; symbol: string | null }>;
+    const byClaim = new Map<string, ClaimEvidenceAnchors>();
+    for (const row of rows) {
+      let entry = byClaim.get(row.claim_id);
+      if (!entry) {
+        entry = { claim_id: row.claim_id, anchors: [] };
+        byClaim.set(row.claim_id, entry);
+      }
+      entry.anchors.push({ path: row.path, symbol: row.symbol });
+    }
+    return [...byClaim.values()];
+  }
+
+  /**
+   * Attach supporting/contradicting evidence to an EXISTING claim without touching its trust state.
+   * This is the `refresh_evidence` write path: a restated fact keeps its claim and merely re-links the
+   * new evidence. It never launders trust — a proposed claim stays proposed — so it deliberately does
+   * NOT run the trust gates (those guard trust transitions, not evidence bookkeeping).
+   */
+  attachEvidence(claimId: string, evidence: EvidenceLink[]): void {
+    this.tx(() => {
+      const existing = this.getClaim(claimId);
+      if (!existing) throw new Error(`Cannot attach evidence to unknown claim ${claimId}.`);
+      this.linkEvidence(claimId, evidence);
+    });
+  }
+
   injectableClaims(entityId: string): ClaimRecord[] {
     return this.claimsForEntity(entityId).filter((claim) => isInjectableTrustState(claim.trust_state));
   }
@@ -394,6 +475,51 @@ export class Repository {
     const rows = this.db
       .prepare(`SELECT * FROM review_items WHERE claim_id = ? ORDER BY created_at, review_item_id`).all(claimId) as unknown as ReviewItemRow[];
     return rows.map((row) => this.toReviewItem(row));
+  }
+
+  // -- Compiler checkpoints ------------------------------------------------
+
+  getCheckpoint(compilerName: string, repositoryId: string): CompilerCheckpointRecord | null {
+    const row = this.db
+      .prepare(`SELECT * FROM compiler_checkpoints WHERE compiler_name = ? AND repository_id = ?`)
+      .get(compilerName, repositoryId) as CompilerCheckpointRecord | undefined;
+    return row
+      ? {
+          compiler_name: row.compiler_name,
+          repository_id: row.repository_id,
+          last_event_id: row.last_event_id,
+          updated_at: row.updated_at,
+        }
+      : null;
+  }
+
+  /**
+   * Advance (or create) a compiler's checkpoint for a repository. `lastEventId` is the id of the last
+   * event the compiler consumed, or null when the repository has no events yet — an honest "nothing to
+   * compile" cursor, never a fabricated event id. `updatedAt` defaults to now.
+   */
+  setCheckpoint(
+    compilerName: string,
+    repositoryId: string,
+    lastEventId: string | null,
+    updatedAt: string = new Date().toISOString(),
+  ): CompilerCheckpointRecord {
+    return this.tx(() => {
+      this.db
+        .prepare(
+          `INSERT INTO compiler_checkpoints (compiler_name, repository_id, last_event_id, updated_at)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(compiler_name, repository_id)
+           DO UPDATE SET last_event_id = excluded.last_event_id, updated_at = excluded.updated_at`,
+        )
+        .run(compilerName, repositoryId, lastEventId, updatedAt);
+      return {
+        compiler_name: compilerName,
+        repository_id: repositoryId,
+        last_event_id: lastEventId,
+        updated_at: updatedAt,
+      };
+    });
   }
 
   // -- Internals -----------------------------------------------------------

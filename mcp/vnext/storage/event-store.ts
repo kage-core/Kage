@@ -54,6 +54,16 @@ export class EventStore {
   }
 
   forTask(taskId: string): EvidenceEvent[] {
+    return this.query(`WHERE task_id = ? ORDER BY occurred_at, event_id`, taskId);
+  }
+
+  // Every event for a repository in stable (occurred_at, event_id) order. The compiler reads this to
+  // rebuild episodes; the ordering is the same total order the checkpoint cursor and lag counter use.
+  forRepository(repositoryId: string): EvidenceEvent[] {
+    return this.query(`WHERE repository_id = ? ORDER BY occurred_at, event_id`, repositoryId);
+  }
+
+  private query(clause: string, param: string): EvidenceEvent[] {
     const rows = this.db
       .prepare(`
         SELECT
@@ -66,10 +76,9 @@ export class EventStore {
           source_fingerprint,
           payload_json
         FROM evidence_events
-        WHERE task_id = ?
-        ORDER BY occurred_at, event_id
+        ${clause}
       `)
-      .all(taskId) as unknown as EvidenceEventRow[];
+      .all(param) as unknown as EvidenceEventRow[];
 
     return rows.map((row) => ({
       protocol_version: KAGE_PROTOCOL_VERSION,

@@ -11,6 +11,9 @@ import { drainDeliverySpool } from "../storage/delivery-spool.js";
 import { EventStore } from "../storage/event-store.js";
 import { migrateLocalDatabase } from "../storage/migrations.js";
 import { ReceiptStore } from "../storage/receipt-store.js";
+import { Repository } from "../repo-model/repository.js";
+import { computeModelLag, latestCompiledAt } from "../compiler/pipeline.js";
+import { CompilerScheduler } from "./compiler-scheduler.js";
 import { acquireRuntimeLock, releaseRuntimeLock, type RuntimeLockLease } from "./lock.js";
 import { assertRuntimeDirectoryLease, ensureRuntimeDirectory, resolveRuntimePaths } from "./paths.js";
 import {
@@ -235,6 +238,7 @@ function createRequestHandler(
   receiptStore: ReceiptStore,
   contextSource: ContextSource | null,
   projectDir: string,
+  onEventAppended: (repositoryId: string) => void,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
     try {
@@ -263,7 +267,13 @@ function createRequestHandler(
           error(res, 503, "runtime_starting");
           return;
         }
-        json(res, 200, status);
+        // Recompute compilation freshness live so status reflects the store as it is right now, not a
+        // stale boot-time snapshot. Both figures are measured from the store, never estimated.
+        json(res, 200, {
+          ...status,
+          model_lag_events: computeModelLag(db),
+          last_compiled_at: latestCompiledAt(db),
+        });
         return;
       }
       if (route.kind === "receipts") {
@@ -292,6 +302,9 @@ function createRequestHandler(
           return;
         }
         const result = eventStore.append(event.value);
+        // Schedule compilation off the request path: the response returns immediately and the compiler
+        // catches up on a later tick. Only a genuinely new event dirties the repository.
+        if (result.inserted) onEventAppended(event.value.repository_id);
         json(res, 202, { status: result.inserted ? "inserted" : "deduplicated" });
         return;
       }
@@ -391,6 +404,10 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
     drainDeliverySpool(openedDatabase, options.projectDir);
     const eventStore = new EventStore(openedDatabase);
     const receiptStore = new ReceiptStore(openedDatabase);
+    // The repository compiler runs off the request path: appended events dirty a repository, and the
+    // scheduler drains it on a later tick. Context/event requests never wait for compilation.
+    const compilerModel = new Repository(openedDatabase);
+    const scheduler = new CompilerScheduler(compilerModel, eventStore);
     let status: VnextRuntimeStatus | undefined;
     server = createServer(createRequestHandler(
       token,
@@ -400,6 +417,7 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
       receiptStore,
       contextSource,
       options.projectDir,
+      (repositoryId) => scheduler.notify(repositoryId),
     ));
     server.on("connection", (socket) => {
       sockets.add(socket);
@@ -428,6 +446,9 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
       started_at: new Date().toISOString(),
       database_path: paths.databasePath,
       token_path: paths.tokenPath,
+      // Boot-time snapshot; the status route recomputes both live on every read.
+      model_lag_events: computeModelLag(openedDatabase),
+      last_compiled_at: latestCompiledAt(openedDatabase),
     };
     assertRuntimeDirectoryLease(directoryLease);
     statusLease = writeRuntimeStatus(paths.statusPath, status);
@@ -441,6 +462,9 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
           // The runtime owns the source's lifetime: the context worker thread would otherwise
           // keep the process alive after close().
           () => contextSource?.close?.(),
+          // Stop the compiler and await any in-flight drain BEFORE the database closes, so a
+          // background compile can never touch a closed handle.
+          () => scheduler.stop(),
           () => openedDatabase.close(),
           () => {
             if (!statusLease) return;

@@ -23,6 +23,12 @@ export interface VnextRuntimeStatus {
   started_at: string;
   database_path: string;
   token_path: string;
+  // Compilation freshness (Phase B). `model_lag_events` is the honest measured count of stored events
+  // not yet reflected in the repository compiler's checkpoints; `last_compiled_at` is the most recent
+  // time any repository was compiled, or null when the compiler has never run. Both are recomputed
+  // live on each status read, never guessed.
+  model_lag_events: number;
+  last_compiled_at: string | null;
 }
 
 export interface RuntimeStatusLease {
