@@ -16,6 +16,11 @@ import {
   type AgentSurfaceCertification,
   type CertifySurfaceInput,
 } from "./vnext/adapters/capability-matrix.js";
+import {
+  buildMinimalChangeReport,
+  type MinimalChangeReport,
+} from "./vnext/policy/report.js";
+import { readVnextConfig } from "./vnext/runtime/config.js";
 
 export const PACKET_SCHEMA_VERSION = 2;
 
@@ -2240,6 +2245,12 @@ export interface PrCheckResult {
   warnings: string[];
   required_actions: string[];
   memory_reconciliation?: MemoryReconciliationReport;
+  /**
+   * The Minimal Change Guard report (Phase D, Task 10). Present only when vNext policy is enabled.
+   * Advisory by default: it contributes warnings, never errors. Only `enforced` mode with selected
+   * deterministic rules can add to `errors` and fail the check.
+   */
+  minimal_change?: MinimalChangeReport;
 }
 
 export interface MemoryReconciliationItem {
@@ -5350,6 +5361,59 @@ function gitTree(projectDir: string): string | null {
 function gitMergeBase(projectDir: string): string | null {
   return readGit(projectDir, ["merge-base", "HEAD", "origin/main"])
     || readGit(projectDir, ["merge-base", "HEAD", "origin/master"]);
+}
+
+// The unified diff text for a branch/working-tree change, as ground truth for the Minimal Change Guard.
+// Preference order: an explicit base ref (`base...HEAD`), then the merge-base with the default branch,
+// then the working tree vs HEAD. Returns "" outside a git repo (the guard then finds nothing, honestly).
+function branchDiffText(projectDir: string, base: string | null): string {
+  if (base) {
+    const explicit = readGit(projectDir, ["diff", `${base}...HEAD`]);
+    if (explicit !== null) return explicit;
+  }
+  const mergeBase = gitMergeBase(projectDir);
+  if (mergeBase) {
+    const branchDiff = readGit(projectDir, ["diff", mergeBase, "HEAD"]);
+    if (branchDiff !== null && branchDiff.trim()) return branchDiff;
+  }
+  return readGit(projectDir, ["diff", "HEAD"]) ?? "";
+}
+
+export interface MinimalChangeCheckOptions {
+  /** Diff against `<base>...HEAD` when given; otherwise the merge-base with the default branch. */
+  base?: string | null;
+  repositoryId?: string;
+  declaredComponents?: string[];
+  /** Explicit ISO timestamp for suppression expiry checks. Defaults to now. */
+  now?: string;
+}
+
+/**
+ * Build the Minimal Change Guard report for the current change, or `null` when the guard is disabled
+ * (the default). This is the single seam shared by `pr check`, the `kage minimal-change check` CLI, and
+ * the per-task API route, so all three agree on findings. Runs with a `null` repository model on the
+ * legacy CLI (diff-grounded rules only); model-backed callers pass a live model to the report builder.
+ */
+export function minimalChangeReport(
+  projectDir: string,
+  options: MinimalChangeCheckOptions = {},
+): MinimalChangeReport | null {
+  const config = readVnextConfig(projectDir);
+  const policy = config?.vnext.minimal_change;
+  if (!policy || !policy.enabled || policy.mode === "off") return null;
+  const diffText = branchDiffText(projectDir, options.base ?? null);
+  const repositoryId = options.repositoryId ?? basename(resolve(projectDir)) ?? "repo";
+  return buildMinimalChangeReport({
+    diff_text: diffText,
+    task: {
+      task_id: `pr:${repositoryId}`,
+      repository_id: repositoryId,
+      declared_components: options.declaredComponents ?? [],
+    },
+    model: null,
+    policy,
+    now: options.now ?? new Date().toISOString(),
+  });
 }
 
 function gitProjectPrefix(projectDir: string): string | null {
@@ -20484,6 +20548,25 @@ export function prCheck(projectDir: string): PrCheckResult {
   if (!memoryPacketChanges.length && overlay.changed_files.some((path) => !path.startsWith(".agent_memory/"))) {
     warnings.push("No repo memory packet changed for this branch. If durable knowledge was learned, run kage propose --from-diff or kage learn.");
   }
+  // The Minimal Change Guard participates only when vNext policy is enabled (default: disabled). It is
+  // advisory by default — findings become warnings, never errors. Only `enforced` mode with selected
+  // deterministic rules can fail the gate; a model-opinion finding can never reach the blocking set.
+  const minimalChange = minimalChangeReport(projectDir);
+  if (minimalChange) {
+    if (!minimalChange.ok) {
+      errors.push(
+        `Minimal Change Guard (enforced): ${minimalChange.blocking.length} blocking finding(s) — ${minimalChange.blocking.map((finding) => finding.kind).join(", ")}.`,
+      );
+      requiredActions.push(
+        "Resolve or justify the blocking minimal-change findings (kage minimal-change check), then re-run.",
+      );
+    } else if (minimalChange.findings.length) {
+      warnings.push(
+        `Minimal Change Guard (${minimalChange.mode}): ${minimalChange.findings.length} advisory finding(s) — review with kage minimal-change check (not blocking).`,
+      );
+    }
+  }
+
   if (!requiredActions.length) requiredActions.push("PR memory and graph checks passed.");
 
   return {
@@ -20501,6 +20584,7 @@ export function prCheck(projectDir: string): PrCheckResult {
     errors,
     warnings,
     required_actions: requiredActions,
+    ...(minimalChange ? { minimal_change: minimalChange } : {}),
   };
 }
 

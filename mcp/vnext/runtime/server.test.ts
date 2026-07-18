@@ -195,6 +195,34 @@ test("local runtime accepts a valid handshake and persists its task idempotently
   });
 });
 
+test("local runtime serves the task-scoped minimal-change route", async () => {
+  await withRuntime(async (runtime) => {
+    await postJson(runtime, "/v2/handshakes", fixtureHandshake());
+
+    // Unauthorized requests are refused before any work.
+    const unauthorized = await fetch(`${runtime.url}/v2/tasks/task-1/minimal-change`);
+    assert.equal(unauthorized.status, 401);
+
+    // Non-GET methods are rejected.
+    const wrongMethod = await fetch(`${runtime.url}/v2/tasks/task-1/minimal-change`, {
+      method: "POST",
+      headers: authHeaders(runtime.token),
+    });
+    assert.equal(wrongMethod.status, 405);
+
+    // A known task with the guard disabled by default returns an explicit disabled envelope.
+    const known = await fetch(`${runtime.url}/v2/tasks/task-1/minimal-change`, { headers: authHeaders(runtime.token) });
+    assert.equal(known.status, 200);
+    const body = (await known.json()) as { task_id: string; enabled: boolean };
+    assert.equal(body.task_id, "task-1");
+    assert.equal(body.enabled, false);
+
+    // An unknown task is a 404, distinct from "guard disabled".
+    const unknown = await fetch(`${runtime.url}/v2/tasks/ghost/minimal-change`, { headers: authHeaders(runtime.token) });
+    assert.equal(unknown.status, 404);
+  });
+});
+
 test("local runtime rejects conflicting reuse of a persisted task identity", async () => {
   await withRuntime(async (runtime) => {
     const original = fixtureHandshake();

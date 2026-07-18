@@ -100,6 +100,7 @@ import {
   packetsDir,
   stripPrivateSpans,
   pendingDir,
+  minimalChangeReport,
   prCheck,
   prSummarize,
   proposeFromDiff,
@@ -4293,6 +4294,95 @@ test("pr check marks graphs stale when source content changes after refresh", ()
   assert.equal(check.memory_graph_current, false);
   assert.equal(check.ok, false);
   assert.match(check.errors.join("\n"), /graph artifacts/);
+});
+
+// Write a minimal, legible vNext config that enables the Minimal Change Guard for a test project.
+function writeMinimalChangeConfig(
+  project: string,
+  minimal_change: { enabled: boolean; mode: string; enforced_rules?: string[] },
+): void {
+  const dir = join(project, ".agent_memory", "daemon", "vnext");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, "config.json"),
+    JSON.stringify(
+      { vnext: { protocol_version: 1, runtime: "audit", gateway: "audit", adapters: [], minimal_change } },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+}
+
+test("minimal change guard is absent from pr check by default (opt-in only)", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", dependencies: {} }), "utf8");
+  writeFileSync(join(project, "src", "runner.js"), "export function run() { return 'ok'; }\n", "utf8");
+  commitAll(project, "initial");
+  refreshProject(project);
+
+  const check = prCheck(project);
+  // No vNext policy config => the guard does not participate at all.
+  assert.equal(check.minimal_change, undefined);
+  // And the standalone helper returns null when disabled.
+  assert.equal(minimalChangeReport(project), null);
+});
+
+test("minimal change guard surfaces advisory findings as warnings, never errors", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", dependencies: { alpha: "^1.0.0", zeta: "^2.0.0" } }, null, 2), "utf8");
+  writeFileSync(join(project, "src", "runner.js"), "export function run() { return 'ok'; }\n", "utf8");
+  commitAll(project, "initial");
+  refreshProject(project);
+  writeMinimalChangeConfig(project, { enabled: true, mode: "advisory" });
+
+  // Add a brand-new dependency in the working tree — a deterministic new_dependency finding.
+  writeFileSync(
+    join(project, "package.json"),
+    JSON.stringify({ name: "demo", dependencies: { alpha: "^1.0.0", "left-pad": "^1.3.0", zeta: "^2.0.0" } }, null, 2),
+    "utf8",
+  );
+
+  const report = minimalChangeReport(project);
+  assert.ok(report, "expected a report when the guard is enabled");
+  assert.equal(report?.enabled, true);
+  assert.equal(report?.findings.some((finding) => finding.kind === "new_dependency"), true);
+  assert.equal(report?.ok, true); // advisory never fails
+
+  const check = prCheck(project);
+  assert.ok(check.minimal_change, "pr check should attach the report");
+  // Advisory findings contribute a warning, never an error.
+  assert.equal(check.errors.some((error) => error.includes("Minimal Change Guard")), false);
+  assert.equal(check.warnings.some((warning) => warning.includes("Minimal Change Guard")), true);
+});
+
+test("minimal change guard in enforced mode fails pr check for a selected deterministic rule", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", dependencies: { alpha: "^1.0.0", zeta: "^2.0.0" } }, null, 2), "utf8");
+  writeFileSync(join(project, "src", "runner.js"), "export function run() { return 'ok'; }\n", "utf8");
+  commitAll(project, "initial");
+  refreshProject(project);
+  writeMinimalChangeConfig(project, { enabled: true, mode: "enforced", enforced_rules: ["new_dependency"] });
+
+  writeFileSync(
+    join(project, "package.json"),
+    JSON.stringify({ name: "demo", dependencies: { alpha: "^1.0.0", "left-pad": "^1.3.0", zeta: "^2.0.0" } }, null, 2),
+    "utf8",
+  );
+
+  const report = minimalChangeReport(project);
+  assert.equal(report?.ok, false);
+  assert.deepEqual(report?.blocking.map((finding) => finding.kind), ["new_dependency"]);
+
+  const check = prCheck(project);
+  assert.equal(check.ok, false);
+  assert.equal(check.errors.some((error) => error.includes("Minimal Change Guard (enforced)")), true);
 });
 
 test("memory reconciliation makes changed linked memory an agent responsibility", () => {

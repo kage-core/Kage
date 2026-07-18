@@ -68,6 +68,36 @@ jobs:
           NODE
           exit $(( quality_exit != 0 || pr_exit != 0 ))
 
+      - name: Run Kage Minimal Change Guard (advisory)
+        id: kage-minimal-change
+        run: |
+          set +e
+          # Advisory by default: the guard participates only when vNext policy is enabled in the repo
+          # config. A non-zero exit means an ENFORCED, deterministic rule blocked — surface it, but this
+          # step never fails the job by itself (the enforced verdict already flows through `pr check`).
+          node mcp/dist/cli.js minimal-change check --project . --base "origin/${{ github.base_ref }}" --json > /tmp/kage-minimal-change.json 2>/dev/null
+          node - <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('node:fs');
+          const escape = (value) => String(value ?? '').replace(/%/g, '%25').replace(/\n/g, '%0A').replace(/\r/g, '%0D');
+          let report = null;
+          try { report = JSON.parse(fs.readFileSync('/tmp/kage-minimal-change.json', 'utf8')); } catch {}
+          if (!report) {
+            console.log('mc_enabled=false');
+            console.log('mc_findings=' + escape('The Minimal Change Guard is not enabled for this repository.'));
+          } else {
+            const lines = (report.findings ?? []).map((f) => {
+              const det = f.deterministic ? 'deterministic' : 'advisory (model opinion)';
+              const ev = (f.evidence ?? []).map((e) => e.source_uri + (e.symbol ? '#' + e.symbol : '')).slice(0, 3).join(', ');
+              const block = (report.blocking ?? []).some((b) => b.finding_id === f.finding_id) ? 'BLOCK' : f.severity;
+              return `- [${block}] ${f.kind}: ${f.title} — ${det}${ev ? ' — evidence: ' + ev : ''}`;
+            });
+            console.log('mc_enabled=true');
+            console.log('mc_ok=' + (report.ok ? 'true' : 'false'));
+            console.log('mc_mode=' + escape(report.mode ?? 'off'));
+            console.log('mc_findings=' + escape(lines.length ? lines.join('\n') : 'No minimal-change findings.'));
+          }
+          NODE
+
       - name: Comment Kage PR check summary
         if: always()
         continue-on-error: true
@@ -99,5 +129,12 @@ jobs:
           **Warnings**
 
           ${{ steps.kage-pr-check.outputs.warnings || 'None.' }}
+
+          **Minimal Change Guard** (${{ steps.kage-minimal-change.outputs.mc_mode || 'off' }})
+
+          ${{ steps.kage-minimal-change.outputs.mc_findings || 'The Minimal Change Guard is not enabled for this repository.' }}
+
+          To dismiss an advisory finding, record a justification (actor, reason, commit, expiry) in the
+          repository's minimal-change suppressions. Advisory findings never block the merge.
           EOF
           gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/kage-pr-comment.md

@@ -6,6 +6,11 @@ import {
   normalizeBudgetPolicy,
   type ContextBudgetPolicy,
 } from "../gateway/budget-policy.js";
+import {
+  DEFAULT_MINIMAL_CHANGE_POLICY,
+  normalizeMinimalChangePolicy,
+  type MinimalChangePolicy,
+} from "../policy/policy-config.js";
 import { KAGE_PROTOCOL_VERSION, type ProtocolVersion } from "../protocol/index.js";
 
 // Phase A is an AUDIT phase. The config file is the only thing the Claude hook adapter and the
@@ -60,6 +65,12 @@ export interface VnextConfig {
      * config predating this block reads back as that same default, never a permissive state.
      */
     budget: ContextBudgetPolicy;
+    /**
+     * The Minimal Change Guard policy (Phase D, Task 10). Disabled and `off` by default; turning it on —
+     * and especially moving it to `enforced` — is a separate, explicit, user-initiated edit. A config
+     * predating this block reads back as the disabled default, so `pr check` is unchanged until opt-in.
+     */
+    minimal_change: MinimalChangePolicy;
   };
 }
 
@@ -100,6 +111,8 @@ export function auditConfig(adapters: readonly string[] | undefined): VnextConfi
       // The audit-safe budget policy: audit mode, lossy compression disabled. Turning on
       // assist/protect or lossy compression is a separate, explicit, user-initiated file edit.
       budget: { ...DEFAULT_CONTEXT_BUDGET_POLICY },
+      // The Minimal Change Guard is disabled and off by default; opting in is an explicit edit.
+      minimal_change: { ...DEFAULT_MINIMAL_CHANGE_POLICY },
     },
   };
 }
@@ -172,6 +185,8 @@ export function readVnextConfig(projectDir: string): VnextConfig | null {
       // Absent or illegible → the audit-safe default. A config predating the budget block must never
       // read as an enabled assist/protect or lossy state.
       budget: normalizeBudgetPolicy(vnext.budget),
+      // Absent or illegible → disabled/off. A config predating this block must never read as enabled.
+      minimal_change: normalizeMinimalChangePolicy(vnext.minimal_change),
     },
   };
 }

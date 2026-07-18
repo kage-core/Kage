@@ -28,13 +28,15 @@ import {
 import { ensureRuntimeToken } from "./token.js";
 import { ContentStore } from "../gateway/content-store.js";
 import { matchContentRoute, retrieve } from "../api/retrieve.js";
+import { matchMinimalChangeRoute, minimalChangeForTask } from "../api/minimal-change.js";
+import { execFileSync } from "node:child_process";
 
 const HOST = "127.0.0.1" as const;
 const DEFAULT_PORT = 3112;
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
 
-type RouteKind = "health" | "status" | "handshakes" | "events" | "context" | "receipts" | "content";
+type RouteKind = "health" | "status" | "handshakes" | "events" | "context" | "receipts" | "content" | "minimal_change";
 
 interface MatchedRoute {
   kind: RouteKind;
@@ -200,7 +202,28 @@ function matchRoute(pathname: string): MatchedRoute | undefined {
   if (pathname === "/v2/context") return { kind: "context", method: "POST" };
   const content = matchContentRoute(pathname);
   if (content) return { kind: "content", method: "GET", sha256: content.sha256 };
+  const minimalChange = matchMinimalChangeRoute(pathname);
+  if (minimalChange) return { kind: "minimal_change", method: "GET", taskId: minimalChange.taskId };
   return receiptRoute(pathname);
+}
+
+// The change under review for a task, as unified-diff text. Best-effort and fail-open: a repo without a
+// merge-base (or without git) degrades to the working-tree diff, then to "" — the guard then finds
+// nothing, which is honest, rather than throwing inside a request handler.
+function taskDiffText(projectDir: string): string {
+  const run = (args: string[]): string | null => {
+    try {
+      return execFileSync("git", args, { cwd: projectDir, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    } catch {
+      return null;
+    }
+  };
+  const mergeBase = run(["merge-base", "HEAD", "origin/main"]) ?? run(["merge-base", "HEAD", "origin/master"]);
+  if (mergeBase) {
+    const branchDiff = run(["diff", mergeBase.trim(), "HEAD"]);
+    if (branchDiff && branchDiff.trim()) return branchDiff;
+  }
+  return run(["diff", "HEAD"]) ?? "";
 }
 
 interface PersistedTaskIdentity {
@@ -311,6 +334,24 @@ function createRequestHandler(
         } else {
           error(res, result.status, result.error ?? "not_found");
         }
+        return;
+      }
+      if (route.kind === "minimal_change") {
+        const persisted = db
+          .prepare(`SELECT repository_id FROM tasks WHERE task_id = ?`)
+          .get(route.taskId!) as { repository_id: string } | undefined;
+        const policy = readVnextConfig(projectDir)?.vnext.minimal_change
+          ?? { enabled: false, mode: "off", enforced_rules: [] };
+        const result = minimalChangeForTask({
+          taskId: route.taskId!,
+          repositoryId: persisted?.repository_id ?? null,
+          policy,
+          diffText: taskDiffText(projectDir),
+          model: new Repository(db),
+          now: new Date().toISOString(),
+        });
+        if (result.status === 200) json(res, 200, result.body);
+        else error(res, result.status, result.error ?? "not_found");
         return;
       }
 

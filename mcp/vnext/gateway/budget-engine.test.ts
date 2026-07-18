@@ -18,6 +18,7 @@ import {
   type BudgetInput,
 } from "./budget-engine.js";
 import { auditConfig, readVnextConfig, writeVnextConfig } from "../runtime/config.js";
+import { DEFAULT_MINIMAL_CHANGE_POLICY, normalizeMinimalChangePolicy } from "../policy/policy-config.js";
 
 function fixturePolicy(overrides: Partial<ContextBudgetPolicy> = {}): ContextBudgetPolicy {
   return { ...DEFAULT_CONTEXT_BUDGET_POLICY, ...overrides };
@@ -185,4 +186,31 @@ test("a config written without a budget block reads back as the audit-safe defau
   writeVnextConfig(project, stripped as never);
   const read = readVnextConfig(project);
   assert.deepEqual(read?.vnext.budget, DEFAULT_CONTEXT_BUDGET_POLICY);
+});
+
+test("auditConfig writes the disabled-off Minimal Change Guard policy", () => {
+  const config = auditConfig(["claude-code"]);
+  assert.equal(config.vnext.minimal_change.enabled, false);
+  assert.equal(config.vnext.minimal_change.mode, "off");
+  assert.deepEqual(config.vnext.minimal_change.enforced_rules, []);
+});
+
+test("a config predating the minimal_change block reads back as disabled/off", () => {
+  const project = mkdtempSync(join(tmpdir(), "kage-mc-cfg-"));
+  const legacy = auditConfig(["claude-code"]);
+  const stripped = JSON.parse(JSON.stringify(legacy)) as { vnext: Record<string, unknown> };
+  delete stripped.vnext.minimal_change;
+  writeVnextConfig(project, stripped as never);
+  const read = readVnextConfig(project);
+  assert.deepEqual(read?.vnext.minimal_change, DEFAULT_MINIMAL_CHANGE_POLICY);
+});
+
+test("normalizeMinimalChangePolicy fails safe: an illegible block reads as disabled/off", () => {
+  assert.deepEqual(normalizeMinimalChangePolicy("enforced"), DEFAULT_MINIMAL_CHANGE_POLICY);
+  assert.deepEqual(normalizeMinimalChangePolicy({ enabled: "yes", mode: "hard" }), DEFAULT_MINIMAL_CHANGE_POLICY);
+  // enabled must be a literal true; unknown enforced-rule kinds are dropped.
+  assert.deepEqual(
+    normalizeMinimalChangePolicy({ enabled: true, mode: "enforced", enforced_rules: ["new_dependency", "made_up"] }),
+    { enabled: true, mode: "enforced", enforced_rules: ["new_dependency"] },
+  );
 });

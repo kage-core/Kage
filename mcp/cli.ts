@@ -102,6 +102,7 @@ import {
   MEMORY_TYPES,
   WORK_STAGES,
   observe,
+  minimalChangeReport,
   prCheck,
   prSummarize,
   proposeFromDiff,
@@ -228,6 +229,7 @@ Usage:
   kage suppressed --project <dir> [--json]
   kage pr summarize --project <dir> [--json]
   kage pr check --project <dir> [--json]
+  kage minimal-change check --project <dir> [--base <ref>] [--json]
   kage staleguard --project <dir> [--json]
   kage upgrade [--dry-run]
   kage branch --project <dir> [--json]
@@ -1732,6 +1734,42 @@ async function main(): Promise<void> {
     console.log(`Next actions:\n${result.next_actions.map((action) => `  - ${action}`).join("\n")}`);
     if (!result.ok) process.exit(2);
     return;
+  }
+
+  if (command === "minimal-change") {
+    const action = args[1];
+    if (action === "check") {
+      const project = projectArg(args);
+      const report = minimalChangeReport(project, { base: takeArg(args, "--base") ?? null });
+      if (args.includes("--json")) {
+        console.log(JSON.stringify(report, null, 2));
+        if (report && !report.ok) process.exit(2);
+        return;
+      }
+      if (!report) {
+        console.log("Minimal Change Guard is not enabled for this project.");
+        console.log("Enable it in .agent_memory/daemon/vnext/config.json (vnext.minimal_change).");
+        return;
+      }
+      console.log(`Minimal Change Guard (${report.mode}) for ${project}`);
+      console.log(report.summary);
+      for (const finding of report.findings) {
+        const tag = report.blocking.includes(finding) ? "BLOCK" : finding.severity === "info" ? "note " : "warn ";
+        console.log(`  [${tag}] ${finding.kind}: ${finding.title}${finding.deterministic ? "" : " (advisory, model opinion)"}`);
+        for (const evidence of finding.evidence.slice(0, 3)) {
+          console.log(`         evidence: ${evidence.source_uri}${evidence.symbol ? `#${evidence.symbol}` : ""}`);
+        }
+      }
+      if (report.suppressed.length) {
+        console.log(`Suppressed: ${report.suppressed.length} finding(s) with recorded justifications.`);
+      }
+      if (!report.ok) {
+        console.log("To dismiss a finding, record a justification (actor, reason, commit, expiry).");
+        process.exit(2);
+      }
+      return;
+    }
+    usage();
   }
 
   if (command === "pr") {
