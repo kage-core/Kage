@@ -54,6 +54,8 @@ import {
   installAgentPolicy,
   kageCleanupCandidates,
   kageCapabilityAudit,
+  agentSurfaceCertificationGate,
+  REQUIRED_AUTOMATIC_SURFACES,
   kageContributors,
   kageContextSlots,
   kageDecisionIntelligence,
@@ -6253,6 +6255,85 @@ test("setup supports openclaw, copilot, and hermes platforms", () => {
     assert.equal(result.agent, agent);
     assert.ok(result.config && result.config.includes("kage"), `${agent} emits an MCP config`);
   }
+});
+
+test("agent-surface certification gate passes only when the three required surfaces certify automatic, Codex stays honest fallback", () => {
+  const now = "2026-07-18T00:00:00.000Z";
+  const report = agentSurfaceCertificationGate(
+    [
+      {
+        surface: "claude-code",
+        capture_events: 5,
+        requested_sentinel: "KAGE-CERT-CC",
+        transcript: "<<<KAGE_CONTEXT>>> KAGE-CERT-CC <<<END_KAGE_CONTEXT>>>",
+        health: "healthy",
+      },
+      {
+        surface: "anthropic-proxy",
+        capture_events: 3,
+        requested_sentinel: "KAGE-CERT-PX",
+        transcript: "gateway forwarded KAGE-CERT-PX",
+        health: "healthy",
+      },
+      {
+        surface: "cursor",
+        capture_events: 4,
+        requested_sentinel: "KAGE-CERT-CU",
+        transcript: "cursor sessionStart delivered KAGE-CERT-CU",
+        health: "healthy",
+      },
+      {
+        surface: "codex",
+        capture_events: 4,
+        requested_sentinel: "KAGE-CERT-CX",
+        transcript: "otel events only, no session injection sentinel",
+        health: "healthy",
+      },
+    ],
+    { now },
+  );
+  assert.equal(report.passed, true, JSON.stringify(report.failures));
+  assert.deepEqual([...REQUIRED_AUTOMATIC_SURFACES], ["claude-code", "anthropic-proxy", "cursor"]);
+  const codex = report.certifications.find((c) => c.surface === "codex");
+  assert.ok(codex);
+  assert.equal(codex.capture, "automatic");
+  assert.equal(codex.injection, "mcp_fallback");
+  assert.equal(codex.counts_as_automatic_attachment, false, "Codex is visible but not counted as automatic");
+});
+
+test("agent-surface certification gate stays failed when Cursor injection is not proven — the label is never flipped", () => {
+  const report = agentSurfaceCertificationGate(
+    [
+      {
+        surface: "claude-code",
+        capture_events: 5,
+        requested_sentinel: "KAGE-CERT-CC",
+        transcript: "KAGE-CERT-CC",
+        health: "healthy",
+      },
+      {
+        surface: "anthropic-proxy",
+        capture_events: 3,
+        requested_sentinel: "KAGE-CERT-PX",
+        transcript: "KAGE-CERT-PX",
+        health: "healthy",
+      },
+      {
+        surface: "cursor",
+        capture_events: 4,
+        requested_sentinel: "KAGE-CERT-CU",
+        transcript: "cursor session ran but the context marker never appeared",
+        health: "healthy",
+      },
+    ],
+    { now: "2026-07-18T00:00:00.000Z" },
+  );
+  assert.equal(report.passed, false);
+  assert.ok(report.failures.some((f) => f.startsWith("cursor:")), JSON.stringify(report.failures));
+  const cursor = report.certifications.find((c) => c.surface === "cursor");
+  assert.ok(cursor);
+  assert.notEqual(cursor.injection, "automatic_session");
+  assert.equal(cursor.counts_as_automatic_attachment, false);
 });
 
 test("kageLayers buckets memory into L0 observations, L1 reviewed, L2 synthesis", () => {

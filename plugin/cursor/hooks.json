@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "./.cursor/kage-hook.sh sessionStart"
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "./.cursor/kage-hook.sh beforeSubmitPrompt"
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": "./.cursor/kage-hook.sh afterFileEdit"
+      }
+    ],
+    "stop": [
+      {
+        "command": "./.cursor/kage-hook.sh stop"
+      }
+    ]
+  }
+}

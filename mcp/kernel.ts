@@ -10,6 +10,12 @@ import { createPublicCandidateBundleManifest, createSignedManifest, generateOrgR
 import { okfConceptToPacket, packetToOkfConcept } from "./okf.js";
 import { averageNumber, codingMrr, codingNdcgAt, codingPrecisionAt, codingRecallAt, countByKey, percentileNumber, roundDecimal, titleCase } from "./metrics-math.js";
 import { isRecord } from "./type-guards.js";
+import {
+  certifySurface,
+  type AgentSurface,
+  type AgentSurfaceCertification,
+  type CertifySurfaceInput,
+} from "./vnext/adapters/capability-matrix.js";
 
 export const PACKET_SCHEMA_VERSION = 2;
 
@@ -14101,6 +14107,75 @@ export function kageCapabilityAudit(projectDir: string): CapabilityAuditReport {
     pillars,
     checklist,
     next_actions: nextActions.length ? nextActions : ["Capability audit is ready. Keep refresh, benchmarks, and viewer reports current before publishing claims."],
+  };
+}
+
+// Phase D Task 6 — the three-surface certification release gate.
+//
+// A surface is only counted as an automatic attachment when a transcript-based
+// smoke test proves it (certifySurface). The gate REQUIRES honest certification
+// for three surfaces — Claude Code native hooks, a proxy-compatible agent using
+// the measured gateway, and Cursor session-start injection on a certified
+// version. Codex is visible in the matrix but is NOT required to count as an
+// automatic attachment while it remains MCP fallback; its presence never fails
+// the gate, and its label can never be flipped to automatic by installed config.
+// If a required surface fails certification, the gate stays failed instead of
+// relabeling the surface.
+
+export const REQUIRED_AUTOMATIC_SURFACES: readonly AgentSurface[] = [
+  "claude-code",
+  "anthropic-proxy",
+  "cursor",
+] as const;
+
+export interface AgentSurfaceCertificationGateReport {
+  schema_version: 1;
+  generated_at: string;
+  passed: boolean;
+  required_surfaces: AgentSurface[];
+  certifications: AgentSurfaceCertification[];
+  failures: string[];
+  summary: string;
+}
+
+export function agentSurfaceCertificationGate(
+  inputs: CertifySurfaceInput[],
+  options: { now?: string } = {},
+): AgentSurfaceCertificationGateReport {
+  const now = options.now ?? nowIso();
+  const certifications = inputs.map((input) =>
+    certifySurface({ ...input, certified_at: input.certified_at ?? now }),
+  );
+  const bySurface = new Map<AgentSurface, AgentSurfaceCertification>();
+  for (const cert of certifications) bySurface.set(cert.surface, cert);
+
+  const failures: string[] = [];
+  for (const surface of REQUIRED_AUTOMATIC_SURFACES) {
+    const cert = bySurface.get(surface);
+    if (!cert) {
+      failures.push(`${surface}: no certification fixture provided`);
+      continue;
+    }
+    if (!cert.counts_as_automatic_attachment) {
+      failures.push(
+        `${surface}: not certified as automatic attachment (capture=${cert.capture}, injection=${cert.injection})`,
+      );
+    }
+  }
+
+  const passed = failures.length === 0;
+  const summary = passed
+    ? `All ${REQUIRED_AUTOMATIC_SURFACES.length} required surfaces certified as automatic attachments; Codex remains honest MCP fallback.`
+    : `Agent-surface certification gate FAILED: ${failures.join("; ")}`;
+
+  return {
+    schema_version: 1,
+    generated_at: now,
+    passed,
+    required_surfaces: [...REQUIRED_AUTOMATIC_SURFACES],
+    certifications,
+    failures,
+    summary,
   };
 }
 
