@@ -131,10 +131,16 @@ function yamlList(items: readonly string[]): string {
   return `[${items.map((item) => JSON.stringify(item)).join(", ")}]`;
 }
 
-// The single trust signal for the concept: injectable when ANY claim is injectable (verified/
-// approved), else the honest floor "proposed". Never a fabricated "verified".
+// The single trust signal for the concept, reported at the strongest state any claim honestly holds:
+//   - "verified" ONLY when a claim is evidence-verified (trust_state === "verified"). A foreign OKF
+//     consumer reads this as an evidence-verified fact, so it must never be minted from a human
+//     approval alone.
+//   - "approved" when no claim is verified but at least one is injectable by human approval.
+//   - "proposed" (the honest floor) otherwise.
 function conceptTrust(concept: ModelConcept): string {
-  return concept.claims.some((claim) => claim.injectable) ? "verified" : "proposed";
+  if (concept.claims.some((claim) => claim.trust_state === "verified")) return "verified";
+  if (concept.claims.some((claim) => claim.injectable)) return "approved";
+  return "proposed";
 }
 
 // Entity kind -> a legacy MemoryType so we can reuse okf.ts's OKF display-type vocabulary. Best-effort

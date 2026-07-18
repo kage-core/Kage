@@ -128,6 +128,62 @@ test("exported evidence references are source-backed with their verification met
   assert.equal(concept.claims[0].evidence[0].source_uri, "fact:src/refunds.ts#refund");
 });
 
+test("an approved-only entity exports x-kage-trust: approved, never verified", () => {
+  const model = new Repository(migratedDatabase());
+  // A claim a human accepted (approved) but which has NO verified evidence. It is injectable, but it
+  // is NOT an evidence-verified fact, so the exported trust signal must not claim "verified".
+  model.upsertEntity({
+    entity_id: "entity-approved",
+    repository_id: REPO,
+    kind: "component",
+    canonical_name: "Refunds",
+    slug: "refunds",
+    summary: "Refund flow",
+    status: "active",
+    created_at: NOW,
+    updated_at: NOW,
+  });
+  // Mint the approved claim the only legal way: create proposed, accept a review item, transition.
+  model.createClaim({
+    claim_id: "claim-approved",
+    entity_id: "entity-approved",
+    claim_kind: "behavior",
+    normalized_content: "retries three times",
+    trust_state: "proposed",
+    confidence: 1,
+    impact_class: "low",
+    valid_from_commit: null,
+    valid_to_commit: null,
+    supersedes_claim_id: null,
+    review_policy: "owner",
+    created_by: "human",
+    created_at: NOW,
+    updated_at: NOW,
+  });
+  model.createReviewItem({
+    review_item_id: "review-approved",
+    repository_id: REPO,
+    claim_id: "claim-approved",
+    reason: "requires owner approval",
+    required_role: "owner",
+    status: "accepted",
+    assigned_to: null,
+    decided_by: "owner-jane",
+    decided_at: NOW,
+    decision_note: "looks right",
+    created_at: NOW,
+  });
+  model.transitionClaim("claim-approved", "approved", "owner-jane");
+
+  const concept = exportModelConcept(model, model.getEntity("entity-approved")!);
+  assert.equal(concept.claims[0].trust_state, "approved");
+  assert.equal(concept.claims[0].injectable, true);
+
+  const markdown = renderModelConceptMarkdown(concept);
+  assert.match(markdown, /x-kage-trust: "approved"/);
+  assert.doesNotMatch(markdown, /x-kage-trust: "verified"/);
+});
+
 test("round-trip preserves vNext identifiers even when x-kage-* frontmatter is stripped", () => {
   const model = new Repository(migratedDatabase());
   const result = importPacket(fixturePacket(), model, { now: () => NOW });
