@@ -20,7 +20,9 @@ Before changing code, call `kage_context` with the current task. Continue strict
 
 ## Current position
 
-Phase A is in progress.
+**Program status (2026-07-18):** Phase A COMPLETE, Phase B COMPLETE, provider-neutral gateway COMPLETE, **Phase D COMPLETE** (see the dated section below). Remaining: Phase C (knowledge portal) and Phase E (team/commercial), then release metrics + packaging. Suite is 1120/1120 + dogfood 12/12; build clean; migration v5; frozen wire protocol intact.
+
+The Phase A table below is retained as historical detail.
 
 | Task | State | Evidence |
 |---|---|---|
@@ -93,6 +95,34 @@ All 10 tasks implemented, each through an implement -> adversarial-review -> har
 Honesty wins from the review loop: a successful command auto-verifies ONLY when grounded on the repo's exact declared bare invocation (not `npm test && rm -rf /`, not a mismatched package manager, not npx); shadow model extraction PROPOSES only, never injects/verifies; OKF export never upgrades a human-approved claim to verified; only verified/approved claims are injectable. New modules: mcp/vnext/repo-model/ (schema, types, repository API, queries) + mcp/vnext/compiler/ (episode-builder, extractors, admission, model-extractor, entity-resolver, consolidator, verifier, staleness, pipeline) + mcp/vnext/context/model-source.ts + mcp/vnext/okf/ + mcp/vnext/migration/.
 
 Green-light: Phase C (needs B schema + repo-model API + review-item API) and Phase D (needs B context-source interface) can begin.
+
+## Phase D — Context Efficiency, Reversible Compression, Minimal Change Guard (2026-07-18) — COMPLETE
+
+All 11 tasks implemented, each through an implement -> adversarial-review -> harden loop via a background Workflow (resumed once after a Task-9-review agent hang; Task-11 impl self-recovered after 5 stall-retries). Independently re-verified: `npm run build --prefix mcp` clean; `npm test --prefix mcp` **1120/1120 pass, 0 fail**; dogfood 12/12; Phase D gate (mcp/vnext/phase-d-gate.test.ts) **3/3**; frozen wire protocol untouched (git history on protocol/types.ts shows only the two pre-Phase-D commits; TransformPipelineReceipt added as an explicitly internal, non-wire type); no top-level node:sqlite (all guarded require / type-only); storage migration still at v5 (the content store is filesystem-based — node:fs + node:crypto — so Phase D needed no schema migration).
+
+| Task | Commit(s) |
+|---|---|
+| 1 reversible content-addressed store | 97c2097, harden add2aa5 (never claims an original safe when its bytes are gone; gc deletes metadata before bytes) |
+| 2 deterministic type-specific compressors | 2bb4ac0, harden b8e401c (repeated error-run preservation) |
+| 3 budget engine (cost + latency, measured) | 27b4364 |
+| 4 cache-aware transform pipeline | 0343c6e, harden 8c318d9 (store exact multi-block tool_result originals) |
+| 5 assist + protect proxy modes (measured) | 8a05601 |
+| 6 honest capability certification | e931693, harden c1b8b68 (fails closed on non-integer capture counts) |
+| 7 reversible exact-retrieval + vNext MCP surface | 26281a1 |
+| 8 Minimal Change preflight (repo-native guidance) | 7415fa5 |
+| 9 deterministic post-diff policy checks | 12de2cb, harden 0682891 (parse hunk bodies by line count, not prefix) |
+| 10 Guard -> PR check + receipts | 527b07a, b59c0ef |
+| 11 cost cohorts + protect automation + gate | 0a89724 |
+
+Honesty gates verified as real, enforced-in-code mechanisms (not decorative): **reversible** — transform.ts stores exact pre-compression bytes + embeds a `kage-content:<sha256>` marker; the gate retrieves each original through the shipped retrieval surface, fingerprint-verifies it, and confirms a different task gets 403. **Byte-preserving-on-failure** — audit forwards the original; any compressor throw or output-growth passes through the original bytes with a failed-open receipt (before==after, no fabricated saving); the gate drives store=null and confirms exact bytes forwarded. **Measured-not-estimated** — a receipt never claims a saving it did not achieve; tokens are provider-measured or null, never byte-derived.
+
+**Honest gap (carried forward, not hidden):** the 20% savings / latency figures in the gate test are measured on a SYNTHETIC engineered-to-compress corpus (400 identical log lines). The shipped real-repo report (`scripts/vnext-phase-d-report.mjs --project . --json`) returns `empty_cohort` — there are ZERO real transformation receipts, and it reports that honestly rather than a fabricated zero. A committed real-body benchmark (`benchmarks/compression-realbody-kage.mjs`, `npm run bench:compression`) measures the shipped compressors over real bodies: **real-body median NET saving ~0%** (git diff ~0.1%, source/JSON passthrough); compression only pays off on genuinely repetitive payloads (~99% on a repeated-log contrast). So Phase D's efficiency thesis is proven as a safe, reversible MECHANISM and validated on real bodies as ~0% net — its value is payload-dependent and honestly measured. `kage up` keeps **audit** as the default; `lossy_compression` defaults false.
+
+Known deliberate design note (not a defect): bare `kage proxy` keeps its historical `assist` default while `kage up` defaults to `audit`. This is intentional back-compat, documented in the CLI help and a code comment (decision G7); assist refuses to start on unhealthy reversible/receipt storage and does injection + lossless-only transforms unless lossy is explicitly enabled.
+
+New modules: mcp/vnext/gateway/ (content-store, compressors/{logs,json,diff,test-output,stack-trace,provider}, budget-engine, budget-policy, transform, live-zone, cohort-metrics, providers/anthropic) + mcp/vnext/policy/ (preflight, post-diff, diff-parser, rules/{duplicate-symbol,missing-verification,new-dependency,public-contract,scope-expansion}) + mcp/vnext/phase-d-gate.test.ts + benchmarks/compression-realbody-kage.mjs + scripts/vnext-phase-d-report.mjs.
+
+Green-light: Phase C (knowledge portal) and Phase E (team/commercial) remain.
 
 ## Commit ledger
 
