@@ -11,13 +11,22 @@ const REPO = "repo";
 // --- Entity resolver fixtures ------------------------------------------------
 
 function fixtureResolver(
-  seeds: Array<{ entity_id: string; canonical_name: string; slug: string; kind?: EntityKind }>,
+  seeds: Array<{
+    entity_id: string;
+    canonical_name: string;
+    slug: string;
+    kind?: EntityKind;
+    paths?: readonly string[];
+    symbols?: readonly string[];
+  }>,
 ): EntityResolver {
   const anchors: EntityAnchor[] = seeds.map((s) => ({
     entity_id: s.entity_id,
     kind: s.kind ?? "component",
     canonical_name: s.canonical_name,
     slug: s.slug,
+    paths: s.paths,
+    symbols: s.symbols,
   }));
   return new EntityResolver(REPO, anchors);
 }
@@ -69,8 +78,16 @@ function candidate(content: string, overrides: Partial<ClaimCandidate> = {}): Cl
 // --- Resolver tests ----------------------------------------------------------
 
 test("auth service aliases resolve to one component", () => {
+  // `packages/auth` is a declared ground-truth path anchor of the component. A name-slug match
+  // must not be what teaches the resolver that path (that would be a weak-match anchor); the seed
+  // owns it outright, so all three surface forms fold onto the same entity regardless of order.
   const resolver = fixtureResolver([
-    { entity_id: "component-auth", canonical_name: "Authentication Service", slug: "auth-service" },
+    {
+      entity_id: "component-auth",
+      canonical_name: "Authentication Service",
+      slug: "auth-service",
+      paths: ["packages/auth"],
+    },
   ]);
   for (const name of ["auth service", "auth-service", "packages/auth"]) {
     assert.equal(
@@ -78,6 +95,80 @@ test("auth service aliases resolve to one component", () => {
       "component-auth",
     );
   }
+});
+
+// Issue 4: resolution must be deterministic irrespective of call order. Previously `packages/auth`
+// only resolved because a name-first resolve had learned it as an anchor; resolving the bare path
+// first minted a NEW entity. With the seed owning the path anchor, order cannot change the outcome.
+test("a bare path resolves to its declared entity regardless of call order", () => {
+  const seed = [
+    {
+      entity_id: "component-auth",
+      canonical_name: "Authentication Service",
+      slug: "auth-service",
+      paths: ["packages/auth"],
+    },
+  ];
+
+  // Bare path resolved FIRST on a fresh resolver.
+  const pathFirst = fixtureResolver(seed);
+  const r1 = pathFirst.resolve("component", "packages/auth", [evidenceFor("packages/auth")]);
+  assert.equal(r1.entity_id, "component-auth");
+  assert.equal(r1.created, false);
+  assert.equal(r1.matched_by, "path_anchor");
+
+  // Name resolved first, then the bare path — same outcome.
+  const nameFirst = fixtureResolver(seed);
+  nameFirst.resolve("component", "auth service", [evidenceFor("packages/auth")]);
+  const r2 = nameFirst.resolve("component", "packages/auth", [evidenceFor("packages/auth")]);
+  assert.equal(r2.entity_id, "component-auth");
+  assert.equal(r2.created, false);
+});
+
+// Issue 4 (root cause): when the path is NOT a declared anchor, a name-slug match must not learn it,
+// so a subsequent bare-path resolve yields the SAME entity whether or not a name resolved first.
+// Previously a name-first call learned the path and folded the bare path onto the component, while a
+// path-first call minted a new entity — an order-dependent, non-deterministic result.
+test("an undeclared evidence path resolves deterministically regardless of a prior name match", () => {
+  const seed = [
+    { entity_id: "component-auth", canonical_name: "Authentication Service", slug: "auth-service" },
+  ];
+
+  // Bare path with no prior calls: no declared anchor, so a fresh entity is minted.
+  const pathOnly = fixtureResolver(seed);
+  const baseline = pathOnly.resolve("component", "src/shared/util.ts", [evidenceFor("src/shared/util.ts")]);
+  assert.equal(baseline.created, true);
+
+  // A prior name-slug match must not change that outcome by learning the shared path.
+  const afterName = fixtureResolver(seed);
+  afterName.resolve("component", "auth service", [evidenceFor("src/shared/util.ts")]);
+  const withPriorName = afterName.resolve(
+    "component",
+    "src/shared/util.ts",
+    [evidenceFor("src/shared/util.ts")],
+  );
+  assert.equal(withPriorName.created, true);
+  assert.equal(withPriorName.entity_id, baseline.entity_id);
+  assert.notEqual(withPriorName.entity_id, "component-auth");
+});
+
+// Issue 1: a resolve that matched only by a weak name slug must NOT record its evidence path as a
+// durable ground-truth anchor. Shared source files are the norm, so a later, differently-named
+// entity citing the same file must never collapse onto the first.
+test("a slug match never records the evidence path as a ground-truth anchor", () => {
+  const resolver = fixtureResolver([
+    { entity_id: "component-auth", canonical_name: "Authentication Service", slug: "auth-service" },
+  ]);
+
+  // Matches by the name slug; the cited file is a shared utility, not a defining anchor.
+  const first = resolver.resolve("component", "auth service", [evidenceFor("src/shared/util.ts")]);
+  assert.equal(first.entity_id, "component-auth");
+  assert.equal(first.matched_by, "slug");
+
+  // A distinct component whose evidence cites the same shared file must stand up on its own.
+  const second = resolver.resolve("component", "logging utility", [evidenceFor("src/shared/util.ts")]);
+  assert.notEqual(second.entity_id, "component-auth");
+  assert.equal(second.created, true);
 });
 
 test("resolver matches an exact stable entity id before any normalization", () => {
@@ -144,6 +235,31 @@ test("opposing supported facts create a contradiction review item", () => {
 test("a reworded but equivalent fact refreshes rather than superseding", () => {
   const result = consolidate(existingClaim("Tests run with npm test"), candidate("tests   run  with npm test."));
   assert.equal(result.action, "refresh_evidence");
+});
+
+// Issue 2: a directional/relational fact and its reverse share the same bag of stemmed words but
+// mean opposite things. They must NOT collapse to refresh_evidence (which would keep the stale fact
+// and silently discard the reversed one).
+test("a reversed directional relation is not a duplicate", () => {
+  const result = consolidate(
+    existingClaim("billing depends on auth"),
+    candidate("auth depends on billing"),
+  );
+  assert.notEqual(result.action, "refresh_evidence");
+  assert.equal(result.action, "supersede");
+});
+
+// Issue 3: a real contradiction expressed with extra words (a replacement clause) must still route
+// to review, not silently supersede a verified claim with an unverified proposal.
+test("a replacement-clause contradiction routes to review, not supersede", () => {
+  const result = consolidate(
+    existingClaim("Auth uses sessions", { trust_state: "verified" }),
+    candidate("Auth uses stateless tokens instead of sessions", { proposed_trust_state: "proposed" }),
+  );
+  assert.equal(result.action, "review_contradiction");
+  if (result.action === "review_contradiction") {
+    assert.equal(result.claim_id, "claim-existing");
+  }
 });
 
 test("a genuinely different fact in the same slot supersedes the old version", () => {

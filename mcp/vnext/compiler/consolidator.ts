@@ -34,8 +34,12 @@ export interface ContentAnalysis {
   // Whitespace/punctuation-normalized, lowercased text (polarity preserved).
   normalized: string;
   // Content-word set with auxiliaries, articles, and negations removed and a light stem applied, so
-  // "uses sessions" and "use sessions" share a set. This is the subject fingerprint.
+  // "uses sessions" and "use sessions" share a set. Order-insensitive — used for subject overlap.
   words: Set<string>;
+  // The same content words in ORDER. This is the subject fingerprint used for equivalence: two claims
+  // are the same fact only if their content words match in sequence, so a directional relation and its
+  // reverse ("A depends on B" vs "B depends on A") — identical bags, opposite meaning — never collapse.
+  sequence: string[];
   polarity: Polarity;
 }
 
@@ -51,10 +55,15 @@ const STOPWORDS: ReadonlySet<string> = new Set([
   "to", "of", "and", "or", "with", "that", "this", "it", "its", "as",
   // negations (also trip the polarity flag below)
   "not", "no", "never", "none", "without", "cannot",
+  // replacement/antonym markers — a clause like "X instead of Y" / "X rather than Y" asserts NOT-Y,
+  // so these flip polarity (below) and carry no subject meaning of their own.
+  "instead", "rather",
 ]);
 
 const NEGATIONS: ReadonlySet<string> = new Set([
   "not", "no", "never", "none", "without", "cannot",
+  // A replacement clause negates the thing being replaced.
+  "instead", "rather",
 ]);
 
 // Expand the common English contractions that hide a negation, so tokenization sees the "not".
@@ -84,16 +93,29 @@ export function analyzeContent(content: string): ContentAnalysis {
   const normalized = rawTokens.join(" ");
   const polarity: Polarity = rawTokens.some((t) => NEGATIONS.has(t)) ? "negative" : "positive";
   const words = new Set<string>();
+  const sequence: string[] = [];
   for (const token of rawTokens) {
     if (STOPWORDS.has(token)) continue;
-    words.add(stem(token));
+    const stemmed = stem(token);
+    sequence.push(stemmed);
+    words.add(stemmed);
   }
-  return { normalized, words, polarity };
+  return { normalized, words, sequence, polarity };
 }
 
-function sameWordSet(a: Set<string>, b: Set<string>): boolean {
-  if (a.size !== b.size) return false;
-  for (const w of a) if (!b.has(w)) return false;
+function sameSequence(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+// True when every word of the smaller subject appears in the larger — i.e. one claim's subject is
+// contained in the other's. Used with opposing polarity to catch contradictions phrased with extra
+// words (a replacement clause), not just exact restatements.
+function subjectSubsumes(a: Set<string>, b: Set<string>): boolean {
+  const [small, large] = a.size <= b.size ? [a, b] : [b, a];
+  if (small.size === 0) return false;
+  for (const w of small) if (!large.has(w)) return false;
   return true;
 }
 
@@ -110,16 +132,21 @@ export function consolidate(existing: ClaimRecord | null, candidate: ClaimCandid
 
   const a = analyzeContent(existing.normalized_content);
   const b = analyzeContent(candidate.content);
-  const equivalentSubject = sameWordSet(a.words, b.words);
 
-  // Same subject, same polarity → the same fact, restated. Keep the claim, refresh its evidence. This
-  // also folds exact duplicates and trivial rewordings, preventing version churn.
-  if (equivalentSubject && a.polarity === b.polarity) {
+  // Same ordered subject, same polarity → the same fact, restated. Keep the claim, refresh its
+  // evidence. This folds exact duplicates and trivial rewordings, preventing version churn. Order
+  // matters: a reversed directional relation has the same word bag but is a different (opposing) fact
+  // and must NOT land here.
+  if (sameSequence(a.sequence, b.sequence) && a.polarity === b.polarity) {
     return { action: "refresh_evidence", claim_id: existing.claim_id, evidence_ids: [...candidate.evidence_ids] };
   }
 
-  // Same subject, opposite polarity → a real contradiction. Never merge; route to review.
-  if (equivalentSubject && a.polarity !== b.polarity) {
+  // Opposing supported facts about the same subject → a real contradiction. Never merge; route to
+  // review. Detected when the two subjects overlap (one subsumes the other) but their polarities
+  // oppose — so a contradiction phrased with extra words, e.g. "uses sessions" vs "uses tokens
+  // instead of sessions", is caught, not just an exact negation. An unverified proposal can never
+  // silently supersede a claim it contradicts.
+  if (a.polarity !== b.polarity && subjectSubsumes(a.words, b.words)) {
     return { action: "review_contradiction", claim_id: existing.claim_id, candidate };
   }
 
