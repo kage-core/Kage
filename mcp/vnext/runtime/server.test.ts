@@ -11,6 +11,7 @@ import type { AdapterHandshake, EvidenceEvent, TransformationReceipt } from "../
 import { acquireRuntimeLock, releaseRuntimeLock } from "./lock.js";
 import { assertRuntimeDirectoryLease, contentRoot, ensureRuntimeDirectory, resolveRuntimePaths } from "./paths.js";
 import { startLocalRuntime, type LocalRuntimeHandle } from "./server.js";
+import { auditConfig, writeVnextConfig } from "./config.js";
 import { ContentStore } from "../gateway/content-store.js";
 
 const JSON_LIMIT = 2 * 1024 * 1024;
@@ -551,6 +552,48 @@ test("local runtime lists task receipts for exactly one safely decoded path segm
       const invalid = await fetch(`${runtime.url}${path}`, { headers: authHeaders(runtime.token) });
       assert.equal(invalid.status, 404, path);
     }
+  });
+});
+
+test("task receipts carry no minimal-change section until the guard is enabled", async () => {
+  await withRuntime(async (runtime) => {
+    // A known task, receipts written, but the guard disabled by default: the body is exactly the
+    // receipts-only shape — the pre-Task-10 contract is preserved.
+    await postJson(runtime, "/v2/handshakes", fixtureHandshake());
+    runtime.receiptStore.write(fixtureReceipt());
+    const off = await fetch(`${runtime.url}/v2/tasks/task-1/receipts`, { headers: authHeaders(runtime.token) });
+    assert.equal(off.status, 200);
+    assert.deepEqual(await off.json(), { receipts: [fixtureReceipt()] });
+  });
+});
+
+test("enabling the guard surfaces the minimal-change projection on GET /v2/tasks/:id/receipts", async () => {
+  await withRuntime(async (runtime, projectDir) => {
+    await postJson(runtime, "/v2/handshakes", fixtureHandshake());
+    runtime.receiptStore.write(fixtureReceipt());
+
+    // Opt the repository into the advisory guard. readVnextConfig is consulted per request, so writing
+    // the config after startup is enough to change what the receipts route composes.
+    const config = auditConfig(["proxy"]);
+    config.vnext.minimal_change = { enabled: true, mode: "advisory", enforced_rules: [] };
+    writeVnextConfig(projectDir, config);
+
+    const response = await fetch(`${runtime.url}/v2/tasks/task-1/receipts`, { headers: authHeaders(runtime.token) });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      receipts: unknown[];
+      minimal_change?: { mode: string; ok: boolean; findings: unknown[]; suppressed: unknown[] };
+    };
+    // The transformation receipts are still present, untouched.
+    assert.deepEqual(body.receipts, [fixtureReceipt()]);
+    // The minimal-change projection now rides alongside them. The temp repo has no git diff, so the
+    // guard finds nothing — but the section itself is wired through, which is what Step 4 requires.
+    assert.ok(body.minimal_change, "expected a minimal_change section once the guard is enabled");
+    assert.equal(body.minimal_change!.mode, "advisory");
+    assert.equal(body.minimal_change!.ok, true);
+    assert.deepEqual(body.minimal_change!.findings, []);
+    // Honesty carries over verbatim: no fabricated "lines avoided" figure on the projection.
+    assert.equal(Object.prototype.hasOwnProperty.call(body.minimal_change, "lines_avoided"), false);
   });
 });
 

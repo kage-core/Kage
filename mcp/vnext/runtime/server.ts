@@ -29,6 +29,7 @@ import { ensureRuntimeToken } from "./token.js";
 import { ContentStore } from "../gateway/content-store.js";
 import { matchContentRoute, retrieve } from "../api/retrieve.js";
 import { matchMinimalChangeRoute, minimalChangeForTask } from "../api/minimal-change.js";
+import { buildTaskReceiptsBody } from "../api/task-receipts.js";
 import { execFileSync } from "node:child_process";
 
 const HOST = "127.0.0.1" as const;
@@ -322,7 +323,25 @@ function createRequestHandler(
         return;
       }
       if (route.kind === "receipts") {
-        json(res, 200, { receipts: receiptStore.forTask(route.taskId!) });
+        const taskId = route.taskId!;
+        const persisted = db
+          .prepare(`SELECT repository_id FROM tasks WHERE task_id = ?`)
+          .get(taskId) as { repository_id: string } | undefined;
+        const policy = readVnextConfig(projectDir)?.vnext.minimal_change
+          ?? { enabled: false, mode: "off", enforced_rules: [] };
+        // The guard only touches the receipts surface when a repository has explicitly opted in, so the
+        // default (and unknown-task) path stays byte-identical to the receipts-only shape — and never
+        // runs git for the disabled case.
+        const guardActive = policy.enabled && policy.mode !== "off" && !!persisted?.repository_id;
+        json(res, 200, buildTaskReceiptsBody({
+          taskId,
+          receipts: receiptStore.forTask(taskId),
+          repositoryId: persisted?.repository_id ?? null,
+          policy,
+          diffText: guardActive ? taskDiffText(projectDir) : "",
+          model: guardActive ? new Repository(db) : null,
+          now: new Date().toISOString(),
+        }));
         return;
       }
       if (route.kind === "content") {
