@@ -3,6 +3,7 @@ import type { KageApiClient } from "./api/client";
 import type { OverviewDto } from "./api/types";
 import { AppShell } from "./components/AppShell";
 import { OnboardingPage } from "./pages/OnboardingPage";
+import { OverviewPage } from "./pages/OverviewPage";
 import { routeToPath, useRoute, type Route } from "./router";
 
 // The portal root. It resolves the current route from history, loads the repository overview once,
@@ -63,15 +64,7 @@ function RoutedPage({
       if (needsOnboarding(overview)) {
         return <OnboardingPage detectedRepository={overview.repository} />;
       }
-      return (
-        <section aria-label="Repository overview">
-          <h1>{overview.repository.name}</h1>
-          <p className="muted">
-            {overview.metrics.length} metric
-            {overview.metrics.length === 1 ? "" : "s"} tracked.
-          </p>
-        </section>
-      );
+      return <OverviewPage overview={overview} />;
     case "system-map":
       return <PagePlaceholder title="System Map" />;
     case "features":
