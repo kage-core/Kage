@@ -477,6 +477,22 @@ export class Repository {
     return rows.map((row) => this.toReviewItem(row));
   }
 
+  /**
+   * Every review item for a repository, optionally filtered to a single status, in stable
+   * (created_at, review_item_id) order. The read-model review queue reads this rather than inventing
+   * its own SQL, so the portal's listing order matches the model's canonical order exactly.
+   */
+  reviewItemsForRepository(repositoryId: string, status?: ReviewItemRecord["status"]): ReviewItemRecord[] {
+    const rows = status
+      ? (this.db
+          .prepare(
+            `SELECT * FROM review_items WHERE repository_id = ? AND status = ? ORDER BY created_at, review_item_id`,
+          ).all(repositoryId, status) as unknown as ReviewItemRow[])
+      : (this.db
+          .prepare(`SELECT * FROM review_items WHERE repository_id = ? ORDER BY created_at, review_item_id`).all(repositoryId) as unknown as ReviewItemRow[]);
+    return rows.map((row) => this.toReviewItem(row));
+  }
+
   // -- Compiler checkpoints ------------------------------------------------
 
   getCheckpoint(compilerName: string, repositoryId: string): CompilerCheckpointRecord | null {

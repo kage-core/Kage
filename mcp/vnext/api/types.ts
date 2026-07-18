@@ -1,0 +1,247 @@
+// Stable portal DTOs — the single source of truth for the Kage vNext knowledge portal read model.
+//
+// These types are pure data (no methods) built from string-literal unions that mirror the repository
+// model enums (TrustState, EntityKind, ImpactClass). The frontend must not hand-maintain a parallel
+// copy: a checked type-sync step (Task 2) generates `platform/web/src/api/types.ts` from this module
+// and fails on drift.
+//
+// Honesty contract carried by these shapes:
+//   - Every metric exposes `exactness` + `formula` + `source_path`; a metric with no honest value is
+//     `value: null` with `exactness: "unavailable"`, never a fabricated zero.
+//   - Entity read models split CURRENT TRUTH (`current_claims`, injectable only) from HISTORY /
+//     UNCERTAINTY (`other_claims`, everything non-injectable) and from `health` counts over the full
+//     claim set. Stale/superseded/disputed claims are shown but labeled, never merged into current.
+//   - Raw event payloads and prompt text never travel through these routes.
+
+import type { EntityKind, ImpactClass, TrustState } from "../repo-model/types.js";
+
+export type { EntityKind, ImpactClass, TrustState } from "../repo-model/types.js";
+
+export type MetricExactness = "exact" | "cohort" | "structural" | "unavailable";
+
+export type MetricId =
+  | "net_context_cost"
+  | "verified_reuse"
+  | "time_to_verified_change"
+  | "understanding_coverage"
+  | "attach_reliability"
+  | "open_contradictions"
+  | "stale_critical"
+  | "runbook_health";
+
+export interface MetricDto {
+  id: MetricId;
+  label: string;
+  value: number | null;
+  unit: "usd" | "percent" | "milliseconds" | "count";
+  exactness: MetricExactness;
+  formula: string;
+  source_path: string;
+  trend: number | null;
+}
+
+export interface RepositoryDto {
+  id: string;
+  name: string;
+  branch: string | null;
+  commit: string | null;
+}
+
+export interface AttentionDto {
+  id: string;
+  kind: "review" | "stale" | "integration" | "cost";
+  title: string;
+  severity: "info" | "warning" | "critical";
+  href: string;
+}
+
+export interface IntegrationDto {
+  id: string;
+  name: string;
+  state: "healthy" | "degraded" | "passthrough" | "disconnected";
+  last_success_at: string | null;
+}
+
+export interface OverviewDto {
+  repository: RepositoryDto;
+  metrics: MetricDto[];
+  attention: AttentionDto[];
+  integrations: IntegrationDto[];
+}
+
+// A single supporting/contradicting evidence anchor. Only ground-truth anchors and verification
+// state travel — never raw source bytes or prompt text.
+export interface EvidenceDto {
+  evidence_id: string;
+  source_type: string;
+  source_uri: string;
+  path: string | null;
+  symbol: string | null;
+  line_start: number | null;
+  line_end: number | null;
+  commit: string | null;
+  verification_state: "verified" | "failed" | "unavailable";
+  stance: "supports" | "contradicts";
+}
+
+export interface ClaimDto {
+  claim_id: string;
+  claim_kind: string;
+  content: string;
+  trust_state: TrustState;
+  impact_class: ImpactClass;
+  confidence: number;
+  review_policy: string;
+  supersedes_claim_id: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  evidence: EvidenceDto[];
+}
+
+export interface RelatedEntityDto {
+  entity_id: string;
+  kind: EntityKind;
+  slug: string;
+  canonical_name: string;
+  relation_type: string;
+  evidence_id: string | null;
+}
+
+export interface EntityCardDto {
+  entity_id: string;
+  kind: EntityKind;
+  slug: string;
+  canonical_name: string;
+  summary: string;
+  status: "active" | "archived";
+  verified_claims: number;
+  stale_claims: number;
+  disputed_claims: number;
+}
+
+export interface EntityHealthDto {
+  verified: number;
+  stale: number;
+  disputed: number;
+  missing_required_fields: string[];
+}
+
+// The shared body for feature/component/flow/decision/runbook detail pages. `current_claims` is the
+// injectable set only; `other_claims` carries proposed/stale/disputed/superseded/archived so the
+// frontend can render them in separately labeled panels. `health` counts span the full claim set.
+export interface EntityDetailDto {
+  entity: EntityCardDto;
+  current_claims: ClaimDto[];
+  other_claims: ClaimDto[];
+  related: RelatedEntityDto[];
+  health: EntityHealthDto;
+}
+
+export interface DecisionDetailDto extends EntityDetailDto {
+  decision: EntityCardDto;
+  // The accepted-review approver of the current claim, when one exists; null otherwise.
+  approved_by: string | null;
+  supersedes_claim_ids: string[];
+}
+
+export interface RunbookDetailDto extends EntityDetailDto {
+  runbook: EntityCardDto;
+  // Null until a successful execution is recorded — never implied by omission.
+  last_successful_execution: string | null;
+}
+
+export interface FeatureListDto {
+  features: EntityCardDto[];
+}
+
+export interface ReviewItemDto {
+  review_item_id: string;
+  claim_id: string;
+  entity_slug: string | null;
+  entity_kind: EntityKind | null;
+  claim_content: string;
+  claim_impact: ImpactClass;
+  reason: string;
+  required_role: string;
+  status: "open" | "accepted" | "rejected" | "superseded";
+  assigned_to: string | null;
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+  created_at: string;
+  proposer: string;
+}
+
+export interface ReviewItemsDto {
+  review_items: ReviewItemDto[];
+}
+
+export interface TaskSummaryDto {
+  task_id: string;
+  session_id: string;
+  repository_id: string;
+  agent_surface: string;
+  started_at: string;
+  ended_at: string | null;
+  outcome: string | null;
+  receipt_count: number;
+}
+
+export interface TasksDto {
+  tasks: TaskSummaryDto[];
+}
+
+export interface TaskDetailDto {
+  task: TaskSummaryDto;
+  receipt_count: number;
+}
+
+export interface IntegrationsDto {
+  integrations: IntegrationDto[];
+}
+
+// ---------------------------------------------------------------------------------------------
+// System map — a task-oriented 2D view with an equivalent accessible table.
+// ---------------------------------------------------------------------------------------------
+
+export type SystemMapView = "feature" | "runtime" | "sequence" | "ownership" | "impact";
+
+// Lanes are rendered in a FIXED order so the map is deterministic and diff-stable.
+export const SYSTEM_MAP_LANES = ["feature", "flow", "component", "contract", "data_model", "owner"] as const;
+export type SystemMapLane = (typeof SYSTEM_MAP_LANES)[number];
+
+export interface SystemMapNodeDto {
+  entity_id: string;
+  kind: EntityKind;
+  slug: string;
+  canonical_name: string;
+  lane: SystemMapLane;
+}
+
+export interface SystemMapEdgeDto {
+  from_entity_id: string;
+  to_entity_id: string;
+  relation_type: string;
+}
+
+export interface SystemMapLaneDto {
+  lane: SystemMapLane;
+  nodes: SystemMapNodeDto[];
+}
+
+// One row per edge, for the accessible table equivalent of the 2D map.
+export interface SystemMapTableRowDto {
+  from: string;
+  from_kind: EntityKind;
+  relation_type: string;
+  to: string;
+  to_kind: EntityKind;
+}
+
+export interface SystemMapDto {
+  view: SystemMapView;
+  lanes: SystemMapLaneDto[];
+  edges: SystemMapEdgeDto[];
+  table: SystemMapTableRowDto[];
+}

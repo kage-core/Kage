@@ -30,6 +30,7 @@ import { ContentStore } from "../gateway/content-store.js";
 import { matchContentRoute, retrieve } from "../api/retrieve.js";
 import { matchMinimalChangeRoute, minimalChangeForTask } from "../api/minimal-change.js";
 import { buildTaskReceiptsBody } from "../api/task-receipts.js";
+import { handlePortalRoute, matchPortalRoute, type PortalRoute } from "../api/router.js";
 import { execFileSync } from "node:child_process";
 
 const HOST = "127.0.0.1" as const;
@@ -37,13 +38,14 @@ const DEFAULT_PORT = 3112;
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
 
-type RouteKind = "health" | "status" | "handshakes" | "events" | "context" | "receipts" | "content" | "minimal_change";
+type RouteKind = "health" | "status" | "handshakes" | "events" | "context" | "receipts" | "content" | "minimal_change" | "portal";
 
 interface MatchedRoute {
   kind: RouteKind;
   method: "GET" | "POST";
   taskId?: string;
   sha256?: string;
+  portal?: PortalRoute;
 }
 
 class RequestFailure extends Error {
@@ -205,7 +207,13 @@ function matchRoute(pathname: string): MatchedRoute | undefined {
   if (content) return { kind: "content", method: "GET", sha256: content.sha256 };
   const minimalChange = matchMinimalChangeRoute(pathname);
   if (minimalChange) return { kind: "minimal_change", method: "GET", taskId: minimalChange.taskId };
-  return receiptRoute(pathname);
+  const receipt = receiptRoute(pathname);
+  if (receipt) return receipt;
+  // The portal read model is matched last so the more specific task sub-routes above (receipts,
+  // minimal-change) always win; every portal read route is GET.
+  const portal = matchPortalRoute(pathname);
+  if (portal) return { kind: "portal", method: "GET", portal };
+  return undefined;
 }
 
 // The change under review for a task, as unified-diff text. Best-effort and fail-open: a repo without a
@@ -320,6 +328,13 @@ function createRequestHandler(
           model_lag_events: computeModelLag(db),
           last_compiled_at: latestCompiledAt(db),
         });
+        return;
+      }
+      if (route.kind === "portal") {
+        // A read-only projection over the repository model. The machine token has already proven a
+        // local operator; the portal never mutates and never returns raw event payloads.
+        const result = handlePortalRoute(route.portal!, { model: new Repository(db), receiptStore }, url.searchParams);
+        json(res, result.status, result.body);
         return;
       }
       if (route.kind === "receipts") {
