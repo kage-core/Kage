@@ -73,6 +73,27 @@ Full suite 735/735, test:vnext 288/288, dogfood 12/12. The proxy now fronts Anth
 
 Honest boundaries: the proxy is provider-API-scoped (an agent on a provider without an adapter gets no coverage); OpenAI/Gemini exact-COST coverage is lower (no cheap count-tokens probe; tier ceilings null); per-provider delivery/attachment attribution is now DONE (migration 003 adds a nullable `provider` column; proxy deliveries carry gateway.provider, hook deliveries are null and never guessed, the report splits attachment per provider with an `unattributed` bucket — commits 227e3d0, and blank-guard hardening). Azure OpenAI remains out of scope.
 
+## Phase B — Repository Model and Knowledge Compiler (2026-07-18) — COMPLETE
+
+All 10 tasks implemented, each through an implement -> adversarial-review -> harden loop via a background Workflow. Full suite 938/938 + dogfood 12/12; build clean; Phase B gate (mcp/vnext/phase-b-gate.test.ts) passes 2/2; frozen wire protocol untouched (only an additive non-wire TrustState type added, documented); Node 18 safe; storage migration at v5.
+
+| Task | Commit(s) |
+|---|---|
+| 1 schema + domain types | 307653a |
+| 2 versioned repo-model API | b7e36be, harden ac5ec96 |
+| 3 adapt indexes into evidence | 68575e2 |
+| 4 group evidence into episodes | 0c7344c, harden efd7e06 |
+| 5 deterministic claim extractors + admission | fae1f0d, harden ee14225 (declared-script auto-verify must be exact) |
+| 6 provider-neutral model extraction (shadow) | 74e9b21, harden c973fda (NaN clamp, URL/snippet redaction) |
+| 7 entity resolution + claim consolidation | 5091068, harden d668543 |
+| 8 verification, staleness, compiler pipeline | df8a828 |
+| 9 packet import + OKF model export | e068b79, harden 1215240 (OKF export never mints "verified" from a human approval alone) |
+| 10 model-backed context + Phase B gate | 0405107 |
+
+Honesty wins from the review loop: a successful command auto-verifies ONLY when grounded on the repo's exact declared bare invocation (not `npm test && rm -rf /`, not a mismatched package manager, not npx); shadow model extraction PROPOSES only, never injects/verifies; OKF export never upgrades a human-approved claim to verified; only verified/approved claims are injectable. New modules: mcp/vnext/repo-model/ (schema, types, repository API, queries) + mcp/vnext/compiler/ (episode-builder, extractors, admission, model-extractor, entity-resolver, consolidator, verifier, staleness, pipeline) + mcp/vnext/context/model-source.ts + mcp/vnext/okf/ + mcp/vnext/migration/.
+
+Green-light: Phase C (needs B schema + repo-model API + review-item API) and Phase D (needs B context-source interface) can begin.
+
 ## Commit ledger
 
 ### Program and isolation
