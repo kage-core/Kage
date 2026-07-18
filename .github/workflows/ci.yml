@@ -43,6 +43,41 @@ jobs:
       - name: Build Kage graph registry manifest
         run: node mcp/dist/cli.js graph-registry --project . --json
 
+  platform-web:
+    name: Knowledge portal build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: platform/web/package-lock.json
+
+      - name: Install
+        working-directory: platform/web
+        run: npm ci
+
+      # The mandated Phase C guarantee is that the backend read-model DTOs and the portal DTOs
+      # cannot drift. `check-types` regenerates the portal types from mcp/vnext/api/types.ts and
+      # fails on any divergence. It runs here explicitly (belt) and is also chained into the
+      # test/build scripts below (suspenders) so no path skips it.
+      - name: DTO drift guard (backend/frontend type-sync)
+        working-directory: platform/web
+        run: npm run check-types
+
+      - name: Test
+        working-directory: platform/web
+        run: npm test
+
+      - name: Build
+        working-directory: platform/web
+        run: npm run build
+
   legacy-node18:
     name: Legacy CLI loads on Node 18
     runs-on: ubuntu-latest
