@@ -219,3 +219,39 @@ test("transformRequest compresses a large tool payload inside the mutable turn a
   assert.deepEqual(result.request.messages.slice(0, -1), request.messages.slice(0, -1));
   assert.ok(result.receipt.transformations.includes("payload_compress"));
 });
+
+test("a multi-text-block tool_result stores the exact original content array, not the flattened join", async () => {
+  const store = tempStore();
+  const blockA = ["starting build", ...Array<string>(200).fill("compiling module foo"), "done A"].join("\n");
+  const blockB = ["running tests", ...Array<string>(200).fill("PASS suite bar"), "done B"].join("\n");
+  const originalContent = [
+    { type: "text", text: blockA },
+    { type: "text", text: blockB },
+  ];
+  const request: MessagesRequestBody = {
+    model: "claude-3-5-sonnet-latest",
+    system: [{ type: "text", text: "You are Claude Code." }],
+    tools: [],
+    messages: [
+      { role: "user", content: "run the build" },
+      { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "bash", input: {} }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: originalContent }] },
+    ],
+  };
+  const result = await transformRequest(request, fixtureTransformContext({ lossy: true, store, injection: null }));
+  assert.ok(result.retrieval_ids.length >= 1, "expected a stored original");
+  const stored = store.get(result.retrieval_ids[0]);
+  // The reversibility gate: the EXACT original two-block content array must be recoverable — never
+  // the flattened "A\nB" join, which cannot rebuild the byte-exact original request.
+  assert.equal(stored.body.toString("utf8"), JSON.stringify(originalContent));
+  assert.deepEqual(JSON.parse(stored.body.toString("utf8")), originalContent);
+  // the tool_result was compressed to a single inner text block carrying the retrieval marker
+  const outBlocks = (result.request.messages.at(-1) as { content: Array<{ type: string; content: Array<{ type: string; text: string }> }> }).content;
+  assert.equal(outBlocks.length, 1);
+  assert.equal(outBlocks[0].type, "tool_result");
+  const inner = outBlocks[0].content;
+  assert.equal(inner.length, 1);
+  assert.equal(inner[0].type, "text");
+  assert.match(inner[0].text, /kage-content:[a-f0-9]{64}/);
+  assert.ok(result.receipt.transformations.includes("payload_compress"));
+});

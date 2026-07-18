@@ -141,9 +141,20 @@ interface PayloadCompression {
 
 // The core reversible-compression primitive shared by transformToolResult and the in-request payload
 // scan. It NEVER throws and NEVER emits a lossy body without a stored, retrievable original.
-function compressPayload(body: Buffer, mediaType: string, context: TransformContext): PayloadCompression {
-  const bodyStr = body.toString("utf8");
-  const originalBytes = body.byteLength;
+//
+// `compressBody` is the text handed to the compressor; `storeBody` is the EXACT original preserved in
+// the content store (defaulting to `compressBody`). They diverge only when the compressible text is a
+// lossy projection of a richer original — e.g. a multi-text-block tool_result whose blocks are joined
+// for compression but whose exact block array must remain byte-recoverable. Storing `storeBody` (not
+// the projection) is what keeps the reversibility gate honest for those shapes.
+function compressPayload(
+  compressBody: Buffer,
+  mediaType: string,
+  context: TransformContext,
+  storeBody: Buffer = compressBody,
+): PayloadCompression {
+  const bodyStr = compressBody.toString("utf8");
+  const originalBytes = compressBody.byteLength;
   const passthrough = (warnings: string[] = []): PayloadCompression => ({
     output: bodyStr,
     retrieval_id: null,
@@ -192,7 +203,7 @@ function compressPayload(body: Buffer, mediaType: string, context: TransformCont
 
   let metadata;
   try {
-    metadata = context.store.put(body, { media_type: mediaType, task_id: context.task_id });
+    metadata = context.store.put(storeBody, { media_type: mediaType, task_id: context.task_id });
   } catch (error) {
     return passthrough([`content store put failed; refusing lossy transform: ${errorMessage(error)}`]);
   }
@@ -247,17 +258,36 @@ export async function transformToolResult(payload: ToolPayload, context: Transfo
 
 // --- in-request payload detection + compression ------------------------------------------------
 
-// Read the compressible text out of a content block, or null when the block carries no text payload.
-function blockText(block: Record<string, unknown>): string | null {
-  if (block.type === "text" && typeof block.text === "string") return block.text;
+interface BlockPayload {
+  /** The compressible text handed to the compressor. */
+  text: string;
+  /** The EXACT bytes stored for reversibility — reconstructs the block's original content byte-for-byte. */
+  original: Buffer;
+}
+
+// Read the compressible payload out of a content block, or null when the block carries no text payload.
+//
+// For a plain text block or a string-content tool_result the compressible text IS the exact original,
+// so `original` is that text verbatim. For an all-text-block tool_result array the blocks are joined
+// for compression, but the join is a LOSSY projection of the block structure — so `original` is the
+// exact JSON of the original content array, not the join. Storing that array (via compressPayload's
+// storeBody) keeps the multi-block shape byte-recoverable and upholds the reversibility gate.
+function blockPayload(block: Record<string, unknown>): BlockPayload | null {
+  if (block.type === "text" && typeof block.text === "string") {
+    return { text: block.text, original: Buffer.from(block.text, "utf8") };
+  }
   if (block.type === "tool_result") {
     const content = block.content;
-    if (typeof content === "string") return content;
+    if (typeof content === "string") {
+      return { text: content, original: Buffer.from(content, "utf8") };
+    }
     if (Array.isArray(content)) {
       const parts = content
         .filter((b): b is { type: string; text: string } => isRecord(b) && b.type === "text" && typeof b.text === "string")
         .map((b) => b.text);
-      if (parts.length && parts.length === content.length) return parts.join("\n");
+      if (parts.length && parts.length === content.length) {
+        return { text: parts.join("\n"), original: Buffer.from(JSON.stringify(content), "utf8") };
+      }
     }
   }
   return null;
@@ -297,11 +327,12 @@ function compressMessagePayloads(message: Record<string, unknown>, context: Tran
     let changed = false;
     const out = content.map((block) => {
       if (!isRecord(block)) return block;
-      const text = blockText(block);
-      if (text === null || byteLength(text) < minBytes) return block;
+      const payload = blockPayload(block);
+      if (payload === null || byteLength(payload.text) < minBytes) return block;
       // Media type is unknown for a tool_result/text block; default to text/plain and let the
-      // compressor selector sniff JSON payloads (it keys on a leading "{" or "[").
-      const c = compressPayload(Buffer.from(text, "utf8"), "text/plain", context);
+      // compressor selector sniff JSON payloads (it keys on a leading "{" or "["). The exact original
+      // (payload.original) is what gets stored, so a multi-block array stays byte-recoverable.
+      const c = compressPayload(Buffer.from(payload.text, "utf8"), "text/plain", context, payload.original);
       if (c.compressor === "none") return block;
       changed = true;
       if (c.retrieval_id) retrieval_ids.push(c.retrieval_id);
