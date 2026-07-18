@@ -29,6 +29,10 @@ __pycache__/
 *.pyc
 node_modules/
 dist/
+# Knowledge portal (platform/web) build + install output — derived, never tracked.
+# (Covered by the global node_modules/ and dist/ rules above; listed explicitly for clarity.)
+platform/web/node_modules/
+platform/web/dist/
 .worktrees/
 mcp/viewer/graphs/*.json
 docs/assets/viewer-demo-frames*/
