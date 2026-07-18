@@ -22,6 +22,18 @@ function fixtureRepeatedLogs(): string {
   return lines.join("\n");
 }
 
+function fixtureRepeatedErrorLogs(): string {
+  const lines: string[] = [];
+  lines.push("2026-07-18T10:00:00Z first startup line");
+  // A foldable run of benign lines so compression is definitively lossy.
+  for (let i = 0; i < 50; i += 1) lines.push("2026-07-18T10:00:01Z heartbeat ok");
+  // A run of IDENTICAL error lines longer than FOLD_THRESHOLD. Every copy
+  // must survive verbatim — error lines are never folded away.
+  for (let i = 0; i < 7; i += 1) lines.push("2026-07-18T10:05:00Z FATAL disk corruption detected");
+  lines.push("2026-07-18T10:06:00Z final shutdown line");
+  return lines.join("\n");
+}
+
 function fixtureLargeJson(): string {
   const items: unknown[] = [];
   for (let i = 0; i < 500; i += 1) items.push({ index: i, value: `row-${i}`, ok: true });
@@ -92,6 +104,19 @@ test("log compressor folds repeated lines but preserves first last and errors", 
   assert.match(result.output, /ERROR database unavailable/);
   assert.equal(result.compressor, "logs");
   assert.equal(result.lossy, true);
+});
+
+test("log compressor never folds a repeated error/fatal run", () => {
+  const body = fixtureRepeatedErrorLogs();
+  const result = compressLogs(body);
+  // Folding still happens for the benign heartbeat run, so this is lossy.
+  assert.equal(result.lossy, true);
+  assert.match(result.output, /repeated 50 times/);
+  const errorLine = "2026-07-18T10:05:00Z FATAL disk corruption detected";
+  const errorCount = result.output.split("\n").filter((line) => line === errorLine).length;
+  // All 7 identical FATAL lines survive verbatim — none folded into a marker.
+  assert.equal(errorCount, 7);
+  assert.doesNotMatch(result.output, /repeated 7 times/);
 });
 
 test("JSON compressor preserves errors ids statuses and schema", () => {
