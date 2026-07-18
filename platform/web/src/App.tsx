@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { KageApiClient } from "./api/client";
 import type {
   DecisionDetailDto,
   EntityDetailDto,
   OverviewDto,
+  ReviewItemDto,
   RunbookDetailDto,
   SystemMapDto,
   SystemMapView,
@@ -13,6 +14,7 @@ import { DecisionPage } from "./pages/DecisionPage";
 import { FeaturePage } from "./pages/FeaturePage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { OverviewPage } from "./pages/OverviewPage";
+import { ReviewQueuePage, type ReviewDecisionInput, type ReviewMutationFeedback } from "./pages/ReviewQueuePage";
 import { RunbookPage } from "./pages/RunbookPage";
 import { SystemMapPage } from "./pages/SystemMapPage";
 import { navigateTo, routeToPath, useRoute, type Route } from "./router";
@@ -180,6 +182,84 @@ function DetailContainer<T>({
   return render(state.data);
 }
 
+// Loads the open review queue and hosts the review UX. Decisions POST through the mutating client
+// method; a 403/409 is surfaced against the offending item (never swallowed), and a successful
+// decision re-fetches so the queue reflects the new state. The acting identity is trust-on-assertion
+// in the local single-user model: an "Acting as" input lets the operator assert who they are, and
+// every mutation is attributed to that actor. This surface is entirely off the context-delivery path.
+function ReviewQueueContainer({ api }: { api: KageApiClient }): React.ReactElement {
+  const [actor, setActor] = useState("local-operator");
+  const [items, setItems] = useState<ReviewItemDto[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<ReviewMutationFeedback | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setItems(null);
+    setError(null);
+    api
+      .reviewItems("open")
+      .then((response) => {
+        if (!cancelled) setItems(response.review_items);
+      })
+      .catch((caught: unknown) => {
+        if (!cancelled) setError(caught instanceof Error ? caught.message : "Unknown error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [api, reloadKey]);
+
+  const onDecide = useCallback(
+    (item: ReviewItemDto, decision: ReviewDecisionInput) => {
+      setFeedback(null);
+      const { action, ...request } = decision;
+      api
+        .decideReview(item.review_item_id, action, request)
+        .then((outcome) => {
+          if (outcome.ok) {
+            // The decision landed; re-fetch so the queue reflects the mutated state.
+            setReloadKey((key) => key + 1);
+          } else {
+            setFeedback({ review_item_id: item.review_item_id, status: outcome.status, error: outcome.error });
+          }
+        })
+        .catch((caught: unknown) => {
+          setFeedback({
+            review_item_id: item.review_item_id,
+            status: 0,
+            error: caught instanceof Error ? caught.message : "request_failed",
+          });
+        });
+    },
+    [api],
+  );
+
+  return (
+    <div className="review-container">
+      <div className="review-actor">
+        <label htmlFor="review-acting-as">Acting as</label>
+        <input
+          id="review-acting-as"
+          type="text"
+          value={actor}
+          onChange={(event) => setActor(event.target.value)}
+        />
+      </div>
+      {items === null && error === null && (
+        <p role="status" aria-live="polite">
+          Loading the review queue…
+        </p>
+      )}
+      {error !== null && <p role="alert">The review queue is unavailable: {error}</p>}
+      {items !== null && (
+        <ReviewQueuePage items={items} actor={actor} onDecide={onDecide} lastResult={feedback} />
+      )}
+    </div>
+  );
+}
+
 function RoutedPage({
   route,
   overview,
@@ -253,7 +333,7 @@ function RoutedPage({
         />
       );
     case "review":
-      return <PagePlaceholder title="Review Queue" />;
+      return <ReviewQueueContainer api={api} />;
     case "tasks":
     case "task":
       return <PagePlaceholder title="Agent Tasks" />;

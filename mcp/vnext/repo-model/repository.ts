@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { LocalDatabase } from "../storage/database.js";
 import { isInjectableTrustState } from "./types.js";
 import type {
@@ -93,6 +94,28 @@ interface ReviewItemRow {
 
 // Terminal states can never transition out — history is preserved, never rewritten.
 const TERMINAL_STATES: ReadonlySet<TrustState> = new Set(["superseded", "archived"]);
+
+/**
+ * A review-mutation precondition failed on a state the caller could not see when it decided (the item
+ * was already decided, or a claim it references is terminal). Carries a machine `code` so the HTTP
+ * layer can map it to the right status (these are 409 conflicts, not 500s) without string-matching.
+ */
+export class ReviewStateError extends Error {
+  constructor(readonly code: string) {
+    super(code);
+    this.name = "ReviewStateError";
+  }
+}
+
+// The single decision provenance a review mutation records on the item. `now` is threaded in so a
+// whole multi-row mutation shares one timestamp.
+interface ReviewDecision {
+  status: ReviewItemRecord["status"];
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+  assigned_to?: string | null;
+}
 
 /**
  * Versioned repository-model API over the Phase B schema.
@@ -493,6 +516,174 @@ export class Repository {
     return rows.map((row) => this.toReviewItem(row));
   }
 
+  getReviewItem(reviewItemId: string): ReviewItemRecord | null {
+    const row = this.db
+      .prepare(`SELECT * FROM review_items WHERE review_item_id = ?`)
+      .get(reviewItemId) as ReviewItemRow | undefined;
+    return row ? this.toReviewItem(row) : null;
+  }
+
+  /**
+   * Accept a review item and move its claim to `approved`, atomically. The accepted review is written
+   * FIRST so the approved gate ("approved requires a completed review") is satisfied within the same
+   * transaction — a disputed/stale/proposed claim can only reach approved through this accepted review,
+   * never laundered. A terminal (superseded/archived) claim cannot be revived; an already-decided item
+   * cannot be re-decided. `actor` is the local operator performing the decision; it is recorded as
+   * `decided_by` on the REVIEW ITEM (decision provenance), never on the claim's immutable `created_by`.
+   */
+  acceptReviewItem(reviewItemId: string, actor: string, note: string): { review: ReviewItemRecord; claim: ClaimRecord } {
+    return this.tx(() => {
+      const item = this.requireOpenReviewItem(reviewItemId);
+      const claim = this.requireLiveClaim(item.claim_id);
+      const now = new Date().toISOString();
+      this.writeReviewDecision(reviewItemId, {
+        status: "accepted",
+        decided_by: actor,
+        decided_at: now,
+        decision_note: note,
+      });
+      this.setClaimTrustState(claim.claim_id, "approved", now);
+      return { review: this.getReviewItem(reviewItemId)!, claim: this.getClaim(claim.claim_id)! };
+    });
+  }
+
+  /**
+   * Reject a review item. The decision is recorded on the item; the claim is deliberately NOT touched —
+   * a rejected proposal stays exactly as non-injectable as it was (proposed/disputed), never quietly
+   * archived and never approved. History is preserved.
+   */
+  rejectReviewItem(reviewItemId: string, actor: string, note: string): { review: ReviewItemRecord; claim: ClaimRecord | null } {
+    return this.tx(() => {
+      const item = this.requireOpenReviewItem(reviewItemId);
+      const now = new Date().toISOString();
+      this.writeReviewDecision(reviewItemId, {
+        status: "rejected",
+        decided_by: actor,
+        decided_at: now,
+        decision_note: note,
+      });
+      return { review: this.getReviewItem(reviewItemId)!, claim: this.getClaim(item.claim_id) };
+    });
+  }
+
+  /**
+   * Accept a contradicting claim and retire the opposing current claim it displaces, atomically. Both
+   * writes share one transaction: the accepted claim reaches `approved` through the freshly-accepted
+   * review (honoring the approved gate), and the opposing claim is retired to `superseded` with its
+   * supersede linkage pointed at the accepted claim so provenance survives ("what replaced me?"). A
+   * rejected gate rolls the whole decision back — you never leave one claim approved and the opposing
+   * one still live. `transitionClaim(...,"superseded")` is deliberately NOT used to retire the
+   * opposing claim: that path leaves the supersede link unset.
+   */
+  resolveContradiction(
+    acceptedClaimId: string,
+    opposingClaimId: string,
+    reviewItemId: string,
+    actor: string,
+    note: string,
+  ): { accepted: ClaimRecord; replaced: ClaimRecord; review: ReviewItemRecord } {
+    return this.tx(() => {
+      const item = this.requireOpenReviewItem(reviewItemId);
+      if (item.claim_id !== acceptedClaimId) {
+        throw new ReviewStateError("review_item_claim_mismatch");
+      }
+      if (acceptedClaimId === opposingClaimId) {
+        throw new ReviewStateError("opposing_claim_is_accepted_claim");
+      }
+      const accepted = this.requireLiveClaim(acceptedClaimId);
+      const opposing = this.getClaim(opposingClaimId);
+      if (!opposing) throw new ReviewStateError("opposing_claim_not_found");
+      if (TERMINAL_STATES.has(opposing.trust_state)) {
+        throw new ReviewStateError("opposing_claim_terminal");
+      }
+      const now = new Date().toISOString();
+      this.writeReviewDecision(reviewItemId, {
+        status: "accepted",
+        decided_by: actor,
+        decided_at: now,
+        decision_note: note,
+      });
+      this.setClaimTrustState(accepted.claim_id, "approved", now);
+      // Retire the opposing claim and point its provenance at the accepted replacement.
+      this.db
+        .prepare(`UPDATE claims SET trust_state = 'superseded', supersedes_claim_id = ?, updated_at = ? WHERE claim_id = ?`)
+        .run(accepted.claim_id, now, opposing.claim_id);
+      return {
+        accepted: this.getClaim(accepted.claim_id)!,
+        replaced: this.getClaim(opposing.claim_id)!,
+        review: this.getReviewItem(reviewItemId)!,
+      };
+    });
+  }
+
+  /**
+   * Edit the proposed content and accept it in one atomic decision. Claim content is never mutated in
+   * place: a new version is minted with the edited content, linked back to the original, which is
+   * retired to `superseded`. The review item is repointed at the new version and accepted, and the new
+   * version reaches `approved` through that accepted review. `created_by` is carried from the original
+   * so the fact's origin provenance is preserved (the reviewer's involvement lives in the decision
+   * note, not by rewriting who first proposed it).
+   */
+  editAndAcceptReviewItem(
+    reviewItemId: string,
+    editedContent: string,
+    actor: string,
+    note: string,
+  ): { accepted: ClaimRecord; review: ReviewItemRecord } {
+    return this.tx(() => {
+      const item = this.requireOpenReviewItem(reviewItemId);
+      const original = this.requireLiveClaim(item.claim_id);
+      const now = new Date().toISOString();
+      const replacementId = randomUUID();
+      this.insertClaimRow({
+        ...original,
+        claim_id: replacementId,
+        normalized_content: editedContent,
+        trust_state: "proposed",
+        supersedes_claim_id: original.claim_id,
+        created_at: now,
+        updated_at: now,
+      });
+      this.setClaimTrustState(original.claim_id, "superseded", now);
+      this.db
+        .prepare(
+          `UPDATE review_items SET claim_id = ?, status = 'accepted', decided_by = ?, decided_at = ?, decision_note = ? WHERE review_item_id = ?`,
+        )
+        .run(replacementId, actor, now, note, reviewItemId);
+      this.setClaimTrustState(replacementId, "approved", now);
+      return { accepted: this.getClaim(replacementId)!, review: this.getReviewItem(reviewItemId)! };
+    });
+  }
+
+  /**
+   * Assign a review item to a reviewer. The item stays OPEN (assignment is not a decision), so it is
+   * still surfaced in the queue; `decided_by` is left null. The note is recorded so the assignment
+   * reason travels with the item.
+   */
+  assignReviewItem(reviewItemId: string, assignedTo: string | null, note: string): { review: ReviewItemRecord } {
+    return this.tx(() => {
+      this.requireOpenReviewItem(reviewItemId);
+      this.db
+        .prepare(`UPDATE review_items SET assigned_to = ?, decision_note = ? WHERE review_item_id = ?`)
+        .run(assignedTo, note, reviewItemId);
+      return { review: this.getReviewItem(reviewItemId)! };
+    });
+  }
+
+  /**
+   * Record a request for more evidence against a review item. The item stays OPEN (the decision is
+   * deferred pending evidence) and the note captures what is needed; no trust state changes.
+   */
+  requestEvidenceForReviewItem(reviewItemId: string, note: string): { review: ReviewItemRecord } {
+    return this.tx(() => {
+      this.requireOpenReviewItem(reviewItemId);
+      this.db
+        .prepare(`UPDATE review_items SET decision_note = ? WHERE review_item_id = ?`)
+        .run(note, reviewItemId);
+      return { review: this.getReviewItem(reviewItemId)! };
+    });
+  }
+
   // -- Compiler checkpoints ------------------------------------------------
 
   getCheckpoint(compilerName: string, repositoryId: string): CompilerCheckpointRecord | null {
@@ -539,6 +730,39 @@ export class Repository {
   }
 
   // -- Internals -----------------------------------------------------------
+
+  // Load a review item that MUST still be open, or throw a typed conflict. Re-deciding a decided item
+  // (accepted/rejected/superseded) is a lost-update: the caller acted on a stale view.
+  private requireOpenReviewItem(reviewItemId: string): ReviewItemRecord {
+    const item = this.getReviewItem(reviewItemId);
+    if (!item) throw new ReviewStateError("review_item_not_found");
+    if (item.status !== "open") throw new ReviewStateError("review_item_already_decided");
+    return item;
+  }
+
+  // Load a claim that MUST still be live (not terminal), or throw a typed conflict.
+  private requireLiveClaim(claimId: string): ClaimRecord {
+    const claim = this.getClaim(claimId);
+    if (!claim) throw new ReviewStateError("claim_not_found");
+    if (TERMINAL_STATES.has(claim.trust_state)) throw new ReviewStateError("claim_terminal");
+    return claim;
+  }
+
+  private writeReviewDecision(reviewItemId: string, decision: ReviewDecision): void {
+    this.db
+      .prepare(
+        `UPDATE review_items SET status = ?, decided_by = ?, decided_at = ?, decision_note = ? WHERE review_item_id = ?`,
+      )
+      .run(decision.status, decision.decided_by, decision.decided_at, decision.decision_note, reviewItemId);
+  }
+
+  // Set a claim's trust state directly, WITHIN an existing transaction. Callers here have already
+  // established the relevant gate (an accepted review for `approved`, a supersession link for
+  // `superseded`) inside the same tx, so this is the low-level write, not the gated public
+  // `transitionClaim`. `created_by` is never touched.
+  private setClaimTrustState(claimId: string, to: TrustState, now: string): void {
+    this.db.prepare(`UPDATE claims SET trust_state = ?, updated_at = ? WHERE claim_id = ?`).run(to, now, claimId);
+  }
 
   private insertClaimRow(input: ClaimRecord): void {
     this.db

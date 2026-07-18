@@ -9,6 +9,8 @@ import type {
   IntegrationsDto,
   OverviewDto,
   DecisionDetailDto,
+  ReviewDecisionRequestDto,
+  ReviewDecisionResultDto,
   ReviewItemsDto,
   RunbookDetailDto,
   SystemMapDto,
@@ -16,6 +18,24 @@ import type {
   TaskDetailDto,
   TasksDto,
 } from "./types";
+
+// The six authorized review mutations, as their URL action segments.
+export type ReviewAction =
+  | "accept"
+  | "edit-and-accept"
+  | "reject"
+  | "supersede"
+  | "assign"
+  | "request-evidence";
+
+// A review mutation's HTTP outcome. `status` is surfaced verbatim so the UI can explain a 403
+// (self-approval blocked) or 409 (version conflict) against the offending item, never swallowing it.
+export interface ReviewMutationOutcome {
+  status: number;
+  ok: boolean;
+  error?: string;
+  result?: ReviewDecisionResultDto;
+}
 
 export interface KageApiClient {
   overview(): Promise<OverviewDto>;
@@ -27,6 +47,11 @@ export interface KageApiClient {
   runbook(slug: string): Promise<RunbookDetailDto>;
   decision(slug: string): Promise<DecisionDetailDto>;
   reviewItems(status?: string): Promise<ReviewItemsDto>;
+  decideReview(
+    reviewItemId: string,
+    action: ReviewAction,
+    request: ReviewDecisionRequestDto,
+  ): Promise<ReviewMutationOutcome>;
   tasks(): Promise<TasksDto>;
   task(taskId: string): Promise<TaskDetailDto>;
   integrations(): Promise<IntegrationsDto>;
@@ -90,6 +115,32 @@ export class KageApi implements KageApiClient {
   reviewItems(status?: string): Promise<ReviewItemsDto> {
     const query = status ? `?status=${encodeURIComponent(status)}` : "";
     return this.get<ReviewItemsDto>(`/v2/review-items${query}`);
+  }
+
+  // A review mutation. Unlike `get`, a non-2xx status is NOT thrown away as a generic error: the
+  // status and error code are returned so the caller can explain a 403/409 against the item. The
+  // portal talks only to the same origin under the strict CSP (`connect-src 'self'`).
+  async decideReview(
+    reviewItemId: string,
+    action: ReviewAction,
+    request: ReviewDecisionRequestDto,
+  ): Promise<ReviewMutationOutcome> {
+    const response = await fetch(
+      `${this.baseUrl}/v2/review-items/${encodeURIComponent(reviewItemId)}/${action}`,
+      {
+        method: "POST",
+        headers: { authorization: `Bearer ${this.token}`, "content-type": "application/json" },
+        body: JSON.stringify(request),
+      },
+    );
+    const body = (await response.json().catch(() => null)) as
+      | (ReviewDecisionResultDto & { error?: string })
+      | { error?: string }
+      | null;
+    if (response.ok) {
+      return { status: response.status, ok: true, result: (body ?? undefined) as ReviewDecisionResultDto };
+    }
+    return { status: response.status, ok: false, error: body?.error ?? "request_failed" };
   }
 
   tasks(): Promise<TasksDto> {

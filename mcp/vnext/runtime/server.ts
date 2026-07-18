@@ -31,6 +31,7 @@ import { matchContentRoute, retrieve } from "../api/retrieve.js";
 import { matchMinimalChangeRoute, minimalChangeForTask } from "../api/minimal-change.js";
 import { buildTaskReceiptsBody } from "../api/task-receipts.js";
 import { handlePortalRoute, matchPortalRoute, type PortalRoute } from "../api/router.js";
+import { handleReviewMutation, REVIEW_ACTIONS, type ReviewAction } from "../api/review.js";
 import { execFileSync } from "node:child_process";
 
 const HOST = "127.0.0.1" as const;
@@ -38,7 +39,7 @@ const DEFAULT_PORT = 3112;
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
 
-type RouteKind = "health" | "status" | "handshakes" | "events" | "context" | "receipts" | "content" | "minimal_change" | "portal";
+type RouteKind = "health" | "status" | "handshakes" | "events" | "context" | "receipts" | "content" | "minimal_change" | "portal" | "review_mutation";
 
 interface MatchedRoute {
   kind: RouteKind;
@@ -46,6 +47,8 @@ interface MatchedRoute {
   taskId?: string;
   sha256?: string;
   portal?: PortalRoute;
+  reviewItemId?: string;
+  reviewAction?: ReviewAction;
 }
 
 class RequestFailure extends Error {
@@ -197,6 +200,22 @@ function receiptRoute(pathname: string): MatchedRoute | undefined {
   }
 }
 
+// POST /v2/review-items/:id/:action — the authorized review write surface. Matched explicitly (and
+// before the portal read routes) so the more specific mutation path wins over the read listing.
+function reviewMutationRoute(pathname: string): MatchedRoute | undefined {
+  const match = /^\/v2\/review-items\/([^/]+)\/([^/]+)$/.exec(pathname);
+  if (!match) return undefined;
+  try {
+    const reviewItemId = decodeURIComponent(match[1]);
+    if (!reviewItemId || reviewItemId.includes("/")) return undefined;
+    const action = match[2];
+    if (!REVIEW_ACTIONS.has(action)) return undefined;
+    return { kind: "review_mutation", method: "POST", reviewItemId, reviewAction: action as ReviewAction };
+  } catch {
+    return undefined;
+  }
+}
+
 function matchRoute(pathname: string): MatchedRoute | undefined {
   if (pathname === "/v2/health") return { kind: "health", method: "GET" };
   if (pathname === "/v2/status") return { kind: "status", method: "GET" };
@@ -209,8 +228,10 @@ function matchRoute(pathname: string): MatchedRoute | undefined {
   if (minimalChange) return { kind: "minimal_change", method: "GET", taskId: minimalChange.taskId };
   const receipt = receiptRoute(pathname);
   if (receipt) return receipt;
+  const reviewMutation = reviewMutationRoute(pathname);
+  if (reviewMutation) return reviewMutation;
   // The portal read model is matched last so the more specific task sub-routes above (receipts,
-  // minimal-change) always win; every portal read route is GET.
+  // minimal-change, review mutations) always win; every portal read route is GET.
   const portal = matchPortalRoute(pathname);
   if (portal) return { kind: "portal", method: "GET", portal };
   return undefined;
@@ -390,6 +411,13 @@ function createRequestHandler(
       }
 
       const body = await readJson(req);
+      if (route.kind === "review_mutation") {
+        // The single mutating portal surface. The machine token has proven a local operator; the
+        // acting identity + optimistic version + self-approval gates are enforced inside the handler.
+        const result = handleReviewMutation(new Repository(db), route.reviewItemId!, route.reviewAction!, body);
+        json(res, result.status, result.body);
+        return;
+      }
       if (route.kind === "handshakes") {
         const handshake = validateHandshake(body);
         if (!handshake.ok) {

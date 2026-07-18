@@ -194,6 +194,17 @@ export interface ReviewItemDto {
   entity_kind: EntityKind | null;
   claim_content: string;
   claim_impact: ImpactClass;
+  // The claim's review policy, mirrored so the UI can compute the SAME self-approval rule the server
+  // enforces (blocked when the actor is the proposer AND the claim is high-impact OR policy is not
+  // "automatic"), and never offer a click the server will reject with 403.
+  claim_review_policy: string;
+  // The claim CURRENTLY occupying this claim's slot (the one a contradiction would displace): its id
+  // (so an accept can supersede it) and its content (so the reviewer sees what would change), or null
+  // when there is none — evidence-first review shows exactly what a decision replaces.
+  current_claim_id: string | null;
+  current_claim_content: string | null;
+  // The proposed claim's supporting/contradicting evidence anchors.
+  evidence: EvidenceDto[];
   reason: string;
   required_role: string;
   status: "open" | "accepted" | "rejected" | "superseded";
@@ -203,10 +214,33 @@ export interface ReviewItemDto {
   decision_note: string | null;
   created_at: string;
   proposer: string;
+  // Optimistic-concurrency tag: a stable hash of the item's mutable decision state. The client echoes
+  // it as `expected_version`; a mismatch means the item changed under the reviewer's feet (409).
+  version: string;
 }
 
 export interface ReviewItemsDto {
   review_items: ReviewItemDto[];
+}
+
+// The six review mutations share one request envelope. `actor` and `decision_note` are always
+// required; `expected_version` is the optimistic-concurrency tag; the remaining fields are per-action
+// (`edited_content` for edit-and-accept, `opposing_claim_id` for supersede, `assigned_to` for assign).
+export interface ReviewDecisionRequestDto {
+  actor: string;
+  expected_version: string;
+  decision_note: string;
+  edited_content?: string;
+  opposing_claim_id?: string;
+  assigned_to?: string | null;
+}
+
+// The result of a review mutation. `accepted` is present when a claim was approved; `replaced` is
+// present only for a contradiction supersession (the retired opposing claim).
+export interface ReviewDecisionResultDto {
+  review: ReviewItemDto;
+  accepted?: ClaimDto;
+  replaced?: ClaimDto;
 }
 
 export interface TaskSummaryDto {

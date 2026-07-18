@@ -861,3 +861,137 @@ a {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm, 0.85rem);
 }
+
+/* ---------------------------------------------------------------------------------------------
+   Review queue — the portal's only write surface. Evidence-first layout; the self-approval notice
+   and server-feedback alert carry meaning as TEXT, with color as redundant reinforcement.
+   --------------------------------------------------------------------------------------------- */
+
+.review-actor {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.review-item {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.review-item-kind {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: var(--font-size-sm, 0.85rem);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.review-item-facts {
+  list-style: none;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--font-size-sm, 0.85rem);
+  color: var(--color-text-muted);
+}
+
+.review-item[data-impact="high"],
+.review-item[data-impact="critical"] {
+  border-left: 4px solid var(--color-warning);
+}
+
+.knowledge-diff {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+@media (max-width: 640px) {
+  .knowledge-diff {
+    grid-template-columns: 1fr;
+  }
+}
+
+.knowledge-diff-panel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  padding: var(--space-3);
+}
+
+.knowledge-diff-panel h4 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-sm, 0.85rem);
+  color: var(--color-text-muted);
+}
+
+.knowledge-diff-panel[data-side="proposed"] {
+  border-color: var(--color-accent, var(--color-success));
+}
+
+.review-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-2);
+}
+
+.review-field textarea,
+.review-field input,
+.review-actor input {
+  font: inherit;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.review-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.review-buttons button {
+  font: inherit;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.review-buttons button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.review-self-approval {
+  border-left: 3px solid var(--color-warning);
+  padding-left: var(--space-2);
+}
+
+.review-item-feedback {
+  border: 1px solid var(--color-critical);
+  border-radius: var(--radius-sm, 6px);
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-critical);
+}
+
+.review-empty {
+  color: var(--color-text-muted);
+}

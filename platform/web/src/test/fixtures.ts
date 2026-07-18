@@ -14,6 +14,7 @@ import type {
   OverviewDto,
   RelatedEntityDto,
   RepositoryDto,
+  ReviewItemDto,
   RunbookDetailDto,
   SystemMapDto,
 } from "../api/types";
@@ -377,6 +378,36 @@ export function fixtureFeature(overrides: Partial<EntityDetailDto> = {}): Entity
       }),
     ],
     health: fixtureHealth(),
+    ...overrides,
+  };
+}
+
+// A review item awaiting decision. Defaults to a HIGH-impact, owner-policy claim proposed by
+// `agent:opus` that contradicts a recorded current claim — so the review UX has current knowledge,
+// a proposed change, evidence, and the material for the self-approval guard. Override `proposer`
+// (or the current actor) to exercise the blocked-vs-allowed accept action.
+export function fixtureReviewItem(overrides: Partial<ReviewItemDto> = {}): ReviewItemDto {
+  return {
+    review_item_id: "ri-passkey",
+    claim_id: "claim-passkey",
+    entity_slug: "authentication",
+    entity_kind: "feature",
+    claim_content: "Authentication supports hardware passkeys as a first-class factor.",
+    claim_impact: "high",
+    claim_review_policy: "owner",
+    current_claim_id: "claim-second-factors",
+    current_claim_content: "Authentication supports TOTP and SMS second factors only.",
+    evidence: [fixtureEvidence({ evidence_id: "ev-passkey", symbol: "verifyPasskey", stance: "supports" })],
+    reason: "high-impact behavior change requires owner approval",
+    required_role: "owner",
+    status: "open",
+    assigned_to: null,
+    decided_by: null,
+    decided_at: null,
+    decision_note: null,
+    created_at: "2026-07-18T12:00:00.000Z",
+    proposer: "agent:opus",
+    version: "v-passkey-1",
     ...overrides,
   };
 }
