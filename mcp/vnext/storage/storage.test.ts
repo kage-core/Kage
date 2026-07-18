@@ -469,7 +469,7 @@ test("every migration records its version once and the ledger is idempotent", ()
       .all() as Array<{ name: string }>;
 
     assert.deepEqual(secondRows, firstRows);
-    assert.deepEqual(secondRows.map(({ version }) => version), [1, 2, 3, 4]);
+    assert.deepEqual(secondRows.map(({ version }) => version), [1, 2, 3, 4, 5]);
     for (const row of secondRows) assert.match(row.applied_at, /^\d{4}-\d{2}-\d{2}T/);
     assert.deepEqual(
       tables.map(({ name }) => name),
@@ -482,6 +482,7 @@ test("every migration records its version once and the ledger is idempotent", ()
         "episodes",
         "evidence",
         "evidence_events",
+        "legacy_packet_migrations",
         "relations",
         "review_items",
         "schema_migrations",
@@ -574,7 +575,7 @@ test("migrations 002 and 003 upgrade an existing version 1 database without losi
     const versions = db
       .prepare("SELECT version FROM schema_migrations ORDER BY version")
       .all() as Array<{ version: number }>;
-    assert.deepEqual(versions.map(({ version }) => version), [1, 2, 3, 4]);
+    assert.deepEqual(versions.map(({ version }) => version), [1, 2, 3, 4, 5]);
     const rows = new DeliveryStore(db).list();
     assert.equal(rows.length, 1);
     assert.equal(rows[0].delivery_id, "delivery-legacy");
@@ -667,7 +668,7 @@ test("migration 003 upgrades a version 2 database, preserving delivery rows with
     const versions = db
       .prepare("SELECT version FROM schema_migrations ORDER BY version")
       .all() as Array<{ version: number }>;
-    assert.deepEqual(versions.map(({ version }) => version), [1, 2, 3, 4]);
+    assert.deepEqual(versions.map(({ version }) => version), [1, 2, 3, 4, 5]);
     const rows = new DeliveryStore(db).list();
     assert.equal(rows.length, 1);
     assert.equal(rows[0].delivery_id, "delivery-v2");
@@ -720,15 +721,15 @@ test("migration rejects databases newer than the supported schema version", () =
   try {
     migrateLocalDatabase(db);
     db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)").run(
-      5,
+      6,
       "2026-07-13T00:00:00.000Z",
     );
 
-    assert.throws(() => migrateLocalDatabase(db), /schema version 5.*newer than supported version 4/i);
+    assert.throws(() => migrateLocalDatabase(db), /schema version 6.*newer than supported version 5/i);
     const versions = db
       .prepare("SELECT version FROM schema_migrations ORDER BY version")
       .all() as Array<{ version: number }>;
-    assert.deepEqual(versions.map(({ version }) => version), [1, 2, 3, 4, 5]);
+    assert.deepEqual(versions.map(({ version }) => version), [1, 2, 3, 4, 5, 6]);
   } finally {
     db.close();
   }
@@ -746,7 +747,7 @@ test("migration reports an unsupported schema error for future versions beyond s
 
     assert.throws(
       () => migrateLocalDatabase(db),
-      /schema version 9007199254740992.*newer than supported version 4/i,
+      /schema version 9007199254740992.*newer than supported version 5/i,
     );
   } finally {
     db.close();
@@ -811,7 +812,7 @@ test("migration validates ordered columns, types, nullability, and primary keys 
 
       assert.throws(
         () => migrateLocalDatabase(db),
-        /schema version 4.*incompatible.*tasks.*columns/i,
+        /schema version 5.*incompatible.*tasks.*columns/i,
         name,
       );
     } finally {
@@ -839,7 +840,7 @@ test("migration validates required unique keys for the current schema", () => {
 
       assert.throws(
         () => migrateLocalDatabase(db),
-        new RegExp(`schema version 4.*incompatible.*${table}.*${column}.*unique`, "i"),
+        new RegExp(`schema version 5.*incompatible.*${table}.*${column}.*unique`, "i"),
         `${table}.${column}`,
       );
     } finally {

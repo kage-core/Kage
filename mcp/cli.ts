@@ -332,6 +332,9 @@ Usage:
   kage status --project <dir> [--json]   legacy memory health + vNext attachment and measurement coverage (exact/partial/unavailable)
   kage open --project <dir> [--port <n>]   launch the local dashboard
   kage receipts --project <dir> [--task <id>] [--limit <n>] [--json]   measured fields only; an unmeasured cost prints as unavailable, never as 0
+  kage migrate plan --project <dir> [--pending] [--out <path>] [--json]   dry-run import of legacy packets into the repository model (non-destructive; per-disposition counts)
+  kage migrate apply --project <dir> --plan <path> [--json]   apply a migration plan; imports only packets whose fingerprint still matches (nothing becomes injectable)
+  kage export --project <dir> --format okf --out <dir>   export the repository model as an OKF concept bundle (identifiers round-trip through foreign OKF consumers)
 
 Types:
   ${MEMORY_TYPES.join(", ")}`;
@@ -935,6 +938,121 @@ async function main(): Promise<void> {
     console.log("  kage okf migrate [--project <dir>] [--pending]   packets → OKF bundle (.agent_memory/okf)");
     console.log("  kage okf lint [<dir|file>] [--project <dir>]      check OKF conformance");
     console.log("  kage okf import [<dir>] [--project <dir>] [--json]  read an OKF bundle back into packets");
+    return;
+  }
+
+  if (command === "migrate") {
+    // Import the legacy .agent_memory packet store into the Phase B repository model. Non-destructive:
+    // packet files are never deleted. `plan` is a dry run (writes nothing to the model); `apply` only
+    // imports packets whose fingerprint still matches the plan.
+    const sub = args[1] && !args[1].startsWith("--") ? args[1] : "";
+    const project = resolve(projectArg(args));
+    const json = args.includes("--json");
+    const defaultPlanPath = join(project, ".agent_memory", "daemon", "vnext", "migration-plan.json");
+
+    const { openRepositoryModel } = await import("./vnext/migration/model-store.js");
+    const { planMigration, applyMigration, renderPlanText } = await import(
+      "./vnext/migration/migration-report.js"
+    );
+
+    if (sub === "plan") {
+      const packets = [
+        ...loadApprovedPackets(project),
+        ...(args.includes("--pending") ? loadPendingPackets(project) : []),
+      ];
+      const opened = openRepositoryModel(project);
+      try {
+        const plan = planMigration(packets, opened.model);
+        const outPath = takeArg(args, "--out") ? resolve(takeArg(args, "--out")!) : defaultPlanPath;
+        mkdirSync(dirname(outPath), { recursive: true });
+        writeFileSync(outPath, `${JSON.stringify(plan, null, 2)}\n`, "utf8");
+        if (json) {
+          console.log(JSON.stringify({ ...plan, plan_path: outPath }, null, 2));
+          return;
+        }
+        console.log(renderPlanText(plan));
+        console.log(`\nPlan written to ${outPath}`);
+        console.log(`Apply it:  kage migrate apply --project ${project} --plan ${outPath}`);
+      } finally {
+        opened.close();
+      }
+      return;
+    }
+
+    if (sub === "apply") {
+      const planPath = takeArg(args, "--plan");
+      if (!planPath) {
+        console.error("Usage: kage migrate apply --project <dir> --plan <path> [--json]");
+        process.exit(2);
+      }
+      const plan = JSON.parse(readFileSync(resolve(planPath), "utf8"));
+      // Load both approved and pending so apply can find any planned packet by id.
+      const packetsById = new Map<string, ReturnType<typeof loadApprovedPackets>[number]>();
+      for (const packet of [...loadApprovedPackets(project), ...loadPendingPackets(project)]) {
+        packetsById.set(packet.id, packet);
+      }
+      const opened = openRepositoryModel(project);
+      try {
+        const result = applyMigration(plan, [...packetsById.values()], opened.model);
+        if (json) {
+          console.log(JSON.stringify(result, null, 2));
+          return;
+        }
+        console.log(
+          `Applied ${result.applied} packet(s); skipped ${result.skipped_fingerprint_mismatch} (drifted), ${result.skipped_missing} (missing).`,
+        );
+        console.log("Nothing imported is injectable — every imported claim is proposed/archived until reviewed.");
+      } finally {
+        opened.close();
+      }
+      return;
+    }
+
+    console.log("kage migrate — import legacy packet memory into the repository model (non-destructive).");
+    console.log("  kage migrate plan --project <dir> [--pending] [--out <path>] [--json]   dry run: per-disposition counts + a plan file");
+    console.log("  kage migrate apply --project <dir> --plan <path> [--json]               import only packets whose fingerprint still matches");
+    return;
+  }
+
+  if (command === "export") {
+    // Export the repository model as an OKF concept bundle. Identifiers ride in a machine-state body
+    // block, so the export round-trips even through a foreign OKF consumer that drops x-kage-* fields.
+    const project = resolve(projectArg(args));
+    const format = takeArg(args, "--format") ?? "okf";
+    if (format !== "okf") {
+      console.error(`kage export: unsupported --format "${format}" (only "okf" is supported).`);
+      process.exit(2);
+    }
+    const out = takeArg(args, "--out");
+    if (!out) {
+      console.error("Usage: kage export --project <dir> --format okf --out <dir>");
+      process.exit(2);
+    }
+    const outDir = resolve(out);
+    const { openRepositoryModel, repositoryIds } = await import("./vnext/migration/model-store.js");
+    const { exportModel } = await import("./vnext/okf/model-export.js");
+    const opened = openRepositoryModel(project);
+    try {
+      mkdirSync(outDir, { recursive: true });
+      const indexLines = ["# Kage model — OKF export", ""];
+      let written = 0;
+      for (const repositoryId of repositoryIds(opened.model)) {
+        for (const doc of exportModel(opened.model, repositoryId)) {
+          writeFileSync(join(outDir, doc.file_name), doc.markdown, "utf8");
+          indexLines.push(`- [${doc.concept.canonical_name}](/${doc.file_name}) — ${doc.concept.kind}`);
+          written += 1;
+        }
+      }
+      writeFileSync(join(outDir, "index.md"), `${indexLines.join("\n")}\n`, "utf8");
+      if (args.includes("--json")) {
+        console.log(JSON.stringify({ out: outDir, written }, null, 2));
+        return;
+      }
+      console.log(`Kage model → OKF: wrote ${written} concept(s) to ${outDir}`);
+      console.log("Trust/freshness rides in x-kage-* frontmatter; identifiers also ride in a body block so a foreign OKF tool round-trips them.");
+    } finally {
+      opened.close();
+    }
     return;
   }
 

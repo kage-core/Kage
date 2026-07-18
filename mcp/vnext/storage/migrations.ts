@@ -1,7 +1,8 @@
 import type { LocalDatabase } from "./database.js";
 import { REPOSITORY_MODEL_SCHEMA_SQL } from "../repo-model/schema.js";
+import { LEGACY_PACKET_MIGRATIONS_SCHEMA_SQL } from "../migration/schema.js";
 
-const CURRENT_SCHEMA_VERSION = 4;
+const CURRENT_SCHEMA_VERSION = 5;
 
 const MIGRATION_LEDGER_SCHEMA = `
 CREATE TABLE schema_migrations (
@@ -141,11 +142,18 @@ ALTER TABLE context_deliveries ADD COLUMN provider TEXT;
 // source of truth for the schema.
 const MIGRATION_004 = REPOSITORY_MODEL_SCHEMA_SQL;
 
+// Phase B, migration 005: the legacy-packet migration ledger. Non-destructive import bookkeeping —
+// it references entities/claims from migration 004 and does not touch the frozen protocol v1 wire
+// messages. The DDL is owned by the migration layer (migration/schema.ts) and imported verbatim so
+// there is a single source of truth for the schema.
+const MIGRATION_005 = LEGACY_PACKET_MIGRATIONS_SCHEMA_SQL;
+
 const MIGRATIONS: Readonly<Record<number, string>> = {
   1: MIGRATION_001,
   2: MIGRATION_002,
   3: MIGRATION_003,
   4: MIGRATION_004,
+  5: MIGRATION_005,
 };
 
 interface SchemaObjectRow {
@@ -338,6 +346,23 @@ const REPO_MODEL_COLUMNS: Readonly<Record<string, readonly ExpectedColumn[]>> = 
   compiler_checkpoints: COMPILER_CHECKPOINTS_COLUMNS,
 };
 
+// Migration 005 (Phase B) adds the single legacy_packet_migrations table. Transcribed verbatim from
+// `PRAGMA table_info` after applying the DDL: a `TEXT PRIMARY KEY` reports pk=1 with notnull=0, and
+// the two nullable foreign keys (entity_id, claim_id) report notnull=0.
+const LEGACY_PACKET_MIGRATIONS_COLUMNS: readonly ExpectedColumn[] = [
+  ["legacy_packet_id", "TEXT", 0, 1],
+  ["source_fingerprint", "TEXT", 1, 0],
+  ["entity_id", "TEXT", 0, 0],
+  ["claim_id", "TEXT", 0, 0],
+  ["disposition", "TEXT", 1, 0],
+  ["original_packet_json", "TEXT", 1, 0],
+  ["migrated_at", "TEXT", 1, 0],
+];
+
+const MIGRATION_LEDGER_COLUMNS: Readonly<Record<string, readonly ExpectedColumn[]>> = {
+  legacy_packet_migrations: LEGACY_PACKET_MIGRATIONS_COLUMNS,
+};
+
 function expectedColumns(version: number): Readonly<Record<string, readonly ExpectedColumn[]>> {
   if (version < 2) return V1_TABLE_COLUMNS;
   const contextDeliveries = [...V1_TABLE_COLUMNS.context_deliveries, V2_DELIVERY_LATENCY_COLUMN];
@@ -350,7 +375,11 @@ function expectedColumns(version: number): Readonly<Record<string, readonly Expe
   // runner calls validateSchema(db, version - 1) BEFORE applying migration 004, and version 3 has no
   // repo-model tables, so expectedColumns(3) must not mention them.
   if (version < 4) return base;
-  return { ...base, ...REPO_MODEL_COLUMNS };
+  const withRepoModel = { ...base, ...REPO_MODEL_COLUMNS };
+  // The legacy migration ledger only exists from version 5 onward. Same gating discipline: the runner
+  // validates version 4 BEFORE applying migration 005, and version 4 has no legacy ledger table.
+  if (version < 5) return withRepoModel;
+  return { ...withRepoModel, ...MIGRATION_LEDGER_COLUMNS };
 }
 
 const V1_UNIQUE_KEYS = [

@@ -53,7 +53,7 @@ test("repository-model tables are schema-guarded and idempotent", () => {
     .prepare("SELECT version FROM schema_migrations ORDER BY version")
     .all()
     .map((row) => Number((row as { version: number }).version));
-  assert.deepEqual(versions, [1, 2, 3, 4]);
+  assert.deepEqual(versions, [1, 2, 3, 4, 5]);
 });
 
 test("claims enforce the confidence bound and entity foreign key", () => {
