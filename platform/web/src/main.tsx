@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { KageApi } from "./api/client";
+import "./styles/global.css";
 
 // Bootstrap. The portal is served same-origin by the Kage daemon under `/app/`, so the API base is
 // the empty string (relative `/v2/...` requests, satisfying `connect-src 'self'`). The machine token

@@ -1,11 +1,16 @@
 import { useEffect, useState } from "react";
 import type { KageApiClient } from "./api/client";
 import type { OverviewDto } from "./api/types";
+import { AppShell } from "./components/AppShell";
+import { OnboardingPage } from "./pages/OnboardingPage";
+import { routeToPath, useRoute, type Route } from "./router";
 
-// Loading state for the repository overview. Fuller routing, the design-token shell, and the
-// per-section pages arrive in Task 3+. This minimal shell proves the contract the whole portal is
-// built on: an accessible top-level navigation landmark and an honest, announced loading state that
-// never implies data is present before the read-model has answered.
+// The portal root. It resolves the current route from history, loads the repository overview once,
+// and hosts every page inside the accessible AppShell. The shell (skip link, banner, primary
+// navigation landmark, main region) is present in every state — including loading — so keyboard and
+// assistive-tech users always have the same structure. Per-section pages arrive in Task 4+; for now
+// unimplemented sections render an honest placeholder rather than pretending to have data.
+
 type LoadState =
   | { status: "loading" }
   | { status: "ready"; overview: OverviewDto }
@@ -15,16 +20,93 @@ export interface AppProps {
   api: KageApiClient;
 }
 
-const NAV_SECTIONS = [
-  "Overview",
-  "System map",
-  "Features",
-  "Review queue",
-  "Task receipts",
-  "Integrations",
-] as const;
+// A fresh install has nothing measured yet: no metrics, no integrations. In that case we guide the
+// operator through local onboarding rather than showing an empty overview that implies success.
+function needsOnboarding(overview: OverviewDto): boolean {
+  return overview.metrics.length === 0 && overview.integrations.length === 0;
+}
+
+function PagePlaceholder({ title }: { title: string }): React.ReactElement {
+  return (
+    <section aria-label={title}>
+      <h1>{title}</h1>
+      <p className="muted">
+        This section is part of the knowledge portal and arrives in a later Phase C task.
+      </p>
+    </section>
+  );
+}
+
+function NotFoundPage({ path }: { path: string }): React.ReactElement {
+  return (
+    <section aria-label="Page not found">
+      <h1>Page not found</h1>
+      <p className="muted">
+        No portal section matches <code>{path}</code>.
+      </p>
+      <p>
+        <a href="/overview">Return to Overview</a>
+      </p>
+    </section>
+  );
+}
+
+function RoutedPage({
+  route,
+  overview,
+}: {
+  route: Route;
+  overview: OverviewDto;
+}): React.ReactElement {
+  switch (route.page) {
+    case "overview":
+      if (needsOnboarding(overview)) {
+        return <OnboardingPage detectedRepository={overview.repository} />;
+      }
+      return (
+        <section aria-label="Repository overview">
+          <h1>{overview.repository.name}</h1>
+          <p className="muted">
+            {overview.metrics.length} metric
+            {overview.metrics.length === 1 ? "" : "s"} tracked.
+          </p>
+        </section>
+      );
+    case "system-map":
+      return <PagePlaceholder title="System Map" />;
+    case "features":
+    case "feature":
+      return <PagePlaceholder title="Features" />;
+    case "components":
+    case "component":
+      return <PagePlaceholder title="Components" />;
+    case "flows":
+    case "flow":
+      return <PagePlaceholder title="Flows" />;
+    case "runbooks":
+    case "runbook":
+      return <PagePlaceholder title="Runbooks" />;
+    case "decisions":
+    case "decision":
+      return <PagePlaceholder title="Decisions" />;
+    case "review":
+      return <PagePlaceholder title="Review Queue" />;
+    case "tasks":
+    case "task":
+      return <PagePlaceholder title="Agent Tasks" />;
+    case "costs":
+      return <PagePlaceholder title="Costs and Outcomes" />;
+    case "integrations":
+      return <PagePlaceholder title="Integrations" />;
+    case "settings":
+      return <PagePlaceholder title="Settings" />;
+    case "not-found":
+      return <NotFoundPage path={route.path} />;
+  }
+}
 
 export function App({ api }: AppProps): React.ReactElement {
+  const route = useRoute();
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
   useEffect(() => {
@@ -47,32 +129,21 @@ export function App({ api }: AppProps): React.ReactElement {
     };
   }, [api]);
 
+  const repository = state.status === "ready" ? state.overview.repository : null;
+
   return (
-    <div className="kage-app">
-      <nav aria-label="Repository knowledge">
-        <ul>
-          {NAV_SECTIONS.map((section) => (
-            <li key={section}>{section}</li>
-          ))}
-        </ul>
-      </nav>
-      <main>
-        {state.status === "loading" && (
-          <p role="status" aria-live="polite">
-            Loading repository knowledge…
-          </p>
-        )}
-        {state.status === "error" && (
-          <p role="alert">
-            Repository knowledge is unavailable: {state.message}
-          </p>
-        )}
-        {state.status === "ready" && (
-          <section aria-label="Repository overview">
-            <h1>{state.overview.repository.name}</h1>
-          </section>
-        )}
-      </main>
-    </div>
+    <AppShell repository={repository} route={routeToPath(route)}>
+      {state.status === "loading" && (
+        <p role="status" aria-live="polite">
+          Loading repository knowledge…
+        </p>
+      )}
+      {state.status === "error" && (
+        <p role="alert">Repository knowledge is unavailable: {state.message}</p>
+      )}
+      {state.status === "ready" && (
+        <RoutedPage route={route} overview={state.overview} />
+      )}
+    </AppShell>
   );
 }

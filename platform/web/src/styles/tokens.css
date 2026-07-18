@@ -1,0 +1,144 @@
+/*
+ * Kage knowledge portal — semantic design tokens.
+ *
+ * Every color, space, radius, and type step is a CSS custom property so components reference
+ * meaning (`--color-surface`, `--color-critical`) rather than raw values. The palette is tuned for
+ * a minimum WCAG AA contrast ratio against its paired background, and status is NEVER conveyed by
+ * color alone — the StatusBadge pairs each color with an icon and a text label.
+ *
+ * A light and a dark scheme are provided. `prefers-color-scheme` selects the default; a
+ * `:root[data-theme=...]` override lets an explicit toggle win in either direction.
+ */
+
+:root {
+  /* Neutral surfaces and text (light scheme). */
+  --color-background: #f7f8fa;
+  --color-surface: #ffffff;
+  --color-surface-raised: #ffffff;
+  --color-text: #1a1d21;
+  --color-text-muted: #565c66;
+  --color-border: #d5d9e0;
+  --color-border-strong: #b4bac4;
+
+  /* Accent + status. Each has AA-contrast text-on-color and a subtle tint background. */
+  --color-accent: #2f5bd7;
+  --color-accent-contrast: #ffffff;
+  --color-focus: #1f3fae;
+
+  --color-success: #1f7a45;
+  --color-success-tint: #e4f4ea;
+  --color-warning: #8a5a00;
+  --color-warning-tint: #fbefd6;
+  --color-critical: #b3261e;
+  --color-critical-tint: #fbe5e3;
+  --color-neutral: #565c66;
+  --color-neutral-tint: #eceef1;
+
+  /* Spacing scale (4px base). */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-8: 3rem;
+
+  /* Radii. */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Typography. */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  --font-size-sm: 0.8125rem;
+  --font-size-base: 0.9375rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 2rem;
+  --line-height-base: 1.5;
+  --font-weight-normal: 400;
+  --font-weight-medium: 550;
+  --font-weight-bold: 700;
+
+  /* Elevation. */
+  --shadow-sm: 0 1px 2px rgba(16, 20, 28, 0.08);
+  --shadow-md: 0 4px 12px rgba(16, 20, 28, 0.12);
+
+  /* Layout. */
+  --sidebar-width: 15rem;
+  --content-max-width: 72rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: #0f1216;
+    --color-surface: #171b21;
+    --color-surface-raised: #1e232b;
+    --color-text: #eef1f5;
+    --color-text-muted: #a6adba;
+    --color-border: #2b323c;
+    --color-border-strong: #3c4552;
+
+    --color-accent: #7ea2ff;
+    --color-accent-contrast: #0f1216;
+    --color-focus: #a9c1ff;
+
+    --color-success: #6cd39a;
+    --color-success-tint: #123123;
+    --color-warning: #e6b45a;
+    --color-warning-tint: #33280f;
+    --color-critical: #f19992;
+    --color-critical-tint: #3a1917;
+    --color-neutral: #a6adba;
+    --color-neutral-tint: #232a33;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* Explicit theme overrides win over the media query in both directions. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-background: #f7f8fa;
+  --color-surface: #ffffff;
+  --color-surface-raised: #ffffff;
+  --color-text: #1a1d21;
+  --color-text-muted: #565c66;
+  --color-border: #d5d9e0;
+  --color-border-strong: #b4bac4;
+  --color-accent: #2f5bd7;
+  --color-accent-contrast: #ffffff;
+  --color-focus: #1f3fae;
+  --color-success: #1f7a45;
+  --color-success-tint: #e4f4ea;
+  --color-warning: #8a5a00;
+  --color-warning-tint: #fbefd6;
+  --color-critical: #b3261e;
+  --color-critical-tint: #fbe5e3;
+  --color-neutral: #565c66;
+  --color-neutral-tint: #eceef1;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-background: #0f1216;
+  --color-surface: #171b21;
+  --color-surface-raised: #1e232b;
+  --color-text: #eef1f5;
+  --color-text-muted: #a6adba;
+  --color-border: #2b323c;
+  --color-border-strong: #3c4552;
+  --color-accent: #7ea2ff;
+  --color-accent-contrast: #0f1216;
+  --color-focus: #a9c1ff;
+  --color-success: #6cd39a;
+  --color-success-tint: #123123;
+  --color-warning: #e6b45a;
+  --color-warning-tint: #33280f;
+  --color-critical: #f19992;
+  --color-critical-tint: #3a1917;
+  --color-neutral: #a6adba;
+  --color-neutral-tint: #232a33;
+}
