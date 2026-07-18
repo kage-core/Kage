@@ -436,6 +436,27 @@ test("audit records the same composition as a SKIP: nothing reached the request"
   assert.equal(delivery.provider, "anthropic");
 });
 
+test("protect records a SKIP with its OWN reason, distinct from audit", () => {
+  // protect behaves like audit at the wire (the original bytes are forwarded), but the reason must
+  // be distinct so cohort attribution can tell a protect back-off apart from a plain audit baseline.
+  const plan = planProxyForward({ mode: "protect", original: ORIGINAL_BODY, transformed: TRANSFORMED_BODY });
+  const delivery = buildProxyDelivery({
+    task_id: "task_x",
+    provider: "anthropic",
+    mode: "protect",
+    plan,
+    composition_latency_ms: 4,
+  });
+
+  assert.ok(delivery);
+  assert.equal(plan.forwarded.equals(ORIGINAL_BODY), true, "protect forwards the client's original bytes");
+  assert.equal(delivery.status, "skipped");
+  assert.notEqual(delivery.reason, "audit_mode_no_injection");
+  assert.equal(delivery.reason, "protect_mode_measured_not_forwarded");
+  assert.equal(delivery.injection_location, "none");
+  assert.equal(delivery.added_bytes, 0);
+});
+
 test("a request with no composed context records no delivery at all", () => {
   // No recall hit means no capsule was ever composed. There is nothing to have delivered, and a
   // row here would put a phantom attempt into the denominator.

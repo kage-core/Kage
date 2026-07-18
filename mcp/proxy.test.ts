@@ -5,8 +5,11 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createServer, request as httpRequest, type Server } from "node:http";
 import { capture, loadObservations } from "./kernel.js";
-import { injectMemory, isCompletionsRequest, resolveRequestProjectDir, startProxy } from "./proxy.js";
+import { injectMemory, isCompletionsRequest, probeAssistStorage, resolveRequestProjectDir, startProxy } from "./proxy.js";
 import { anthropicGateway, defaultGateways, selectGateway } from "./vnext/adapters/gateway.js";
+import { ContentStore, RETRIEVAL_ID_PREFIX } from "./vnext/gateway/content-store.js";
+import { contentRoot } from "./vnext/runtime/paths.js";
+import { auditConfig, writeVnextConfig } from "./vnext/runtime/config.js";
 import { claudeRepositoryIdentity } from "./vnext/adapters/claude.js";
 import type { EvidenceEvent, TransformationReceipt } from "./vnext/protocol/index.js";
 import { openVnextDatabase } from "./vnext/storage/database.js";
@@ -901,4 +904,148 @@ test("the proxy resolves the runtime connection at most once per TTL, not once p
     proxy.close();
     fakeUpstream.close();
   }
+});
+
+// --- Phase D Task 5: assist / protect modes + reversible compression pipeline -------------------
+
+// A fake upstream that answers /v1/messages as a Server-Sent-Events STREAM (the real shape a
+// streaming Anthropic completion returns), so a test can prove the client's stream still completes
+// end-to-end through the proxy.
+function streamingUpstream(seen: Array<{ path: string; body: string }>) {
+  return withFakeUpstream((req, res) => {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      seen.push({ path: req.url ?? "", body });
+      res.writeHead(200, { "content-type": "text/event-stream" });
+      res.write("event: message_start\ndata: {\"type\":\"message_start\"}\n\n");
+      res.write("event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"ok\"}}\n\n");
+      res.write("event: message_delta\ndata: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":2}}\n\n");
+      res.end("data: [DONE]\n\n");
+    });
+  });
+}
+
+// A project whose config enables lossy compression, so the Phase D pipeline is allowed to store an
+// exact original and forward a compressed payload. Everything else stays audit-safe.
+function projectWithLossyEnabled(): string {
+  const project = tempProject();
+  const config = auditConfig(["proxy"]);
+  config.vnext.budget.lossy_compression = true;
+  writeVnextConfig(project, config);
+  return project;
+}
+
+// A request whose LAST user turn carries a large, highly repetitive tool_result — exactly the payload
+// the deterministic log compressor folds. Sixty identical INFO lines are ~2.2 KB, well over the
+// 500-token minimum-payload floor.
+function toolHeavyRequest(): { body: string; log: string } {
+  const log = Array.from({ length: 60 }, () => "INFO connection established to db pool worker").join("\n");
+  const body = JSON.stringify({
+    model: "claude-opus-4-8",
+    messages: [
+      { role: "user", content: "summarize the run" },
+      { role: "assistant", content: [{ type: "text", text: "reading logs" }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: log }] },
+    ],
+  });
+  return { body, log };
+}
+
+test("protect passthrough keeps the streamed response intact and forwards the original bytes", async () => {
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const { server: fakeUpstream, url } = await streamingUpstream(seen);
+  // protect + no-inject is the force-passthrough case: nothing is added, nothing is compressed.
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "protect", noInject: true, receiptSink: null });
+  const port = await listeningPort(proxy);
+
+  try {
+    const response = await proxyRequest(port, "/v1/messages", QUESTION);
+    assert.equal(response.status, 200);
+    // The client's whole SSE stream arrived intact through the proxy.
+    assert.match(response.body, /message_start/);
+    assert.match(response.body, /\[DONE\]/);
+    // THE protect+passthrough invariant: the bytes on the wire are byte-identical to the client's.
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].body, QUESTION);
+    assert.doesNotMatch(seen[0].body, /injected by Kage/);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+test("assist compresses a large tool payload in the live zone, stays reversible, and forwards the smaller body", async () => {
+  const project = projectWithLossyEnabled();
+  const seen: Array<{ path: string; body: string }> = [];
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "assist", receiptSink: null });
+  const port = await listeningPort(proxy);
+
+  const { body: request, log } = toolHeavyRequest();
+
+  try {
+    const response = await proxyRequest(port, "/v1/messages", request);
+    assert.equal(response.status, 200);
+    assert.equal(seen.length, 1);
+    // assist forwards the TRANSFORMED body, and the compressed payload is strictly smaller.
+    assert.equal(Buffer.byteLength(seen[0].body) < Buffer.byteLength(request), true);
+    // Every lossy transform embeds a content-addressed retrieval reference to its exact original.
+    const match = seen[0].body.match(/kage-content:([0-9a-f]{64})/);
+    assert.ok(match, "forwarded body must carry a kage-content retrieval reference");
+    // REVERSIBILITY GATE: the exact pre-compression original is fingerprint-verified retrievable.
+    const store = new ContentStore({ root: contentRoot(project) });
+    const original = store.get(`${RETRIEVAL_ID_PREFIX}${match![1]}`);
+    assert.equal(original.body.toString("utf8"), log);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+test("protect measures a compressible payload but forwards the client's original bytes", async () => {
+  const project = projectWithLossyEnabled();
+  const seen: Array<{ path: string; body: string }> = [];
+  const collector = collectingSink();
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "protect", receiptSink: collector.sink });
+  const port = await listeningPort(proxy);
+
+  const { body: request } = toolHeavyRequest();
+
+  try {
+    await proxyRequest(port, "/v1/messages", request);
+    assert.equal(seen.length, 1);
+    // protect behaves like audit at the wire: the client's exact bytes are forwarded, uncompressed.
+    assert.equal(seen[0].body, request);
+    assert.doesNotMatch(seen[0].body, /kage-content:/);
+
+    const receipt = await collector.waitForReceipt();
+    assert.equal(receipt.mode, "protect");
+    // The candidate (compressed) body is MEASURED — smaller than the original — but never forwarded.
+    assert.equal(receipt.before_input_bytes, Buffer.byteLength(request));
+    assert.equal(receipt.after_input_bytes < receipt.before_input_bytes, true);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+test("probeAssistStorage reports healthy reversible + receipt storage on a normal project", () => {
+  const health = probeAssistStorage(tempProject());
+  assert.equal(health.reversible, true);
+  // Receipt storage needs node:sqlite (Node 22.5+); the authoritative suite runs on such a runtime.
+  assert.equal(health.receipts, true);
+  assert.equal(health.healthy, true);
+});
+
+test("probeAssistStorage reports unhealthy when the reversible store cannot be written", () => {
+  const project = tempProject();
+  // Block the content root with a plain file so the store can never create its shard directories.
+  writeFileSync(contentRoot(project), "blocker");
+  const health = probeAssistStorage(project);
+  assert.equal(health.reversible, false);
+  assert.equal(health.healthy, false);
+  assert.match(health.detail, /reversible/);
 });

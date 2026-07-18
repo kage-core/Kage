@@ -21,7 +21,12 @@ export const ANTHROPIC_PROXY_ADAPTER_ID = "anthropic-proxy";
 export const ANTHROPIC_PROXY_PROVIDER = "anthropic";
 export const CONTEXT_APPEND_TRANSFORMATION = "context_append_last_user_turn";
 
-export type ProxyMode = "audit" | "assist";
+// audit  : measure a candidate, forward the client's exact bytes (byte-identical baseline).
+// assist : forward the transformed candidate (memory added, payloads possibly compressed).
+// protect: MAY compress defensively, but at the wire behaves like audit — forwards the client's
+//          original bytes — while persisting a DISTINCT reason so a back-off is attributable and is
+//          never conflated with a plain audit baseline (Phase D, Task 5 / Task 11).
+export type ProxyMode = "audit" | "assist" | "protect";
 
 export interface ProxyForwardPlan {
   /** The client's own bytes — always the BEFORE side of the receipt. */
@@ -33,24 +38,33 @@ export interface ProxyForwardPlan {
   transformations: string[];
 }
 
-// audit: build the candidate, measure it, forward the client's ORIGINAL BYTES. The audit number is
-// worthless if the audited traffic was itself modified, so this is the load-bearing line of the
-// whole phase.
+// audit/protect: build the candidate, measure it, forward the client's ORIGINAL BYTES. The audit
+// number is worthless if the audited traffic was itself modified, so this is the load-bearing line of
+// the whole phase; protect shares the byte-preserving wire behaviour.
 // assist: forward the candidate, because that is what the user asked Kage to do.
 export function planProxyForward(options: {
   mode: ProxyMode;
   original: Buffer;
   transformed: Buffer | null;
+  /**
+   * The real transformation labels the pipeline performed. Defaults to the context-append label for
+   * back-compat when a candidate differs from the original but no explicit labels were supplied.
+   */
+  transformations?: readonly string[];
 }): ProxyForwardPlan {
   const { mode, original, transformed } = options;
   if (!transformed || transformed.equals(original)) {
     return { original, forwarded: original, measured: original, transformations: [] };
   }
+  const transformations = options.transformations?.length
+    ? [...options.transformations]
+    : [CONTEXT_APPEND_TRANSFORMATION];
   return {
     original,
-    forwarded: mode === "audit" ? original : transformed,
+    // Only assist puts the transformed bytes on the wire. audit and protect forward the original.
+    forwarded: mode === "assist" ? transformed : original,
     measured: transformed,
-    transformations: [CONTEXT_APPEND_TRANSFORMATION],
+    transformations,
   };
 }
 
@@ -301,7 +315,13 @@ export function buildProxyDelivery(input: {
     added_tokens: null,
     measurement_quality: delivered ? "partial" : "unavailable",
     status: delivered ? "delivered" : "skipped",
-    reason: delivered ? "delivered" : "audit_mode_no_injection",
+    // A SKIP's reason distinguishes WHY nothing was forwarded: protect measured a candidate and
+    // deliberately held it back (a back-off), which must never read as a plain audit baseline.
+    reason: delivered
+      ? "delivered"
+      : input.mode === "protect"
+        ? "protect_mode_measured_not_forwarded"
+        : "audit_mode_no_injection",
     composition_latency_ms: input.composition_latency_ms,
     // The proxy knows exactly which provider it forwarded to, so the row carries it — the input that
     // makes a per-provider attachment split possible.

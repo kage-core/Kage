@@ -20,6 +20,7 @@ import { resolve as resolvePath, sep } from "node:path";
 import { memoryRoot, observe, recall, type MemoryPacket } from "./kernel.js";
 import {
   buildProxyDelivery,
+  CONTEXT_APPEND_TRANSFORMATION,
   planProxyForward,
   proxyTaskId,
   systemToText,
@@ -37,6 +38,13 @@ import { readAdapterConnection, sendAdapterEvent, type AdapterConnection } from 
 import { totalPromptTokens, type ProviderUsage } from "./vnext/measurement/token-count.js";
 import { openReceiptSink, type ReceiptSink } from "./vnext/measurement/receipt-sink.js";
 import { spoolContextDelivery } from "./vnext/storage/delivery-spool.js";
+import { contentRoot } from "./vnext/runtime/paths.js";
+import { ContentStore } from "./vnext/gateway/content-store.js";
+import { transformRequest, type MessagesRequestBody } from "./vnext/gateway/transform.js";
+import { builtinCompressorProvider } from "./vnext/gateway/compressors/provider.js";
+import { providerAdapterFor } from "./vnext/gateway/providers/anthropic.js";
+import { readVnextConfig } from "./vnext/runtime/config.js";
+import { DEFAULT_CONTEXT_BUDGET_POLICY, type ContextBudgetPolicy } from "./vnext/gateway/budget-policy.js";
 
 // isCompletionsRequest lives in the Anthropic gateway now (path eligibility is provider-specific),
 // but it stays part of the proxy module's public surface for callers and tests that import it here.
@@ -135,6 +143,51 @@ export function injectMemory(projectDir: string, body: Record<string, unknown>):
   return composeInjection(anthropicGateway, projectDir, body);
 }
 
+export interface AssistStorageHealth {
+  /** Both the reversible store and the receipt sink are usable. */
+  healthy: boolean;
+  /** The content-addressed store can store and fingerprint-verify an exact original (Node 18 safe). */
+  reversible: boolean;
+  /** The receipt sink opens (needs node:sqlite, Node 22.5+) so assist runs measured, not blind. */
+  receipts: boolean;
+  detail: string;
+}
+
+// A pre-flight gate for `kage proxy --mode assist`. assist may inject context and (with lossy enabled)
+// compress payloads; a lossy transform that cannot store its exact original is a data-loss risk, and a
+// missing receipt sink means assist would run entirely unmeasured. Both must be healthy before the CLI
+// enables assist. Best-effort and never throws — it PROBES the real subsystems rather than guessing.
+export function probeAssistStorage(projectDir: string): AssistStorageHealth {
+  const notes: string[] = [];
+
+  let reversible = false;
+  try {
+    const store = new ContentStore({ root: contentRoot(projectDir) });
+    const probe = Buffer.from("kage-assist-health-probe", "utf8");
+    const metadata = store.put(probe, { media_type: "text/plain", task_id: "assist-health-probe" });
+    // Round-trip through the tamper-evident get: reversibility is real only if the exact bytes return.
+    reversible = store.get(metadata.retrieval_id).body.equals(probe);
+    if (!reversible) notes.push("reversible store round-trip did not return the exact bytes");
+  } catch (error) {
+    reversible = false;
+    notes.push(`reversible store unavailable: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  let receipts = false;
+  try {
+    const sink = openReceiptSink(projectDir);
+    receipts = sink !== null;
+    sink?.close?.();
+    if (!receipts) notes.push("receipt storage unavailable (needs Node 22.5+ for node:sqlite)");
+  } catch (error) {
+    receipts = false;
+    notes.push(`receipt storage unavailable: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  const healthy = reversible && receipts;
+  return { healthy, reversible, receipts, detail: notes.join("; ") || "reversible + receipt storage healthy" };
+}
+
 export interface ProxyOptions {
   port?: number;
   upstream?: string;
@@ -173,6 +226,34 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
     if (!sinks.has(requestProjectDir)) sinks.set(requestProjectDir, openReceiptSink(requestProjectDir));
     return sinks.get(requestProjectDir) ?? null;
   }
+  // Phase D transform pipeline plumbing, all lazy + per-repo so a --workspace proxy serves many:
+  //   - the budget policy comes from the repo's vNext config (audit-safe default when absent), so
+  //     lossy compression stays OFF unless an operator explicitly enabled it — never a proxy default;
+  //   - the reversible content store keeps the exact pre-compression original of every lossy transform
+  //     (pure fs + node:crypto, Node 18 safe), so nothing lossy is ever irretrievable;
+  //   - the compressor provider is the deterministic built-in set.
+  // Only the Anthropic provider is wired to the pipeline in Phase D (providerAdapterFor returns null
+  // otherwise), so OpenAI/Gemini still get provider-neutral injection but no Phase D compression.
+  const budgetPolicies = new Map<string, ContextBudgetPolicy>();
+  function budgetPolicyFor(dir: string): ContextBudgetPolicy {
+    if (!budgetPolicies.has(dir)) {
+      budgetPolicies.set(dir, readVnextConfig(dir)?.vnext.budget ?? { ...DEFAULT_CONTEXT_BUDGET_POLICY });
+    }
+    return budgetPolicies.get(dir)!;
+  }
+  const contentStores = new Map<string, ContentStore | null>();
+  function contentStoreFor(dir: string): ContentStore | null {
+    if (!contentStores.has(dir)) {
+      try {
+        contentStores.set(dir, new ContentStore({ root: contentRoot(dir), retentionDays: budgetPolicyFor(dir).raw_content_retention_days }));
+      } catch {
+        contentStores.set(dir, null); // no reversible store ⇒ the pipeline refuses lossy, fail-open
+      }
+    }
+    return contentStores.get(dir) ?? null;
+  }
+  const compressorProvider = builtinCompressorProvider();
+
   // A stable per-process id, NOT the literal string "default": without this every proxy
   // run ever, across restarts, shared one observation-dedup bucket, and diverged from any
   // real Claude Code session id a hook might be recording under — so the same prompt could
@@ -337,21 +418,60 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
         // body-derived, so it does not thread the path.
         model = gateway.parseRequest(parsed, clientReq.url).model;
         let transformed: Buffer | null = null;
+        const transformationLabels: string[] = [];
         // --no-inject forwards the exact original bytes (diagnostic: proves whether the proxy can
         // carry subscription traffic at all, independent of any memory injection).
         if (!options.noInject && existsSync(memoryRoot(requestProjectDir))) {
           userPrompt = gateway.parseRequest(parsed).lastUserText;
           const composeStartedAt = performance.now();
-          const result = composeInjection(gateway, requestProjectDir, parsed);
-          if (result.injected) {
-            injected = result.injected;
-            transformed = Buffer.from(JSON.stringify(result.body), "utf8");
+          // Step 1 — ADD CONTEXT: assist and audit compose the memory candidate (audit measures it,
+          // assist forwards it). protect deliberately never adds context — it is a defensive posture.
+          let candidate: Record<string, unknown> = parsed;
+          if (mode !== "protect") {
+            const composed = composeInjection(gateway, requestProjectDir, parsed);
+            if (composed.injected) {
+              injected = composed.injected;
+              candidate = composed.body;
+              transformationLabels.push(CONTEXT_APPEND_TRANSFORMATION);
+            }
           }
+          // Step 2 — COMPRESS (Phase D pipeline, Anthropic only): store the exact original of every
+          // lossy payload and attach a kage-content reference before compressing, so nothing lossy is
+          // irretrievable. Lossy stays OFF unless the repo config enabled it, so by default this is a
+          // byte-preserving no-op layered on top of injection. Any throw inside fails open to the
+          // candidate unchanged (transformRequest never throws), preserving the client's bytes.
+          // The pipeline's ONLY wire effect is lossy payload compression, so it runs only when the
+          // repo explicitly enabled lossy — the default path (lossy off) stays pure injection with
+          // zero compressor work, and audit/protect on a lossy-off repo add no per-request overhead.
+          const policy = budgetPolicyFor(requestProjectDir);
+          const adapter = policy.lossy_compression ? providerAdapterFor(gateway.provider) : null;
+          if (adapter) {
+            const pipeline = await transformRequest(candidate as MessagesRequestBody, {
+              task_id: proxyTaskId(requestProjectDir, sessionId),
+              request_id: null,
+              provider: gateway.provider,
+              store: contentStoreFor(requestProjectDir),
+              policy,
+              compressorProvider,
+              // Injection already happened above; the pipeline here is compression-only.
+              injection: null,
+              // Token measurement stays OUT of the request path: the post-response count_tokens probe
+              // (recordReceipt) measures the candidate after the client is answered, so no probe adds
+              // latency here. tokenCounter null keeps the pipeline's own token fields honestly null.
+              tokenCounter: null,
+              liveZone: adapter.liveZone,
+            });
+            if (pipeline.receipt.status === "transformed") {
+              candidate = pipeline.request;
+              transformationLabels.push(...pipeline.receipt.transformations);
+            }
+          }
+          if (candidate !== parsed) transformed = Buffer.from(JSON.stringify(candidate), "utf8");
           compositionLatencyMs = performance.now() - composeStartedAt;
         }
-        // In audit mode this constructs the candidate body but forwards the ORIGINAL bytes: the
-        // whole point of an audit baseline is that the audited traffic was not touched.
-        plan = planProxyForward({ mode, original: raw, transformed });
+        // audit and protect construct the candidate but forward the ORIGINAL bytes: the whole point of
+        // an audit baseline (and a protect back-off) is that the forwarded traffic was not touched.
+        plan = planProxyForward({ mode, original: raw, transformed, transformations: transformationLabels });
       } catch { /* not JSON we understand — pass through untouched, and measure nothing */ }
     }
 
@@ -463,16 +583,21 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
       console.log(`Falls back to ${projectDir} for clients that don't report one (e.g. aider, codex) or report one outside the workspace.`);
     } else {
       console.log(`\nThen use Claude Code normally in ${projectDir}.`);
-      // The banner may not claim an injection audit mode will never perform: say what THIS mode does.
+      // The banner may not claim an injection a mode will never perform: say what THIS mode does.
+      const inbound = "capture the exchange inbound";
       console.log(hasMemory
-        ? (mode === "audit"
-          ? `Kage will measure what memory injection would have saved and capture the exchange inbound — nothing is injected. Ctrl-C to stop.`
-          : `Kage will inject verified memory outbound and capture the exchange inbound. Ctrl-C to stop.`)
+        ? (mode === "assist"
+          ? `Kage will inject verified memory outbound and ${inbound}. Ctrl-C to stop.`
+          : mode === "protect"
+            ? `Kage will forward your request bytes unchanged and ${inbound}, measuring what a defensive transform would save — nothing is forwarded transformed. Ctrl-C to stop.`
+            : `Kage will measure what memory injection would have saved and ${inbound} — nothing is injected. Ctrl-C to stop.`)
         : `No .agent_memory here yet — run \`kage init\` first, or the proxy is a plain passthrough. Ctrl-C to stop.`);
     }
-    console.log(mode === "audit"
-      ? `\nMode: audit — your request bytes are forwarded unchanged; Kage only measures what an injected request would have cost.`
-      : `\nMode: assist — Kage appends verified memory to the last user turn and records what that cost.`);
+    console.log(mode === "assist"
+      ? `\nMode: assist — Kage appends verified memory to the last user turn and records what that cost.`
+      : mode === "protect"
+        ? `\nMode: protect — your request bytes are forwarded unchanged; Kage measures what a defensive transform would save and records a distinct reason.`
+        : `\nMode: audit — your request bytes are forwarded unchanged; Kage only measures what an injected request would have cost.`);
   });
   return server;
 }

@@ -163,7 +163,7 @@ import {
 import { buildGraphRegistryManifest } from "./graph-registry.js";
 import { checkReportMarkdown, driftCheck, formatCheckReport, kageCheckWorkflowYaml, writeCheckBaseline } from "./check.js";
 import { lintOkfBundle, loadOkfConcepts, migratePacketsToOkf, okfBundleDir, okfViewerHtml } from "./okf.js";
-import { startProxy } from "./proxy.js";
+import { probeAssistStorage, startProxy } from "./proxy.js";
 import { startCloudServer } from "./cloud-server.js";
 import { cloudCreateTeam, cloudInvite, cloudPush, cloudPull, cloudList, cloudReview } from "./cloud-client.js";
 
@@ -235,7 +235,7 @@ Usage:
   kage gains --project <dir> [--json]
   kage savings --project <dir> [--queries <n>] [--json]   deterministic token-reduction receipt (no LLM on the measurement path)
   kage team --project <dir> [--json]   team memory health: contributors, pending review, stale-withheld, contradictions
-  kage proxy --project <dir> [--port 8788] [--upstream <url>] [--workspace <dir>] [--mode audit|assist] [--count-tokens] [--no-receipts] [--no-inject] [--verbose]   drop-in proxy: inject memory outbound, capture exchanges inbound, record measured transformation receipts (--mode audit forwards your exact bytes and only measures)
+  kage proxy --project <dir> [--port 8788] [--upstream <url>] [--workspace <dir>] [--mode audit|assist|protect] [--count-tokens] [--no-receipts] [--no-inject] [--verbose]   drop-in proxy: inject memory outbound, capture exchanges inbound, record measured transformation receipts (--mode audit forwards your exact bytes and only measures; --mode protect forwards the original but measures a defensive transform; assist refuses to start on unhealthy reversible/receipt storage)
   kage up [--project <dir>] [--port 8788] [--mode audit|assist] [--foreground] [--no-runtime] [--json]   one command: connect (audit-only config) + vNext runtime + BACKGROUND proxy on --port — detached, survives this terminal (a machine reboot stops it: run kage up once afterwards; no system service), stopped with kage down; --mode governs the proxy process alone and defaults to audit = measurement only (deliberately unlike bare \`kage proxy\`, which keeps assist as its back-compat default); re-running reuses a VERIFIED live proxy (pid + port checked, never the state file alone) and exits 0, cleaning a stale record first; --foreground keeps the proxy in this terminal with no daemon state (kage down does not manage it); --no-runtime skips the vNext runtime daemon
   kage down [--project <dir>] [--json]   stop what kage up started: SIGTERM the verified background proxy (SIGKILL after a bounded grace), remove its state file, and stop the runtime daemon; per-component honest output (stopped / was not running / stale state cleaned); exits 0 when the end state is nothing-running; a foreground proxy is stopped with Ctrl-C instead
   kage run [--project <dir>] [--port 8788] -- <command> [args...]   exec <command> with ANTHROPIC_BASE_URL=http://localhost:<port> in its env (and nothing else), inheriting your terminal; with no --port it uses the background proxy's verified recorded port, falling back to 8788; fails fast with a \`kage up\` hint when nothing listens — run never starts the proxy (up owns that lifecycle)
@@ -2728,10 +2728,26 @@ async function main(): Promise<void> {
     const upstream = takeArg(args, "--upstream");
     const workspace = takeArg(args, "--workspace");
     const modeArg = takeArg(args, "--mode");
-    if (modeArg && modeArg !== "audit" && modeArg !== "assist") {
-      console.error(`Unknown --mode "${modeArg}". Use audit (measure only, forward the client's exact bytes) or assist (inject memory).`);
+    if (modeArg && modeArg !== "audit" && modeArg !== "assist" && modeArg !== "protect") {
+      console.error(`Unknown --mode "${modeArg}". Use audit (measure only, forward the client's exact bytes), assist (inject memory + reversible compression), or protect (defensive, measured, forwards the original).`);
       process.exitCode = 1;
       return;
+    }
+    // Bare `kage proxy` keeps its historical assist default (kage up defaults to audit — see G7);
+    // audit and protect are explicit opt-ins.
+    const mode = modeArg === "audit" ? ("audit" as const) : modeArg === "protect" ? ("protect" as const) : ("assist" as const);
+    // assist can ADD and (with lossy enabled) COMPRESS context. A lossy transform with no reversible
+    // store is a data-loss risk, and assist with no receipt sink runs entirely unmeasured — so the CLI
+    // refuses to start assist on unhealthy storage rather than quietly degrading. audit/protect are
+    // always safe (they forward the client's exact bytes), so they never gate on storage health.
+    if (mode === "assist" && existsSync(join(project, ".agent_memory"))) {
+      const health = probeAssistStorage(project);
+      if (!health.healthy) {
+        console.error(`kage proxy --mode assist refused: ${health.detail}.`);
+        console.error(`assist needs healthy reversible + receipt storage before it may add or compress context. Run \`kage proxy --mode audit\` to measure safely instead.`);
+        process.exitCode = 1;
+        return;
+      }
     }
     startProxy(project, {
       port,
@@ -2739,7 +2755,7 @@ async function main(): Promise<void> {
       verbose: args.includes("--verbose"),
       noInject: args.includes("--no-inject"),
       workspace: workspace ?? undefined,
-      mode: modeArg === "audit" ? "audit" : "assist",
+      mode,
       receiptSink: args.includes("--no-receipts") ? null : undefined,
       countTokens: args.includes("--count-tokens"),
     });
