@@ -114,14 +114,25 @@ export class ContentStore {
     const sha256 = sha256Hex(body);
     const { shardDirectory, objectPath, metadataPath } = contentObjectPaths(this.root, sha256);
 
-    // Content-addressed and idempotent: identical bytes map to one object. If it already exists,
-    // return the metadata written the first time so the created_at/expires_at deadline is stable
-    // (a re-put must not resurrect an expiring object's deadline).
-    if (existsSync(metadataPath)) {
+    // Content-addressed and idempotent: identical bytes map to one object. Short-circuit ONLY when
+    // both the metadata commit record and the object bytes are present, returning the metadata
+    // written the first time so the created_at/expires_at deadline is stable (a re-put must not
+    // resurrect an expiring object's deadline). Confirming the bytes — not the metadata alone —
+    // upholds the reversibility gate: put() must never report an original safe when its bytes are
+    // gone (e.g. a metadata record left dangling by an interrupted gc).
+    if (existsSync(metadataPath) && existsSync(objectPath)) {
       return this.readMetadata(metadataPath, sha256);
     }
 
     mkdirSync(shardDirectory, { recursive: true, mode: 0o700 });
+
+    // Heal a half-present pair: if the metadata survived but the object bytes are gone, restore the
+    // bytes under the existing (stable) deadline instead of falsely reporting the original safe.
+    if (existsSync(metadataPath)) {
+      const existing = this.readMetadata(metadataPath, sha256);
+      writeFileAtomic(objectPath, body);
+      return existing;
+    }
 
     const created = this.now();
     const expires = new Date(created.getTime() + this.retentionDays * 24 * 60 * 60 * 1000);
@@ -188,8 +199,12 @@ export class ContentStore {
         }
         if (active.has(metadata.retrieval_id)) continue;
         if (Date.parse(metadata.expires_at) > nowMs) continue;
-        rmSync(objectPath, { force: true });
+        // Delete the metadata commit record BEFORE the object bytes. Metadata is the record that
+        // claims "this original is retrievable"; removing it first means an interrupted gc can only
+        // ever leave an orphan object (harmless — get() reports not-found, put() re-heals it), never
+        // a metadata record pointing at absent bytes, which the reversibility gate forbids.
         rmSync(metadataPath, { force: true });
+        rmSync(objectPath, { force: true });
         removed += 1;
       }
     }

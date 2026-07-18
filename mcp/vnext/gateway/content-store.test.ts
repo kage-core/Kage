@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
@@ -127,6 +127,39 @@ test("put is idempotent and does not resurrect an overwritten deadline", () => {
   const second: StoredContentMetadata = store.put(Buffer.from("dup"), fixtureMetadata());
   assert.equal(second.created_at, first.created_at);
   assert.equal(second.expires_at, first.expires_at);
+});
+
+test("put restores lost object bytes instead of falsely reporting an original safe", () => {
+  const root = fixtureRoot();
+  const store = new ContentStore({ root });
+  const saved = store.put(Buffer.from("irreplaceable original"), fixtureMetadata());
+  const { objectPath } = contentObjectPaths(root, shaOf(saved.retrieval_id));
+  // Simulate the exact half-state gc's object-before-metadata deletion can leave behind after a
+  // crash: the object bytes are gone but the metadata commit record survives. put() must not
+  // short-circuit on the metadata alone and report the original safe when its bytes are absent.
+  rmSync(objectPath, { force: true });
+  assert.ok(!existsSync(objectPath));
+  const rePut = store.put(Buffer.from("irreplaceable original"), fixtureMetadata());
+  // Idempotent: the stable deadline is preserved, and the reversible original is retrievable again.
+  assert.equal(rePut.created_at, saved.created_at);
+  assert.equal(rePut.expires_at, saved.expires_at);
+  assert.equal(store.get(saved.retrieval_id).body.toString("utf8"), "irreplaceable original");
+});
+
+test("gc deletes the metadata commit record before the object bytes", () => {
+  let clock = new Date("2026-07-18T00:00:00.000Z");
+  const root = fixtureRoot();
+  const store = new ContentStore({ root, now: () => clock });
+  const saved = store.put(Buffer.from("expired evidence"), fixtureMetadata());
+  const { objectPath, metadataPath } = contentObjectPaths(root, shaOf(saved.retrieval_id));
+  // Force the object deletion to fail so gc aborts mid-delete, exposing the order it removes the
+  // pair in. A metadata record pointing at absent bytes is the never-retrievable "original" the
+  // reversibility gate forbids; deleting metadata first guarantees a crash can never produce one.
+  rmSync(objectPath, { force: true });
+  mkdirSync(objectPath); // a directory: non-recursive rmSync(objectPath) throws EISDIR
+  clock = new Date("2026-07-26T00:00:00.000Z"); // past the 7-day deadline
+  assert.throws(() => store.gc());
+  assert.ok(!existsSync(metadataPath), "metadata must be removed before the object bytes");
 });
 
 test("custom retention window is honored", () => {
