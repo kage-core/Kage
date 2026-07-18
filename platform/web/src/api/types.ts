@@ -243,12 +243,31 @@ export type SystemMapView = "feature" | "runtime" | "sequence" | "ownership" | "
 export const SYSTEM_MAP_LANES = ["feature", "flow", "component", "contract", "data_model", "owner"] as const;
 export type SystemMapLane = (typeof SYSTEM_MAP_LANES)[number];
 
+// A node's knowledge health, derived from the FULL claim set (never re-deriving trust by hand):
+// disputed wins over stale wins over verified; a node with no injectable claim is "unverified".
+// This mirrors the current-truth honesty gate — a node is only "verified" when it has injectable
+// truth AND no stale/disputed claims pulling against it.
+export type SystemMapNodeHealth = "verified" | "stale" | "disputed" | "unverified";
+
 export interface SystemMapNodeDto {
   entity_id: string;
   kind: EntityKind;
   slug: string;
   canonical_name: string;
   lane: SystemMapLane;
+  // Deterministic layered coordinates: `x` is the lane column, `y` the node's row within its lane.
+  // Computed server-side (no force simulation, no wall-clock) so the map is diff-stable.
+  x: number;
+  y: number;
+  health: SystemMapNodeHealth;
+  // Link to the entity's detail page, or null for kinds with no dedicated page (owner/contract/
+  // data_model) — an honest null, never a link that 404s.
+  href: string | null;
+  // Undirected distance from the view's root set. 0 for a root; nodes beyond `max_hops` are excluded.
+  hops: number;
+  // True when this node has a neighbor OUTSIDE the current two-hop window — the frontend offers an
+  // "expand" action (re-focus on this node) instead of rendering the entire repository at once.
+  truncated: boolean;
 }
 
 export interface SystemMapEdgeDto {
@@ -259,21 +278,32 @@ export interface SystemMapEdgeDto {
 
 export interface SystemMapLaneDto {
   lane: SystemMapLane;
+  label: string;
   nodes: SystemMapNodeDto[];
 }
 
-// One row per edge, for the accessible table equivalent of the 2D map.
+// One row per SHOWN node (not per edge), so the table is a complete accessible equivalent of the map
+// — including isolated nodes an edge-only table would drop. `upstream`/`downstream` list the
+// canonical names of neighbors within the window, so relations survive without the 2D rendering.
 export interface SystemMapTableRowDto {
-  from: string;
-  from_kind: EntityKind;
-  relation_type: string;
-  to: string;
-  to_kind: EntityKind;
+  entity_id: string;
+  node: string;
+  kind: EntityKind;
+  lane: SystemMapLane;
+  health: SystemMapNodeHealth;
+  href: string | null;
+  upstream: string[];
+  downstream: string[];
 }
 
 export interface SystemMapDto {
   view: SystemMapView;
+  // The entity the window is rooted on when the caller passed `?focus=`; null for the default view.
+  focus_entity_id: string | null;
+  max_hops: number;
   lanes: SystemMapLaneDto[];
   edges: SystemMapEdgeDto[];
   table: SystemMapTableRowDto[];
+  // True when ANY shown node has a hidden neighbor — the map is a windowed view, not the whole repo.
+  truncated: boolean;
 }

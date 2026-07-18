@@ -19,7 +19,7 @@ import type {
 
 export interface KageApiClient {
   overview(): Promise<OverviewDto>;
-  systemMap(view?: SystemMapView): Promise<SystemMapDto>;
+  systemMap(view?: SystemMapView, focus?: string | null): Promise<SystemMapDto>;
   features(): Promise<FeatureListDto>;
   feature(slug: string): Promise<EntityDetailDto>;
   component(slug: string): Promise<EntityDetailDto>;
@@ -55,9 +55,12 @@ export class KageApi implements KageApiClient {
     return this.get<OverviewDto>("/v2/overview");
   }
 
-  systemMap(view?: SystemMapView): Promise<SystemMapDto> {
-    const query = view ? `?view=${encodeURIComponent(view)}` : "";
-    return this.get<SystemMapDto>(`/v2/system-map${query}`);
+  systemMap(view?: SystemMapView, focus?: string | null): Promise<SystemMapDto> {
+    const params = new URLSearchParams();
+    if (view) params.set("view", view);
+    if (focus) params.set("focus", focus);
+    const query = params.toString();
+    return this.get<SystemMapDto>(`/v2/system-map${query ? `?${query}` : ""}`);
   }
 
   features(): Promise<FeatureListDto> {

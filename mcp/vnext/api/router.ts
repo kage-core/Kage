@@ -8,9 +8,9 @@ import type { Repository } from "../repo-model/repository.js";
 import type { ReceiptStore } from "../storage/receipt-store.js";
 import type { EntityKind } from "../repo-model/types.js";
 import type { SystemMapView } from "./types.js";
+import { buildSystemMap } from "./system-map.js";
 import {
   buildOverview,
-  buildSystemMap,
   decisionDetail,
   entityDetail,
   featureList,
@@ -146,7 +146,8 @@ export function handlePortalRoute(
     case "system_map": {
       const requested = search.get("view") ?? "feature";
       const view: SystemMapView = (VIEWS.has(requested) ? requested : "feature") as SystemMapView;
-      return { status: 200, body: buildSystemMap(model, repoId, view) };
+      const focus = search.get("focus");
+      return { status: 200, body: buildSystemMap(model, repoId, view, focus) };
     }
 
     case "features":

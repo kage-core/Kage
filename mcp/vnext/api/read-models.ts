@@ -25,15 +25,8 @@ import type {
   RelatedEntityDto,
   ReviewItemDto,
   RunbookDetailDto,
-  SystemMapDto,
-  SystemMapLane,
-  SystemMapLaneDto,
-  SystemMapNodeDto,
-  SystemMapTableRowDto,
-  SystemMapView,
   TaskSummaryDto,
 } from "./types.js";
-import { SYSTEM_MAP_LANES } from "./types.js";
 
 // The features whose absence the read model surfaces honestly rather than papering over. Mirrors
 // REQUIRED_FEATURE_FIELDS in queries.ts.
@@ -429,69 +422,5 @@ export function findTaskSummary(
   };
 }
 
-// ---------------------------------------------------------------------------------------------
-// system map — pure + deterministic (no wall-clock, no randomness, no force simulation)
-// ---------------------------------------------------------------------------------------------
-
-const LANE_SET: ReadonlySet<string> = new Set(SYSTEM_MAP_LANES);
-
-export function buildSystemMap(model: Repository, repoId: string | null, view: SystemMapView): SystemMapDto {
-  const entities = repoId ? model.listEntities(repoId) : [];
-  // Only entities that belong to a canonical lane appear on the map. Sort by canonical name then
-  // entity id — the codebase's standard tiebreak — so the map is byte-stable across calls.
-  const laneEntities = entities
-    .filter((e) => LANE_SET.has(e.kind))
-    .sort((a, b) => a.canonical_name.localeCompare(b.canonical_name) || a.entity_id.localeCompare(b.entity_id));
-
-  const included = new Set(laneEntities.map((e) => e.entity_id));
-  const byId = new Map(laneEntities.map((e) => [e.entity_id, e] as const));
-
-  const lanes: SystemMapLaneDto[] = SYSTEM_MAP_LANES.map((lane) => ({
-    lane,
-    nodes: laneEntities
-      .filter((e) => e.kind === lane)
-      .map<SystemMapNodeDto>((e) => ({
-        entity_id: e.entity_id,
-        kind: e.kind,
-        slug: e.slug,
-        canonical_name: e.canonical_name,
-        lane: e.kind as SystemMapLane,
-      })),
-  }));
-
-  // Edges between two included nodes only, de-duplicated and sorted for determinism.
-  const edgeKeys = new Set<string>();
-  const edges = [] as SystemMapDto["edges"];
-  const table: SystemMapTableRowDto[] = [];
-  for (const entity of laneEntities) {
-    for (const relation of model.relationsFrom(entity.entity_id)) {
-      if (!included.has(relation.to_entity_id)) continue;
-      const key = `${relation.from_entity_id}|${relation.relation_type}|${relation.to_entity_id}`;
-      if (edgeKeys.has(key)) continue;
-      edgeKeys.add(key);
-      edges.push({
-        from_entity_id: relation.from_entity_id,
-        to_entity_id: relation.to_entity_id,
-        relation_type: relation.relation_type,
-      });
-      const to = byId.get(relation.to_entity_id)!;
-      table.push({
-        from: entity.canonical_name,
-        from_kind: entity.kind,
-        relation_type: relation.relation_type,
-        to: to.canonical_name,
-        to_kind: to.kind,
-      });
-    }
-  }
-  edges.sort((a, b) =>
-    a.from_entity_id.localeCompare(b.from_entity_id)
-    || a.relation_type.localeCompare(b.relation_type)
-    || a.to_entity_id.localeCompare(b.to_entity_id),
-  );
-  table.sort((a, b) =>
-    a.from.localeCompare(b.from) || a.relation_type.localeCompare(b.relation_type) || a.to.localeCompare(b.to),
-  );
-
-  return { view, lanes, edges, table };
-}
+// The system map builder lives in ./system-map.ts (pure + deterministic, two-hop windowed). It is
+// re-exported there and wired into the router directly; read-models.ts no longer owns it.

@@ -7,6 +7,7 @@ import type {
   MetricDto,
   OverviewDto,
   RepositoryDto,
+  SystemMapDto,
 } from "../api/types";
 
 export function fixtureRepository(overrides: Partial<RepositoryDto> = {}): RepositoryDto {
@@ -124,6 +125,118 @@ export function fixtureOverview(overrides: Partial<OverviewDto> = {}): OverviewD
     ],
     attention: [fixtureAttention()],
     integrations: [fixtureIntegration()],
+    ...overrides,
+  };
+}
+
+// A small but structurally complete system map: a feature that depends on a component that persists
+// to a data model, with the data model's owner hidden beyond the two-hop window (so `truncated` is
+// true). It exercises every rendering path — a linked node, a health-labeled node, an unlinked
+// (null-href) node, upstream/downstream relations, and the truncation affordance.
+export function fixtureSystemMap(overrides: Partial<SystemMapDto> = {}): SystemMapDto {
+  return {
+    view: "feature",
+    focus_entity_id: null,
+    max_hops: 2,
+    lanes: [
+      {
+        lane: "feature",
+        label: "Features",
+        nodes: [
+          {
+            entity_id: "feature-auth",
+            kind: "feature",
+            slug: "authentication",
+            canonical_name: "Authentication",
+            lane: "feature",
+            x: 40,
+            y: 40,
+            health: "stale",
+            href: "/features/authentication",
+            hops: 0,
+            truncated: false,
+          },
+        ],
+      },
+      { lane: "flow", label: "Flows", nodes: [] },
+      {
+        lane: "component",
+        label: "Components",
+        nodes: [
+          {
+            entity_id: "component-token",
+            kind: "component",
+            slug: "token-store",
+            canonical_name: "Token store",
+            lane: "component",
+            x: 520,
+            y: 40,
+            health: "verified",
+            href: "/components/token-store",
+            hops: 1,
+            truncated: false,
+          },
+        ],
+      },
+      { lane: "contract", label: "Contracts", nodes: [] },
+      {
+        lane: "data_model",
+        label: "Data models",
+        nodes: [
+          {
+            entity_id: "data-session",
+            kind: "data_model",
+            slug: "session-record",
+            canonical_name: "Session record",
+            lane: "data_model",
+            x: 1000,
+            y: 40,
+            health: "disputed",
+            href: null,
+            hops: 2,
+            truncated: true,
+          },
+        ],
+      },
+      { lane: "owner", label: "Owners", nodes: [] },
+    ],
+    edges: [
+      { from_entity_id: "feature-auth", to_entity_id: "component-token", relation_type: "depends_on" },
+      { from_entity_id: "component-token", to_entity_id: "data-session", relation_type: "persists_to" },
+    ],
+    table: [
+      {
+        entity_id: "feature-auth",
+        node: "Authentication",
+        kind: "feature",
+        lane: "feature",
+        health: "stale",
+        href: "/features/authentication",
+        upstream: [],
+        downstream: ["Token store"],
+      },
+      {
+        entity_id: "data-session",
+        node: "Session record",
+        kind: "data_model",
+        lane: "data_model",
+        health: "disputed",
+        href: null,
+        upstream: ["Token store"],
+        downstream: [],
+      },
+      {
+        entity_id: "component-token",
+        node: "Token store",
+        kind: "component",
+        lane: "component",
+        health: "verified",
+        href: "/components/token-store",
+        upstream: ["Authentication"],
+        downstream: ["Session record"],
+      },
+    ],
+    truncated: true,
     ...overrides,
   };
 }
