@@ -1,6 +1,11 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { isRecord } from "../../type-guards.js";
+import {
+  DEFAULT_CONTEXT_BUDGET_POLICY,
+  normalizeBudgetPolicy,
+  type ContextBudgetPolicy,
+} from "../gateway/budget-policy.js";
 import { KAGE_PROTOCOL_VERSION, type ProtocolVersion } from "../protocol/index.js";
 
 // Phase A is an AUDIT phase. The config file is the only thing the Claude hook adapter and the
@@ -49,6 +54,12 @@ export interface VnextConfig {
     model_extraction: ModelExtractionMode;
     /** Which source composes the delivered context capsule. Default: legacy. */
     context_source: ContextSourceMode;
+    /**
+     * The context budget policy (Phase D). Governs how much context Kage may add and when it must
+     * back off. `connect` always writes the audit-safe default (audit mode, lossy disabled); a
+     * config predating this block reads back as that same default, never a permissive state.
+     */
+    budget: ContextBudgetPolicy;
   };
 }
 
@@ -86,6 +97,9 @@ export function auditConfig(adapters: readonly string[] | undefined): VnextConfi
       model_extraction: VNEXT_MODEL_EXTRACTION_DEFAULT,
       // Model-backed context delivery is opt-in only; `connect` always writes the legacy source.
       context_source: VNEXT_CONTEXT_SOURCE_DEFAULT,
+      // The audit-safe budget policy: audit mode, lossy compression disabled. Turning on
+      // assist/protect or lossy compression is a separate, explicit, user-initiated file edit.
+      budget: { ...DEFAULT_CONTEXT_BUDGET_POLICY },
     },
   };
 }
@@ -155,6 +169,9 @@ export function readVnextConfig(projectDir: string): VnextConfig | null {
       adapters,
       model_extraction: modelExtractionMode(vnext.model_extraction),
       context_source: contextSourceMode(vnext.context_source),
+      // Absent or illegible → the audit-safe default. A config predating the budget block must never
+      // read as an enabled assist/protect or lossy state.
+      budget: normalizeBudgetPolicy(vnext.budget),
     },
   };
 }
