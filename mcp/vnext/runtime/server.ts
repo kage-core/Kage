@@ -18,7 +18,7 @@ import { Repository } from "../repo-model/repository.js";
 import { computeModelLag, latestCompiledAt } from "../compiler/pipeline.js";
 import { CompilerScheduler } from "./compiler-scheduler.js";
 import { acquireRuntimeLock, releaseRuntimeLock, type RuntimeLockLease } from "./lock.js";
-import { assertRuntimeDirectoryLease, ensureRuntimeDirectory, resolveRuntimePaths } from "./paths.js";
+import { assertRuntimeDirectoryLease, contentRoot, ensureRuntimeDirectory, resolveRuntimePaths } from "./paths.js";
 import {
   removeRuntimeStatus,
   writeRuntimeStatus,
@@ -26,18 +26,21 @@ import {
   type VnextRuntimeStatus,
 } from "./status.js";
 import { ensureRuntimeToken } from "./token.js";
+import { ContentStore } from "../gateway/content-store.js";
+import { matchContentRoute, retrieve } from "../api/retrieve.js";
 
 const HOST = "127.0.0.1" as const;
 const DEFAULT_PORT = 3112;
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
 
-type RouteKind = "health" | "status" | "handshakes" | "events" | "context" | "receipts";
+type RouteKind = "health" | "status" | "handshakes" | "events" | "context" | "receipts" | "content";
 
 interface MatchedRoute {
   kind: RouteKind;
   method: "GET" | "POST";
   taskId?: string;
+  sha256?: string;
 }
 
 class RequestFailure extends Error {
@@ -82,6 +85,20 @@ function json(res: ServerResponse, status: number, value: unknown): void {
 
 function error(res: ServerResponse, status: number, code: string): void {
   json(res, status, { ok: false, error: code });
+}
+
+// Exact stored originals are returned as raw bytes (not re-encoded through JSON) so retrieval is
+// byte-identical to what the pipeline stored. Fingerprint headers travel alongside so the caller can
+// re-verify. cache-control/nosniff mirror the JSON responses.
+function binary(res: ServerResponse, status: number, headers: Record<string, string>, body: Buffer): void {
+  res.writeHead(status, {
+    "content-type": "application/octet-stream",
+    ...headers,
+    "content-length": body.byteLength,
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+  });
+  res.end(body);
 }
 
 function isJsonContentType(req: IncomingMessage): boolean {
@@ -181,6 +198,8 @@ function matchRoute(pathname: string): MatchedRoute | undefined {
   if (pathname === "/v2/handshakes") return { kind: "handshakes", method: "POST" };
   if (pathname === "/v2/events") return { kind: "events", method: "POST" };
   if (pathname === "/v2/context") return { kind: "context", method: "POST" };
+  const content = matchContentRoute(pathname);
+  if (content) return { kind: "content", method: "GET", sha256: content.sha256 };
   return receiptRoute(pathname);
 }
 
@@ -281,6 +300,17 @@ function createRequestHandler(
       }
       if (route.kind === "receipts") {
         json(res, 200, { receipts: receiptStore.forTask(route.taskId!) });
+        return;
+      }
+      if (route.kind === "content") {
+        const taskId = url.searchParams.get("task_id") ?? "";
+        const store = new ContentStore({ root: contentRoot(projectDir) });
+        const result = retrieve(`kage-content:${route.sha256}`, { store, task_id: taskId });
+        if (result.status === 200 && result.body) {
+          binary(res, 200, result.headers, result.body);
+        } else {
+          error(res, result.status, result.error ?? "not_found");
+        }
         return;
       }
 

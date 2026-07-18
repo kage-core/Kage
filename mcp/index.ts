@@ -5,6 +5,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { retrieveFromProject } from "./vnext/api/retrieve.js";
 import {
   SETUP_AGENTS,
   auditProject,
@@ -130,9 +131,21 @@ export const CORE_TOOLS = new Set([
   "kage_docs_search",
 ]);
 
+// The Kage-vNext compatibility surface: the three verbs a vNext agent needs — recall context,
+// retrieve an exact reversible original, and give feedback. Opt-in via KAGE_TOOLS=vnext. This is a
+// REDUCTION, not a deletion: the default core surface and KAGE_TOOLS=full are untouched, so an agent
+// pinned to either keeps working. Tool removal is a later, major-version step, and it comes only
+// after the reversible retrieval path (kage_retrieve) exists — which it now does.
+export const VNEXT_TOOLS = new Set([
+  "kage_context",
+  "kage_retrieve",
+  "kage_feedback",
+]);
+
 export function listTools() {
   const all = allTools();
   if (process.env.KAGE_TOOLS === "full" || process.env.KAGE_ALL_TOOLS === "1") return all;
+  if (process.env.KAGE_TOOLS === "vnext") return all.filter((tool) => VNEXT_TOOLS.has(tool.name));
   return all.filter((tool) => CORE_TOOLS.has(tool.name));
 }
 
@@ -1079,6 +1092,21 @@ function allTools() {
       },
     },
     {
+      name: "kage_retrieve",
+      description:
+        "Retrieve the exact, fingerprint-verified original bytes behind a kage-content:<sha256> reference produced by the Kage vNext gateway when it reversibly compressed a payload. Reads ONLY the local content store for the given task — it never fetches a public or team asset. Use it to recover a tool_result, log, or diff that was compressed in the request so you can inspect the untouched original. Returns the original content plus its SHA-256 fingerprint; refuses content owned by another task and refuses any object whose bytes no longer match their fingerprint.",
+      annotations: { title: "Retrieve an exact reversible original by content reference", readOnlyHint: true },
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string", description: "Absolute path to the repository root." },
+          retrieval_id: { type: "string", description: "The kage-content:<sha256> reference embedded next to a compressed payload." },
+          task_id: { type: "string", description: "The task that owns the stored original (the task the transform ran for)." },
+        },
+        required: ["project_dir", "retrieval_id", "task_id"],
+      },
+    },
+    {
       name: "kage_install_policy",
       description:
         "Install or update the repo AGENTS.md policy that tells coding agents to use Kage automatically.",
@@ -1823,6 +1851,32 @@ export async function callTool(name: string, args: Record<string, unknown> | und
         },
       ],
       isError: !result.ok,
+    };
+  }
+
+  if (name === "kage_retrieve") {
+    const result = retrieveFromProject(
+      String(args?.project_dir ?? ""),
+      String(args?.retrieval_id ?? ""),
+      String(args?.task_id ?? ""),
+    );
+    if (result.status === 200 && result.body) {
+      // Return the exact original alongside its fingerprint. content_base64 preserves the bytes
+      // exactly (binary-safe); content is a best-effort UTF-8 view for text payloads.
+      const envelope = {
+        ok: true,
+        retrieval_id: result.headers["x-kage-retrieval-id"],
+        sha256: result.headers["x-kage-sha256"],
+        media_type: result.headers["content-type"],
+        byte_length: result.body.byteLength,
+        content: result.body.toString("utf8"),
+        content_base64: result.body.toString("base64"),
+      };
+      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+    }
+    return {
+      content: [{ type: "text", text: JSON.stringify({ ok: false, status: result.status, error: result.error }, null, 2) }],
+      isError: true,
     };
   }
 

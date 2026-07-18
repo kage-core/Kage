@@ -9,8 +9,9 @@ import type { ContextCandidate, ContextRequest, ContextSource } from "../context
 import { WorkerContextSource } from "../context/worker-source.js";
 import type { AdapterHandshake, EvidenceEvent, TransformationReceipt } from "../protocol/index.js";
 import { acquireRuntimeLock, releaseRuntimeLock } from "./lock.js";
-import { assertRuntimeDirectoryLease, ensureRuntimeDirectory, resolveRuntimePaths } from "./paths.js";
+import { assertRuntimeDirectoryLease, contentRoot, ensureRuntimeDirectory, resolveRuntimePaths } from "./paths.js";
 import { startLocalRuntime, type LocalRuntimeHandle } from "./server.js";
+import { ContentStore } from "../gateway/content-store.js";
 
 const JSON_LIMIT = 2 * 1024 * 1024;
 
@@ -522,6 +523,41 @@ test("local runtime lists task receipts for exactly one safely decoded path segm
       const invalid = await fetch(`${runtime.url}${path}`, { headers: authHeaders(runtime.token) });
       assert.equal(invalid.status, 404, path);
     }
+  });
+});
+
+test("local runtime serves exact stored originals over GET /v2/content/:sha256 with task ownership enforced", async () => {
+  await withRuntime(async (runtime, projectDir) => {
+    const store = new ContentStore({ root: contentRoot(projectDir) });
+    const original = "the exact pre-compression tool_result payload\nline two\n";
+    const meta = store.put(Buffer.from(original, "utf8"), { media_type: "text/plain", task_id: "task-1" });
+    const sha = meta.sha256;
+
+    // Unauthenticated request is rejected before any content is served.
+    const anon = await fetch(`${runtime.url}/v2/content/${sha}?task_id=task-1`);
+    assert.equal(anon.status, 401);
+
+    // The owning task retrieves the byte-identical original.
+    const owner = await fetch(`${runtime.url}/v2/content/${sha}?task_id=task-1`, { headers: authHeaders(runtime.token) });
+    assert.equal(owner.status, 200);
+    assert.equal(owner.headers.get("x-kage-sha256"), sha);
+    assert.equal(await owner.text(), original);
+
+    // A different task is denied.
+    const intruder = await fetch(`${runtime.url}/v2/content/${sha}?task_id=task-2`, { headers: authHeaders(runtime.token) });
+    assert.equal(intruder.status, 403);
+
+    // Missing task_id is refused.
+    const noTask = await fetch(`${runtime.url}/v2/content/${sha}`, { headers: authHeaders(runtime.token) });
+    assert.equal(noTask.status, 400);
+
+    // An absent but well-formed id is 404.
+    const absent = await fetch(`${runtime.url}/v2/content/${"b".repeat(64)}?task_id=task-1`, { headers: authHeaders(runtime.token) });
+    assert.equal(absent.status, 404);
+
+    // A GET-only route rejects other methods.
+    const wrongMethod = await fetch(`${runtime.url}/v2/content/${sha}?task_id=task-1`, { method: "POST", headers: authHeaders(runtime.token) });
+    assert.equal(wrongMethod.status, 405);
   });
 });
 

@@ -122,6 +122,30 @@ test("MCP full mode exposes the complete repo-local memory tool registry", () =>
   assert.equal(names.includes("kage_review_artifact"), true);
   assert.equal(names.includes("kage_validate"), true);
   assert.equal(names.includes("kage_workflow"), true);
+  // Phase D adds reversible retrieval; it is registered (reachable in full mode) but does not
+  // join the default core surface until a major-version migration.
+  assert.equal(names.includes("kage_retrieve"), true);
+});
+
+// Phase D reduces the MCP compatibility surface without deleting the legacy full mode: it offers an
+// opt-in `vnext` surface that exposes only the three verbs a Kage-vNext agent needs — recall,
+// reversible retrieval, and feedback. The default surface and `full` mode are unchanged, so an agent
+// pinned to either keeps working through v4.
+test("KAGE_TOOLS=vnext exposes exactly kage_context, kage_retrieve, kage_feedback", () => {
+  const prev = process.env.KAGE_TOOLS;
+  process.env.KAGE_TOOLS = "vnext";
+  const names = listTools().map((tool) => tool.name).sort();
+  process.env.KAGE_TOOLS = prev;
+  assert.deepEqual(names, ["kage_context", "kage_feedback", "kage_retrieve"]);
+});
+
+test("kage_retrieve is not in the default core surface (reduction is a later, opt-in step)", () => {
+  const prev = process.env.KAGE_TOOLS;
+  delete process.env.KAGE_TOOLS;
+  const core = listTools().map((tool) => tool.name);
+  process.env.KAGE_TOOLS = prev;
+  assert.equal(core.includes("kage_retrieve"), false);
+  assert.equal(core.length, 12);
 });
 
 test("kage_workflow teaches the loop in its description and returns the same text", async () => {
