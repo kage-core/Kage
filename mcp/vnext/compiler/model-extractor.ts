@@ -1,5 +1,6 @@
-import type { EvidenceEvent } from "../protocol/index.js";
+import type { EvidenceEvent, PrivacyClass } from "../protocol/index.js";
 import type { EntityKind, ImpactClass } from "../repo-model/types.js";
+import type { ModelExtractionMode } from "../runtime/config.js";
 import { isRecord } from "../../type-guards.js";
 import {
   buildModelProcessingReceipt,
@@ -33,9 +34,12 @@ export type {
  * evidence ids to an injected provider, and gets back a proposal. This module is the honesty gate on
  * that proposal. It never trusts a model:
  *
- *   1. Redaction. Secrets, bearer tokens, and basic-auth URLs are stripped from anything the provider
- *      sees. Raw tool output and source snippets are never included at all — only whitelisted,
- *      metadata-level fields (a prompt's text, a command, a path).
+ *   1. Redaction. Secrets, bearer tokens, http(s) URLs (a private wiki or signed link is not
+ *      metadata), and pasted source snippets (fenced code blocks) are stripped from anything the
+ *      provider sees. Raw tool output is never included at all — only whitelisted, metadata-level
+ *      fields (a prompt's text, a command, a path). An evidence-class policy gates this further: with
+ *      `off` the provider is never consulted, and with `remote_approved` only evidence whose privacy
+ *      class is explicitly approved is allowed to cross the seam.
  *   2. Strict validation. Every returned entity kind must be in the allowlist; every cited evidence
  *      id must be a real event id from this episode; every claim must name a declared entity. Anything
  *      else is rejected with a reason — the model cannot invent evidence or entities.
@@ -50,6 +54,21 @@ export type {
  */
 
 const DEFAULT_MAX_CANDIDATES = 16;
+
+/**
+ * Resolve the hard ceiling on kept candidates. This clamp is the sole defense against a model flooding
+ * the compiler with proposals, so every degenerate input must land on a finite, non-negative integer:
+ *   - absent            → the default ceiling.
+ *   - NaN / ±Infinity   → the default ceiling. `Math.floor(NaN)` is NaN, and `length >= NaN` is always
+ *                         false, which would silently disable the clamp; a non-finite value is treated
+ *                         as "unspecified", not as "unlimited".
+ *   - negative          → 0 (keep nothing).
+ *   - fractional        → floored.
+ */
+function resolveMaxCandidates(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return DEFAULT_MAX_CANDIDATES;
+  return Math.max(0, Math.floor(value));
+}
 
 // The runtime allowlist of entity kinds. Mirrors the EntityKind union in repo-model/types.ts; a model
 // may only ever name one of these. Kept as a Set for O(1) validation.
@@ -71,6 +90,23 @@ const ALL_ENTITY_KINDS: ReadonlySet<EntityKind> = new Set<EntityKind>([
 
 const VALID_IMPACT: ReadonlySet<ImpactClass> = new Set<ImpactClass>(["low", "medium", "high", "critical"]);
 
+/**
+ * The workspace model-extraction policy the compiler passes down from config.model_extraction. It is
+ * the seam's authority on WHETHER a provider may be consulted and WHICH evidence may cross to it.
+ *   - `off`             : the provider is never consulted (fail-closed; a disabled feature stays off).
+ *   - `local`           : a local model may see redacted, metadata-level input for every evidence class.
+ *   - `remote_approved` : a remote provider may be consulted, but only evidence whose privacy class is
+ *                         explicitly listed in `approved_privacy_classes` crosses the seam; everything
+ *                         else is withheld from the summary and cannot be cited.
+ * When no policy is supplied the caller vouches and no class gate is applied (used by unit tests and
+ * by callers that have already filtered their evidence).
+ */
+export interface ModelExtractionPolicy {
+  mode: ModelExtractionMode;
+  /** For `remote_approved`: the privacy classes explicitly permitted to leave the machine. */
+  approved_privacy_classes?: PrivacyClass[];
+}
+
 export interface ModelExtractionOptions {
   /** Hard ceiling on kept candidates. Default 16. */
   max_candidates?: number;
@@ -80,6 +116,8 @@ export interface ModelExtractionOptions {
   model?: string | null;
   /** Monotonic millisecond clock, injectable for deterministic latency in tests. Default Date.now. */
   clock?: () => number;
+  /** The workspace evidence-class policy. Absent → no class gate (caller vouches). */
+  policy?: ModelExtractionPolicy;
 }
 
 export interface ModelExtractionResult {
@@ -93,6 +131,10 @@ const PLACEHOLDER = "[REDACTED]";
 // Secret signatures. Anything matching is replaced with [REDACTED] before it can reach a provider.
 // These are deliberately conservative: over-redaction is safe, a leaked secret is not.
 const REDACTION_PATTERNS: RegExp[] = [
+  // Pasted source snippets. A fenced code block is a paste, not metadata — strip the whole block
+  // (including its fences) before anything inside it can be inspected. Runs FIRST so a secret or URL
+  // living inside a fence is removed as one redaction rather than several.
+  /```[\s\S]*?```/g,
   // Bearer / token headers with their value.
   /[Bb]earer\s+[A-Za-z0-9._~+/=-]+/g,
   // Common provider key shapes.
@@ -106,6 +148,11 @@ const REDACTION_PATTERNS: RegExp[] = [
   /\b[A-Za-z0-9._%+-]+:[^\s@/]+@[A-Za-z0-9.-]+/g,
   // `secret=…`, `token: …`, `api_key=…` and friends.
   /\b[\w-]*(?:secret|token|password|passwd|api[_-]?key)[\w-]*\s*[:=]\s*[^\s"']+/gi,
+  // Any http(s) URL. A URL is never metadata the provider needs: a private wiki, an internal ticket,
+  // or a signed link can all hide here, and telling "public" from "private" is not something we can do
+  // reliably. Over-redaction is safe; a leaked internal URL is not. Kept LAST so credential/secret
+  // shapes inside a URL are attributed to their own (more specific) pattern first.
+  /\bhttps?:\/\/[^\s"'<>)\]]+/gi,
 ];
 
 /**
@@ -193,12 +240,53 @@ export async function extractWithModel(
   options: ModelExtractionOptions = {},
 ): Promise<ModelExtractionResult> {
   const clock = options.clock ?? Date.now;
-  const maxCandidates = Math.max(0, Math.floor(options.max_candidates ?? DEFAULT_MAX_CANDIDATES));
+  const maxCandidates = resolveMaxCandidates(options.max_candidates);
   const allowedKinds = new Set<EntityKind>(options.allowed_entity_kinds ?? [...ALL_ENTITY_KINDS]);
 
-  const { summary, redactions } = buildRedactedSummary(context);
-  const allowedEventIds = new Set(context.events.map((e) => e.event_id));
-  const eventById = new Map(context.events.map((e) => [e.event_id, e] as const));
+  const receiptBase = {
+    repository_id: context.episode.repository_id,
+    episode_id: context.episode.episode_id,
+    provider: provider.provider_id,
+    model: options.model ?? null,
+  };
+
+  // Evidence-class policy gate. This runs BEFORE the provider is consulted: a disabled feature never
+  // calls out, and an un-approved evidence class never contributes a byte to the request.
+  const policy = options.policy;
+  if (policy?.mode === "off") {
+    const started = clock();
+    return {
+      candidates: [],
+      rejections: ["model_extraction is off: provider not consulted"],
+      receipt: buildModelProcessingReceipt({
+        ...receiptBase,
+        redaction_count: 0,
+        input_tokens: null,
+        output_tokens: null,
+        cost_usd: null,
+        latency_ms: clock() - started,
+        accepted: 0,
+        rejected: 0,
+        status: "policy_blocked",
+      }),
+    };
+  }
+
+  // For remote_approved, only evidence whose privacy class is explicitly approved may leave the
+  // machine. Un-approved events are withheld from the summary AND from the allowlist, so a claim that
+  // cites one is later rejected as unknown evidence. Any other mode (local, or an absent policy where
+  // the caller vouches) admits every event.
+  const admissibleEvents =
+    policy?.mode === "remote_approved"
+      ? ((): EvidenceEvent[] => {
+          const approved = new Set<PrivacyClass>(policy.approved_privacy_classes ?? []);
+          return context.events.filter((e) => approved.has(e.privacy_class));
+        })()
+      : context.events;
+
+  const { summary, redactions } = buildRedactedSummary({ ...context, events: admissibleEvents });
+  const allowedEventIds = new Set(admissibleEvents.map((e) => e.event_id));
+  const eventById = new Map(admissibleEvents.map((e) => [e.event_id, e] as const));
 
   const request: ModelExtractionRequest = {
     repository_id: context.episode.repository_id,
@@ -211,14 +299,6 @@ export async function extractWithModel(
 
   const started = clock();
 
-  const receiptBase = {
-    repository_id: context.episode.repository_id,
-    episode_id: context.episode.episode_id,
-    provider: provider.provider_id,
-    model: options.model ?? null,
-    redaction_count: redactions,
-  };
-
   const failOpen = (
     status: ModelProcessingStatus,
     rejection: string,
@@ -228,6 +308,7 @@ export async function extractWithModel(
     rejections: [rejection],
     receipt: buildModelProcessingReceipt({
       ...receiptBase,
+      redaction_count: redactions,
       input_tokens: usage.input_tokens,
       output_tokens: usage.output_tokens,
       cost_usd: usage.cost_usd,
@@ -352,6 +433,7 @@ export async function extractWithModel(
     rejections,
     receipt: buildModelProcessingReceipt({
       ...receiptBase,
+      redaction_count: redactions,
       input_tokens: usage.input_tokens,
       output_tokens: usage.output_tokens,
       cost_usd: usage.cost_usd,

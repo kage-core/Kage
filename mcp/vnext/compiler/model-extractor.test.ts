@@ -127,6 +127,28 @@ test("raw secrets are redacted before the provider request", async () => {
   assert.match(provider.lastRequest, /\[REDACTED\]/);
 });
 
+test("a private URL in prompt text is redacted before it reaches the provider", async () => {
+  const provider = recordingModelProvider();
+  const ctx = episodeCtx([
+    event("prompt", "event-1", { text: "See the rationale at https://internal-wiki.corp/private/decision-doc" }),
+  ]);
+  await extractWithModel(ctx, provider);
+  assert.doesNotMatch(provider.lastRequest, /internal-wiki\.corp/);
+  assert.match(provider.lastRequest, /\[REDACTED\]/);
+});
+
+test("a pasted source snippet in prompt text does not cross the seam", async () => {
+  const provider = recordingModelProvider();
+  const ctx = episodeCtx([
+    event("prompt", "event-1", {
+      text: "Why does this fail?\n```\nfunction computeCheckout(order) { return order.total * 1.2; }\n```",
+    }),
+  ]);
+  await extractWithModel(ctx, provider);
+  assert.doesNotMatch(provider.lastRequest, /computeCheckout/);
+  assert.doesNotMatch(provider.lastRequest, /order\.total/);
+});
+
 test("invalid evidence ids reject the model candidate", async () => {
   const result = await extractWithModel(
     redactedEpisode(),
@@ -202,6 +224,100 @@ test("candidate count is clamped to max_candidates", async () => {
   });
   const result = await extractWithModel(redactedEpisode(), provider, { max_candidates: 3 });
   assert.equal(result.candidates.length, 3);
+});
+
+test("a non-finite max_candidates falls back to the default ceiling and never disables the clamp", async () => {
+  // A model returning 50 claims must NOT flood: NaN is not a licence to keep everything.
+  const claims = Array.from({ length: 50 }, (_, i) => ({
+    entity_name: "Session storage",
+    claim_kind: "rationale",
+    content: `Distinct rationale number ${i} about \`session\`.`,
+    evidence_event_ids: ["event-1"],
+    impact_class: "low" as const,
+  }));
+  let seenRequest = "";
+  const provider: ModelExtractionProvider = {
+    provider_id: "flood",
+    async extract(request) {
+      seenRequest = JSON.stringify(request);
+      return {
+        response: {
+          entities: [{ kind: "feature", name: "Session storage", evidence_event_ids: ["event-1"] }],
+          claims,
+        },
+        input_tokens: null,
+        output_tokens: null,
+        cost_usd: null,
+      };
+    },
+  };
+  const result = await extractWithModel(redactedEpisode(), provider, { max_candidates: Number.NaN });
+  // Bounded to the default (16), not left at 50.
+  assert.equal(result.candidates.length, 16);
+  // The provider receives a finite ceiling, never a null that serialized from NaN.
+  assert.match(seenRequest, /"max_candidates":16/);
+  assert.doesNotMatch(seenRequest, /"max_candidates":null/);
+});
+
+// ---- Evidence-class policy (config.model_extraction) ---------------------
+
+test("model_extraction off refuses to consult the provider at all", async () => {
+  let called = false;
+  const provider: ModelExtractionProvider = {
+    provider_id: "should-not-run",
+    async extract() {
+      called = true;
+      return { response: { entities: [], claims: [] }, input_tokens: null, output_tokens: null, cost_usd: null };
+    },
+  };
+  const result = await extractWithModel(redactedEpisode(), provider, { policy: { mode: "off" } });
+  assert.equal(called, false);
+  assert.equal(result.candidates.length, 0);
+  assert.equal(result.receipt.status, "policy_blocked");
+});
+
+test("remote_approved excludes evidence whose privacy class is not approved", async () => {
+  const provider = recordingModelProvider();
+  const approved = event("prompt", "event-approved", { text: "Approved rationale about `session`." });
+  const restricted = event("file_edit", "event-local", { path: "secret/private-notes.ts" });
+  approved.privacy_class = "team_approved";
+  restricted.privacy_class = "local_raw";
+  const ctx = episodeCtx([approved, restricted]);
+
+  await extractWithModel(ctx, provider, {
+    policy: { mode: "remote_approved", approved_privacy_classes: ["team_approved"] },
+  });
+
+  const request = JSON.parse(provider.lastRequest) as { allowed_event_ids: string[] };
+  assert.deepEqual(request.allowed_event_ids, ["event-approved"]);
+  // The un-approved event's metadata never crosses the seam.
+  assert.doesNotMatch(provider.lastRequest, /private-notes\.ts/);
+});
+
+test("remote_approved rejects a claim citing evidence from an un-approved class", async () => {
+  const approved = event("prompt", "event-approved", { text: "Approved rationale." });
+  const restricted = event("file_edit", "event-local", { path: "secret/private-notes.ts" });
+  approved.privacy_class = "team_approved";
+  restricted.privacy_class = "local_raw";
+  const ctx = episodeCtx([approved, restricted]);
+
+  const provider = fakeModelProvider({
+    entities: [{ kind: "feature", name: "Session storage", evidence_event_ids: ["event-approved"] }],
+    claims: [
+      {
+        entity_name: "Session storage",
+        claim_kind: "rationale",
+        content: "Cites an un-approved local event.",
+        evidence_event_ids: ["event-local"],
+        impact_class: "low",
+      },
+    ],
+  });
+  const result = await extractWithModel(ctx, provider, {
+    policy: { mode: "remote_approved", approved_privacy_classes: ["team_approved"] },
+  });
+  assert.equal(result.candidates.length, 0);
+  assert.match(result.rejections[0], /unknown evidence_event_id/);
 });
 
 // ---- Determinism ---------------------------------------------------------

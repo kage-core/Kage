@@ -91,7 +91,7 @@ export function buildTransformationReceipt(input: TransformationReceiptInput): T
  * null here, never a fabricated zero. `status` distinguishes a clean run from a fail-open one so the
  * receipt never dresses an error up as a successful extraction.
  */
-export type ModelProcessingStatus = "ok" | "provider_error" | "invalid_response";
+export type ModelProcessingStatus = "ok" | "provider_error" | "invalid_response" | "policy_blocked";
 
 export interface ModelProcessingReceiptInput {
   repository_id: string;
