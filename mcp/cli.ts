@@ -335,6 +335,7 @@ Usage:
   kage migrate plan --project <dir> [--pending] [--out <path>] [--json]   dry-run import of legacy packets into the repository model (non-destructive; per-disposition counts)
   kage migrate apply --project <dir> --plan <path> [--json]   apply a migration plan; imports only packets whose fingerprint still matches (nothing becomes injectable)
   kage export --project <dir> --format okf --out <dir>   export the repository model as an OKF concept bundle (identifiers round-trip through foreign OKF consumers)
+  kage model export-fixture --project <dir> --out <path> [--repository <id>]   deterministic repository-model v1 fixture (sorted by id; no timestamps/paths) for cross-phase compatibility tests
 
 Types:
   ${MEMORY_TYPES.join(", ")}`;
@@ -1050,6 +1051,71 @@ async function main(): Promise<void> {
       }
       console.log(`Kage model → OKF: wrote ${written} concept(s) to ${outDir}`);
       console.log("Trust/freshness rides in x-kage-* frontmatter; identifiers also ride in a body block so a foreign OKF tool round-trips them.");
+    } finally {
+      opened.close();
+    }
+    return;
+  }
+
+  if (command === "model") {
+    // `kage model export-fixture --project <dir> --out <path> [--repository <id>]`
+    // Serialize a deterministic repository-model v1 fixture for cross-phase compatibility tests. The
+    // fixture sorts every row by its stable id and excludes timestamps, raw payloads, and local paths,
+    // so two runs over the same model are byte-identical.
+    const sub = args[1] && !args[1].startsWith("--") ? args[1] : "";
+    if (sub !== "export-fixture") {
+      console.log("kage model — repository-model tooling.");
+      console.log("  kage model export-fixture --project <dir> --out <path> [--repository <id>]   deterministic repository-model v1 fixture");
+      process.exit(sub ? 2 : 0);
+    }
+    const project = resolve(projectArg(args));
+    const out = takeArg(args, "--out");
+    if (!out) {
+      console.error("Usage: kage model export-fixture --project <dir> --out <path> [--repository <id>]");
+      process.exit(2);
+    }
+    const requestedRepo = takeArg(args, "--repository");
+    const { openRepositoryModel, repositoryIds } = await import("./vnext/migration/model-store.js");
+    const { serializeModelFixture, renderModelFixture } = await import("./vnext/repo-model/fixture.js");
+    const opened = openRepositoryModel(project);
+    try {
+      const repos = repositoryIds(opened.model);
+      let repositoryId: string;
+      if (requestedRepo) {
+        if (!repos.includes(requestedRepo)) {
+          console.error(`kage model export-fixture: repository "${requestedRepo}" has no entities in the model.`);
+          process.exit(2);
+        }
+        repositoryId = requestedRepo;
+      } else if (repos.length === 1) {
+        repositoryId = repos[0];
+      } else if (repos.length === 0) {
+        console.error("kage model export-fixture: the model is empty (no entities to serialize).");
+        process.exit(2);
+        return;
+      } else {
+        console.error(`kage model export-fixture: multiple repositories (${repos.join(", ")}); pass --repository <id>.`);
+        process.exit(2);
+        return;
+      }
+      const fixture = serializeModelFixture(opened.model, repositoryId);
+      const outPath = resolve(out);
+      mkdirSync(dirname(outPath), { recursive: true });
+      writeFileSync(outPath, renderModelFixture(fixture), "utf8");
+      if (args.includes("--json")) {
+        console.log(JSON.stringify({
+          out: outPath,
+          repository_id: repositoryId,
+          fixture_version: fixture.fixture_version,
+          entities: fixture.entities.length,
+          claims: fixture.claims.length,
+          evidence: fixture.evidence.length,
+          relations: fixture.relations.length,
+        }, null, 2));
+        return;
+      }
+      console.log(`Kage model → fixture: wrote ${fixture.fixture_version} for ${repositoryId} to ${outPath}`);
+      console.log(`  entities=${fixture.entities.length} claims=${fixture.claims.length} evidence=${fixture.evidence.length} relations=${fixture.relations.length}`);
     } finally {
       opened.close();
     }

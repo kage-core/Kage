@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer, type AddressInfo } from "node:net";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { buildTransformationReceipt } from "../measurement/receipt.js";
 import {
@@ -198,6 +198,32 @@ test("connect defaults to audit mode and never enables prompt mutation", async (
   const written = readVnextConfig(project);
   assert.equal(written?.vnext.runtime, "audit");
   assert.equal(written?.vnext.gateway, "audit");
+  // Model-backed context delivery is opt-in only: `connect` always writes the legacy source.
+  assert.equal(result.config.vnext.context_source, "legacy");
+  assert.equal(written?.vnext.context_source, "legacy");
+});
+
+// A config predating context_source (or with an illegible value) must read back as legacy — never as
+// model-backed. This is the backward-compatibility guarantee for the delivered source.
+test("an absent or illegible context_source reads back as legacy, never model", () => {
+  const project = tempProject();
+  const path = vnextConfigPath(project);
+  mkdirSync(dirname(path), { recursive: true });
+  // A hand-written config with no context_source field at all (an older connect).
+  writeFileSync(
+    path,
+    JSON.stringify({ vnext: { protocol_version: 1, runtime: "audit", gateway: "audit", adapters: ["claude-code"] } }),
+    "utf8",
+  );
+  assert.equal(readVnextConfig(project)?.vnext.context_source, "legacy");
+
+  // An illegible value is not honored either.
+  writeFileSync(
+    path,
+    JSON.stringify({ vnext: { protocol_version: 1, runtime: "audit", gateway: "audit", adapters: [], context_source: "model-ish" } }),
+    "utf8",
+  );
+  assert.equal(readVnextConfig(project)?.vnext.context_source, "legacy");
 });
 
 // The config file is the only thing a hook or proxy reads to decide whether it may inject. A

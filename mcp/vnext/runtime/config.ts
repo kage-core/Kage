@@ -25,6 +25,18 @@ export const VNEXT_MODEL_EXTRACTION_MODES = ["off", "local", "remote_approved"] 
 export type ModelExtractionMode = (typeof VNEXT_MODEL_EXTRACTION_MODES)[number];
 export const VNEXT_MODEL_EXTRACTION_DEFAULT = "off" as const;
 
+// Which source composes the context capsule the runtime delivers (Phase B, Task 10). This governs
+// ONLY recall composition; it never affects prompt mutation.
+//   - `legacy`  (default): the legacy packet recall source composes and delivers context.
+//   - `compare` : legacy STILL composes and delivers; the model source runs in shadow and its
+//                 candidate set is recorded for comparison. Nothing the model proposes is injected.
+//   - `model`   : the model-backed source delivers context. Reachable only after the shadow
+//                 comparison gate has passed and an operator has explicitly switched over — never a
+//                 CLI default, and `connect` never writes it.
+export const VNEXT_CONTEXT_SOURCES = ["legacy", "compare", "model"] as const;
+export type ContextSourceMode = (typeof VNEXT_CONTEXT_SOURCES)[number];
+export const VNEXT_CONTEXT_SOURCE_DEFAULT = "legacy" as const;
+
 export interface VnextConfig {
   vnext: {
     protocol_version: ProtocolVersion;
@@ -35,6 +47,8 @@ export interface VnextConfig {
     adapters: VnextAdapter[];
     /** Whether the compiler may consult a model to PROPOSE untrusted candidates. Default: off. */
     model_extraction: ModelExtractionMode;
+    /** Which source composes the delivered context capsule. Default: legacy. */
+    context_source: ContextSourceMode;
   };
 }
 
@@ -70,6 +84,8 @@ export function auditConfig(adapters: readonly string[] | undefined): VnextConfi
       adapters: normalizeAdapters(adapters),
       // Shadow-mode model extraction is opt-in only; `connect` never turns it on.
       model_extraction: VNEXT_MODEL_EXTRACTION_DEFAULT,
+      // Model-backed context delivery is opt-in only; `connect` always writes the legacy source.
+      context_source: VNEXT_CONTEXT_SOURCE_DEFAULT,
     },
   };
 }
@@ -79,6 +95,13 @@ function modelExtractionMode(value: unknown): ModelExtractionMode {
     ? (value as ModelExtractionMode)
     // Absent or illegible → off. A config predating this field must never read as "on".
     : VNEXT_MODEL_EXTRACTION_DEFAULT;
+}
+
+function contextSourceMode(value: unknown): ContextSourceMode {
+  return typeof value === "string" && (VNEXT_CONTEXT_SOURCES as readonly string[]).includes(value)
+    ? (value as ContextSourceMode)
+    // Absent or illegible → legacy. A config predating this field must never read as model-backed.
+    : VNEXT_CONTEXT_SOURCE_DEFAULT;
 }
 
 export function writeVnextConfig(projectDir: string, config: VnextConfig): string {
@@ -131,6 +154,7 @@ export function readVnextConfig(projectDir: string): VnextConfig | null {
       gateway,
       adapters,
       model_extraction: modelExtractionMode(vnext.model_extraction),
+      context_source: contextSourceMode(vnext.context_source),
     },
   };
 }

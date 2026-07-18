@@ -5,6 +5,9 @@ import { TextDecoder } from "node:util";
 import { buildContextCapsule } from "../context/capsule-builder.js";
 import { validateContextRequest, type ContextSource } from "../context/source.js";
 import { WorkerContextSource } from "../context/worker-source.js";
+import { ModelContextSource } from "../context/model-source.js";
+import { ProgressiveContextSource } from "../context/context-comparison.js";
+import { readVnextConfig } from "./config.js";
 import { validateEvidenceEvent, validateHandshake } from "../protocol/index.js";
 import { openVnextDatabase, type LocalDatabase } from "../storage/database.js";
 import { drainDeliverySpool } from "../storage/delivery-spool.js";
@@ -378,12 +381,17 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
   const directoryLease = ensureRuntimeDirectory(paths.runtimeDirectory);
   assertRuntimeDirectoryLease(directoryLease);
   const token = ensureRuntimeToken(paths.tokenPath);
-  // The default source runs the legacy kernel on a worker thread. It must never run on this
+  // The default legacy source runs the legacy kernel on a worker thread. It must never run on this
   // thread: its work is synchronous, so it would hold the runtime's single event loop for the
   // whole analysis and /v2/health, /v2/events and /v2/receipts would go unanswered.
-  const contextSource = options.contextSource === undefined
-    ? new WorkerContextSource({ projectDir: options.projectDir })
-    : options.contextSource;
+  //
+  // A caller that passes an explicit contextSource (tests do) gets exactly that source — no
+  // config-driven progression is applied over it. Otherwise the configured progression
+  // (legacy/compare/model) is installed below, once the database is open.
+  const explicitSource = options.contextSource !== undefined;
+  let contextSource: ContextSource | null = explicitSource
+    ? options.contextSource!
+    : new WorkerContextSource({ projectDir: options.projectDir });
   let server: Server | undefined;
   let database: LocalDatabase | undefined;
   let lockLease: RuntimeLockLease | undefined;
@@ -407,6 +415,19 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
     // The repository compiler runs off the request path: appended events dirty a repository, and the
     // scheduler drains it on a later tick. Context/event requests never wait for compilation.
     const compilerModel = new Repository(openedDatabase);
+    // Install the configured context-source progression. Default (and any illegible config) is
+    // legacy, so existing behavior is unchanged. `compare` shadows the model behind legacy delivery;
+    // `model` delivers the model source — which can only ever emit verified/approved claims.
+    if (!explicitSource && contextSource) {
+      const configured = readVnextConfig(options.projectDir)?.vnext.context_source ?? "legacy";
+      if (configured !== "legacy") {
+        contextSource = new ProgressiveContextSource(
+          contextSource,
+          new ModelContextSource(compilerModel),
+          configured,
+        );
+      }
+    }
     const scheduler = new CompilerScheduler(compilerModel, eventStore);
     let status: VnextRuntimeStatus | undefined;
     server = createServer(createRequestHandler(
