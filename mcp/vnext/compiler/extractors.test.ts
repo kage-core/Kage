@@ -150,6 +150,94 @@ test("command candidates are deterministic: same episode yields identical candid
   assert.deepEqual(a.map((c) => c.candidate_id), b.map((c) => c.candidate_id));
 });
 
+// ---- Command extractor: manifest grounding must be EXACT ----------------
+// The declared-script fact grounds a runbook only when the command IS that bare script invocation.
+// Extra shell operators, trailing args, a mismatched package manager, or an npx binary run all mean
+// the declared script does not back the full command line, so it can never auto-verify.
+
+test("a command chaining extra shell operators onto a declared script is NOT verified", () => {
+  const candidates = extractCommandCandidates(
+    episodeWithCommand("npm test && rm -rf /", 0),
+    repositoryWithScript("test"),
+  );
+  const runbook = candidates.find((c) => c.entity_kind === "runbook");
+  assert.ok(runbook);
+  assert.notEqual(runbook!.proposed_trust_state, "verified");
+  // The declared-script fact must NOT be attached as grounding for a command it does not back.
+  assert.ok(!runbook!.evidence_ids.some((id) => id.includes("script:test")));
+  // End-to-end: admission must not admit it as verified either.
+  assert.notEqual(admitCandidate(runbook!).trust_state, "verified");
+});
+
+test("trailing arguments past a declared script name are NOT verified", () => {
+  const candidates = extractCommandCandidates(
+    episodeWithCommand("npm test --coverage", 0),
+    repositoryWithScript("test"),
+  );
+  const runbook = candidates.find((c) => c.entity_kind === "runbook");
+  assert.ok(runbook);
+  assert.notEqual(runbook!.proposed_trust_state, "verified");
+  assert.ok(!runbook!.evidence_ids.some((id) => id.includes("script:test")));
+});
+
+test("a runner that is not the repository's package manager is NOT verified", () => {
+  // Repo declares a `test` script but no pnpm lockfile → default manager is npm; `pnpm test` is an
+  // unverified procedure (pnpm may not even be installed), not a declared-script invocation.
+  const candidates = extractCommandCandidates(
+    episodeWithCommand("pnpm test", 0),
+    repositoryWithScript("test"),
+  );
+  const runbook = candidates.find((c) => c.entity_kind === "runbook");
+  assert.ok(runbook);
+  assert.notEqual(runbook!.proposed_trust_state, "verified");
+  assert.ok(!runbook!.evidence_ids.some((id) => id.includes("script:test")));
+});
+
+test("npx runs a package binary, not a declared script, so it is NOT verified", () => {
+  const candidates = extractCommandCandidates(
+    episodeWithCommand("npx test", 0),
+    repositoryWithScript("test"),
+  );
+  const runbook = candidates.find((c) => c.entity_kind === "runbook");
+  assert.ok(runbook);
+  assert.notEqual(runbook!.proposed_trust_state, "verified");
+  assert.ok(!runbook!.evidence_ids.some((id) => id.includes("script:test")));
+});
+
+test("a declared script run with the repository's OWN package manager IS verified", () => {
+  // A pnpm lockfile makes pnpm the repository's declared manager, so `pnpm test` is a real
+  // declared-script invocation and grounds on the script fact.
+  const snapshot: RepositorySnapshot = {
+    repository: identity(),
+    facts: [
+      {
+        fact_id: "file:pnpm-lock.yaml",
+        kind: "file",
+        name: "pnpm-lock.yaml",
+        path: "pnpm-lock.yaml",
+        line: null,
+        fingerprint: "fp-lock",
+        confidence: 1,
+      },
+      {
+        fact_id: "script:test",
+        kind: "script",
+        name: "test",
+        path: "package.json",
+        line: null,
+        fingerprint: "fp-script-test",
+        confidence: 1,
+      },
+    ],
+    relations: [],
+    proposals: [],
+  };
+  const candidates = extractCommandCandidates(episodeWithCommand("pnpm test", 0), snapshot);
+  const runbook = candidates.find((c) => c.entity_kind === "runbook");
+  assert.equal(runbook?.proposed_trust_state, "verified");
+  assert.ok(runbook!.evidence_ids.some((id) => id.includes("script:test")));
+});
+
 // ---- Admission policy ----------------------------------------------------
 
 test("admission admits a deterministic low/medium-impact runbook as verified", () => {
@@ -233,6 +321,44 @@ test("a file edit with no reusable learning does not become a verified claim", (
     event("file_edit", 10, { path: "src/server.ts" }),
   ]));
   assert.ok(candidates.every((c) => c.proposed_trust_state !== "verified"));
+});
+
+test("a verified-failure episode turns a file edit into a PROPOSED component candidate", () => {
+  // This exercises the candidate-PRODUCING branch (outcome === 'verified_success') that the vacuous
+  // default-outcome test never reached. If the extractor returned [], this assertion fails.
+  const candidates = extractChangeCandidates(episode(
+    [event("file_edit", 10, { path: "src/server.ts" })],
+    { outcome: "verified_success" },
+  ));
+  assert.equal(candidates.length, 1);
+  const c = candidates[0];
+  assert.equal(c.entity_kind, "component");
+  assert.equal(c.claim_kind, "change_touchpoint");
+  assert.equal(c.entity_name, "src/server.ts");
+  assert.equal(c.proposed_trust_state, "proposed");
+  assert.ok(c.content.includes("src/server.ts"));
+  assert.deepEqual(c.evidence_ids, ["evidence:event:file_edit-10"]);
+  // Even end-to-end, admission must never verify a bare edit.
+  assert.notEqual(admitCandidate(c).trust_state, "verified");
+});
+
+test("an episode that did not resolve a verified failure yields NO change candidates", () => {
+  const candidates = extractChangeCandidates(episode(
+    [event("file_edit", 10, { path: "src/server.ts" })],
+    { outcome: "success" },
+  ));
+  assert.deepEqual(candidates, []);
+});
+
+test("repeated edits to the same path collapse to one deterministic change candidate", () => {
+  const events = [
+    event("file_edit", 10, { path: "src/server.ts" }),
+    event("file_edit", 20, { path: "src/server.ts" }),
+  ];
+  const a = extractChangeCandidates(episode(events, { outcome: "verified_success" }));
+  const b = extractChangeCandidates(episode(events, { outcome: "verified_success" }));
+  assert.equal(a.length, 1);
+  assert.deepEqual(a.map((c) => c.candidate_id), b.map((c) => c.candidate_id));
 });
 
 // ---- Failure extractor ---------------------------------------------------
