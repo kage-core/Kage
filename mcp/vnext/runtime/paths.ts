@@ -17,6 +17,13 @@ export interface VnextRuntimePaths {
   lockPath: string;
   databasePath: string;
   statusPath: string;
+  contentDirectory: string;
+}
+
+export interface ContentObjectPaths {
+  shardDirectory: string;
+  objectPath: string;
+  metadataPath: string;
 }
 
 export interface RuntimeDirectoryLease {
@@ -50,6 +57,24 @@ export function resolveRuntimePaths(projectDir: string): VnextRuntimePaths {
     lockPath: join(runtimeDirectory, "runtime-lock.db"),
     databasePath: join(runtimeDirectory, "local.db"),
     statusPath: join(runtimeDirectory, "status.json"),
+    contentDirectory: contentRoot(projectRoot),
+  };
+}
+
+// The content-addressed evidence store lives under `.agent_memory/content`, deliberately OUTSIDE
+// the 0700-leased daemon runtime directory. It is pure filesystem + node:crypto (Node 18 safe) and
+// keeps exact request originals so every lossy transform stays reversible. Objects are sharded by
+// the first two hex characters of their SHA-256 to keep any single directory small.
+export function contentRoot(projectDir: string): string {
+  return join(resolve(projectDir), ".agent_memory", "content");
+}
+
+export function contentObjectPaths(root: string, sha256: string): ContentObjectPaths {
+  const shardDirectory = join(root, "sha256", sha256.slice(0, 2));
+  return {
+    shardDirectory,
+    objectPath: join(shardDirectory, sha256),
+    metadataPath: join(shardDirectory, `${sha256}.meta.json`),
   };
 }
 
