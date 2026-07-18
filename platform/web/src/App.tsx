@@ -1,9 +1,19 @@
 import { useEffect, useState } from "react";
 import type { KageApiClient } from "./api/client";
-import type { OverviewDto, SystemMapDto, SystemMapView } from "./api/types";
+import type {
+  DecisionDetailDto,
+  EntityDetailDto,
+  OverviewDto,
+  RunbookDetailDto,
+  SystemMapDto,
+  SystemMapView,
+} from "./api/types";
 import { AppShell } from "./components/AppShell";
+import { DecisionPage } from "./pages/DecisionPage";
+import { FeaturePage } from "./pages/FeaturePage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { OverviewPage } from "./pages/OverviewPage";
+import { RunbookPage } from "./pages/RunbookPage";
 import { SystemMapPage } from "./pages/SystemMapPage";
 import { navigateTo, routeToPath, useRoute, type Route } from "./router";
 
@@ -112,6 +122,64 @@ function SystemMapContainer({
   );
 }
 
+// A generic loader for a single knowledge entity fetched by slug. It fetches lazily (only when the
+// detail route is open) and re-fetches when the slug changes, so detail pages never sit on the
+// context-delivery critical path. Loading and error states are explicit and accessible.
+function DetailContainer<T>({
+  slug,
+  label,
+  load,
+  render,
+}: {
+  slug: string;
+  label: string;
+  load: (slug: string) => Promise<T>;
+  render: (data: T) => React.ReactElement;
+}): React.ReactElement {
+  const [state, setState] = useState<
+    { status: "loading" } | { status: "ready"; data: T } | { status: "error"; message: string }
+  >({ status: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+    load(slug)
+      .then((data) => {
+        if (!cancelled) setState({ status: "ready", data });
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setState({
+            status: "error",
+            message: error instanceof Error ? error.message : "Unknown error",
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+    // `load` is derived from the stable `api` + `label`; keying on (slug, label) re-fetches when the
+    // entity or its type changes without looping on the inline loader's per-render identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, label]);
+
+  if (state.status === "loading") {
+    return (
+      <p role="status" aria-live="polite">
+        Loading {label}…
+      </p>
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <p role="alert">
+        This {label} is unavailable: {state.message}
+      </p>
+    );
+  }
+  return render(state.data);
+}
+
 function RoutedPage({
   route,
   overview,
@@ -130,20 +198,60 @@ function RoutedPage({
     case "system-map":
       return <SystemMapContainer api={api} view={(route.view as SystemMapView) ?? "feature"} />;
     case "features":
-    case "feature":
       return <PagePlaceholder title="Features" />;
+    case "feature":
+      return (
+        <DetailContainer<EntityDetailDto>
+          slug={route.slug}
+          label="feature"
+          load={(slug) => api.feature(slug)}
+          render={(feature) => <FeaturePage feature={feature} />}
+        />
+      );
     case "components":
-    case "component":
       return <PagePlaceholder title="Components" />;
+    case "component":
+      return (
+        <DetailContainer<EntityDetailDto>
+          slug={route.slug}
+          label="component"
+          load={(slug) => api.component(slug)}
+          render={(component) => <FeaturePage feature={component} />}
+        />
+      );
     case "flows":
-    case "flow":
       return <PagePlaceholder title="Flows" />;
+    case "flow":
+      return (
+        <DetailContainer<EntityDetailDto>
+          slug={route.slug}
+          label="flow"
+          load={(slug) => api.flow(slug)}
+          render={(flow) => <FeaturePage feature={flow} />}
+        />
+      );
     case "runbooks":
-    case "runbook":
       return <PagePlaceholder title="Runbooks" />;
+    case "runbook":
+      return (
+        <DetailContainer<RunbookDetailDto>
+          slug={route.slug}
+          label="runbook"
+          load={(slug) => api.runbook(slug)}
+          render={(runbook) => <RunbookPage runbook={runbook} />}
+        />
+      );
     case "decisions":
-    case "decision":
       return <PagePlaceholder title="Decisions" />;
+    case "decision":
+      return (
+        <DetailContainer<DecisionDetailDto>
+          slug={route.slug}
+          label="decision"
+          load={(slug) => api.decision(slug)}
+          render={(decision) => <DecisionPage decision={decision} />}
+        />
+      );
     case "review":
       return <PagePlaceholder title="Review Queue" />;
     case "tasks":

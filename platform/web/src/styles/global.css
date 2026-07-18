@@ -685,3 +685,179 @@ a {
   margin: 0;
   padding-left: var(--space-4);
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * Knowledge detail pages (feature / component / flow / runbook / decision).
+ *
+ * The visual language reinforces the honesty spine: current-truth sections read as the primary
+ * body, while the history/uncertainty region is set apart with a muted, bordered container so a
+ * reader never confuses a stale or superseded claim for current behaviour. Trust and verification
+ * states are carried by TEXT; the color tints here are redundant reinforcement, never the sole cue.
+ * --------------------------------------------------------------------------------------------- */
+
+.knowledge-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.entity-header .entity-kind {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: var(--font-size-sm, 0.85rem);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.entity-header .entity-slug {
+  color: var(--color-text-muted);
+  margin-top: var(--space-1);
+}
+
+.entity-archived {
+  color: var(--color-warning);
+  font-weight: var(--font-weight-medium);
+}
+
+.current-truth-region {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.entity-summary {
+  font-size: var(--font-size-lg, 1.05rem);
+  line-height: 1.5;
+}
+
+.claim-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.claim-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+}
+
+.claim-content {
+  margin: 0 0 var(--space-2);
+  line-height: 1.5;
+}
+
+.claim-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-sm, 0.85rem);
+}
+
+.claim-trust {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm, 4px);
+  font-weight: var(--font-weight-medium);
+  background: var(--color-neutral-tint);
+  color: var(--color-text);
+}
+
+.claim-trust[data-trust="verified"],
+.claim-trust[data-trust="approved"] {
+  background: var(--color-success-tint);
+  color: var(--color-success);
+}
+
+.claim-trust[data-trust="stale"],
+.claim-trust[data-trust="superseded"],
+.claim-trust[data-trust="archived"] {
+  background: var(--color-warning-tint);
+  color: var(--color-warning);
+}
+
+.claim-trust[data-trust="disputed"] {
+  background: var(--color-critical-tint);
+  color: var(--color-critical);
+}
+
+.claim-kind {
+  color: var(--color-text-muted);
+}
+
+/* The history region is deliberately set apart from current truth. */
+.history-region {
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  background: var(--color-neutral-tint);
+}
+
+.evidence-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.evidence-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm, 0.85rem);
+}
+
+.evidence-verification[data-state="verified"] { color: var(--color-success); }
+.evidence-verification[data-state="failed"] { color: var(--color-critical); }
+.evidence-verification[data-state="unavailable"] { color: var(--color-text-muted); }
+
+.evidence-stance[data-stance="contradicts"] { color: var(--color-critical); }
+
+.knowledge-health-figures {
+  display: flex;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-2);
+}
+
+.knowledge-health-figure {
+  display: flex;
+  flex-direction: column;
+}
+
+.knowledge-health-figure dt {
+  font-size: var(--font-size-sm, 0.85rem);
+  color: var(--color-text-muted);
+}
+
+.knowledge-health-figure dd {
+  margin: 0;
+  font-size: var(--font-size-xl, 1.4rem);
+  font-weight: var(--font-weight-medium);
+}
+
+.knowledge-health-figure[data-tone="verified"] dd { color: var(--color-success); }
+.knowledge-health-figure[data-tone="stale"] dd { color: var(--color-warning); }
+.knowledge-health-figure[data-tone="disputed"] dd { color: var(--color-critical); }
+
+.related-list,
+.supersedes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.related-relation {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm, 0.85rem);
+}

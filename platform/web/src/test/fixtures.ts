@@ -3,10 +3,18 @@
 
 import type {
   AttentionDto,
+  ClaimDto,
+  DecisionDetailDto,
+  EntityCardDto,
+  EntityDetailDto,
+  EntityHealthDto,
+  EvidenceDto,
   IntegrationDto,
   MetricDto,
   OverviewDto,
+  RelatedEntityDto,
   RepositoryDto,
+  RunbookDetailDto,
   SystemMapDto,
 } from "../api/types";
 
@@ -237,6 +245,220 @@ export function fixtureSystemMap(overrides: Partial<SystemMapDto> = {}): SystemM
       },
     ],
     truncated: true,
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Knowledge detail fixtures — feature / component / flow / runbook / decision pages.
+//
+// These build the exact EntityDetailDto shape the backend read model emits, keeping the
+// CURRENT-TRUTH vs HISTORY split honest: `current_claims` holds only injectable (verified/approved)
+// claims; `other_claims` holds proposed/stale/disputed/superseded claims that must be SHOWN but
+// LABELLED, never merged into current truth; `health` counts span the full claim set.
+// ---------------------------------------------------------------------------------------------
+
+export function fixtureEvidence(overrides: Partial<EvidenceDto> = {}): EvidenceDto {
+  return {
+    evidence_id: "ev-1",
+    source_type: "code",
+    source_uri: "mcp/vnext/runtime/server.ts",
+    path: "mcp/vnext/runtime/server.ts",
+    symbol: "isAuthorized",
+    line_start: 178,
+    line_end: 196,
+    commit: "0000000",
+    verification_state: "verified",
+    stance: "supports",
+    ...overrides,
+  };
+}
+
+export function fixtureClaim(overrides: Partial<ClaimDto> = {}): ClaimDto {
+  return {
+    claim_id: "claim-1",
+    claim_kind: "behavior",
+    content: "Every /v2 request is authenticated with a timing-safe bearer token compare.",
+    trust_state: "verified",
+    impact_class: "high",
+    confidence: 0.9,
+    review_policy: "manual",
+    supersedes_claim_id: null,
+    created_by: "agent:opus",
+    created_at: "2026-07-10T10:00:00.000Z",
+    updated_at: "2026-07-12T10:00:00.000Z",
+    evidence: [fixtureEvidence()],
+    ...overrides,
+  };
+}
+
+export function fixtureEntityCard(overrides: Partial<EntityCardDto> = {}): EntityCardDto {
+  return {
+    entity_id: "feature-auth",
+    kind: "feature",
+    slug: "authentication",
+    canonical_name: "Authentication",
+    summary: "Verifies operator identity before any privileged action.",
+    status: "active",
+    verified_claims: 2,
+    stale_claims: 1,
+    disputed_claims: 0,
+    ...overrides,
+  };
+}
+
+export function fixtureHealth(overrides: Partial<EntityHealthDto> = {}): EntityHealthDto {
+  return {
+    verified: 2,
+    stale: 1,
+    disputed: 0,
+    missing_required_fields: ["tests"],
+    ...overrides,
+  };
+}
+
+export function fixtureRelated(overrides: Partial<RelatedEntityDto> = {}): RelatedEntityDto {
+  return {
+    entity_id: "flow-login",
+    kind: "flow",
+    slug: "login",
+    canonical_name: "Login flow",
+    relation_type: "realized_by",
+    evidence_id: "ev-rel-1",
+    ...overrides,
+  };
+}
+
+// A fully populated feature detail: current truth (a verified invariant + a verified verification
+// claim), history/uncertainty (one STALE claim that must never leak into current truth), and related
+// flows / runbooks / owner. `health.stale === 1` mirrors the stale claim in `other_claims`.
+export function fixtureFeature(overrides: Partial<EntityDetailDto> = {}): EntityDetailDto {
+  return {
+    entity: fixtureEntityCard(),
+    current_claims: [
+      fixtureClaim({
+        claim_id: "claim-invariant",
+        claim_kind: "invariant",
+        content: "A request without a valid bearer token is rejected with 401 before any handler runs.",
+        trust_state: "verified",
+      }),
+      fixtureClaim({
+        claim_id: "claim-verification",
+        claim_kind: "verification",
+        content: "Covered by server.test.ts: rejects missing and malformed Authorization headers.",
+        trust_state: "approved",
+        impact_class: "medium",
+      }),
+    ],
+    other_claims: [
+      fixtureClaim({
+        claim_id: "claim-stale",
+        claim_kind: "behavior",
+        content: "Bearer tokens are cached in-process for 24 hours.",
+        trust_state: "stale",
+        impact_class: "high",
+      }),
+    ],
+    related: [
+      fixtureRelated(),
+      fixtureRelated({
+        entity_id: "runbook-rotate",
+        kind: "runbook",
+        slug: "rotate-token",
+        canonical_name: "Rotate machine token",
+        relation_type: "operated_by",
+      }),
+      fixtureRelated({
+        entity_id: "owner-platform",
+        kind: "owner",
+        slug: "platform-team",
+        canonical_name: "Platform team",
+        relation_type: "owned_by",
+      }),
+    ],
+    health: fixtureHealth(),
+    ...overrides,
+  };
+}
+
+export function fixtureRunbook(overrides: Partial<RunbookDetailDto> = {}): RunbookDetailDto {
+  const entity = fixtureEntityCard({
+    entity_id: "runbook-rotate",
+    kind: "runbook",
+    slug: "rotate-token",
+    canonical_name: "Rotate machine token",
+    summary: "Rotates the daemon machine token without dropping in-flight requests.",
+  });
+  return {
+    entity,
+    runbook: entity,
+    last_successful_execution: null,
+    current_claims: [
+      fixtureClaim({
+        claim_id: "claim-step",
+        claim_kind: "procedure",
+        content: "Stop the daemon, regenerate the token file, then restart on loopback only.",
+        trust_state: "verified",
+        impact_class: "critical",
+      }),
+    ],
+    other_claims: [],
+    related: [
+      fixtureRelated({
+        entity_id: "feature-auth",
+        kind: "feature",
+        slug: "authentication",
+        canonical_name: "Authentication",
+        relation_type: "operates",
+      }),
+    ],
+    health: fixtureHealth({ verified: 1, stale: 0, disputed: 0, missing_required_fields: [] }),
+    ...overrides,
+  };
+}
+
+export function fixtureDecision(overrides: Partial<DecisionDetailDto> = {}): DecisionDetailDto {
+  const entity = fixtureEntityCard({
+    entity_id: "decision-etag",
+    kind: "decision",
+    slug: "etag-optimistic-concurrency",
+    canonical_name: "Use ETag optimistic concurrency for review mutations",
+    summary: "Review mutations use a state-hash ETag instead of a new schema version column.",
+  });
+  return {
+    entity,
+    decision: entity,
+    approved_by: "human:kushal",
+    supersedes_claim_ids: ["claim-old-migration"],
+    current_claims: [
+      fixtureClaim({
+        claim_id: "claim-decision",
+        claim_kind: "decision",
+        content: "review_items carry no version column; the 409 story uses a state-hash ETag.",
+        trust_state: "approved",
+        impact_class: "high",
+        supersedes_claim_id: "claim-old-migration",
+      }),
+    ],
+    other_claims: [
+      fixtureClaim({
+        claim_id: "claim-old-migration",
+        claim_kind: "decision",
+        content: "Add migration 006 with an INTEGER version column on review_items.",
+        trust_state: "superseded",
+        impact_class: "high",
+      }),
+    ],
+    related: [
+      fixtureRelated({
+        entity_id: "feature-review",
+        kind: "feature",
+        slug: "review-queue",
+        canonical_name: "Review queue",
+        relation_type: "affects",
+      }),
+    ],
+    health: fixtureHealth({ verified: 1, stale: 0, disputed: 0, missing_required_fields: [] }),
     ...overrides,
   };
 }
