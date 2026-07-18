@@ -59,6 +59,21 @@ function canonicalPath(file: {
   return file.new_path ?? file.old_path ?? "";
 }
 
+// The declared line counts from a `@@ -oldStart[,oldCount] +newStart[,newCount] @@` header. Omitted
+// counts default to 1 (git's convention). These counts — not prefix pattern-matching — decide when a
+// hunk body ends, so a content line beginning `--- `/`+++ ` (removed body `-- …` / added body `++ …`)
+// is attributed as content, never mistaken for a file header. A header that does not parse yields
+// Infinity so the hunk stays greedily open until the next `@@`/`diff --git` (fail-open, matches the
+// pre-existing behavior for malformed hunks rather than truncating them).
+function parseHunkCounts(line: string): { old: number; new: number } {
+  const match = /^@@+ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/.exec(line);
+  if (!match) return { old: Number.POSITIVE_INFINITY, new: Number.POSITIVE_INFINITY };
+  return {
+    old: match[1] === undefined ? 1 : Number.parseInt(match[1], 10),
+    new: match[2] === undefined ? 1 : Number.parseInt(match[2], 10),
+  };
+}
+
 export function parseUnifiedDiff(text: string): ParsedDiff {
   const files: FileDiff[] = [];
   if (typeof text !== "string" || text.length === 0) return { files };
@@ -66,10 +81,17 @@ export function parseUnifiedDiff(text: string): ParsedDiff {
   const lines = text.split("\n");
   let current: FileDiff | null = null;
   let hunk: DiffHunk | null = null;
+  // Remaining declared old/new lines for the open hunk body. While either is positive the hunk body is
+  // still being consumed and every line is content — this is what keeps a `--- `/`+++ ` content line
+  // from being pattern-matched as a file header.
+  let oldRemaining = 0;
+  let newRemaining = 0;
 
   const closeHunk = () => {
     if (current && hunk) current.hunks.push(hunk);
     hunk = null;
+    oldRemaining = 0;
+    newRemaining = 0;
   };
   const closeFile = () => {
     closeHunk();
@@ -97,6 +119,31 @@ export function parseUnifiedDiff(text: string): ParsedDiff {
       continue;
     }
     if (!current) continue; // Preamble before the first file header: ignore, never throw.
+
+    // Inside an open hunk body every line is content, decided by the declared line counts — NOT by
+    // prefix matching. This must run before the `--- `/`+++ ` header checks so that a removed line
+    // whose body is `-- …` (wire `--- …`) or an added line whose body is `++ …` (wire `+++ …`) is
+    // accounted as content and never overwrites the file path.
+    if (hunk && (oldRemaining > 0 || newRemaining > 0)) {
+      if (line.startsWith("\\")) continue; // "\ No newline at end of file": not a content line.
+      if (line.startsWith("+")) {
+        const content = line.slice(1);
+        hunk.added_lines.push(content);
+        current.added_lines.push(content);
+        newRemaining -= 1;
+      } else if (line.startsWith("-")) {
+        const content = line.slice(1);
+        hunk.removed_lines.push(content);
+        current.removed_lines.push(content);
+        oldRemaining -= 1;
+      } else {
+        // Context line (leading space, or a stray empty split artifact): present in both sides.
+        oldRemaining -= 1;
+        newRemaining -= 1;
+      }
+      if (oldRemaining <= 0 && newRemaining <= 0) closeHunk();
+      continue;
+    }
 
     if (line.startsWith("new file mode")) {
       current.change_type = "added";
@@ -136,22 +183,15 @@ export function parseUnifiedDiff(text: string): ParsedDiff {
     if (line.startsWith("@@")) {
       closeHunk();
       hunk = { header: line, added_lines: [], removed_lines: [] };
+      const counts = parseHunkCounts(line);
+      oldRemaining = counts.old;
+      newRemaining = counts.new;
+      // A hunk header that declares zero changed lines on both sides has no body to consume.
+      if (oldRemaining <= 0 && newRemaining <= 0) closeHunk();
       continue;
     }
-    if (!hunk) continue; // Metadata line (index, mode, \ No newline) outside a hunk body.
-    if (line.startsWith("+")) {
-      const content = line.slice(1);
-      hunk.added_lines.push(content);
-      current.added_lines.push(content);
-      continue;
-    }
-    if (line.startsWith("-")) {
-      const content = line.slice(1);
-      hunk.removed_lines.push(content);
-      current.removed_lines.push(content);
-      continue;
-    }
-    // Context or "\ No newline at end of file" — ignored for content accounting.
+    // Any remaining line is file metadata (index, mode, \ No newline) outside a hunk body: ignored for
+    // content accounting. In-hunk content is fully handled by the line-count block above.
   }
 
   closeFile();

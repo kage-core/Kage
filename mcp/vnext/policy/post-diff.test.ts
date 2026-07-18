@@ -167,6 +167,59 @@ test("parseUnifiedDiff flags binary files and never fabricates hunks", () => {
   assert.equal(parsed.files[0].added_lines.length, 0);
 });
 
+test("content lines that look like ---/+++ headers are not mis-parsed as file headers", () => {
+  // A removed line whose body starts with `-- ` produces a wire line beginning `--- `, and an added
+  // line whose body starts with `++ ` produces a wire line beginning `+++ `. These are content inside
+  // the hunk body, NOT file headers: the parser must attribute them by hunk line counts, keep the real
+  // file path, and account them in removed_lines/added_lines.
+  // Wire lines `--- a removed comment` (marker `-` + body `-- a removed comment`) and
+  // `+++ an added comment` (marker `+` + body `++ an added comment`) both look like file headers.
+  const diff = `diff --git a/src/config.ts b/src/config.ts
+--- a/src/config.ts
++++ b/src/config.ts
+@@ -1,2 +1,2 @@
+ context stays
+--- a removed comment
++++ an added comment
+`;
+  const parsed = parseUnifiedDiff(diff);
+  assert.equal(parsed.files.length, 1);
+  const file = parsed.files[0];
+  // The fabricated header strings must never overwrite the real path.
+  assert.equal(file.path, "src/config.ts");
+  assert.equal(file.old_path, "src/config.ts");
+  assert.equal(file.new_path, "src/config.ts");
+  assert.equal(file.change_type, "modified");
+  // The lines must be accounted as content, not dropped.
+  assert.deepEqual(file.removed_lines, ["-- a removed comment"]);
+  assert.deepEqual(file.added_lines, ["++ an added comment"]);
+  // The hunk must not be truncated by a spurious closeHunk on the `--- ` line.
+  assert.equal(file.hunks.length, 1);
+  assert.deepEqual(file.hunks[0].removed_lines, ["-- a removed comment"]);
+  assert.deepEqual(file.hunks[0].added_lines, ["++ an added comment"]);
+});
+
+test("a header-shaped content line never becomes a verified diff evidence path", () => {
+  // Regression guard on the downstream corruption: missing_verification cites file.path as
+  // verification_state:'verified' evidence. A fabricated `--- `/`+++ ` path must never appear there.
+  const diff = `diff --git a/src/config.ts b/src/config.ts
+--- a/src/config.ts
++++ b/src/config.ts
+@@ -1,2 +1,2 @@
+ context stays
+--- a removed comment
++++ an added comment
+`;
+  const findings = evaluateDiff({ task: task([]), diff: parseUnifiedDiff(diff), policy: DEFAULT_POST_DIFF_POLICY });
+  const missing = findings.find((item) => item.kind === "missing_verification");
+  assert.ok(missing, "expected missing_verification for a source change with no test");
+  for (const record of missing.evidence) {
+    assert.equal(record.path, "src/config.ts");
+    assert.equal(record.source_uri, "src/config.ts");
+    assert.equal(record.verification_state, "verified");
+  }
+});
+
 test("parseUnifiedDiff is deterministic and fails open on arbitrary bytes", () => {
   const junk = "not a diff at all  \n@@ garbage @@\n++++\n--- \nplain odd text here\n";
   const first = parseUnifiedDiff(junk);
