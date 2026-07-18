@@ -14,6 +14,17 @@ export const VNEXT_AUDIT_MODE = "audit" as const;
 export const VNEXT_ADAPTERS = ["claude-code", "proxy"] as const;
 export type VnextAdapter = (typeof VNEXT_ADAPTERS)[number];
 
+// Optional model-assisted extraction (Phase B, shadow mode). This governs ONLY whether the compiler
+// may consult a language model to PROPOSE untrusted claim candidates; it never affects prompt
+// mutation and never lets a model auto-inject anything (see compiler/model-extractor.ts).
+//   - `off`             (default): no model is ever consulted. Deterministic extraction only.
+//   - `local`           : a configured local model may be consulted with redacted, metadata-level input.
+//   - `remote_approved` : a remote provider may be consulted, but only under workspace policy that
+//                         explicitly permits each evidence class. Not enabled by any CLI default.
+export const VNEXT_MODEL_EXTRACTION_MODES = ["off", "local", "remote_approved"] as const;
+export type ModelExtractionMode = (typeof VNEXT_MODEL_EXTRACTION_MODES)[number];
+export const VNEXT_MODEL_EXTRACTION_DEFAULT = "off" as const;
+
 export interface VnextConfig {
   vnext: {
     protocol_version: ProtocolVersion;
@@ -22,6 +33,8 @@ export interface VnextConfig {
     /** How the provider gateway treats request bodies. Phase A: audit only — bytes forwarded as sent. */
     gateway: VnextMode;
     adapters: VnextAdapter[];
+    /** Whether the compiler may consult a model to PROPOSE untrusted candidates. Default: off. */
+    model_extraction: ModelExtractionMode;
   };
 }
 
@@ -55,8 +68,17 @@ export function auditConfig(adapters: readonly string[] | undefined): VnextConfi
       runtime: VNEXT_AUDIT_MODE,
       gateway: VNEXT_AUDIT_MODE,
       adapters: normalizeAdapters(adapters),
+      // Shadow-mode model extraction is opt-in only; `connect` never turns it on.
+      model_extraction: VNEXT_MODEL_EXTRACTION_DEFAULT,
     },
   };
+}
+
+function modelExtractionMode(value: unknown): ModelExtractionMode {
+  return typeof value === "string" && (VNEXT_MODEL_EXTRACTION_MODES as readonly string[]).includes(value)
+    ? (value as ModelExtractionMode)
+    // Absent or illegible → off. A config predating this field must never read as "on".
+    : VNEXT_MODEL_EXTRACTION_DEFAULT;
 }
 
 export function writeVnextConfig(projectDir: string, config: VnextConfig): string {
@@ -108,6 +130,7 @@ export function readVnextConfig(projectDir: string): VnextConfig | null {
       runtime,
       gateway,
       adapters,
+      model_extraction: modelExtractionMode(vnext.model_extraction),
     },
   };
 }

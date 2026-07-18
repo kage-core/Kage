@@ -83,3 +83,72 @@ export function buildTransformationReceipt(input: TransformationReceiptInput): T
     created_at: now.toISOString(),
   };
 }
+
+/**
+ * A model-extraction processing receipt. This is NOT a wire-protocol message (the frozen v1
+ * TransformationReceipt is untouched): it is an internal, honest record of one shadow-mode model
+ * consultation. Every number is measured or null — a provider that reports no tokens or cost yields
+ * null here, never a fabricated zero. `status` distinguishes a clean run from a fail-open one so the
+ * receipt never dresses an error up as a successful extraction.
+ */
+export type ModelProcessingStatus = "ok" | "provider_error" | "invalid_response";
+
+export interface ModelProcessingReceiptInput {
+  repository_id: string;
+  episode_id: string;
+  provider: string;
+  model: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cost_usd: number | null;
+  latency_ms: number;
+  accepted: number;
+  rejected: number;
+  redaction_count: number;
+  status: ModelProcessingStatus;
+  now?: Date;
+  receipt_id?: string;
+}
+
+export interface ModelProcessingReceipt {
+  receipt_id: string;
+  kind: "model_extraction";
+  repository_id: string;
+  episode_id: string;
+  provider: string;
+  model: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cost_usd: number | null;
+  latency_ms: number;
+  accepted: number;
+  rejected: number;
+  redaction_count: number;
+  status: ModelProcessingStatus;
+  created_at: string;
+}
+
+function nonnegativeCount(value: number): number {
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+export function buildModelProcessingReceipt(input: ModelProcessingReceiptInput): ModelProcessingReceipt {
+  const now = input.now ?? new Date();
+  return {
+    receipt_id: input.receipt_id ?? `model_receipt_${randomUUID()}`,
+    kind: "model_extraction",
+    repository_id: input.repository_id,
+    episode_id: input.episode_id,
+    provider: input.provider,
+    model: input.model,
+    input_tokens: input.input_tokens,
+    output_tokens: input.output_tokens,
+    cost_usd: input.cost_usd,
+    latency_ms: nonnegativeMs(input.latency_ms),
+    accepted: nonnegativeCount(input.accepted),
+    rejected: nonnegativeCount(input.rejected),
+    redaction_count: nonnegativeCount(input.redaction_count),
+    status: input.status,
+    created_at: now.toISOString(),
+  };
+}
