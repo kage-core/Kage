@@ -37,10 +37,17 @@ function cookieToken(req: IncomingMessage): string | undefined {
   return undefined;
 }
 
-/** A raw token from either the session cookie or an `Authorization: Bearer` header (service tokens). */
-function requestToken(req: IncomingMessage): string | undefined {
+/** The `Authorization: Bearer` service token, if one is present. Non-Bearer schemes are not tokens. */
+function bearerToken(req: IncomingMessage): string | undefined {
   const auth = req.headers.authorization;
   if (auth && auth.startsWith("Bearer ")) return auth.slice("Bearer ".length).trim();
+  return undefined;
+}
+
+/** A raw token from either the session cookie or an `Authorization: Bearer` header (service tokens). */
+function requestToken(req: IncomingMessage): string | undefined {
+  const bearer = bearerToken(req);
+  if (bearer !== undefined) return bearer;
   return cookieToken(req);
 }
 
@@ -64,7 +71,10 @@ const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
  */
 function csrfError(req: IncomingMessage, session: ResolvedSession): "csrf_required" | null {
   if (!MUTATING_METHODS.has(req.method ?? "GET")) return null;
-  const usedCookie = req.headers.authorization ? false : Boolean(cookieToken(req));
+  // A request authenticates via cookie exactly when requestToken() would fall back to the cookie:
+  // no valid `Bearer ` token present. A non-Bearer Authorization header does NOT exempt CSRF, since
+  // such a request still authenticated through the session cookie.
+  const usedCookie = bearerToken(req) === undefined && Boolean(cookieToken(req));
   if (!usedCookie) return null;
   const header = req.headers["x-kage-csrf"];
   const provided = Array.isArray(header) ? header[0] : header;

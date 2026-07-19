@@ -154,6 +154,25 @@ test("a browser mutation without a CSRF token is refused", async () => {
   assert.equal(((await response.json()) as { error?: string }).error, "csrf_required");
 });
 
+test("a cookie mutation cannot skip CSRF by attaching a non-Bearer Authorization header", async () => {
+  // Regression: csrfError() must gate on whether the request actually authenticated via cookie
+  // (requestToken only accepts `Bearer `), not on the mere presence of ANY Authorization header.
+  // A cookie-authenticated request carrying a non-Bearer Authorization header still authenticates
+  // via the cookie, so it MUST supply a matching x-kage-csrf token or be refused.
+  const owner = await seedPrincipal(workspaceA, "knowledge_owner", null);
+  const response = await fetch(`http://127.0.0.1:${server.port}/v1/review-items/item-1/accept`, {
+    method: "POST",
+    headers: {
+      cookie: `kage_session=${owner.token}`,
+      authorization: "Basic anything",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ note: "approve" }),
+  });
+  assert.equal(response.status, 403);
+  assert.equal(((await response.json()) as { error?: string }).error, "csrf_required");
+});
+
 test("sessions persist only a token hash, never the raw token", async () => {
   const owner = await seedPrincipal(workspaceA, "owner", null);
   const { rows } = await db.query<{ token_hash: string }>(
