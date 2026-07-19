@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { openVnextDatabase, type LocalDatabase } from "../storage/database.js";
 import { migrateLocalDatabase } from "../storage/migrations.js";
-import { Repository } from "./repository.js";
+import { Repository, ReviewStateError } from "./repository.js";
 import { featureReadModel } from "./queries.js";
 import type {
   ClaimRecord,
@@ -301,4 +301,66 @@ test("addRelation is idempotent on the same edge", () => {
   model.addRelation({ ...edge, relation_id: randomUUID() });
   const rm = featureReadModel(model, "entity-1");
   assert.equal(rm.components.length, 1);
+});
+
+// A candidate claim (proposed) with an OPEN review item, ready to be accepted-with-supersession.
+function candidateWithReview(
+  model: Repository,
+  overrides: Partial<ClaimRecord> = {},
+): { claimId: string; reviewItemId: string } {
+  const candidate = model.createClaim(fixtureClaim({ trust_state: "proposed", ...overrides }));
+  const reviewItemId = randomUUID();
+  model.createReviewItem(fixtureReview({ review_item_id: reviewItemId, claim_id: candidate.claim_id }));
+  return { claimId: candidate.claim_id, reviewItemId };
+}
+
+test("resolveContradiction supersedes the opposing current claim in the same slot", () => {
+  const model = fixtureModel();
+  const evidence = model.addEvidence(fixtureEvidence({ verification_state: "verified" }));
+  const opposing = model.createClaim(
+    fixtureClaim({ trust_state: "verified", claim_kind: "behavior", normalized_content: "old" }),
+    [{ evidence_id: evidence.evidence_id, stance: "supports" }],
+  );
+  const { claimId, reviewItemId } = candidateWithReview(model, {
+    claim_kind: "behavior",
+    normalized_content: "new",
+  });
+  const result = model.resolveContradiction(claimId, opposing.claim_id, reviewItemId, "owner-bob", "note");
+  assert.equal(result.accepted.trust_state, "approved");
+  assert.equal(result.replaced.trust_state, "superseded");
+  assert.equal(model.getClaim(opposing.claim_id)?.trust_state, "superseded");
+});
+
+test("resolveContradiction refuses an opposing claim in a different entity", () => {
+  const model = fixtureModel();
+  const other = model.upsertEntity(fixtureEntity({ kind: "feature", slug: "billing" }));
+  const evidence = model.addEvidence(fixtureEvidence({ verification_state: "verified" }));
+  // A live verified claim that has NOTHING to do with the candidate's slot.
+  const unrelated = model.createClaim(
+    fixtureClaim({ entity_id: other.entity_id, trust_state: "verified", claim_kind: "behavior" }),
+    [{ evidence_id: evidence.evidence_id, stance: "supports" }],
+  );
+  const { claimId, reviewItemId } = candidateWithReview(model, { entity_id: "entity-1", claim_kind: "behavior" });
+  assert.throws(
+    () => model.resolveContradiction(claimId, unrelated.claim_id, reviewItemId, "owner-bob", "note"),
+    (err: unknown) => err instanceof ReviewStateError && /slot|opposing/i.test((err as ReviewStateError).code),
+  );
+  // The unrelated verified claim is untouched: still live, still in its slot.
+  assert.equal(model.getClaim(unrelated.claim_id)?.trust_state, "verified");
+});
+
+test("resolveContradiction refuses an opposing claim in a different claim_kind slot", () => {
+  const model = fixtureModel();
+  const evidence = model.addEvidence(fixtureEvidence({ verification_state: "verified" }));
+  // Same entity, DIFFERENT claim_kind — a different logical slot, must not be retired.
+  const unrelated = model.createClaim(
+    fixtureClaim({ entity_id: "entity-1", trust_state: "verified", claim_kind: "behavior-other" }),
+    [{ evidence_id: evidence.evidence_id, stance: "supports" }],
+  );
+  const { claimId, reviewItemId } = candidateWithReview(model, { entity_id: "entity-1", claim_kind: "behavior" });
+  assert.throws(
+    () => model.resolveContradiction(claimId, unrelated.claim_id, reviewItemId, "owner-bob", "note"),
+    (err: unknown) => err instanceof ReviewStateError && /slot|opposing/i.test((err as ReviewStateError).code),
+  );
+  assert.equal(model.getClaim(unrelated.claim_id)?.trust_state, "verified");
 });

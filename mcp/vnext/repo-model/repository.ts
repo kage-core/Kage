@@ -596,6 +596,14 @@ export class Repository {
       if (TERMINAL_STATES.has(opposing.trust_state)) {
         throw new ReviewStateError("opposing_claim_terminal");
       }
+      // The opposing claim must be the CURRENT claim in the accepted claim's own (entity, claim_kind)
+      // slot — the only claim a supersession is allowed to displace. Without this, any live claim in
+      // any entity/repository could be retired by a review item that has nothing to do with it,
+      // silently dropping an unrelated verified claim from current truth. This is the write-surface
+      // security boundary; it cannot be delegated to the frontend (which merely passes the id it saw).
+      if (opposing.entity_id !== accepted.entity_id || opposing.claim_kind !== accepted.claim_kind) {
+        throw new ReviewStateError("opposing_claim_slot_mismatch");
+      }
       const now = new Date().toISOString();
       this.writeReviewDecision(reviewItemId, {
         status: "accepted",

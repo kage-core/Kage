@@ -120,6 +120,7 @@ function mapReviewStateError(error: ReviewStateError): ReviewResult {
     case "opposing_claim_terminal":
     case "review_item_claim_mismatch":
     case "opposing_claim_is_accepted_claim":
+    case "opposing_claim_slot_mismatch":
       return fail(409, error.code);
     default:
       return fail(409, error.code);

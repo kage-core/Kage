@@ -135,6 +135,33 @@ function seed(model: Repository): void {
     decision_note: null,
     created_at: NOW,
   });
+
+  // Scenario 3: a wholly UNRELATED verified high-impact claim, in a different feature/slot. Nothing
+  // about `ri-contradiction` touches this claim's slot — the supersede write path must never let it
+  // be retired by a review item that has nothing to do with it.
+  model.upsertEntity({
+    entity_id: "feature-billing",
+    repository_id: "repo-1",
+    kind: "feature",
+    canonical_name: "Billing",
+    slug: "billing",
+    summary: "How billing works.",
+    status: "active",
+    created_at: NOW,
+    updated_at: NOW,
+  });
+  model.createClaim(
+    base({
+      claim_id: "claim-billing-unrelated",
+      entity_id: "feature-billing",
+      claim_kind: "behavior-invoicing",
+      created_by: "compiler",
+      trust_state: "verified",
+      impact_class: "high",
+      normalized_content: "Invoices are generated monthly.",
+    }),
+    [{ evidence_id: evidence.evidence_id, stance: "supports" }],
+  );
 }
 
 async function withSeededRuntime(
@@ -251,6 +278,32 @@ test("accepting one contradiction supersedes the opposing current claim", async 
     assert.equal(response.body.accepted.trust_state, "approved");
     assert.equal(response.body.replaced.trust_state, "superseded");
     assert.equal(response.body.replaced.claim_id, "claim-sessions-server");
+  });
+});
+
+test("supersede cannot retire a claim outside the accepted claim's slot", async () => {
+  await withSeededRuntime(async (call) => {
+    const version = await versionOf(call, "ri-contradiction");
+    const response = await call("POST", "/v2/review-items/ri-contradiction/supersede", {
+      actor: "owner-bob",
+      expected_version: version,
+      decision_note: "attempting to retire an unrelated verified claim",
+      opposing_claim_id: "claim-billing-unrelated",
+    });
+    assert.equal(response.status, 409);
+    assert.equal(response.body.error, "opposing_claim_slot_mismatch");
+    // The unrelated billing claim is untouched — still current truth in its own feature.
+    const billing = await call("GET", "/v2/features/billing");
+    const stillCurrent = billing.body.current_claims.some(
+      (c: { claim_id: string }) => c.claim_id === "claim-billing-unrelated",
+    );
+    assert.equal(stillCurrent, true);
+    // And the candidate was NOT laundered to approved by the rejected supersession.
+    const auth = await call("GET", "/v2/features/authentication");
+    const candidateApproved = auth.body.current_claims.some(
+      (c: { claim_id: string }) => c.claim_id === "claim-sessions-signed",
+    );
+    assert.equal(candidateApproved, false);
   });
 });
 
