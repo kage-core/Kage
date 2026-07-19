@@ -13,8 +13,12 @@ import { resolveSession, csrfMatches, type ResolvedSession } from "./auth/sessio
 import { can, scopeAllows } from "./auth/authorize.js";
 import type { Principal } from "./auth/types.js";
 import { applyBatch, pullChanges, ReviewAuthorityError } from "./sync-routes.js";
+import { reviewClaim, type ReviewAction } from "./review.js";
+import { forTarget } from "./audit.js";
 import { assertNoRawPayload } from "../sync/outbox.js";
 import type { SyncBatch } from "../sync/types.js";
+
+const REVIEW_ACTIONS: ReadonlySet<string> = new Set<ReviewAction>(["accept", "reject", "supersede"]);
 
 export interface WorkspaceServer {
   port: number;
@@ -124,6 +128,31 @@ export function createWorkspaceApp(db: Db): Handler {
       return;
     }
 
+    // POST /v1/repositories/:repositoryId/claims/:claimId/review — the authoritative team review write.
+    // The route only proves the principal may reach this repository; reviewClaim owns the real authority
+    // decision (ownership scope, self-approval, optimistic version) and the audit write.
+    const claimReviewMatch = /^\/v1\/repositories\/([^/]+)\/claims\/([^/]+)\/review$/.exec(path);
+    if (claimReviewMatch && method === "POST") {
+      await handleClaimReview(db, principal, claimReviewMatch[1], claimReviewMatch[2], req, res);
+      return;
+    }
+
+    // GET /v1/repositories/:repositoryId/claims/:claimId/audit — the append-only audit trail for a claim.
+    const claimAuditMatch = /^\/v1\/repositories\/([^/]+)\/claims\/([^/]+)\/audit$/.exec(path);
+    if (claimAuditMatch && method === "GET") {
+      if (!scopeAllows(principal, claimAuditMatch[1])) {
+        json(res, 404, { error: "not_found" });
+        return;
+      }
+      if (!can(principal, "audit.read", claimAuditMatch[1])) {
+        json(res, 403, { error: "forbidden", action: "audit.read" });
+        return;
+      }
+      const events = await forTarget(db, principal.workspace_id, "claim", claimAuditMatch[2]);
+      json(res, 200, { events });
+      return;
+    }
+
     // POST /v1/sync/push — a local daemon pushes an idempotent, permission-scoped batch.
     if (method === "POST" && path === "/v1/sync/push") {
       await handleSyncPush(db, principal, req, res);
@@ -205,6 +234,49 @@ async function handleSyncPush(
     }
     throw error;
   }
+}
+
+/**
+ * Land a team review decision over HTTP. The route-level gate is deliberately thin — only "may this
+ * principal reach this repository" (a cross-tenant/out-of-scope target is 404, existence undisclosed).
+ * The authoritative decision — ownership scope, self-approval, optimistic version, and the atomic audit
+ * write — lives in reviewClaim, whose status is returned verbatim so authority never drifts by endpoint.
+ */
+async function handleClaimReview(
+  db: Db,
+  principal: Principal,
+  repositoryId: string,
+  claimId: string,
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  if (!scopeAllows(principal, repositoryId)) {
+    json(res, 404, { error: "not_found" });
+    return;
+  }
+  const body = (await readJsonBody(req)) as
+    | { action?: unknown; expected_version?: unknown; decision_note?: unknown; request_id?: unknown }
+    | undefined;
+  const action = typeof body?.action === "string" ? body.action : "";
+  const expectedVersion = typeof body?.expected_version === "string" ? body.expected_version : "";
+  const decisionNote = typeof body?.decision_note === "string" ? body.decision_note.trim() : "";
+  if (!REVIEW_ACTIONS.has(action) || !expectedVersion || !decisionNote) {
+    json(res, 400, { error: "invalid_review_request" });
+    return;
+  }
+  const outcome = await reviewClaim(db, principal, {
+    workspace_id: principal.workspace_id,
+    repository_id: repositoryId,
+    claim_id: claimId,
+    expected_version: expectedVersion,
+    action: action as ReviewAction,
+    decision_note: decisionNote,
+    request_id: typeof body?.request_id === "string" ? body.request_id : undefined,
+  });
+  const responseBody: Record<string, unknown> = { claim_id: outcome.claim_id };
+  if (outcome.error) responseBody.error = outcome.error;
+  if (outcome.version) responseBody.version = outcome.version;
+  json(res, outcome.status, responseBody);
 }
 
 /** Coerce a parsed body into a full SyncBatch, defaulting every collection so apply never dereferences null. */

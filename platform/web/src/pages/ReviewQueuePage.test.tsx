@@ -101,6 +101,19 @@ describe("ReviewQueuePage", () => {
     expect(within(item).getByRole("alert")).toHaveTextContent(/changed since you loaded it/i);
   });
 
+  test("each item names the review authority that must sign off (team ownership scope)", () => {
+    render(
+      <ReviewQueuePage
+        items={[fixtureReviewItem({ claim_review_policy: "security" })]}
+        actor="human:reviewer"
+        onDecide={vi.fn()}
+      />,
+    );
+    // The reviewer sees WHICH owner scope is required, not just an opaque role, so team ownership is
+    // legible on the queue itself.
+    expect(screen.getByText(/Security owner sign-off/i)).toBeInTheDocument();
+  });
+
   test("an empty queue is stated honestly, not omitted", () => {
     render(<ReviewQueuePage items={[]} actor="human:reviewer" onDecide={vi.fn()} />);
     expect(screen.getByText(/no items are awaiting review/i)).toBeInTheDocument();

@@ -62,6 +62,24 @@ function requiresAuthorizedReviewer(item: ReviewItemDto): boolean {
   );
 }
 
+// A human label for the ownership scope a claim's review policy requires. This mirrors the team
+// workspace's ownership resolution (mcp/vnext/workspace/ownership.ts): a claim's review_policy decides
+// WHICH owner scope must sign off, and the reviewer should see that on the queue, not just a bare role.
+function reviewAuthorityLabel(policy: string): string {
+  switch (policy) {
+    case "security":
+      return "Security owner sign-off";
+    case "operations":
+      return "Operations owner sign-off";
+    case "owner":
+      return "Owner sign-off";
+    case "automatic":
+      return "Automatic (no independent owner)";
+    default:
+      return `Review authority: ${policy}`;
+  }
+}
+
 const IMPACT_LABELS: Record<ReviewItemDto["claim_impact"], string> = {
   low: "Low impact",
   medium: "Medium impact",
@@ -131,6 +149,7 @@ function ReviewItemCard({
         <ul className="review-item-facts">
           <li>{IMPACT_LABELS[item.claim_impact]}</li>
           <li>Required role: {item.required_role}</li>
+          <li>{reviewAuthorityLabel(item.claim_review_policy)}</li>
           <li>Proposed by {item.proposer}</li>
           <li data-status={item.status}>{STATUS_LABELS[item.status]}</li>
         </ul>
