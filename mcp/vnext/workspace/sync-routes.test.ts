@@ -13,11 +13,11 @@ import { createDb, type Db } from "./db.js";
 import { migrate } from "./migrate.js";
 import { startWorkspaceServer, type WorkspaceServer } from "./server.js";
 import { createSession, type SessionCredentials } from "./auth/session.js";
-import { applyBatch, countClaims } from "./sync-routes.js";
+import { applyBatch, countClaims, pullChanges, ReviewAuthorityError } from "./sync-routes.js";
 import type { Principal } from "./auth/types.js";
 import { buildSyncBatch } from "../sync/outbox.js";
 import { fixtureSyncBatch, makeClaim, makeEntity } from "../sync/fixtures.js";
-import type { SyncBatch } from "../sync/types.js";
+import type { ReviewDecisionRecord, SyncBatch } from "../sync/types.js";
 
 let embedded: TestPostgres | null = null;
 let db: Db;
@@ -190,6 +190,131 @@ test("a cross-tenant pull never returns another workspace's knowledge", async ()
   const aView = await pull(a.session);
   const aClaims = aView.body.claims as Array<{ claim_id: string }>;
   assert.ok(aClaims.length >= 2);
+});
+
+test("pull cursor does not drop a row written at the same timestamp as the previous boundary", async () => {
+  // Regression: the cursor must be a monotonic per-row sequence, NOT a non-unique updated_at timestamp.
+  // Two claims written with the IDENTICAL updated_at straddle a pull boundary; the second must still be
+  // delivered on the next pull. A timestamp cursor (updated_at > boundary) silently and permanently drops
+  // the equal-timestamp row.
+  await seedRepository(workspaceA, "repo-seq");
+  const { principal } = await seedService(workspaceA, ["repo-seq"]);
+  const sameTs = "2026-07-20T00:00:00.000Z";
+  const entity = makeEntity("seq-entity", "repo-seq");
+  const first = makeClaim("seq-x", { entity_id: entity.entity_id, updated_at: sameTs });
+  const second = makeClaim("seq-y", { entity_id: entity.entity_id, updated_at: sameTs });
+
+  await applyBatch(
+    db,
+    principal,
+    buildSyncBatch({
+      workspace_id: workspaceA,
+      repository_id: "repo-seq",
+      entities: [entity],
+      claims: [first],
+      evidence: [],
+      relations: [],
+    }),
+  );
+  const pull1 = await pullChanges(db, principal, null);
+  const firstIds = (pull1.claims as Array<{ claim_id: string }>).map((c) => c.claim_id);
+  assert.ok(firstIds.includes("seq-x"));
+  assert.ok(pull1.cursor);
+
+  // A second claim lands with the SAME updated_at as the boundary already returned.
+  await applyBatch(
+    db,
+    principal,
+    buildSyncBatch({
+      workspace_id: workspaceA,
+      repository_id: "repo-seq",
+      entities: [],
+      claims: [second],
+      evidence: [],
+      relations: [],
+    }),
+  );
+  const pull2 = await pullChanges(db, principal, pull1.cursor);
+  const secondIds = (pull2.claims as Array<{ claim_id: string }>).map((c) => c.claim_id);
+  // The equal-timestamp row MUST be delivered; it must never be silently dropped.
+  assert.ok(secondIds.includes("seq-y"), "second same-timestamp claim was dropped by the cursor");
+  assert.ok(!secondIds.includes("seq-x"), "the boundary row must not be redelivered");
+});
+
+test("a sync push cannot forge an approving review decision over a claim needing an authorized reviewer", async () => {
+  // A service (sync.push-only) token attempts to land an accept of a claim that requires an authorized
+  // reviewer, attributing it to an actor it does not speak for. Approval authority is not delegable to a
+  // sync token: the batch is rejected and NO review-decision row lands. This keeps self_approvals === 0.
+  await seedRepository(workspaceA, "repo-review");
+  const { principal } = await seedService(workspaceA, ["repo-review"]);
+  const entity = makeEntity("rev-entity", "repo-review");
+  // impact medium + review_policy "owner" (!= automatic) => requires an authorized reviewer.
+  const claim = makeClaim("rev-claim", { entity_id: entity.entity_id });
+  const forged: ReviewDecisionRecord = {
+    decision_id: "dec-forged",
+    repository_id: "repo-review",
+    claim_id: "rev-claim",
+    action: "accept",
+    actor_id: "owner-alice",
+    expected_version: null,
+    decision_note: "forged approval",
+    decided_at: "2026-07-20T00:00:00.000Z",
+  };
+  const batch = buildSyncBatch({
+    workspace_id: workspaceA,
+    repository_id: "repo-review",
+    entities: [entity],
+    claims: [claim],
+    evidence: [],
+    relations: [],
+    review_decisions: [forged],
+  });
+  await assert.rejects(
+    () => applyBatch(db, principal, batch),
+    (error: unknown) => error instanceof ReviewAuthorityError,
+  );
+  // The whole batch rolled back: no forged decision, no self-approval accounting to defeat.
+  const decisions = await db.query<{ count: string }>(
+    `SELECT COUNT(*)::text AS count FROM workspace_review_decisions WHERE workspace_id = $1 AND repository_id = 'repo-review'`,
+    [workspaceA],
+  );
+  assert.equal(Number.parseInt(decisions.rows[0].count, 10), 0);
+});
+
+test("a sync push may still land a review decision that asserts no reviewer authority", async () => {
+  // Guard against over-blocking: an accept of an automatic-policy, low-impact claim never needed a human
+  // gate, so replicating that decision is legitimate and lands.
+  await seedRepository(workspaceA, "repo-review2");
+  const { principal } = await seedService(workspaceA, ["repo-review2"]);
+  const entity = makeEntity("rev2-entity", "repo-review2");
+  const base = makeClaim("rev2-claim", { entity_id: entity.entity_id });
+  const claim = { ...base, review_policy: "automatic" as const, impact_class: "low" as const };
+  const decision: ReviewDecisionRecord = {
+    decision_id: "dec-auto",
+    repository_id: "repo-review2",
+    claim_id: "rev2-claim",
+    action: "accept",
+    actor_id: "agent",
+    expected_version: null,
+    decision_note: "automatic acceptance",
+    decided_at: "2026-07-20T00:00:00.000Z",
+  };
+  const batch = buildSyncBatch({
+    workspace_id: workspaceA,
+    repository_id: "repo-review2",
+    entities: [entity],
+    claims: [claim],
+    evidence: [],
+    relations: [],
+    review_decisions: [decision],
+  });
+  const result = await applyBatch(db, principal, batch);
+  assert.equal(result.status, "applied");
+  const decisions = await db.query<{ count: string }>(
+    `SELECT COUNT(*)::text AS count FROM workspace_review_decisions WHERE workspace_id = $1 AND repository_id = 'repo-review2'`,
+    [workspaceA],
+  );
+  assert.equal(Number.parseInt(decisions.rows[0].count, 10), 1);
 });
 
 test("concurrent divergent claim versions preserve both instead of overwriting", async () => {

@@ -12,7 +12,7 @@ import { currentVersion } from "./migrate.js";
 import { resolveSession, csrfMatches, type ResolvedSession } from "./auth/session.js";
 import { can, scopeAllows } from "./auth/authorize.js";
 import type { Principal } from "./auth/types.js";
-import { applyBatch, pullChanges } from "./sync-routes.js";
+import { applyBatch, pullChanges, ReviewAuthorityError } from "./sync-routes.js";
 import { assertNoRawPayload } from "../sync/outbox.js";
 import type { SyncBatch } from "../sync/types.js";
 
@@ -193,8 +193,18 @@ async function handleSyncPush(
     json(res, 400, { error: "raw_payload_rejected" });
     return;
   }
-  const result = await applyBatch(db, principal, batch);
-  json(res, 200, result);
+  try {
+    const result = await applyBatch(db, principal, batch);
+    json(res, 200, result);
+  } catch (error) {
+    // A pushed review decision that fails the review-authority gate is a 403 — the batch already rolled
+    // back inside applyBatch, so nothing landed. Any other error is a real fault and rethrows.
+    if (error instanceof ReviewAuthorityError) {
+      json(res, 403, { error: error.code });
+      return;
+    }
+    throw error;
+  }
 }
 
 /** Coerce a parsed body into a full SyncBatch, defaulting every collection so apply never dereferences null. */

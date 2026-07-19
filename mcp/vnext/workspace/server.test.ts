@@ -7,7 +7,7 @@ import test, { after, before } from "node:test";
 import assert from "node:assert/strict";
 import { startTestPostgres, type TestPostgres } from "./test-support/pg.js";
 import { createDb, type Db } from "./db.js";
-import { migrate } from "./migrate.js";
+import { migrate, LATEST_MIGRATION } from "./migrate.js";
 import { startWorkspaceServer, type WorkspaceServer } from "./server.js";
 
 let embedded: TestPostgres | null = null;
@@ -43,7 +43,7 @@ async function workspaceRequest(
 test("workspace health checks database migration version", async () => {
   const response = await workspaceRequest("GET", "/v1/health");
   assert.equal(response.status, 200);
-  assert.equal(response.body.database_migration, 3);
+  assert.equal(response.body.database_migration, LATEST_MIGRATION);
 });
 
 test("knowledge tables require workspace and repository identifiers", async () => {

@@ -12,16 +12,27 @@
 import { createHash } from "node:crypto";
 import type { Db } from "./db.js";
 import type { Principal } from "./auth/types.js";
-import { scopeAllows } from "./auth/authorize.js";
+import { can, scopeAllows } from "./auth/authorize.js";
 import { assertNoRawPayload } from "../sync/outbox.js";
 import { mergeConcurrentClaims } from "../sync/conflicts.js";
 import type { ClaimRecord } from "../repo-model/types.js";
-import type { SyncBatch } from "../sync/types.js";
+import type { ReviewDecisionRecord, SyncBatch } from "../sync/types.js";
 
 export interface ApplyResult {
   batch_id: string;
   status: "applied" | "duplicate";
   applied_counts: Record<string, number>;
+}
+
+/**
+ * A pushed review decision failed the review-authority gate. `code` mirrors the Phase C contract
+ * (`self_approval_blocked` / `review_authority_required`) so the HTTP layer maps it to 403.
+ */
+export class ReviewAuthorityError extends Error {
+  constructor(public readonly code: "self_approval_blocked" | "review_authority_required") {
+    super(code);
+    this.name = "ReviewAuthorityError";
+  }
 }
 
 /** Repositories a principal may pull from within its own workspace ("all" => the whole workspace). */
@@ -63,10 +74,13 @@ export async function applyBatch(db: Db, principal: Principal, batch: SyncBatch)
 
     for (const entity of batch.entities) {
       await db.query(
+        // An UPSERT bumps sync_seq to a fresh value so an updated row is re-delivered exactly once on the
+        // next pull; a first insert takes the column default (also nextval on the shared sequence).
         `INSERT INTO workspace_entities(workspace_id, repository_id, entity_id, model_version, record_json, updated_at)
            VALUES($1, $2, $3, $4, $5, $6)
          ON CONFLICT (workspace_id, repository_id, entity_id)
-           DO UPDATE SET record_json = EXCLUDED.record_json, updated_at = EXCLUDED.updated_at`,
+           DO UPDATE SET record_json = EXCLUDED.record_json, updated_at = EXCLUDED.updated_at,
+             sync_seq = nextval('workspace_sync_seq')`,
         [workspaceId, repositoryId, entity.entity_id, 1, JSON.stringify(entity), entity.updated_at],
       );
     }
@@ -96,6 +110,10 @@ export async function applyBatch(db: Db, principal: Principal, batch: SyncBatch)
     }
 
     for (const decision of batch.review_decisions) {
+      // Enforce the Phase C REVIEW AUTHORITY contract at the ingest boundary, BEFORE the row lands. A
+      // forged/unauthorized approval throws, the whole batch rolls back, and nothing is written — so a
+      // low-privilege sync token can never forge an authoritative approval that defeats self_approvals=0.
+      await assertReviewDecisionAuthority(db, principal, workspaceId, repositoryId, decision);
       await db.query(
         `INSERT INTO workspace_review_decisions(workspace_id, repository_id, decision_id, claim_id, action, actor_id, expected_version, decision_note, decided_at)
            VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -163,12 +181,63 @@ async function applyClaim(
 
 async function insertClaim(db: Db, workspaceId: string, repositoryId: string, claim: ClaimRecord): Promise<void> {
   await db.query(
+    // An UPSERT bumps sync_seq to a fresh value so an updated claim is re-delivered exactly once on the
+    // next pull; a first insert takes the column default (also nextval on the shared sequence).
     `INSERT INTO workspace_claims(workspace_id, repository_id, claim_id, entity_id, trust_state, impact_class, record_json, updated_at)
        VALUES($1, $2, $3, $4, $5, $6, $7, $8)
      ON CONFLICT (workspace_id, repository_id, claim_id)
-       DO UPDATE SET trust_state = EXCLUDED.trust_state, impact_class = EXCLUDED.impact_class, record_json = EXCLUDED.record_json, updated_at = EXCLUDED.updated_at`,
+       DO UPDATE SET trust_state = EXCLUDED.trust_state, impact_class = EXCLUDED.impact_class, record_json = EXCLUDED.record_json, updated_at = EXCLUDED.updated_at,
+         sync_seq = nextval('workspace_sync_seq')`,
     [workspaceId, repositoryId, claim.claim_id, claim.entity_id, claim.trust_state, claim.impact_class, JSON.stringify(claim), claim.updated_at],
   );
+}
+
+/**
+ * A high-impact/critical claim, or any claim whose review policy is not `automatic`, demands an
+ * authorized reviewer distinct from its proposer before it can be approved. This MIRRORS the Phase C
+ * contract (api/review.ts requiresAuthorizedReviewer) so review authority can never drift between the
+ * portal's authenticated review route and this sync-ingest gate. It is duplicated deliberately rather
+ * than imported: the Postgres workspace layer must not depend on the sqlite repository-model module.
+ */
+function requiresAuthorizedReviewer(claim: Pick<ClaimRecord, "impact_class" | "review_policy">): boolean {
+  return claim.impact_class === "high" || claim.impact_class === "critical" || claim.review_policy !== "automatic";
+}
+
+/**
+ * Gate a single pushed review decision against the REVIEW AUTHORITY contract, BEFORE it lands. `accept`
+ * and `supersede` move a claim into the injectable/approved state — an APPROVING action. Approving a
+ * claim that requires an authorized reviewer demands two things the sync outbox cannot supply for a
+ * daemon/service token:
+ *   1. `knowledge.review` authority for the repository (a service/sync token never has it) — otherwise
+ *      the actor_id is an unverifiable client-supplied claim and the decision is forged;
+ *   2. a reviewer distinct from the claim's proposer (no self-approval).
+ * A `reject` withholds trust rather than granting it, so it is always allowed to land. An approving
+ * action over an `automatic`, low/medium-impact claim never needed a human gate and is likewise allowed.
+ */
+async function assertReviewDecisionAuthority(
+  db: Db,
+  principal: Principal,
+  workspaceId: string,
+  repositoryId: string,
+  decision: ReviewDecisionRecord,
+): Promise<void> {
+  const approving = decision.action === "accept" || decision.action === "supersede";
+  if (!approving) return;
+
+  const { rows } = await db.query<{ record_json: Pick<ClaimRecord, "impact_class" | "review_policy" | "created_by"> }>(
+    `SELECT record_json FROM workspace_claims WHERE workspace_id = $1 AND repository_id = $2 AND claim_id = $3`,
+    [workspaceId, repositoryId, decision.claim_id],
+  );
+  // Fail closed: an approving decision over a claim we cannot see cannot be authorized here.
+  const claim = rows[0]?.record_json;
+  if (!claim || requiresAuthorizedReviewer(claim)) {
+    if (!can(principal, "knowledge.review", repositoryId)) {
+      throw new ReviewAuthorityError("review_authority_required");
+    }
+    if (claim && decision.actor_id === claim.created_by) {
+      throw new ReviewAuthorityError("self_approval_blocked");
+    }
+  }
 }
 
 /** Count claims stored for a workspace (all permitted repositories). Used by tests and metrics. */
@@ -189,7 +258,9 @@ export interface PullResult {
 /**
  * Return the knowledge a principal may pull: scoped to the principal's workspace AND its repository
  * allow-list. A cross-tenant or out-of-scope row is never returned — the filter is in the query, not the
- * caller. `cursor` (an updated_at high-water mark) returns only changes strictly after it.
+ * caller. `cursor` is a monotonic per-row sequence high-water mark (sync_seq), NOT a wall-clock timestamp:
+ * `sync_seq > cursor` returns only changes strictly after it, and because sync_seq is unique and strictly
+ * increasing, a row that merely shares an updated_at timestamp with the boundary is never dropped.
  */
 export async function pullChanges(db: Db, principal: Principal, cursor: string | null): Promise<PullResult> {
   const workspaceId = principal.workspace_id;
@@ -202,28 +273,47 @@ export async function pullChanges(db: Db, principal: Principal, cursor: string |
     repoFilter = ` AND repository_id = ANY($${params.length})`;
   }
   let cursorFilter = "";
-  if (cursor) {
-    params.push(cursor);
-    cursorFilter = ` AND updated_at > $${params.length}`;
+  const parsedCursor = parseCursor(cursor);
+  if (parsedCursor !== null) {
+    params.push(parsedCursor.toString());
+    cursorFilter = ` AND sync_seq > $${params.length}`;
   }
 
   const claims = await db.query(
-    `SELECT record_json, updated_at FROM workspace_claims WHERE workspace_id = $1${repoFilter}${cursorFilter} ORDER BY updated_at`,
+    `SELECT record_json, sync_seq FROM workspace_claims WHERE workspace_id = $1${repoFilter}${cursorFilter} ORDER BY sync_seq`,
     params,
   );
   const entities = await db.query(
-    `SELECT record_json, updated_at FROM workspace_entities WHERE workspace_id = $1${repoFilter}${cursorFilter} ORDER BY updated_at`,
+    `SELECT record_json, sync_seq FROM workspace_entities WHERE workspace_id = $1${repoFilter}${cursorFilter} ORDER BY sync_seq`,
     params,
   );
-  const nextCursor = [...claims.rows, ...entities.rows]
-    .map((row) => String((row as { updated_at: string }).updated_at))
-    .sort()
-    .at(-1) ?? cursor;
+  const nextCursor = maxSeq([...claims.rows, ...entities.rows], parsedCursor);
   return {
-    cursor: nextCursor,
+    cursor: nextCursor === null ? cursor : nextCursor.toString(),
     entities: entities.rows.map((row) => (row as { record_json: unknown }).record_json),
     claims: claims.rows.map((row) => (row as { record_json: unknown }).record_json),
   };
+}
+
+/** Parse a cursor string to a BigInt sequence value, tolerating null/empty/non-numeric as "from start". */
+function parseCursor(cursor: string | null): bigint | null {
+  if (cursor === null || cursor === "") return null;
+  try {
+    const value = BigInt(cursor);
+    return value >= 0n ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The highest sync_seq across the returned rows (as BigInt), or the incoming cursor when none returned. */
+function maxSeq(rows: Array<Record<string, unknown>>, fallback: bigint | null): bigint | null {
+  let max = fallback;
+  for (const row of rows) {
+    const seq = BigInt(String((row as { sync_seq: string | number }).sync_seq));
+    if (max === null || seq > max) max = seq;
+  }
+  return max;
 }
 
 /** True when this principal may push/pull for the named repository (both action and scope must allow). */
