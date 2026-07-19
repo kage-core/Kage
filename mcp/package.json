@@ -56,13 +56,15 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.10.2",
+    "pg": "^8.22.0",
     "three": "^0.184.0",
     "tree-sitter-wasms": "^0.1.13",
     "typescript": "^5.0.0",
     "web-tree-sitter": "^0.24.7"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "embedded-postgres": "^18.4.0-beta.17"
   },
   "engines": {
     "node": ">=18"
