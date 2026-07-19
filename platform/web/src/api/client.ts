@@ -16,6 +16,7 @@ import type {
   SystemMapDto,
   SystemMapView,
   TaskDetailDto,
+  TaskReceiptDto,
   TasksDto,
 } from "./types";
 
@@ -54,6 +55,7 @@ export interface KageApiClient {
   ): Promise<ReviewMutationOutcome>;
   tasks(): Promise<TasksDto>;
   task(taskId: string): Promise<TaskDetailDto>;
+  taskReceipt(taskId: string): Promise<TaskReceiptDto>;
   integrations(): Promise<IntegrationsDto>;
 }
 
@@ -149,6 +151,10 @@ export class KageApi implements KageApiClient {
 
   task(taskId: string): Promise<TaskDetailDto> {
     return this.get<TaskDetailDto>(`/v2/tasks/${encodeURIComponent(taskId)}`);
+  }
+
+  taskReceipt(taskId: string): Promise<TaskReceiptDto> {
+    return this.get<TaskReceiptDto>(`/v2/tasks/${encodeURIComponent(taskId)}/receipt`);
   }
 
   integrations(): Promise<IntegrationsDto> {

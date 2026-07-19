@@ -1001,3 +1001,102 @@ a {
 .review-empty {
   color: var(--color-text-muted);
 }
+
+/* -----------------------------------------------------------------------------------------------
+ * Task + cost receipts (Phase C, Task 8). The two economics sections are visually distinct so the
+ * separation of EXACT request measurements from COHORT outcomes is legible, not just structural.
+ * --------------------------------------------------------------------------------------------- */
+
+.task-receipt-page > section,
+.cost-breakdown > section {
+  margin-top: var(--space-5, 2rem);
+}
+
+.task-receipt-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-2, 0.5rem) var(--space-4, 1.5rem);
+  margin-top: var(--space-3, 1rem);
+}
+
+.task-receipt-meta dt {
+  color: var(--color-text-muted);
+  font-size: 0.85em;
+}
+
+.cost-breakdown {
+  display: grid;
+  gap: var(--space-5, 2rem);
+}
+
+.request-table,
+.task-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--space-3, 1rem);
+  font-size: 0.92em;
+}
+
+.request-table th,
+.request-table td,
+.task-table th,
+.task-table td {
+  text-align: left;
+  padding: var(--space-2, 0.5rem);
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.request-table thead th,
+.task-table thead th {
+  color: var(--color-text-muted);
+  font-weight: 600;
+  border-bottom: 2px solid var(--color-border);
+}
+
+.delivery-list,
+.knowledge-change-list,
+.policy-finding-list,
+.timeline-list {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-3, 1rem) 0 0;
+  display: grid;
+  gap: var(--space-2, 0.5rem);
+}
+
+.delivery-item,
+.knowledge-change-item,
+.policy-finding-item,
+.timeline-item {
+  padding: var(--space-2, 0.5rem) var(--space-3, 1rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+}
+
+.delivery-status,
+.policy-finding-severity {
+  font-weight: 600;
+}
+
+.knowledge-change-trust {
+  color: var(--color-text-muted);
+}
+
+.policy-finding-behavior {
+  color: var(--color-text-muted);
+  font-size: 0.85em;
+}
+
+.timeline-list {
+  counter-reset: none;
+}
+
+.timeline-kind {
+  font-weight: 600;
+}
+
+.timeline-at {
+  color: var(--color-text-muted);
+  font-size: 0.85em;
+}

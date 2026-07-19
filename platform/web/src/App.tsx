@@ -8,8 +8,11 @@ import type {
   RunbookDetailDto,
   SystemMapDto,
   SystemMapView,
+  TaskReceiptDto,
+  TasksDto,
 } from "./api/types";
 import { AppShell } from "./components/AppShell";
+import { AgentTasksPage } from "./pages/AgentTasksPage";
 import { DecisionPage } from "./pages/DecisionPage";
 import { FeaturePage } from "./pages/FeaturePage";
 import { OnboardingPage } from "./pages/OnboardingPage";
@@ -17,6 +20,7 @@ import { OverviewPage } from "./pages/OverviewPage";
 import { ReviewQueuePage, type ReviewDecisionInput, type ReviewMutationFeedback } from "./pages/ReviewQueuePage";
 import { RunbookPage } from "./pages/RunbookPage";
 import { SystemMapPage } from "./pages/SystemMapPage";
+import { TaskReceiptPage } from "./pages/TaskReceiptPage";
 import { navigateTo, routeToPath, useRoute, type Route } from "./router";
 
 // The portal root. It resolves the current route from history, loads the repository overview once,
@@ -260,6 +264,44 @@ function ReviewQueueContainer({ api }: { api: KageApiClient }): React.ReactEleme
   );
 }
 
+// Loads the list of agent tasks Kage holds receipts for. Fetched lazily (only when the Agent Tasks
+// or Costs section is open) so it never sits on the context-delivery critical path.
+function AgentTasksContainer({ api }: { api: KageApiClient }): React.ReactElement {
+  const [state, setState] = useState<
+    { status: "loading" } | { status: "ready"; tasks: TasksDto } | { status: "error"; message: string }
+  >({ status: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+    api
+      .tasks()
+      .then((tasks) => {
+        if (!cancelled) setState({ status: "ready", tasks });
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setState({ status: "error", message: error instanceof Error ? error.message : "Unknown error" });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
+
+  if (state.status === "loading") {
+    return (
+      <p role="status" aria-live="polite">
+        Loading agent tasks…
+      </p>
+    );
+  }
+  if (state.status === "error") {
+    return <p role="alert">Agent tasks are unavailable: {state.message}</p>;
+  }
+  return <AgentTasksPage tasks={state.tasks.tasks} />;
+}
+
 function RoutedPage({
   route,
   overview,
@@ -335,10 +377,17 @@ function RoutedPage({
     case "review":
       return <ReviewQueueContainer api={api} />;
     case "tasks":
-    case "task":
-      return <PagePlaceholder title="Agent Tasks" />;
     case "costs":
-      return <PagePlaceholder title="Costs and Outcomes" />;
+      return <AgentTasksContainer api={api} />;
+    case "task":
+      return (
+        <DetailContainer<TaskReceiptDto>
+          slug={route.id}
+          label="task receipt"
+          load={(id) => api.taskReceipt(id)}
+          render={(receipt) => <TaskReceiptPage receipt={receipt} />}
+        />
+      );
     case "integrations":
       return <PagePlaceholder title="Integrations" />;
     case "settings":

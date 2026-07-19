@@ -29,7 +29,9 @@ import { ensureRuntimeToken } from "./token.js";
 import { ContentStore } from "../gateway/content-store.js";
 import { matchContentRoute, retrieve } from "../api/retrieve.js";
 import { matchMinimalChangeRoute, minimalChangeForTask } from "../api/minimal-change.js";
-import { buildTaskReceiptsBody } from "../api/task-receipts.js";
+import { buildTaskReceiptAggregate, buildTaskReceiptsBody } from "../api/task-receipts.js";
+import { findTaskSummary } from "../api/read-models.js";
+import { DeliveryStore } from "../storage/delivery-store.js";
 import { handlePortalRoute, matchPortalRoute, type PortalRoute } from "../api/router.js";
 import { handleReviewMutation, REVIEW_ACTIONS, type ReviewAction } from "../api/review.js";
 import { execFileSync } from "node:child_process";
@@ -39,7 +41,7 @@ const DEFAULT_PORT = 3112;
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
 
-type RouteKind = "health" | "status" | "handshakes" | "events" | "context" | "receipts" | "content" | "minimal_change" | "portal" | "review_mutation";
+type RouteKind = "health" | "status" | "handshakes" | "events" | "context" | "receipts" | "task_receipt" | "content" | "minimal_change" | "portal" | "review_mutation";
 
 interface MatchedRoute {
   kind: RouteKind;
@@ -200,6 +202,21 @@ function receiptRoute(pathname: string): MatchedRoute | undefined {
   }
 }
 
+// GET /v2/tasks/:taskId/receipt — the AGGREGATE task receipt (Phase C, Task 8): request economics,
+// cohort outcomes, deliveries, knowledge changes, and policy findings for one task. Distinct from the
+// raw `/receipts` list above; matched before the portal read routes so the sub-path wins.
+function taskReceiptAggregateRoute(pathname: string): MatchedRoute | undefined {
+  const match = /^\/v2\/tasks\/([^/]+)\/receipt$/.exec(pathname);
+  if (!match) return undefined;
+  try {
+    const taskId = decodeURIComponent(match[1]);
+    if (!taskId || taskId.includes("/")) return undefined;
+    return { kind: "task_receipt", method: "GET", taskId };
+  } catch {
+    return undefined;
+  }
+}
+
 // POST /v2/review-items/:id/:action — the authorized review write surface. Matched explicitly (and
 // before the portal read routes) so the more specific mutation path wins over the read listing.
 function reviewMutationRoute(pathname: string): MatchedRoute | undefined {
@@ -228,6 +245,8 @@ function matchRoute(pathname: string): MatchedRoute | undefined {
   if (minimalChange) return { kind: "minimal_change", method: "GET", taskId: minimalChange.taskId };
   const receipt = receiptRoute(pathname);
   if (receipt) return receipt;
+  const taskReceiptAggregate = taskReceiptAggregateRoute(pathname);
+  if (taskReceiptAggregate) return taskReceiptAggregate;
   const reviewMutation = reviewMutationRoute(pathname);
   if (reviewMutation) return reviewMutation;
   // The portal read model is matched last so the more specific task sub-routes above (receipts,
@@ -377,6 +396,40 @@ function createRequestHandler(
           diffText: guardActive ? taskDiffText(projectDir) : "",
           model: guardActive ? new Repository(db) : null,
           now: new Date().toISOString(),
+        }));
+        return;
+      }
+      if (route.kind === "task_receipt") {
+        const taskId = route.taskId!;
+        const model = new Repository(db);
+        const task = findTaskSummary(model, taskId, (id) => receiptStore.forTask(id).length);
+        if (!task) {
+          error(res, 404, "not_found");
+          return;
+        }
+        const policy = readVnextConfig(projectDir)?.vnext.minimal_change
+          ?? { enabled: false, mode: "off", enforced_rules: [] };
+        const guardActive = policy.enabled && policy.mode !== "off";
+        // Reuse the exact receipts-body composition for the Minimal Change Guard section, so the
+        // aggregate's policy findings never drift from the raw `/receipts` surface.
+        const receiptsBody = buildTaskReceiptsBody({
+          taskId,
+          receipts: receiptStore.forTask(taskId),
+          repositoryId: task.repository_id,
+          policy,
+          diffText: guardActive ? taskDiffText(projectDir) : "",
+          model: guardActive ? model : null,
+          now: new Date().toISOString(),
+        });
+        // Phase B links no claim/review to a task_id, so there is no honest task→knowledge join yet;
+        // an empty list is the truthful state (surfaced in the UI as "no knowledge changes recorded"),
+        // never a fabricated set. Populating this awaits a task-attributed knowledge event (Phase E).
+        json(res, 200, buildTaskReceiptAggregate({
+          task,
+          receipts: receiptStore.forTask(taskId),
+          deliveries: new DeliveryStore(db).forTask(taskId),
+          knowledgeChanges: [],
+          policySection: receiptsBody.minimal_change ?? null,
         }));
         return;
       }

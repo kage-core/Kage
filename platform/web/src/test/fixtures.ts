@@ -17,6 +17,8 @@ import type {
   ReviewItemDto,
   RunbookDetailDto,
   SystemMapDto,
+  TaskReceiptDto,
+  TaskSummaryDto,
 } from "../api/types";
 
 export function fixtureRepository(overrides: Partial<RepositoryDto> = {}): RepositoryDto {
@@ -493,6 +495,161 @@ export function fixtureDecision(overrides: Partial<DecisionDetailDto> = {}): Dec
       }),
     ],
     health: fixtureHealth({ verified: 1, stale: 0, disputed: 0, missing_required_fields: [] }),
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Task + cost receipts — EXACT request economics kept strictly separate from COHORT outcomes.
+//
+// The fixture deliberately mixes exact / cohort / unavailable metrics and includes a knowledge
+// change with a navigable evidence link, so the TaskReceiptPage tests can assert: the two economics
+// sections are rendered under separate headings, no fused "total value created" is printed, an
+// unmeasured metric renders "Unavailable", and every injected knowledge change links to evidence.
+// ---------------------------------------------------------------------------------------------
+
+export function fixtureTaskSummary(overrides: Partial<TaskSummaryDto> = {}): TaskSummaryDto {
+  return {
+    task_id: "task-1",
+    session_id: "session-1",
+    repository_id: "repo-1",
+    agent_surface: "proxy",
+    started_at: "2026-07-18T12:00:00.000Z",
+    ended_at: "2026-07-18T12:05:00.000Z",
+    outcome: "completed",
+    receipt_count: 2,
+    ...overrides,
+  };
+}
+
+export function fixtureTaskReceipt(overrides: Partial<TaskReceiptDto> = {}): TaskReceiptDto {
+  return {
+    task: fixtureTaskSummary(),
+    exact_request_measurements: {
+      metrics: [
+        {
+          label: "Net input cost",
+          value: -0.0004,
+          unit: "usd",
+          exactness: "exact",
+          formula:
+            "Σ(provider_input_cost_after_usd − provider_input_cost_before_usd) over requests priced on both sides",
+          source_path: "mcp/vnext/gateway/cohort-metrics.ts",
+        },
+        {
+          label: "Net input tokens",
+          value: -200,
+          unit: "tokens",
+          exactness: "exact",
+          formula: "Σ(after_input_tokens − before_input_tokens) over requests measured on both sides",
+          source_path: "mcp/vnext/measurement/receipt.ts",
+        },
+      ],
+      priced_request_count: 1,
+      measured_token_request_count: 1,
+      total_request_count: 2,
+      requests: [
+        {
+          request_id: "req-both",
+          provider: "anthropic",
+          model: "claude-sonnet",
+          mode: "assist",
+          measurement_quality: "exact",
+          net_input_cost_usd: -0.0004,
+          net_input_tokens: -200,
+          transformations: ["payload_compress"],
+          created_at: "2026-07-18T12:00:01.000Z",
+        },
+        {
+          request_id: "req-one",
+          provider: "anthropic",
+          model: "claude-sonnet",
+          mode: "audit",
+          measurement_quality: "partial",
+          net_input_cost_usd: null,
+          net_input_tokens: null,
+          transformations: [],
+          created_at: "2026-07-18T12:00:02.000Z",
+        },
+      ],
+    },
+    task_outcomes: {
+      request_count: 2,
+      metrics: [
+        {
+          label: "Output tokens (p50)",
+          value: 100,
+          unit: "tokens",
+          exactness: "cohort",
+          formula: "p50(output_tokens) over receipts that measured output tokens",
+          source_path: "mcp/vnext/gateway/cohort-metrics.ts",
+        },
+        {
+          label: "Local latency (p95)",
+          value: 5,
+          unit: "milliseconds",
+          exactness: "cohort",
+          formula: "p95(latency_ms) over all receipts",
+          source_path: "mcp/vnext/gateway/cohort-metrics.ts",
+        },
+        {
+          label: "Kage processing cost",
+          value: null,
+          unit: "usd",
+          exactness: "unavailable",
+          formula: "Σ(kage_processing_cost_usd) over receipts that measured it",
+          source_path: "mcp/vnext/gateway/cohort-metrics.ts",
+        },
+      ],
+    },
+    deliveries: [
+      {
+        delivery_id: "d-1",
+        capsule_id: "cap-1",
+        injection_location: "system",
+        status: "delivered",
+        added_bytes: 1_200,
+        added_tokens: 300,
+        delivered_at: "2026-07-18T12:00:00.500Z",
+        reason: "attached",
+      },
+    ],
+    knowledge_changes: [
+      {
+        id: "kc-1",
+        title: "Authentication now supports passkeys",
+        change_kind: "claim_proposed",
+        entity_kind: "feature",
+        entity_slug: "authentication",
+        trust_state: "proposed",
+        evidence_href: "/features/authentication",
+      },
+    ],
+    policy_mode: "advisory",
+    policy_findings: [
+      {
+        finding_id: "f-1",
+        kind: "new_dependency",
+        title: "New dependency added: left-pad",
+        severity: "warning",
+        deterministic: true,
+        changed_behavior: null,
+      },
+    ],
+    timeline: [
+      { kind: "task_started", at: "2026-07-18T12:00:00.000Z", detail: "Task started on proxy" },
+      {
+        kind: "capsule_delivered",
+        at: "2026-07-18T12:00:00.500Z",
+        detail: "Context delivered to system (1200 bytes)",
+      },
+      {
+        kind: "request_transformed",
+        at: "2026-07-18T12:00:01.000Z",
+        detail: "Request req-both handled in assist mode (payload_compress)",
+      },
+      { kind: "task_ended", at: "2026-07-18T12:05:00.000Z", detail: "Task ended: completed" },
+    ],
     ...overrides,
   };
 }

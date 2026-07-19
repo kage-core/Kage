@@ -231,6 +231,138 @@ export interface TaskDetailDto {
   receipt_count: number;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Task + cost receipts — EXACT request economics kept strictly SEPARATE from COHORT outcomes.
+//
+// The honesty contract this DTO set exists to enforce:
+//   - EXACT request economics (what a transform did to the prompt) live in
+//     `exact_request_measurements`; COHORT outcome trends (output tokens, latency, Kage's own
+//     processing cost) live in `task_outcomes`. The two are NEVER fused, and there is NO
+//     "total value created" / ROI number anywhere — a change in model output can never be dressed
+//     up as a prompt saving.
+//   - A net input cost/token delta is EXACT only over requests measured on BOTH sides; a one-sided
+//     request reports `null`, never `before − 0` (which would book the whole request as a saving).
+//   - Every metric carries `exactness` + `formula` + `source_path`; an unmeasurable metric is
+//     `value: null` with `exactness: "unavailable"`, rendered "Unavailable", never a fabricated zero.
+//   - Every injected knowledge change links to its EVIDENCE through a genuinely navigable portal
+//     route (`evidence_href`), or reports `null` — never a fabricated dead link.
+// ---------------------------------------------------------------------------------------------
+
+// A receipt metric carries the same honesty contract as `MetricDto` (exactness + formula + source),
+// but is not constrained to the fixed overview `MetricId` set. `value: null` renders "Unavailable".
+export interface ReceiptMetricDto {
+  label: string;
+  value: number | null;
+  unit: "usd" | "tokens" | "milliseconds" | "count";
+  exactness: MetricExactness;
+  formula: string;
+  source_path: string;
+}
+
+export type ReceiptMeasurementQuality = "exact" | "partial" | "unavailable";
+
+// One transformed request, kept ACCESSIBLE so the exact per-request economics are auditable and never
+// dissolved into a single cohort number. `net_input_cost_usd` / `net_input_tokens` are the EXACT
+// deltas (`after − before`, positive = more expensive), present ONLY when the request was measured on
+// BOTH sides; a one-sided request reports `null`.
+export interface RequestMeasurementDto {
+  request_id: string;
+  provider: string;
+  model: string | null;
+  mode: "audit" | "assist" | "protect";
+  measurement_quality: ReceiptMeasurementQuality;
+  net_input_cost_usd: number | null;
+  net_input_tokens: number | null;
+  transformations: string[];
+  created_at: string;
+}
+
+// The EXACT request economics of a task. Totals are summed over the both-sided-measured requests
+// only; the per-request rows stay accessible for audit.
+export interface ExactRequestMeasurementsDto {
+  metrics: ReceiptMetricDto[];
+  // Requests priced on both sides — the cost total's honest denominator.
+  priced_request_count: number;
+  // Requests with input tokens measured on both sides — the token total's honest denominator.
+  measured_token_request_count: number;
+  total_request_count: number;
+  requests: RequestMeasurementDto[];
+}
+
+// The COHORT outcome trends of a task: output-token and latency distributions and Kage's own
+// processing cost. Deliberately SEPARATE from the exact input economics above.
+export interface TaskOutcomesDto {
+  metrics: ReceiptMetricDto[];
+  request_count: number;
+}
+
+// A single injected context delivery for the task — one row of the injected-sections timeline. A
+// skipped / failed-open delivery is shown as such, never silently counted as a successful attachment.
+export interface DeliveryRecordDto {
+  delivery_id: string;
+  capsule_id: string;
+  injection_location: "system" | "user_turn" | "tool_result" | "none";
+  status: "delivered" | "skipped" | "failed_open";
+  added_bytes: number;
+  added_tokens: number | null;
+  delivered_at: string;
+  reason: string;
+}
+
+// A knowledge change linked to the task, with a link to its EVIDENCE. `evidence_href` is a genuinely
+// navigable portal route to the entity's detail page (never a fabricated dead link); it is `null`
+// when there is no navigable target, and the section then renders the change without a link.
+export interface KnowledgeChangeDto {
+  id: string;
+  title: string;
+  change_kind: string;
+  entity_kind: EntityKind | null;
+  entity_slug: string | null;
+  trust_state: TrustState;
+  evidence_href: string | null;
+}
+
+// A compact, self-contained projection of a Minimal Change Guard finding for the task receipt.
+// `changed_behavior` is ALWAYS `null` — whether the recommendation changed what the agent did is
+// unknown without a controlled comparison, so it is never a fabricated boolean.
+export interface PolicyFindingSummaryDto {
+  finding_id: string;
+  kind: string;
+  title: string;
+  severity: string;
+  deterministic: boolean;
+  changed_behavior: null;
+}
+
+export type TaskTimelineKind =
+  | "task_started"
+  | "capsule_delivered"
+  | "request_transformed"
+  | "knowledge_changed"
+  | "policy_finding"
+  | "task_ended";
+
+// A single receipt-timeline event. `at` is the ISO timestamp, or `null` when the underlying record
+// carries none (rendered "unavailable", never omitted in a way that implies success).
+export interface TaskTimelineEventDto {
+  kind: TaskTimelineKind;
+  at: string | null;
+  detail: string;
+}
+
+// The aggregate task receipt: request economics, outcomes, deliveries, knowledge changes, policy
+// findings, and a timeline — all keyed by one `task_id`, none of them fused into a single ROI figure.
+export interface TaskReceiptDto {
+  task: TaskSummaryDto;
+  exact_request_measurements: ExactRequestMeasurementsDto;
+  task_outcomes: TaskOutcomesDto;
+  deliveries: DeliveryRecordDto[];
+  knowledge_changes: KnowledgeChangeDto[];
+  policy_mode: string | null;
+  policy_findings: PolicyFindingSummaryDto[];
+  timeline: TaskTimelineEventDto[];
+}
+
 export interface IntegrationsDto {
   integrations: IntegrationDto[];
 }
