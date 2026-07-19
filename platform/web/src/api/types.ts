@@ -319,6 +319,9 @@ export interface SystemMapLaneDto {
 // One row per SHOWN node (not per edge), so the table is a complete accessible equivalent of the map
 // — including isolated nodes an edge-only table would drop. `upstream`/`downstream` list the
 // canonical names of neighbors within the window, so relations survive without the 2D rendering.
+// `truncated` mirrors the node's flag (the diagram's "+more" / "has hidden neighbors"): without it a
+// windowed-out node's empty relation cell would read as "None" and assert an absence that is false —
+// the exact failure the "equivalent accessible table" gate forbids.
 export interface SystemMapTableRowDto {
   entity_id: string;
   node: string;
@@ -328,6 +331,9 @@ export interface SystemMapTableRowDto {
   href: string | null;
   upstream: string[];
   downstream: string[];
+  // True when this node has a neighbor OUTSIDE the current window — identical to the node's flag, so
+  // the table carries the same truncation signal the diagram does and never implies a false leaf.
+  truncated: boolean;
 }
 
 export interface SystemMapDto {

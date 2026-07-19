@@ -10,8 +10,22 @@ interface SystemMapTableProps {
   rows: SystemMapTableRowDto[];
 }
 
-function NeighborList({ names }: { names: string[] }): React.ReactElement {
-  if (names.length === 0) return <span className="muted">None</span>;
+// Renders a node's neighbors on ONE side of the graph. `truncated` is the node's (undirected) flag —
+// the same "+more" signal the diagram carries. When a relation cell is empty on a truncated node the
+// absence is a WINDOW artifact, not a true leaf, so we never print a bare "None": we qualify it and
+// name the hidden neighbors, exactly what the accessible-table parity gate requires.
+function NeighborList({ names, truncated }: { names: string[]; truncated: boolean }): React.ReactElement {
+  if (names.length === 0) {
+    if (truncated) {
+      return (
+        <span className="muted">
+          None in this view
+          <span className="truncation-note"> · hidden neighbors beyond the window</span>
+        </span>
+      );
+    }
+    return <span className="muted">None</span>;
+  }
   return (
     <ul className="neighbor-list">
       {names.map((name) => (
@@ -53,10 +67,10 @@ export function SystemMapTable({ rows }: SystemMapTableProps): React.ReactElemen
               </span>
             </td>
             <td>
-              <NeighborList names={row.upstream} />
+              <NeighborList names={row.upstream} truncated={row.truncated} />
             </td>
             <td>
-              <NeighborList names={row.downstream} />
+              <NeighborList names={row.downstream} truncated={row.truncated} />
             </td>
           </tr>
         ))}

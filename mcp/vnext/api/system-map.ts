@@ -231,6 +231,9 @@ export function buildSystemMap(
       href: node.href,
       upstream: [...new Set(upstream)].sort(),
       downstream: [...new Set(downstream)].sort(),
+      // Carry the node's truncation into the row so the accessible table shows the same "+more" signal
+      // the diagram does — an empty relation cell on a truncated node is windowed, not a true leaf.
+      truncated: node.truncated,
     });
   }
   table.sort((a, b) => a.node.localeCompare(b.node) || a.entity_id.localeCompare(b.entity_id));

@@ -223,6 +223,7 @@ export function fixtureSystemMap(overrides: Partial<SystemMapDto> = {}): SystemM
         href: "/features/authentication",
         upstream: [],
         downstream: ["Token store"],
+        truncated: false,
       },
       {
         entity_id: "data-session",
@@ -233,6 +234,7 @@ export function fixtureSystemMap(overrides: Partial<SystemMapDto> = {}): SystemM
         href: null,
         upstream: ["Token store"],
         downstream: [],
+        truncated: true,
       },
       {
         entity_id: "component-token",
@@ -243,6 +245,7 @@ export function fixtureSystemMap(overrides: Partial<SystemMapDto> = {}): SystemM
         href: "/components/token-store",
         upstream: ["Authentication"],
         downstream: ["Session record"],
+        truncated: false,
       },
     ],
     truncated: true,

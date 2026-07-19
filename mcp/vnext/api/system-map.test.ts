@@ -174,6 +174,31 @@ test("initial view is limited to two hops from the view's roots and marks trunca
   assert.equal(map.truncated, true);
 });
 
+test("each table row carries the same truncation flag as its node, so the a11y table never reads a windowed-out node as a leaf", () => {
+  const map = buildSystemMap(fixtureModel(), REPO, "feature");
+  const nodeById = new Map(map.lanes.flatMap((l) => l.nodes).map((n) => [n.entity_id, n]));
+
+  // Session record has a hidden neighbor (owner-team, one hop past the window) — its node is
+  // truncated, and its ROW must carry that same flag or a table-only reader sees "Downstream: None"
+  // and concludes it is a leaf, the exact false-absence the parity gate forbids.
+  const sessionRow = map.table.find((r) => r.entity_id === "data-session")!;
+  assert.equal(sessionRow.downstream.length, 0, "the hidden neighbor is downstream, so the shown downstream is empty");
+  assert.equal(sessionRow.truncated, true, "a windowed-out node's row must mark truncation, not silently render as a leaf");
+
+  // A node with no hidden neighbors keeps truncated:false, so we never over-claim hidden relations.
+  const tokenRow = map.table.find((r) => r.entity_id === "component-token")!;
+  assert.equal(tokenRow.truncated, false);
+
+  // Every row's truncated flag equals its node's — the table is a faithful equivalent of the diagram.
+  for (const row of map.table) {
+    assert.equal(
+      row.truncated,
+      nodeById.get(row.entity_id)!.truncated,
+      `row ${row.entity_id} truncation must match its node`,
+    );
+  }
+});
+
 test("focusing an entity re-roots the two-hop window on it", () => {
   const map = buildSystemMap(fixtureModel(), REPO, "feature", "feature-auth");
   const shown = new Set(map.lanes.flatMap((l) => l.nodes).map((n) => n.entity_id));

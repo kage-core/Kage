@@ -48,6 +48,25 @@ describe("SystemMapTable", () => {
     // Session record has no detail page yet — it is rendered as text, not a broken link.
     expect(screen.queryByRole("link", { name: "Session record" })).toBeNull();
   });
+
+  test("a truncated node's empty relation cell never renders a bare 'None' that reads as a leaf", () => {
+    render(<SystemMapTable rows={fixtureSystemMap().table} />);
+    const sessionRow = screen.getByRole("rowheader", { name: "Session record" }).closest("tr")!;
+    // The diagram marks this node as having hidden neighbors ("+more"); the table must carry the same
+    // signal instead of asserting the node is a leaf.
+    expect(within(sessionRow).getByText(/hidden neighbors/i)).toBeInTheDocument();
+    // Its windowed-empty downstream cell must NOT assert an absolute "None".
+    expect(within(sessionRow).queryByText("None")).toBeNull();
+  });
+
+  test("a genuinely non-truncated leaf cell still reads 'None' — absence is asserted only when true", () => {
+    render(<SystemMapTable rows={fixtureSystemMap().table} />);
+    const authRow = screen.getByRole("rowheader", { name: "Authentication" }).closest("tr")!;
+    // Authentication has no upstream and no hidden neighbors, so an honest "None" is correct here and
+    // must be preserved — the fix must not blanket-suppress every empty cell.
+    expect(within(authRow).getByText("None")).toBeInTheDocument();
+    expect(within(authRow).queryByText(/hidden neighbors/i)).toBeNull();
+  });
 });
 
 describe("SystemMapSvg", () => {

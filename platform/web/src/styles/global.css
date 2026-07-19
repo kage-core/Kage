@@ -686,6 +686,12 @@ a {
   padding-left: var(--space-4);
 }
 
+/* The windowed-out signal on an empty relation cell — the table's equivalent of the diagram's
+ * "+more". Set apart so a sighted reader parses it as a truncation note, not a relation name. */
+.truncation-note {
+  font-style: italic;
+}
+
 /* ---------------------------------------------------------------------------------------------
  * Knowledge detail pages (feature / component / flow / runbook / decision).
  *
