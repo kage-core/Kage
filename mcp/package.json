@@ -56,7 +56,9 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.10.2",
+    "jose": "^6.2.3",
     "pg": "^8.22.0",
+    "stripe": "^22.3.2",
     "three": "^0.184.0",
     "tree-sitter-wasms": "^0.1.13",
     "typescript": "^5.0.0",
@@ -64,6 +66,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/pg": "^8.20.0",
     "embedded-postgres": "^18.4.0-beta.17"
   },
   "engines": {
