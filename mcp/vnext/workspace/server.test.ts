@@ -43,7 +43,7 @@ async function workspaceRequest(
 test("workspace health checks database migration version", async () => {
   const response = await workspaceRequest("GET", "/v1/health");
   assert.equal(response.status, 200);
-  assert.equal(response.body.database_migration, 1);
+  assert.equal(response.body.database_migration, 2);
 });
 
 test("knowledge tables require workspace and repository identifiers", async () => {
