@@ -26,6 +26,7 @@ export type Route =
   | { page: "costs" }
   | { page: "integrations" }
   | { page: "settings" }
+  | { page: "admin-diagnostics" }
   | { page: "not-found"; path: string };
 
 export interface NavLink {
@@ -49,6 +50,22 @@ export const navLinks: NavLink[] = [
   { label: "Integrations", href: "/integrations" },
   { label: "Settings", href: "/settings" },
 ];
+
+// The daemon serves the portal under `/app/`. Detect that mount from the current pathname so the SPA
+// can strip it before routing and re-add it on every internal link — the portal uses root-absolute
+// hrefs, and a full-page navigation to `/review` (rather than `/app/review`) would leave the mount.
+// At the root mount (dev, tests) the base is empty and every helper here is a no-op.
+export function portalBase(pathname: string = typeof window !== "undefined" ? window.location.pathname : "/"): string {
+  return pathname === "/app" || pathname.startsWith("/app/") ? "/app" : "";
+}
+
+// Prefix a root-absolute portal link with the current mount base. Fragment links (`#…`) and absolute
+// URLs (`https://…`) are never rewritten; only same-origin root-absolute paths are moved under the base.
+export function withBase(href: string, base: string = portalBase()): string {
+  if (!base) return href;
+  if (!href.startsWith("/")) return href; // fragments, relative, and absolute URLs pass through
+  return `${base}${href}`;
+}
 
 function splitPath(input: string): { segments: string[]; query: URLSearchParams } {
   const [rawPath, rawQuery = ""] = input.split("?");
@@ -108,6 +125,11 @@ export function parseRoute(input: string): Route {
     case "settings":
       if (segments.length === 1) return { page: "settings" };
       break;
+    case "admin":
+      // The segregated operator surface. Raw packets, graph edges, checkpoints, and DB diagnostics
+      // live ONLY here, never on the main portal pages.
+      if (segments.length === 2 && tail === "diagnostics") return { page: "admin-diagnostics" };
+      break;
   }
 
   return { page: "not-found", path: input };
@@ -151,6 +173,8 @@ export function routeToPath(route: Route): string {
       return "/integrations";
     case "settings":
       return "/settings";
+    case "admin-diagnostics":
+      return "/admin/diagnostics";
     case "not-found":
       return route.path;
   }
@@ -166,11 +190,11 @@ function stripBase(pathname: string, base: string): string {
   return pathname;
 }
 
-export function currentPath(base = ""): string {
+export function currentPath(base = portalBase()): string {
   return stripBase(window.location.pathname, base) + window.location.search;
 }
 
-export function navigateTo(route: Route, base = ""): void {
+export function navigateTo(route: Route, base = portalBase()): void {
   const path = routeToPath(route);
   const prefix = base.replace(/\/$/, "");
   window.history.pushState({}, "", `${prefix}${path}`);
@@ -179,7 +203,7 @@ export function navigateTo(route: Route, base = ""): void {
 
 // Subscribe a component to the current route. Re-renders on `popstate` (back/forward and our own
 // `navigateTo`). `base` is the daemon mount prefix.
-export function useRoute(base = ""): Route {
+export function useRoute(base = portalBase()): Route {
   const [route, setRoute] = useState<Route>(() => parseRoute(currentPath(base)));
   useEffect(() => {
     const onChange = (): void => setRoute(parseRoute(currentPath(base)));

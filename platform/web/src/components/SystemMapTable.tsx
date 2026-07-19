@@ -1,5 +1,6 @@
 import type { SystemMapTableRowDto } from "../api/types";
 import { HEALTH_ICONS, HEALTH_LABELS } from "./health";
+import { withBase } from "../router";
 
 // The accessible equivalent of the 2D map: ONE row per shown node (never an edge dump), carrying the
 // node's kind, health, and its upstream/downstream neighbor names. Screen-reader and keyboard users
@@ -55,7 +56,7 @@ export function SystemMapTable({ rows }: SystemMapTableProps): React.ReactElemen
         {rows.map((row) => (
           <tr key={row.entity_id}>
             <th scope="row">
-              {row.href ? <a href={row.href}>{row.node}</a> : <span>{row.node}</span>}
+              {row.href ? <a href={withBase(row.href)}>{row.node}</a> : <span>{row.node}</span>}
             </th>
             <td>{row.kind}</td>
             <td>

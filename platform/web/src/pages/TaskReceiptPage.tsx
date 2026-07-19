@@ -6,6 +6,7 @@ import type {
   TaskTimelineEventDto,
 } from "../api/types";
 import { CostBreakdown } from "../components/CostBreakdown";
+import { withBase } from "../router";
 
 // A single agent task's auditable receipt. Top to bottom:
 //   1. Task identity (id, surface, outcome, timing).
@@ -82,7 +83,7 @@ function KnowledgeChangesSection({
               {change.evidence_href !== null && (
                 <>
                   {" "}
-                  <a className="knowledge-change-evidence" href={change.evidence_href}>
+                  <a className="knowledge-change-evidence" href={withBase(change.evidence_href)}>
                     View evidence
                   </a>
                 </>

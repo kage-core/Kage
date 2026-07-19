@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { RepositoryDto } from "../api/types";
-import { navLinks } from "../router";
+import { navLinks, withBase } from "../router";
 import { RepositorySwitcher } from "./RepositorySwitcher";
 
 // The accessible application shell: a skip link, a banner landmark carrying brand + repository
@@ -55,7 +55,7 @@ export function AppShell({
               return (
                 <li key={link.href}>
                   <a
-                    href={link.href}
+                    href={withBase(link.href)}
                     aria-current={active ? "page" : undefined}
                   >
                     {link.label}

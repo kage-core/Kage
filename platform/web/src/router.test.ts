@@ -1,5 +1,25 @@
 import { describe, expect, test } from "vitest";
-import { parseRoute, routeToPath, navLinks } from "./router";
+import { parseRoute, routeToPath, navLinks, portalBase, withBase } from "./router";
+
+describe("portal base mounting", () => {
+  test("detects the /app mount from the pathname and is empty at root", () => {
+    expect(portalBase("/")).toBe("");
+    expect(portalBase("/overview")).toBe("");
+    expect(portalBase("/app")).toBe("/app");
+    expect(portalBase("/app/")).toBe("/app");
+    expect(portalBase("/app/review")).toBe("/app");
+  });
+
+  test("withBase prefixes root-absolute portal links only when mounted under a base", () => {
+    // At root the base is empty, so links are unchanged (this is why existing tests stay green).
+    expect(withBase("/review", "")).toBe("/review");
+    // Under /app the internal link is prefixed so a full-page navigation stays inside the portal.
+    expect(withBase("/review", "/app")).toBe("/app/review");
+    // Fragments and non-absolute links are never rewritten.
+    expect(withBase("#main-content", "/app")).toBe("#main-content");
+    expect(withBase("https://example.com", "/app")).toBe("https://example.com");
+  });
+});
 
 describe("parseRoute", () => {
   test("maps the overview root", () => {
@@ -35,6 +55,11 @@ describe("parseRoute", () => {
     expect(parseRoute("/features")).toEqual({ page: "features" });
     expect(parseRoute("/review")).toEqual({ page: "review" });
     expect(parseRoute("/settings")).toEqual({ page: "settings" });
+  });
+
+  test("parses the segregated admin diagnostics route", () => {
+    expect(parseRoute("/admin/diagnostics")).toEqual({ page: "admin-diagnostics" });
+    expect(routeToPath({ page: "admin-diagnostics" })).toBe("/admin/diagnostics");
   });
 
   test("unknown routes resolve to a not-found route carrying the path", () => {

@@ -187,6 +187,28 @@ export function viewerRedirectLocation(pathname: string, search: string, fallbac
   return `/viewer/index.html${search || fallbackSearch}`;
 }
 
+// Bare `/app` (no trailing slash) redirects to `/app/` so the SPA's relative asset URLs resolve against
+// the right base. Every other path is not a redirect target here.
+export function appRedirectLocation(pathname: string): string | null {
+  return pathname === "/app" ? "/app/" : null;
+}
+
+// Resolve an `/app/...` request to a file inside the built knowledge portal (`platform/web/dist`).
+// Returns null for non-`/app` paths (the caller handles those). Real built assets resolve to
+// themselves; the entry and any client-side deep link (a path with no matching file) fall back to
+// `index.html` so History-API routing works; path traversal outside the build dir is refused by
+// falling back to the entry rather than escaping. The daemon serves the result under the SAME strict
+// `viewerStaticHeaders` CSP as the legacy viewer — self-hosted assets only.
+export function resolveAppAsset(appDir: string, pathname: string): string | null {
+  if (pathname !== "/app" && pathname !== "/app/" && !pathname.startsWith("/app/")) return null;
+  const index = join(appDir, "index.html");
+  if (pathname === "/app" || pathname === "/app/") return index;
+  const candidate = join(appDir, normalize(pathname.replace(/^\/app\//, "")));
+  if (!isInside(appDir, candidate)) return index; // never escape the build dir
+  if (existsSync(candidate) && statSync(candidate).isFile()) return candidate;
+  return index; // SPA fallback for client-side routes
+}
+
 // Every report file the dashboard reads, keyed by its query-string param name.
 // `value` points at the cumulative value ledger written by recall — it is read-only
 // here and must never be regenerated, or the all-time savings history is lost.
@@ -948,6 +970,9 @@ export async function startViewer(projectDir: string, options: { host?: string; 
   const port = options.port ?? DEFAULT_VIEWER_PORT;
   const viewerDir = resolve(__dirname, "..", "viewer");
   const threeDir = resolve(__dirname, "..", "node_modules", "three");
+  // The built knowledge portal (Phase C). `__dirname` is mcp/dist at runtime, so the repo root is two
+  // levels up and the portal build lands in platform/web/dist. Served under /app/ with the same CSP.
+  const appDir = resolve(__dirname, "..", "..", "platform", "web", "dist");
   const projectRoot = resolve(projectDir);
   const reports = viewerReportPaths(projectRoot);
   const reportsDir = join(projectRoot, ".agent_memory", "reports");
@@ -1003,6 +1028,24 @@ export async function startViewer(projectDir: string, options: { host?: string; 
       return;
     }
     let filePath: string | null = null;
+    // The Phase C knowledge portal, served under /app/ with the same strict CSP as the legacy viewer.
+    // `kage open` points here; the legacy /viewer/ stays alive during the compatibility release.
+    const appRedirect = appRedirectLocation(requestUrl.pathname);
+    if (appRedirect) {
+      res.writeHead(302, { location: appRedirect });
+      res.end();
+      return;
+    }
+    const appAsset = resolveAppAsset(appDir, requestUrl.pathname);
+    if (appAsset) {
+      if (!existsSync(appAsset)) {
+        json(res, 404, { ok: false, error: "portal_not_built" });
+        return;
+      }
+      res.writeHead(200, viewerStaticHeaders(appAsset));
+      res.end(readFileSync(appAsset));
+      return;
+    }
     const redirectLocation = viewerRedirectLocation(requestUrl.pathname, requestUrl.search, new URL(url).search);
     if (redirectLocation) {
       res.writeHead(302, { location: redirectLocation });
@@ -1036,7 +1079,10 @@ export async function startViewer(projectDir: string, options: { host?: string; 
   });
 
   await new Promise<void>((resolveListen) => server.listen(port, host, resolveListen));
-  console.log(`Kage viewer → http://${host}:${port}/`);
+  // The knowledge portal (Phase C) is the primary surface; the legacy 3D viewer stays available at /
+  // during the compatibility release.
+  console.log(`Kage knowledge portal → http://${host}:${port}/app/`);
+  console.log(`Kage legacy viewer → http://${host}:${port}/`);
   process.on("SIGTERM", () => {
     liveFeed.close();
     server.close(() => process.exit(0));

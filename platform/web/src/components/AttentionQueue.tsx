@@ -1,4 +1,5 @@
 import type { AttentionDto } from "../api/types";
+import { withBase } from "../router";
 
 // The "what needs a human" list on the overview. Each item carries a severity (info / warning /
 // critical, exposed as text, not color alone) and a link to the place the operator acts on it. An
@@ -30,7 +31,7 @@ export function AttentionQueue({ items }: AttentionQueueProps): React.ReactEleme
           <span className="attention-severity" data-severity={item.severity}>
             {SEVERITY_LABELS[item.severity]}
           </span>
-          <a href={item.href}>{item.title}</a>
+          <a href={withBase(item.href)}>{item.title}</a>
         </li>
       ))}
     </ul>

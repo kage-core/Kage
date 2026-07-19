@@ -34,6 +34,13 @@ jobs:
         working-directory: mcp
         run: npm run test:vnext
 
+      # The Phase C portal gate: overview metric honesty, system-map table parity, current-vs-history
+      # separation, review role/version/self-approval boundaries, exact-vs-cohort receipts, and the
+      # identifier-only live feed — all proven in-process (no browser, no network). Node 22 only.
+      - name: Kage vNext Phase C gate
+        working-directory: mcp
+        run: npm run test:phase-c
+
       - name: Kage vNext Phase A audit report
         run: node scripts/vnext-phase-a-report.mjs --project . --json
 
@@ -77,6 +84,49 @@ jobs:
       - name: Build
         working-directory: platform/web
         run: npm run build
+
+  portal-e2e:
+    name: Knowledge portal browser journeys (Playwright)
+    runs-on: ubuntu-latest
+    # Browser journeys need a real Chromium AND a live daemon serving the built portal under /app/
+    # backed by a seeded repository model. This job installs the browser and builds the portal; it
+    # runs the journeys only when a seeded portal URL is supplied via KAGE_PORTAL_URL, and otherwise
+    # logs that they were skipped for lack of a live seeded daemon. It NEVER reports a green browser
+    # journey from a run that did not launch a browser.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: platform/web/package-lock.json
+
+      - name: Install
+        working-directory: platform/web
+        run: npm ci
+
+      - name: Build portal
+        working-directory: platform/web
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        working-directory: platform/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser journeys (only against a seeded daemon)
+        working-directory: platform/web
+        env:
+          KAGE_PORTAL_URL: ${{ vars.KAGE_PORTAL_URL }}
+        run: |
+          if [ -z "${KAGE_PORTAL_URL}" ]; then
+            echo "SKIPPED: no KAGE_PORTAL_URL — browser journeys require a live daemon serving the seeded portal under /app/."
+            echo "The e2e specs under platform/web/e2e are compiled and ready; provide KAGE_PORTAL_URL to run them."
+            exit 0
+          fi
+          npm run test:e2e
 
   legacy-node18:
     name: Legacy CLI loads on Node 18

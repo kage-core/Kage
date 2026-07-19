@@ -34,6 +34,7 @@ import { findTaskSummary } from "../api/read-models.js";
 import { DeliveryStore } from "../storage/delivery-store.js";
 import { handlePortalRoute, matchPortalRoute, type PortalRoute } from "../api/router.js";
 import { handleReviewMutation, REVIEW_ACTIONS, type ReviewAction } from "../api/review.js";
+import { PortalEventStream, type ClaimUpdatedEvent } from "../api/events.js";
 import { execFileSync } from "node:child_process";
 
 const HOST = "127.0.0.1" as const;
@@ -41,7 +42,7 @@ const DEFAULT_PORT = 3112;
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
 
-type RouteKind = "health" | "status" | "handshakes" | "events" | "context" | "receipts" | "task_receipt" | "content" | "minimal_change" | "portal" | "review_mutation";
+type RouteKind = "health" | "status" | "handshakes" | "events" | "events_stream" | "context" | "receipts" | "task_receipt" | "content" | "minimal_change" | "portal" | "review_mutation";
 
 interface MatchedRoute {
   kind: RouteKind;
@@ -233,11 +234,17 @@ function reviewMutationRoute(pathname: string): MatchedRoute | undefined {
   }
 }
 
-function matchRoute(pathname: string): MatchedRoute | undefined {
+function matchRoute(pathname: string, method: string): MatchedRoute | undefined {
   if (pathname === "/v2/health") return { kind: "health", method: "GET" };
   if (pathname === "/v2/status") return { kind: "status", method: "GET" };
   if (pathname === "/v2/handshakes") return { kind: "handshakes", method: "POST" };
-  if (pathname === "/v2/events") return { kind: "events", method: "POST" };
+  // /v2/events is method-multiplexed: POST is the FROZEN evidence-ingestion contract; GET is the
+  // additive authenticated live feed. Neither changes the other's wire behavior.
+  if (pathname === "/v2/events") {
+    return method === "GET"
+      ? { kind: "events_stream", method: "GET" }
+      : { kind: "events", method: "POST" };
+  }
   if (pathname === "/v2/context") return { kind: "context", method: "POST" };
   const content = matchContentRoute(pathname);
   if (content) return { kind: "content", method: "GET", sha256: content.sha256 };
@@ -324,6 +331,31 @@ function persistHandshake(
   }
 }
 
+// Publish identifier-only `claim_updated` events for the claims a review mutation moved. Reads the
+// already-serialized mutation result (which carries only DTO fields, never raw content) and forwards
+// just the claim id, entity slug, and new trust_state onto the feed.
+function emitReviewMutationEvents(eventStream: PortalEventStream, body: unknown): void {
+  if (typeof body !== "object" || body === null) return;
+  const result = body as {
+    review?: { entity_slug?: string | null };
+    accepted?: { claim_id?: string; trust_state?: string };
+    replaced?: { claim_id?: string; trust_state?: string };
+  };
+  const entitySlug = result.review?.entity_slug ?? null;
+  const at = new Date().toISOString();
+  for (const claim of [result.accepted, result.replaced]) {
+    if (!claim?.claim_id || !claim.trust_state) continue;
+    const event: ClaimUpdatedEvent = {
+      kind: "claim_updated",
+      claim_id: claim.claim_id,
+      entity_slug: entitySlug,
+      trust_state: claim.trust_state as ClaimUpdatedEvent["trust_state"],
+      at,
+    };
+    eventStream.emit(event);
+  }
+}
+
 function createRequestHandler(
   token: string,
   getStatus: () => VnextRuntimeStatus | undefined,
@@ -333,11 +365,12 @@ function createRequestHandler(
   contextSource: ContextSource | null,
   projectDir: string,
   onEventAppended: (repositoryId: string) => void,
+  eventStream: PortalEventStream,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", `http://${HOST}`);
-      const route = matchRoute(url.pathname);
+      const route = matchRoute(url.pathname, req.method ?? "GET");
       if (!route) {
         error(res, 404, "not_found");
         return;
@@ -368,6 +401,12 @@ function createRequestHandler(
           model_lag_events: computeModelLag(db),
           last_compiled_at: latestCompiledAt(db),
         });
+        return;
+      }
+      if (route.kind === "events_stream") {
+        // The authenticated live feed. It streams identifier-only events (never raw prompt text) and
+        // holds the connection open; it must not fall through to the JSON responders below.
+        eventStream.handleRequest(req, res);
         return;
       }
       if (route.kind === "portal") {
@@ -468,6 +507,9 @@ function createRequestHandler(
         // The single mutating portal surface. The machine token has proven a local operator; the
         // acting identity + optimistic version + self-approval gates are enforced inside the handler.
         const result = handleReviewMutation(new Repository(db), route.reviewItemId!, route.reviewAction!, body);
+        // A successful mutation changes a claim's trust state; publish that as an identifier-only
+        // live event so open portals refresh. The raw claim content is deliberately not carried.
+        if (result.status === 200) emitReviewMutationEvents(eventStream, result.body);
         json(res, result.status, result.body);
         return;
       }
@@ -615,6 +657,9 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
       }
     }
     const scheduler = new CompilerScheduler(compilerModel, eventStore);
+    // The authenticated live feed. It is owned by the runtime so its heartbeat and open connections
+    // are torn down on close().
+    const eventStream = new PortalEventStream();
     let status: VnextRuntimeStatus | undefined;
     server = createServer(createRequestHandler(
       token,
@@ -625,6 +670,7 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
       contextSource,
       options.projectDir,
       (repositoryId) => scheduler.notify(repositoryId),
+      eventStream,
     ));
     server.on("connection", (socket) => {
       sockets.add(socket);
@@ -665,6 +711,8 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
     const close = (): Promise<void> => {
       closePromise ??= (async () => {
         const cleanupFailure = await runCleanupSteps([
+          // End every open SSE connection and stop the heartbeat before the socket teardown.
+          () => eventStream.close(),
           () => closeServer(server!, sockets),
           // The runtime owns the source's lifetime: the context worker thread would otherwise
           // keep the process alive after close().

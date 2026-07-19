@@ -1,4 +1,5 @@
 import type { TaskSummaryDto } from "../api/types";
+import { withBase } from "../router";
 
 // The list of agent tasks Kage has receipts for. Each row links to that task's auditable receipt
 // (request economics, outcomes, deliveries, knowledge changes). An empty list states the reality —
@@ -32,7 +33,7 @@ export function AgentTasksPage({ tasks }: AgentTasksPageProps): React.ReactEleme
             {tasks.map((task) => (
               <tr key={task.task_id}>
                 <th scope="row">
-                  <a href={`/tasks/${encodeURIComponent(task.task_id)}`} className="mono">
+                  <a href={withBase(`/tasks/${encodeURIComponent(task.task_id)}`)} className="mono">
                     {task.task_id}
                   </a>
                 </th>

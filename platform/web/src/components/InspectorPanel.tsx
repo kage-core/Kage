@@ -1,5 +1,6 @@
 import type { SystemMapNodeDto, SystemMapTableRowDto } from "../api/types";
 import { HEALTH_ICONS, HEALTH_LABELS } from "./health";
+import { withBase } from "../router";
 
 // The detail pane for the currently selected map node. It shows the node's identity, its knowledge
 // health (as text, never color alone), a link to its full page when one exists, and its upstream /
@@ -61,7 +62,7 @@ export function InspectorPanel({ node, row, onExpand }: InspectorPanelProps): Re
 
       {node.href && (
         <p>
-          <a href={node.href}>Open full page</a>
+          <a href={withBase(node.href)}>Open full page</a>
         </p>
       )}
 

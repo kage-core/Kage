@@ -1,6 +1,7 @@
 import type { ClaimDto, EntityCardDto, EntityHealthDto, RelatedEntityDto } from "../api/types";
 import { ClaimCard } from "../components/ClaimCard";
 import { KnowledgeHealth } from "../components/KnowledgeHealth";
+import { withBase } from "../router";
 
 // Shared building blocks for the feature / runbook / decision detail pages. Every knowledge page
 // follows the same honesty spine: an identity header, a CURRENT TRUTH region (injectable claims
@@ -20,7 +21,7 @@ const LINKABLE_KINDS: Partial<Record<RelatedEntityDto["kind"], string>> = {
 
 function relatedHref(entity: RelatedEntityDto): string | null {
   const base = LINKABLE_KINDS[entity.kind];
-  return base ? `/${base}/${encodeURIComponent(entity.slug)}` : null;
+  return base ? withBase(`/${base}/${encodeURIComponent(entity.slug)}`) : null;
 }
 
 export function EntityHeader({ entity }: { entity: EntityCardDto }): React.ReactElement {

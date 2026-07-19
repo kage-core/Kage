@@ -3,6 +3,7 @@ import type { KageApiClient } from "./api/client";
 import type {
   DecisionDetailDto,
   EntityDetailDto,
+  IntegrationDto,
   OverviewDto,
   ReviewItemDto,
   RunbookDetailDto,
@@ -12,16 +13,19 @@ import type {
   TasksDto,
 } from "./api/types";
 import { AppShell } from "./components/AppShell";
+import { AdminDiagnosticsPage } from "./pages/AdminDiagnosticsPage";
 import { AgentTasksPage } from "./pages/AgentTasksPage";
 import { DecisionPage } from "./pages/DecisionPage";
 import { FeaturePage } from "./pages/FeaturePage";
+import { IntegrationsPage } from "./pages/IntegrationsPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { OverviewPage } from "./pages/OverviewPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { ReviewQueuePage, type ReviewDecisionInput, type ReviewMutationFeedback } from "./pages/ReviewQueuePage";
 import { RunbookPage } from "./pages/RunbookPage";
 import { SystemMapPage } from "./pages/SystemMapPage";
 import { TaskReceiptPage } from "./pages/TaskReceiptPage";
-import { navigateTo, routeToPath, useRoute, type Route } from "./router";
+import { navigateTo, routeToPath, useRoute, withBase, type Route } from "./router";
 
 // The portal root. It resolves the current route from history, loads the repository overview once,
 // and hosts every page inside the accessible AppShell. The shell (skip link, banner, primary
@@ -63,7 +67,7 @@ function NotFoundPage({ path }: { path: string }): React.ReactElement {
         No portal section matches <code>{path}</code>.
       </p>
       <p>
-        <a href="/overview">Return to Overview</a>
+        <a href={withBase("/overview")}>Return to Overview</a>
       </p>
     </section>
   );
@@ -302,6 +306,44 @@ function AgentTasksContainer({ api }: { api: KageApiClient }): React.ReactElemen
   return <AgentTasksPage tasks={state.tasks.tasks} />;
 }
 
+// Loads live integration health. Fetched lazily (only when the Integrations section is open) so it
+// never sits on the context-delivery critical path.
+function IntegrationsContainer({ api }: { api: KageApiClient }): React.ReactElement {
+  const [state, setState] = useState<
+    { status: "loading" } | { status: "ready"; integrations: IntegrationDto[] } | { status: "error"; message: string }
+  >({ status: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+    api
+      .integrations()
+      .then((response) => {
+        if (!cancelled) setState({ status: "ready", integrations: response.integrations });
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setState({ status: "error", message: error instanceof Error ? error.message : "Unknown error" });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
+
+  if (state.status === "loading") {
+    return (
+      <p role="status" aria-live="polite">
+        Loading integrations…
+      </p>
+    );
+  }
+  if (state.status === "error") {
+    return <p role="alert">Integrations are unavailable: {state.message}</p>;
+  }
+  return <IntegrationsPage integrations={state.integrations} />;
+}
+
 function RoutedPage({
   route,
   overview,
@@ -389,9 +431,11 @@ function RoutedPage({
         />
       );
     case "integrations":
-      return <PagePlaceholder title="Integrations" />;
+      return <IntegrationsContainer api={api} />;
     case "settings":
-      return <PagePlaceholder title="Settings" />;
+      return <SettingsPage />;
+    case "admin-diagnostics":
+      return <AdminDiagnosticsPage />;
     case "not-found":
       return <NotFoundPage path={route.path} />;
   }

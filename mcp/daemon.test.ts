@@ -5,7 +5,7 @@ import { createServer, get } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { daemonContextReport, daemonDoctor, extractWorkItemId, startLiveFeed, startOptionalVnextRuntime, viewerBenchmarkReport, viewerRedirectLocation, viewerReportPaths, viewerStaticHeaders, viewerUrl } from "./daemon.js";
+import { appRedirectLocation, daemonContextReport, daemonDoctor, extractWorkItemId, resolveAppAsset, startLiveFeed, startOptionalVnextRuntime, viewerBenchmarkReport, viewerRedirectLocation, viewerReportPaths, viewerStaticHeaders, viewerUrl } from "./daemon.js";
 import { capture, indexProject } from "./kernel.js";
 
 test("viewer bare routes redirect to index while preserving query params", () => {
@@ -25,6 +25,34 @@ test("viewer static responses include browser security headers", () => {
   assert.match(headers["content-security-policy"], /script-src 'self'/);
   assert.match(headers["content-security-policy"], /script-src-attr 'none'/);
   assert.doesNotMatch(headers["content-security-policy"], /script-src 'unsafe-inline'/);
+});
+
+test("the built portal is served under /app/ with SPA fallback and no path traversal", () => {
+  const appDir = mkdtempSync(join(tmpdir(), "kage-app-"));
+  mkdirSync(join(appDir, "assets"), { recursive: true });
+  writeFileSync(join(appDir, "index.html"), "<!doctype html><title>portal</title>");
+  writeFileSync(join(appDir, "assets", "main.js"), "export const x = 1;");
+
+  // A real built asset resolves to itself.
+  assert.equal(resolveAppAsset(appDir, "/app/assets/main.js"), join(appDir, "assets", "main.js"));
+  // The bare /app/ and /app entry both resolve to the SPA entry document.
+  assert.equal(resolveAppAsset(appDir, "/app/"), join(appDir, "index.html"));
+  assert.equal(resolveAppAsset(appDir, "/app"), join(appDir, "index.html"));
+  // A client-side deep link (no matching file) falls back to the SPA entry so history routing works.
+  assert.equal(resolveAppAsset(appDir, "/app/review"), join(appDir, "index.html"));
+  assert.equal(resolveAppAsset(appDir, "/app/admin/diagnostics"), join(appDir, "index.html"));
+  // Path traversal outside the built portal is refused (never escapes appDir).
+  assert.equal(resolveAppAsset(appDir, "/app/../../etc/passwd"), join(appDir, "index.html"));
+  // Non-/app paths are not this resolver's concern.
+  assert.equal(resolveAppAsset(appDir, "/viewer/index.html"), null);
+  assert.equal(resolveAppAsset(appDir, "/kage/events"), null);
+});
+
+test("bare /app redirects to /app/ so relative asset URLs resolve", () => {
+  assert.equal(appRedirectLocation("/app"), "/app/");
+  assert.equal(appRedirectLocation("/app/"), null);
+  assert.equal(appRedirectLocation("/app/review"), null);
+  assert.equal(appRedirectLocation("/viewer"), null);
 });
 
 test("viewer url serves every report param including the value ledger", () => {
