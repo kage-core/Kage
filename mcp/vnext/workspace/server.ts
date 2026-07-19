@@ -12,6 +12,9 @@ import { currentVersion } from "./migrate.js";
 import { resolveSession, csrfMatches, type ResolvedSession } from "./auth/session.js";
 import { can, scopeAllows } from "./auth/authorize.js";
 import type { Principal } from "./auth/types.js";
+import { applyBatch, pullChanges } from "./sync-routes.js";
+import { assertNoRawPayload } from "../sync/outbox.js";
+import type { SyncBatch } from "../sync/types.js";
 
 export interface WorkspaceServer {
   port: number;
@@ -121,6 +124,24 @@ export function createWorkspaceApp(db: Db): Handler {
       return;
     }
 
+    // POST /v1/sync/push — a local daemon pushes an idempotent, permission-scoped batch.
+    if (method === "POST" && path === "/v1/sync/push") {
+      await handleSyncPush(db, principal, req, res);
+      return;
+    }
+
+    // GET /v1/sync/pull — pull the changes this principal is permitted to see.
+    if (method === "GET" && path === "/v1/sync/pull") {
+      if (!can(principal, "sync.pull")) {
+        json(res, 403, { error: "forbidden", action: "sync.pull" });
+        return;
+      }
+      const cursor = url.searchParams.get("cursor");
+      const result = await pullChanges(db, principal, cursor);
+      json(res, 200, result);
+      return;
+    }
+
     // GET /v1/workspaces/:workspaceId/repositories — list, tenant- and scope-filtered.
     const reposMatch = /^\/v1\/workspaces\/([^/]+)\/repositories$/.exec(path);
     if (reposMatch && method === "GET") {
@@ -136,6 +157,61 @@ export function createWorkspaceApp(db: Db): Handler {
     }
 
     json(res, 404, { error: "not_found" });
+  };
+}
+
+/**
+ * Land a pushed sync batch. Authority is gated three ways: the principal must be allowed to sync at all
+ * (403 otherwise); the batch's workspace must be the principal's own and its repository within scope
+ * (404 otherwise — existence is never disclosed cross-tenant); and the batch must carry no raw payload
+ * (400 otherwise). Only then does the idempotent, tenant-scoped apply run.
+ */
+async function handleSyncPush(
+  db: Db,
+  principal: Principal,
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  if (!can(principal, "sync.push")) {
+    json(res, 403, { error: "forbidden", action: "sync.push" });
+    return;
+  }
+  const body = (await readJsonBody(req)) as Partial<SyncBatch> | undefined;
+  if (!body || typeof body !== "object" || typeof body.batch_id !== "string" || typeof body.repository_id !== "string") {
+    json(res, 400, { error: "invalid_batch" });
+    return;
+  }
+  // The tenant and scope are decided by the SERVER-resolved principal, never by the client's payload.
+  if (body.workspace_id !== principal.workspace_id || !scopeAllows(principal, body.repository_id)) {
+    json(res, 404, { error: "not_found" });
+    return;
+  }
+  const batch = normalizeBatch(body);
+  try {
+    assertNoRawPayload(batch);
+  } catch {
+    json(res, 400, { error: "raw_payload_rejected" });
+    return;
+  }
+  const result = await applyBatch(db, principal, batch);
+  json(res, 200, result);
+}
+
+/** Coerce a parsed body into a full SyncBatch, defaulting every collection so apply never dereferences null. */
+function normalizeBatch(body: Partial<SyncBatch>): SyncBatch {
+  return {
+    protocol_version: 1,
+    batch_id: String(body.batch_id),
+    workspace_id: String(body.workspace_id),
+    repository_id: String(body.repository_id),
+    base_cursor: body.base_cursor ?? null,
+    entities: body.entities ?? [],
+    claims: body.claims ?? [],
+    evidence: body.evidence ?? [],
+    relations: body.relations ?? [],
+    review_decisions: body.review_decisions ?? [],
+    measurements: body.measurements ?? [],
+    created_at: body.created_at ?? new Date().toISOString(),
   };
 }
 
