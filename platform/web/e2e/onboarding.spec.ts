@@ -6,7 +6,7 @@ import { expect, test } from "@playwright/test";
 // rather than an empty overview that implies success.
 test.describe("onboarding and the accessible shell", () => {
   test("the portal presents an accessible shell with the primary navigation landmark", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/app/");
     await expect(page.getByRole("navigation", { name: "Repository knowledge" })).toBeVisible();
     // The skip link is the first focusable element and targets the main region.
     const skip = page.getByRole("link", { name: "Skip to main content" });
@@ -14,7 +14,7 @@ test.describe("onboarding and the accessible shell", () => {
   });
 
   test("a fresh repository is guided through local audit-mode onboarding", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/app/");
     // Audit mode never modifies agent requests — the onboarding flow says so explicitly.
     await expect(page.getByText(/audit mode/i)).toBeVisible();
     await expect(page.getByText(/does not modify agent requests/i)).toBeVisible();

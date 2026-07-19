@@ -9,13 +9,13 @@ test.describe("runbook current truth and honest execution state", () => {
   const slug = process.env.KAGE_RUNBOOK_SLUG ?? "rotate-signing-keys";
 
   test("a runbook with no recorded execution says so instead of implying success", async ({ page }) => {
-    await page.goto(`/runbooks/${slug}`);
+    await page.goto(`/app/runbooks/${slug}`);
     await expect(page.getByRole("region", { name: "Last successful execution" })).toBeVisible();
     await expect(page.getByText("No successful execution has been recorded")).toBeVisible();
   });
 
   test("current truth is presented separately from history and uncertainty", async ({ page }) => {
-    await page.goto(`/runbooks/${slug}`);
+    await page.goto(`/app/runbooks/${slug}`);
     await expect(page.getByRole("region", { name: "Current truth" })).toBeVisible();
   });
 });

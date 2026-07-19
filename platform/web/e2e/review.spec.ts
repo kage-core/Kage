@@ -6,7 +6,7 @@ import { expect, test } from "@playwright/test";
 // without an actor or note is refused; a proposer cannot self-approve a high-impact claim).
 test.describe("evidence-backed review queue", () => {
   test("the queue shows supporting evidence and the acting-as identity control", async ({ page }) => {
-    await page.goto("/review");
+    await page.goto("/app/review");
     // The acting identity is trust-on-assertion in the local model; the operator states who they are.
     await expect(page.getByLabel("Acting as")).toBeVisible();
     // Each item leads with the evidence behind the proposed change.
@@ -14,7 +14,7 @@ test.describe("evidence-backed review queue", () => {
   });
 
   test("an authorized operator accepts a change with a decision note", async ({ page }) => {
-    await page.goto("/review");
+    await page.goto("/app/review");
     await page.getByLabel("Acting as").fill("owner-bob");
     // Record the required decision note on the first open item, then accept.
     await page.getByLabel("Decision note").first().fill("Matches the current implementation and tests.");

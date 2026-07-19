@@ -7,14 +7,14 @@ test.describe("degraded daemon is surfaced honestly", () => {
   test("an API failure renders an accessible unavailable alert, not a fake healthy view", async ({ page }) => {
     // Simulate the daemon read-model being down for every /v2 API call.
     await page.route("**/v2/**", (route) => route.fulfill({ status: 503, body: "unavailable" }));
-    await page.goto("/");
+    await page.goto("/app/");
     await expect(page.getByRole("alert")).toContainText(/unavailable/i);
     // No fabricated dollar figure or "healthy" badge is shown while the daemon is down.
     await expect(page.getByText(/\$\d/)).toHaveCount(0);
   });
 
   test("an integration that is passing through is labelled, never counted as a silent success", async ({ page }) => {
-    await page.goto("/integrations");
+    await page.goto("/app/integrations");
     // The Integrations page conveys state in text; a passthrough adapter is explicitly labelled.
     await expect(page.getByRole("heading", { name: "Integrations" })).toBeVisible();
   });
