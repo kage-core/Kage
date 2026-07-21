@@ -72,7 +72,18 @@ The export is:
 - **Keyed per export.** The route mints a fresh 32-byte key, returns it to the authenticated requester
   once, and never stores it. This service cannot later decrypt a customer's export on its own — and
   neither can anyone who obtains only the file.
-- **Checksummed.** The SHA-256 of the file is returned and recorded.
+- **Checksummed.** The SHA-256 of the file is returned and recorded, and echoed on the download as
+  `x-kage-export-sha256` so the caller can verify what they received without trusting the transport.
+- **Actually deliverable.** The response carries `export_id`, `download_url`, and a one-time
+  `download_token`. `GET /v1/exports/:export_id/download` serves the bytes to whoever presents that
+  ticket as `Authorization: Bearer`. The ticket is stored hashed, compared in constant time, bound to one
+  export row, and expires after 7 days; an unknown id, a wrong ticket, and an expired ticket are all the
+  same 401, so ids are not a probe oracle. A server-side path is not a deliverable — the customer holds
+  the file, not a filename on our disk.
+- **Written somewhere private.** Exports land in `dataControls.export_directory` (or
+  `KAGE_WORKSPACE_EXPORT_DIR`); with neither configured, in an unpredictable `mkdtemp` directory at mode
+  0700, never a fixed guessable path under the shared OS temp dir, whose world-writable parent lets any
+  local user create it first and read every tenant's export.
 - **Version-stamped.** The manifest records the Postgres migration version, so a restore can refuse an
   incompatible schema.
 
@@ -92,15 +103,29 @@ set of live secrets. The omission is recorded in the manifest's `excluded_tables
    database inside the tenant (never taken from the request), must have re-authenticated within the last
    **5 minutes**, and must type the workspace slug as confirmation. An ordinary live session is not
    enough authority for the most destructive act in the product.
-2. **Export first.** An encrypted export is written before anything is removed. If the export fails,
-   nothing is deleted.
-3. **Terminal record.** A row lands in `workspace_deletions` — a table with **no foreign key** to
+
+   The re-authentication instant is read from `workspace_sessions.reauthenticated_at` — written by this
+   service when the credential was presented — for the requesting session, matched to that same owner and
+   still live. There is no request field for it, and no way to supply one: a check whose input the caller
+   writes is not a check. A session with no recorded instant fails closed.
+2. **Blobs must be removable.** If the tenant references object-storage keys and the deployment has no
+   object store configured, the deletion is refused (409 `object_store_required`) with the tenant fully
+   intact. Removing the rows while the blobs stayed would leave the terminal ledger asserting a removal
+   that never happened.
+3. **Export first, and fetchable.** An encrypted export is written before anything is removed, and its
+   download ticket is minted before the tenant goes — after the deletion there is no workspace, no
+   principal, and no session left to authenticate a download with. If the export fails, nothing is
+   deleted.
+4. **Terminal record.** A row lands in `workspace_deletions` — a table with **no foreign key** to
    `workspaces`, on purpose, so it survives the tenant it describes. It records who confirmed, when they
    re-authenticated, and the checksum of what they were handed. It holds no tenant knowledge.
-4. **Object keys.** Blob deletion happens before the database transaction, because blobs cannot
+5. **Object keys.** Blob deletion happens before the database transaction, because blobs cannot
    participate in it. A crash here leaves rows pointing at deleted objects — visible and fixable —
-   rather than orphaned blobs nobody has a record of.
-5. **One transaction.** Every relational row goes in a single transaction, children before parents, with
+   rather than orphaned blobs nobody has a record of. The ledger records `object_keys_total` (how many
+   the tenant had) and `object_keys_deleted` (how many the store **reported** removing) as two separate
+   numbers. They are never merged: a compliance record that outlives the tenant is worth nothing if it
+   rounds up.
+6. **One transaction.** Every relational row goes in a single transaction, children before parents, with
    the `workspaces` row last. A partially-deleted tenant is impossible.
 
 `billing_events` rows are kept with their tenant reference cleared, so a Stripe event redelivered after
@@ -110,6 +135,10 @@ the deletion is still recognised as already-applied instead of being processed a
 
 ## 5. What is not verified here
 
+- **Export storage is this service's own filesystem.** The download route streams the file from the
+  directory the export was written to. A multi-node deployment must therefore either pin exports to
+  shared storage via `export_directory` or route `/v1/exports/:id/download` to the node that wrote them.
+  That is a deployment decision and is not asserted by the tests, which run one node.
 - **Object storage** is an injected `ObjectStore` seam. Tests use an in-memory store; a real bucket's
   versioning, soft-delete, and lifecycle rules are deployment concerns and are not asserted.
 - **Backup media.** Deleting rows does not delete them from database backups. Backup retention and

@@ -89,11 +89,24 @@ filter result), `phase-e-gate.test.ts` (`cross_tenant_reads = 0`).
   identity. A token signed by an unpublished key is rejected.
 - `issuer`, `audience`, `nonce`, and expiry are each checked explicitly and reported separately, so a
   misconfiguration is diagnosable rather than a generic failure.
-- `state` is minted server-side and consumed by a single atomic `UPDATE ... RETURNING`, so a replayed
-  callback finds nothing. PKCE (S256) means an intercepted authorization code is not exchangeable.
+- `state` is minted server-side and consumed under a row lock in one transaction, so a replayed callback
+  finds nothing. PKCE (S256) means an intercepted authorization code is not exchangeable.
+- **Login CSRF.** `state` alone cannot distinguish "the user came back" from "the user was navigated
+  here", because the attacker who started the login also knows the state. A separate per-login secret is
+  set as a short-lived `HttpOnly` cookie on the browser that started the login and stored only as a
+  SHA-256; the callback refuses without it (`oidc_binding_invalid`, 401, no session cookie set, and the
+  login row is left unconsumed). An attacker cannot make a victim's browser present a cookie only the
+  attacker's browser holds, so a forced callback cannot silently sign the victim into the attacker's
+  identity.
 - The IdP can say **who** you are; it cannot say **what you may do**. Roles come from the workspace
   membership table. Just-in-time provisioning is off by default and, when on, creates at an
   administrator-chosen default role.
+- **Account linking requires a verified email, always.** Adopting an existing member by email address
+  happens only when the IdP asserts `email_verified`. This is not conditional on the optional
+  email-domain list — migration 011 defaults that list to empty, so a check gated on it would be absent
+  in exactly the default configuration. An unverified address that *would* have matched a member is a
+  refusal (`oidc_email_unverified`), not a silent second account, and an unverified address is never
+  stored as a principal's identity.
 - Optional email-domain restriction, enforced together with `email_verified`.
 
 ### T5 — Directory-driven privilege escalation (SCIM)
@@ -102,6 +115,11 @@ filter result), `phase-e-gate.test.ts` (`cross_tenant_reads = 0`).
   widen it.
 - Groups are a **read-only** projection of the five workspace roles. A directory cannot invent a group
   that grants something arbitrary.
+- **`owner` is outside the directory's reach, in both directions.** SCIM cannot create an owner, promote
+  anyone into one (400), or modify, demote, deactivate, or DELETE an existing one (403). Owner is the
+  role that can delete the tenant; leaving it writable would turn a leaked directory token into full
+  control in two calls — mint an owner, then sign in as them through SSO. Owner authority is granted and
+  revoked in the workspace, by an owner, and audited there.
 - An unrecognised role in a SCIM payload is a 400, never a silent default.
 - Unsupported filters are a 400, never silently ignored — a dropped filter would return the whole tenant
   to a client that asked for one user.
@@ -131,7 +149,18 @@ filter result), `phase-e-gate.test.ts` (`cross_tenant_reads = 0`).
 
 - Workspace deletion requires an **owner** role (re-read from the database inside the tenant), a
   re-authentication within 5 minutes, and typing the workspace slug as confirmation.
-- The export is written **before** anything is deleted; if it fails, nothing is deleted.
+- **The re-authentication instant is the server's own record**, read from
+  `workspace_sessions.reauthenticated_at` (written by this service when the credential was presented)
+  for the session that made the request, matched to that same owner and still live. The request body
+  cannot express it; an earlier cut of this feature read it from the body, which is not a check, because
+  the caller writes the value the check reads. `NULL` (a session predating migration 012) fails closed.
+- The export is written **before** anything is deleted; if it fails, nothing is deleted. It is also
+  registered with a download ticket before the tenant goes, because afterwards there is no session left
+  to authenticate a download with.
+- **Blobs must be removable.** A tenant that references object-storage keys while the deployment has no
+  object store configured cannot be deleted at all (409 `object_store_required`, nothing removed). The
+  ledger records `object_keys_total` and the count the store **reported** deleting as two separate
+  numbers, so a partial removal is visible rather than rounded up.
 - A terminal record lands in `workspace_deletions`, which deliberately has no foreign key to
   `workspaces` so it outlives the tenant it describes.
 

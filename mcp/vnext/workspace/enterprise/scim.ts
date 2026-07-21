@@ -35,7 +35,7 @@ const LIST_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:ListResponse";
 const ERROR_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:Error";
 const PATCH_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:PatchOp";
 
-/** The workspace roles a SCIM client may assign. Groups in SCIM map one-to-one onto these. */
+/** Every workspace role. Groups in SCIM map one-to-one onto these, read-only. */
 const ROLES: readonly WorkspaceRole[] = [
   "owner",
   "admin",
@@ -44,8 +44,23 @@ const ROLES: readonly WorkspaceRole[] = [
   "viewer",
 ];
 
+/**
+ * The roles a DIRECTORY may assign — every role except `owner`.
+ *
+ * `owner` is the role that can delete the workspace, and it is deliberately outside the directory's
+ * reach in BOTH directions: a SCIM client cannot create an owner, promote anyone into one, demote one,
+ * or deactivate one. A leaked or compromised directory token would otherwise convert, in two calls, into
+ * total control of the tenant — mint an owner, sign in through SSO as them — which is exactly the
+ * "a directory cannot invent authority" property this module claims. Owner changes are a workspace act,
+ * made by an existing owner through the workspace's own authenticated surface, and audited there.
+ */
+type DirectoryRole = Exclude<WorkspaceRole, "owner">;
+const DIRECTORY_ASSIGNABLE_ROLES: readonly DirectoryRole[] = ROLES.filter(
+  (role): role is DirectoryRole => role !== "owner",
+);
+
 /** Default role for a user provisioned without an explicit role/group. The least useful, on purpose. */
-const DEFAULT_SCIM_ROLE: WorkspaceRole = "developer";
+const DEFAULT_SCIM_ROLE: DirectoryRole = "developer";
 
 const MAX_PAGE_SIZE = 200;
 
@@ -162,7 +177,10 @@ function toScimUser(row: PrincipalRow): Record<string, unknown> {
 }
 
 /** Pull a role out of a SCIM user resource. An unknown role is refused rather than silently downgraded. */
-function roleFrom(resource: Record<string, unknown>, fallback: WorkspaceRole | null): WorkspaceRole {
+function roleFrom(
+  resource: Record<string, unknown>,
+  fallback: DirectoryRole | null,
+): DirectoryRole {
   const roles = resource.roles;
   let candidate: string | undefined;
   if (Array.isArray(roles) && roles.length > 0) {
@@ -170,9 +188,30 @@ function roleFrom(resource: Record<string, unknown>, fallback: WorkspaceRole | n
     candidate = typeof first === "string" ? first : typeof first?.value === "string" ? first.value : undefined;
   }
   if (!candidate) return fallback ?? DEFAULT_SCIM_ROLE;
-  const matched = ROLES.find((role) => role === candidate);
-  if (!matched) throw new ScimBadRequest(`unknown role "${candidate}"`);
+  const matched = DIRECTORY_ASSIGNABLE_ROLES.find((role) => role === candidate);
+  if (!matched) {
+    // Named separately from "unknown role" because it is not a typo: it is an authority boundary, and
+    // the operator reading this needs to know their IdP tried to cross one.
+    if (ROLES.some((role) => role === candidate)) {
+      throw new ScimBadRequest(
+        `the "${candidate}" role cannot be assigned through SCIM: a directory cannot grant workspace ownership`,
+      );
+    }
+    throw new ScimBadRequest(`unknown role "${candidate}"`);
+  }
   return matched;
+}
+
+/**
+ * The refusal returned for any SCIM write aimed at an existing owner. 403 rather than 404: the resource
+ * is real and the client may read it — what it may not do is change it.
+ */
+function ownerIsNotDirectoryManaged(): ScimResponse {
+  return scimError(
+    403,
+    "a workspace owner cannot be modified through SCIM: owner authority is granted and revoked in the workspace",
+    "mutability",
+  );
 }
 
 class ScimBadRequest extends Error {}
@@ -389,6 +428,7 @@ async function createUser(db: Db, ctx: ScimContext, body: unknown): Promise<Scim
 async function replaceUser(db: Db, ctx: ScimContext, id: string, body: unknown): Promise<ScimResponse> {
   const existing = await loadPrincipal(db, ctx, id);
   if (!existing) return scimError(404, "no such user in this workspace");
+  if (existing.role === "owner") return ownerIsNotDirectoryManaged();
   const resource = (body ?? {}) as Record<string, unknown>;
   const role = roleFrom(resource, existing.role);
   const active = resource.active === undefined ? true : resource.active === true;
@@ -412,6 +452,7 @@ async function replaceUser(db: Db, ctx: ScimContext, id: string, body: unknown):
 async function patchUser(db: Db, ctx: ScimContext, id: string, body: unknown): Promise<ScimResponse> {
   const existing = await loadPrincipal(db, ctx, id);
   if (!existing) return scimError(404, "no such user in this workspace");
+  if (existing.role === "owner") return ownerIsNotDirectoryManaged();
   const resource = (body ?? {}) as Record<string, unknown>;
   const schemas = Array.isArray(resource.schemas) ? resource.schemas.map(String) : [];
   if (schemas.length > 0 && !schemas.includes(PATCH_SCHEMA)) {
@@ -477,6 +518,9 @@ async function patchUser(db: Db, ctx: ScimContext, id: string, body: unknown): P
 async function deleteUser(db: Db, ctx: ScimContext, id: string): Promise<ScimResponse> {
   const existing = await loadPrincipal(db, ctx, id);
   if (!existing) return scimError(404, "no such user in this workspace");
+  // Deactivating the last owner would strand the tenant with nobody able to delete or pay for it, and
+  // deactivating any owner is an authority change the directory has no standing to make.
+  if (existing.role === "owner") return ownerIsNotDirectoryManaged();
   await applyUserUpdate(db, ctx, id, {
     role: existing.role,
     active: false,

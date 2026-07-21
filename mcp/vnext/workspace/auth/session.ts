@@ -26,6 +26,13 @@ export interface ResolvedSession {
   principal: Principal;
   session_id: string;
   csrf: string;
+  /**
+   * When the credential behind this session was last actually presented, as recorded BY THIS SERVER at
+   * the moment it happened. Null means never corroborated (a session minted before migration 012).
+   * Destructive actions read this; they must never read an instant supplied by the caller, because a
+   * value the caller writes is not a check.
+   */
+  reauthenticated_at: Date | null;
 }
 
 function sha256(value: string): string {
@@ -53,8 +60,11 @@ export async function createSession(
   const ttl = input.ttlMs ?? DEFAULT_SESSION_TTL_MS;
   const expiresAt = new Date(Date.now() + ttl);
   const inserted = await db.query(
-    `INSERT INTO workspace_sessions(session_id, workspace_id, principal_id, token_hash, csrf_token, expires_at)
-     SELECT $1, $2, $3, $4, $5, $6
+    `INSERT INTO workspace_sessions(session_id, workspace_id, principal_id, token_hash, csrf_token,
+                                    expires_at, reauthenticated_at)
+     -- Minting a session IS an authentication event, and this row is the server's own record of it.
+     -- It is written here, by the server, at the instant it happens — never taken from a request.
+     SELECT $1, $2, $3, $4, $5, $6, now()
      WHERE EXISTS (
        SELECT 1 FROM workspace_principals WHERE workspace_id = $2 AND principal_id = $3
      )
@@ -82,8 +92,9 @@ export async function resolveSession(db: Db, token: string | undefined): Promise
     principal_type: PrincipalType;
     role: WorkspaceRole;
     repository_ids: unknown;
+    reauthenticated_at: Date | null;
   }>(
-    `SELECT s.session_id, s.workspace_id, s.principal_id, s.csrf_token,
+    `SELECT s.session_id, s.workspace_id, s.principal_id, s.csrf_token, s.reauthenticated_at,
             p.principal_type, p.role, p.repository_ids
        FROM workspace_sessions s
        JOIN workspace_principals p
@@ -101,6 +112,7 @@ export async function resolveSession(db: Db, token: string | undefined): Promise
   return {
     session_id: row.session_id,
     csrf: row.csrf_token,
+    reauthenticated_at: row.reauthenticated_at ? new Date(row.reauthenticated_at) : null,
     principal: {
       principal_id: row.principal_id,
       workspace_id: row.workspace_id,

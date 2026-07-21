@@ -8,8 +8,9 @@
 // scope, so a cross-tenant or cross-repository read returns 404 (existence is not even disclosed).
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { randomBytes } from "node:crypto";
+import { createReadStream, existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type { Db } from "./db.js";
 import { currentVersion } from "./migrate.js";
 import { resolveSession, csrfMatches, type ResolvedSession } from "./auth/session.js";
@@ -57,6 +58,8 @@ import {
 import {
   deleteWorkspace,
   exportWorkspace,
+  registerExportDownload,
+  resolveExportDownload,
   WorkspaceDeletionError,
   type ObjectStore,
 } from "./enterprise/export-delete.js";
@@ -64,6 +67,7 @@ import {
   beginOidcLogin,
   completeOidcLogin,
   loadOidcProvider,
+  LOGIN_REQUEST_TTL_MS,
   OidcError,
   type Fetcher as OidcFetcher,
 } from "./enterprise/oidc.js";
@@ -86,15 +90,21 @@ export interface WorkspaceServerOptions {
   /** Injected HTTP transport for provider calls, so tests never reach a live Stripe. */
   fetcher?: StripeFetcher;
   /**
-   * Where exports are written and how blobs are removed. BOTH fields are optional, deliberately: an
-   * export must never depend on optional configuration, because `workspace_export` is a promise this
-   * product makes unconditionally. With nothing configured, exports land in a private directory under
-   * the OS temp dir and blob deletion is skipped (and reported as skipped) rather than refused.
+   * Where exports are written and how blobs are removed.
+   *
+   * `export_directory` is optional deliberately: an export must never depend on optional configuration,
+   * because `workspace_export` is a promise this product makes unconditionally. Unset, exports land in
+   * an unpredictable 0700 directory created once per process (see `exportDirectory`).
+   *
+   * `object_store` is optional too, but its absence is NOT free: a tenant that references object-storage
+   * keys cannot be deleted without one (409 `object_store_required`). Skipping blob deletion and
+   * reporting the tenant deleted anyway would put a false removal in the ledger that outlives it.
    */
   dataControls?: {
     export_directory?: string;
     object_store?: ObjectStore;
   };
+
   /** Injected HTTP transport for the identity provider, so tests never reach a live IdP. */
   oidcFetcher?: OidcFetcher;
 }
@@ -107,15 +117,20 @@ function json(res: ServerResponse, status: number, body: unknown): void {
   res.end(payload);
 }
 
-/** Pull the `kage_session` value out of the Cookie header (browser sessions). */
-function cookieToken(req: IncomingMessage): string | undefined {
+/** Pull one named cookie out of the Cookie header. */
+function cookieValue(req: IncomingMessage, name: string): string | undefined {
   const header = req.headers.cookie;
   if (!header) return undefined;
   for (const part of header.split(";")) {
-    const [name, ...rest] = part.trim().split("=");
-    if (name === "kage_session") return rest.join("=");
+    const [candidate, ...rest] = part.trim().split("=");
+    if (candidate === name) return rest.join("=");
   }
   return undefined;
+}
+
+/** Pull the `kage_session` value out of the Cookie header (browser sessions). */
+function cookieToken(req: IncomingMessage): string | undefined {
+  return cookieValue(req, "kage_session");
 }
 
 /** The `Authorization: Bearer` service token, if one is present. Non-Bearer schemes are not tokens. */
@@ -294,7 +309,16 @@ export function createWorkspaceApp(db: Db, options: WorkspaceServerOptions = {})
       return;
     }
     if (method === "GET" && path === "/v1/auth/oidc/callback") {
-      await handleOidcCallback(db, options, url, res);
+      await handleOidcCallback(db, options, url, req, res);
+      return;
+    }
+
+    // GET /v1/exports/:exportId/download — authenticated by the export's own TICKET, not by a session,
+    // and therefore placed before the session gate. This is the only way the export a deletion produced
+    // can be fetched at all: by then the tenant, its principals, and its sessions are gone.
+    const downloadMatch = /^\/v1\/exports\/([^/]+)\/download$/.exec(path);
+    if (downloadMatch && method === "GET") {
+      await handleExportDownload(db, downloadMatch[1], req, res);
       return;
     }
 
@@ -1060,8 +1084,19 @@ async function handleOidcStart(
     return;
   }
   const started = await beginOidcLogin(db, provider);
-  // The nonce stays server-side: the browser needs only the URL it is being sent to.
-  json(res, 200, { authorization_url: started.authorization_url, expires_at: started.expires_at });
+  // The nonce stays server-side: the browser needs only the URL it is being sent to, plus the binding
+  // cookie that proves — at the callback — that this browser is the one that started the login. The
+  // cookie is scoped to the OIDC path and expires with the login request, so it is not a second
+  // long-lived credential lying around.
+  res.writeHead(200, {
+    "content-type": "application/json",
+    "set-cookie": `${OIDC_BINDING_COOKIE}=${started.binding}; Path=/v1/auth/oidc; HttpOnly; Secure; SameSite=Lax; Max-Age=${Math.floor(
+      LOGIN_REQUEST_TTL_MS / 1000,
+    )}`,
+  });
+  res.end(
+    JSON.stringify({ authorization_url: started.authorization_url, expires_at: started.expires_at }),
+  );
 }
 
 /**
@@ -1073,6 +1108,7 @@ async function handleOidcCallback(
   db: Db,
   options: WorkspaceServerOptions,
   url: URL,
+  req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
   const state = url.searchParams.get("state") ?? "";
@@ -1084,15 +1120,28 @@ async function handleOidcCallback(
     json(res, 400, { error: "invalid_request" });
     return;
   }
+  // The binding cookie is what distinguishes "the user came back from their IdP" from "the user was
+  // navigated here by somebody else's login". Absent, it is answered exactly like a bad one: 401.
+  const binding = cookieValue(req, OIDC_BINDING_COOKIE) ?? "";
+  const clearBinding = `${OIDC_BINDING_COOKIE}=; Path=/v1/auth/oidc; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
+  if (!binding) {
+    res.writeHead(401, { "content-type": "application/json", "set-cookie": clearBinding });
+    res.end(JSON.stringify({ error: "sso_login_failed", code: "oidc_binding_invalid" }));
+    return;
+  }
   const fetcher =
     options.oidcFetcher ?? ((target, init) => fetch(target, init) as unknown as ReturnType<OidcFetcher>);
   try {
-    const completed = await completeOidcLogin(db, provider, { state, code, fetcher });
+    const completed = await completeOidcLogin(db, provider, { state, code, binding, fetcher });
     res.writeHead(200, {
       "content-type": "application/json",
-      "set-cookie": `kage_session=${completed.session.token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${Math.floor(
-        (completed.session.expires_at.getTime() - Date.now()) / 1000,
-      )}`,
+      // The single-use binding is cleared the moment it is spent, so a second callback cannot reuse it.
+      "set-cookie": [
+        `kage_session=${completed.session.token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${Math.floor(
+          (completed.session.expires_at.getTime() - Date.now()) / 1000,
+        )}`,
+        clearBinding,
+      ],
     });
     res.end(
       JSON.stringify({
@@ -1104,7 +1153,8 @@ async function handleOidcCallback(
     );
   } catch (error) {
     if (error instanceof OidcError) {
-      json(res, 401, { error: "sso_login_failed", code: error.code });
+      res.writeHead(401, { "content-type": "application/json", "set-cookie": clearBinding });
+      res.end(JSON.stringify({ error: "sso_login_failed", code: error.code }));
       return;
     }
     throw error;
@@ -1177,9 +1227,67 @@ async function handleRetentionApply(
   json(res, 200, await applyRetention(db, principal.workspace_id));
 }
 
-/** Where exports land when a deployment has not configured a directory. Private to this process's user. */
+/**
+ * The cookie the browser that STARTED an SSO login carries back to the callback. Nothing else may
+ * complete a login.
+ */
+const OIDC_BINDING_COOKIE = "kage_oidc_binding";
+
+/**
+ * Where exports land when a deployment has not configured a directory.
+ *
+ * NOT a fixed, guessable path under the shared OS temp dir. `/tmp/kage-workspace-exports` sits inside a
+ * world-writable parent, which means any local user can create it first (or point it somewhere) and read
+ * every tenant export this service writes; `mkdir` with a tight mode does not fix a directory somebody
+ * else already owns. `mkdtempSync` creates an unpredictable directory at 0700 owned by this process's
+ * user, once per process, and a deployment that wants a durable location sets `export_directory` or
+ * `KAGE_WORKSPACE_EXPORT_DIR`.
+ */
+let processExportDirectory: string | null = null;
 function exportDirectory(options: WorkspaceServerOptions): string {
-  return options.dataControls?.export_directory ?? join(tmpdir(), "kage-workspace-exports");
+  const configured = options.dataControls?.export_directory ?? process.env.KAGE_WORKSPACE_EXPORT_DIR;
+  if (configured) return configured;
+  if (!processExportDirectory || !existsSync(processExportDirectory)) {
+    processExportDirectory = mkdtempSync(join(tmpdir(), "kage-workspace-exports-"));
+  }
+  return processExportDirectory;
+}
+
+/**
+ * Serve an export to whoever holds its ticket.
+ *
+ * There is no session check here on purpose, and it is not a weakening: the ticket IS the credential,
+ * it is bound to exactly one export row, it is stored hashed, and it expires. A session check would make
+ * the deletion export — the one case where the customer has no account left — undeliverable, which is
+ * how a "downloadable encrypted export" turns into a path in a support ticket.
+ */
+async function handleExportDownload(
+  db: Db,
+  exportId: string,
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const resolved = await resolveExportDownload(db, exportId, bearerToken(req));
+  // Unknown id, wrong ticket, and expired ticket are one answer: an id is not a probe oracle.
+  if (!resolved) {
+    json(res, 401, { error: "unauthenticated" });
+    return;
+  }
+  if (!existsSync(resolved.export_path)) {
+    json(res, 410, { error: "export_no_longer_available", export_id: resolved.export_id });
+    return;
+  }
+  res.writeHead(200, {
+    "content-type": "application/octet-stream",
+    "content-length": String(resolved.byte_size),
+    "content-disposition": `attachment; filename="${basename(resolved.export_path)}"`,
+    // So the caller can verify what they received without trusting the transport.
+    "x-kage-export-sha256": resolved.sha256,
+  });
+  const stream = createReadStream(resolved.export_path);
+  stream.on("error", () => res.end());
+  stream.pipe(res);
+  await new Promise<void>((resolve) => res.on("close", () => resolve()));
 }
 
 /**
@@ -1207,7 +1315,22 @@ async function handleExport(
     directory: exportDirectory(options),
     encryption_key: key,
   });
+  // An export the customer cannot fetch is not an export. The ticket is minted here and shown once.
+  const download = await registerExportDownload(db, {
+    workspace_id: principal.workspace_id,
+    workspace_slug: result.manifest.workspace_slug,
+    kind: "export",
+    export_path: result.export_path,
+    sha256: result.sha256,
+    byte_size: result.byte_size,
+  });
   json(res, 200, {
+    export_id: download.export_id,
+    download_url: `/v1/exports/${download.export_id}/download`,
+    // Shown exactly once, like the decryption key. Presented as `Authorization: Bearer` to the download.
+    download_token: download.token,
+    download_expires_at: download.expires_at,
+    // The server-side path, kept for operators. It is not how the customer gets the file.
     export_path: result.export_path,
     sha256: result.sha256,
     byte_size: result.byte_size,
@@ -1219,10 +1342,11 @@ async function handleExport(
 }
 
 /**
- * Delete a workspace. Two authority checks stack: the ROLE must be owner (checked again inside
- * `deleteWorkspace` against the database, not just here), and the caller must have re-authenticated
- * recently. The re-auth instant is taken from the request body and re-validated server-side against the
- * window; a caller who lies about it still has to be an owner, and the window is enforced either way.
+ * Delete a workspace. Three authority checks stack, and none of them reads a claim from the request:
+ * the ROLE must be owner (re-read inside `deleteWorkspace` from the database); the caller's SESSION must
+ * carry a `reauthenticated_at` this server wrote inside the last five minutes (the request body cannot
+ * express it — an earlier cut took the instant from the body, which is not a check at all); and the
+ * caller must type the workspace slug.
  */
 async function handleDelete(
   db: Db,
@@ -1241,10 +1365,8 @@ async function handleDelete(
     json(res, 403, { error: "forbidden", action: "workspace.delete" });
     return;
   }
-  const body = ((await readJsonBody(req)) ?? {}) as {
-    reauthenticated_at?: unknown;
-    confirm_slug?: unknown;
-  };
+  // `reauthenticated_at` is deliberately NOT read from here. The only accepted proof is the session row.
+  const body = ((await readJsonBody(req)) ?? {}) as { confirm_slug?: unknown };
   // Typing the slug is the human confirmation step: it makes an accidental or scripted POST inert.
   const slug = await db.query<{ slug: string }>(`SELECT slug FROM workspaces WHERE workspace_id = $1`, [
     principal.workspace_id,
@@ -1257,7 +1379,7 @@ async function handleDelete(
   try {
     const result = await deleteWorkspace(db, principal.workspace_id, {
       confirmed_by: principal.principal_id,
-      reauthenticated_at: String(body.reauthenticated_at ?? ""),
+      session_id: session.session_id,
       directory: exportDirectory(options),
       encryption_key: key,
       object_store: options.dataControls?.object_store,
@@ -1267,16 +1389,24 @@ async function handleDelete(
       export_path: result.export_path,
       export_sha256: result.export_sha256,
       rows_deleted: result.rows_deleted,
-      object_keys_deleted: result.deleted_object_keys.length,
+      // Two numbers, never merged: what the tenant had, and what the store said it removed.
+      object_keys_total: result.object_keys_total,
+      object_keys_deleted: result.object_keys_deleted,
       object_store_configured: Boolean(options.dataControls?.object_store),
+      // The tenant no longer exists, so this ticket is the ONLY way to fetch the export. Shown once.
+      export_id: result.download.export_id,
+      download_url: `/v1/exports/${result.download.export_id}/download`,
+      download_token: result.download.token,
+      download_expires_at: result.download.expires_at,
       decryption_key: key.toString("base64"),
     });
   } catch (error) {
     if (error instanceof WorkspaceDeletionError) {
-      json(res, error.code === "unknown_workspace" ? 404 : 403, {
-        error: error.code,
-        message: error.message,
-      });
+      // 409 for the object store: the request was legitimate and the caller had the authority — the
+      // DEPLOYMENT cannot honour it, which an operator must fix, not the caller.
+      const status =
+        error.code === "unknown_workspace" ? 404 : error.code === "object_store_required" ? 409 : 403;
+      json(res, status, { error: error.code, message: error.message });
       return;
     }
     throw error;

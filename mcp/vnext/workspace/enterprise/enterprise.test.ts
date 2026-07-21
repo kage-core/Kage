@@ -12,10 +12,10 @@
 // tenant table in one transaction, and a neighbouring tenant's rows are untouched by any of it.
 import test, { after, before } from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID, randomBytes } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createHash, randomUUID, randomBytes } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { startTestPostgres, type TestPostgres } from "../test-support/pg.js";
 import { createDb, type Db } from "../db.js";
 import { migrate } from "../migrate.js";
@@ -233,7 +233,12 @@ test("OIDC callback rejects a wrong audience", async () => {
   const started = await beginOidcLogin(db, provider);
   const idToken = await signIdToken({ nonce: started.nonce, audience: "some-other-client" });
   await assert.rejects(
-    () => completeOidcLogin(db, provider, { state: started.state, code: "code-1", fetcher: tokenFetcher(idToken) }),
+    () => completeOidcLogin(db, provider, {
+        state: started.state,
+        code: "code-1",
+        binding: started.binding,
+        fetcher: tokenFetcher(idToken),
+      }),
     /audience/,
   );
 });
@@ -243,7 +248,12 @@ test("OIDC callback rejects a wrong nonce", async () => {
   const started = await beginOidcLogin(db, provider);
   const idToken = await signIdToken({ nonce: "not-the-nonce-we-issued" });
   await assert.rejects(
-    () => completeOidcLogin(db, provider, { state: started.state, code: "code-2", fetcher: tokenFetcher(idToken) }),
+    () => completeOidcLogin(db, provider, {
+        state: started.state,
+        code: "code-2",
+        binding: started.binding,
+        fetcher: tokenFetcher(idToken),
+      }),
     /nonce/,
   );
 });
@@ -253,7 +263,12 @@ test("OIDC callback rejects a wrong issuer", async () => {
   const started = await beginOidcLogin(db, provider);
   const idToken = await signIdToken({ nonce: started.nonce, issuer: "https://evil.example.com" });
   await assert.rejects(
-    () => completeOidcLogin(db, provider, { state: started.state, code: "code-3", fetcher: tokenFetcher(idToken) }),
+    () => completeOidcLogin(db, provider, {
+        state: started.state,
+        code: "code-3",
+        binding: started.binding,
+        fetcher: tokenFetcher(idToken),
+      }),
     /issuer/,
   );
 });
@@ -265,7 +280,12 @@ test("OIDC callback rejects a token signed by a key the IdP does not publish", a
   const started = await beginOidcLogin(db, provider);
   const idToken = await signIdToken({ nonce: started.nonce, key: rogue.privateKey as CryptoKey });
   await assert.rejects(
-    () => completeOidcLogin(db, provider, { state: started.state, code: "code-4", fetcher: tokenFetcher(idToken) }),
+    () => completeOidcLogin(db, provider, {
+        state: started.state,
+        code: "code-4",
+        binding: started.binding,
+        fetcher: tokenFetcher(idToken),
+      }),
     /signature/,
   );
 });
@@ -275,7 +295,12 @@ test("OIDC callback rejects an expired token", async () => {
   const started = await beginOidcLogin(db, provider);
   const idToken = await signIdToken({ nonce: started.nonce, expiresIn: "-1m" });
   await assert.rejects(
-    () => completeOidcLogin(db, provider, { state: started.state, code: "code-5", fetcher: tokenFetcher(idToken) }),
+    () => completeOidcLogin(db, provider, {
+        state: started.state,
+        code: "code-5",
+        binding: started.binding,
+        fetcher: tokenFetcher(idToken),
+      }),
     /expired/,
   );
 });
@@ -288,6 +313,7 @@ test("OIDC callback rejects an unknown or replayed state", async () => {
       completeOidcLogin(db, provider, {
         state: "state-we-never-issued",
         code: "code-6",
+        binding: "a-binding-for-a-login-that-never-existed",
         fetcher: tokenFetcher(strayToken),
       }),
     /state/,
@@ -298,12 +324,18 @@ test("OIDC callback rejects an unknown or replayed state", async () => {
   const first = await completeOidcLogin(db, provider, {
     state: started.state,
     code: "code-7",
+    binding: started.binding,
     fetcher: tokenFetcher(idToken),
   });
   assert.ok(first.session.token);
   await assert.rejects(
     () =>
-      completeOidcLogin(db, provider, { state: started.state, code: "code-7", fetcher: tokenFetcher(idToken) }),
+      completeOidcLogin(db, provider, {
+        state: started.state,
+        code: "code-7",
+        binding: started.binding,
+        fetcher: tokenFetcher(idToken),
+      }),
     /state/,
   );
 });
@@ -313,7 +345,12 @@ test("OIDC callback enforces the configured email domain restriction", async () 
   const started = await beginOidcLogin(db, provider);
   const idToken = await signIdToken({ nonce: started.nonce, email: "person@not-allowed.test" });
   await assert.rejects(
-    () => completeOidcLogin(db, provider, { state: started.state, code: "code-8", fetcher: tokenFetcher(idToken) }),
+    () => completeOidcLogin(db, provider, {
+        state: started.state,
+        code: "code-8",
+        binding: started.binding,
+        fetcher: tokenFetcher(idToken),
+      }),
     /domain/,
   );
 });
@@ -335,6 +372,7 @@ test("OIDC login sends the PKCE verifier and issues a session for the mapped pri
   const result = await completeOidcLogin(db, provider, {
     state: started.state,
     code: "code-9",
+    binding: started.binding,
     fetcher: tokenFetcher(idToken, sent),
   });
   assert.equal(result.principal_id, principalId);
@@ -352,7 +390,12 @@ test("OIDC login is gated to the enterprise plan", async () => {
   const started = await beginOidcLogin(db, provider);
   const idToken = await signIdToken({ nonce: started.nonce, subject: "team-subject" });
   await assert.rejects(
-    () => completeOidcLogin(db, provider, { state: started.state, code: "code-10", fetcher: tokenFetcher(idToken) }),
+    () => completeOidcLogin(db, provider, {
+        state: started.state,
+        code: "code-10",
+        binding: started.binding,
+        fetcher: tokenFetcher(idToken),
+      }),
     (error: unknown) => error instanceof OidcError && error.code === "sso_requires_enterprise_plan",
   );
 });
@@ -788,22 +831,45 @@ test("a workspace export is encrypted at rest and decrypts to that tenant's rows
 test("workspace deletion refuses a non-owner and a stale re-authentication", async () => {
   const { workspaceId, ownerId, store } = await seedDeletableWorkspace();
   const developerId = await seedPrincipal(workspaceId, "developer");
+  const developerSession = await createSession(db, {
+    workspace_id: workspaceId,
+    principal_id: developerId,
+  });
   await assert.rejects(
     () =>
       deleteWorkspace(db, workspaceId, {
         confirmed_by: developerId,
-        reauthenticated_at: new Date().toISOString(),
+        session_id: developerSession.session_id,
         directory: exportDir,
         encryption_key: EXPORT_KEY,
         object_store: store,
       }),
     (error: unknown) => error instanceof WorkspaceDeletionError && error.code === "owner_required",
   );
+  // A real owner session, freshly minted — but re-authenticated an hour ago, as recorded by the server.
+  const ownerSession = await createSession(db, { workspace_id: workspaceId, principal_id: ownerId });
+  await db.query(
+    `UPDATE workspace_sessions SET reauthenticated_at = now() - interval '1 hour'
+      WHERE workspace_id = $1 AND session_id = $2`,
+    [workspaceId, ownerSession.session_id],
+  );
   await assert.rejects(
     () =>
       deleteWorkspace(db, workspaceId, {
         confirmed_by: ownerId,
-        reauthenticated_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+        session_id: ownerSession.session_id,
+        directory: exportDir,
+        encryption_key: EXPORT_KEY,
+        object_store: store,
+      }),
+    (error: unknown) => error instanceof WorkspaceDeletionError && error.code === "reauthentication_required",
+  );
+  // And a session belonging to somebody else cannot lend its freshness to the owner.
+  await assert.rejects(
+    () =>
+      deleteWorkspace(db, workspaceId, {
+        confirmed_by: ownerId,
+        session_id: developerSession.session_id,
         directory: exportDir,
         encryption_key: EXPORT_KEY,
         object_store: store,
@@ -819,14 +885,17 @@ test("workspace deletion exports then removes tenant data and object keys", asyn
     `SELECT count(*)::text AS count FROM workspace_claims WHERE workspace_id = $1`,
     [neighbourWorkspace],
   );
+  const ownerSession = await createSession(db, { workspace_id: workspaceId, principal_id: ownerId });
   const result = await deleteWorkspace(db, workspaceId, {
     confirmed_by: ownerId,
-    reauthenticated_at: new Date().toISOString(),
+    session_id: ownerSession.session_id,
     directory: exportDir,
     encryption_key: EXPORT_KEY,
     object_store: store,
   });
   assert.ok(result.export_path);
+  assert.equal(result.object_keys_total, 2);
+  assert.equal(result.object_keys_deleted, 2);
   assert.equal(await workspaceExists(db, workspaceId), false);
   assert.deepEqual(await objectKeysForWorkspace(db, workspaceId), []);
   assert.equal(store.keys.size, 0);
@@ -919,4 +988,364 @@ test("retention policy routes are tenant-scoped and gated on policy authority", 
     { headers: { cookie: `kage_session=${ownerSession.token}` } },
   );
   assert.equal(crossTenant.status, 404);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Task 8 hardening
+//
+// Six real defects found reviewing the first cut of this task. Each test below is the proof that the
+// specific hole is closed, written before the fix and failing against the code that had it.
+// ---------------------------------------------------------------------------------------------
+
+/** A tenant with an owner and one claim, but NO object-storage keys. */
+async function seedOwnedWorkspace(): Promise<{ workspaceId: string; ownerId: string }> {
+  const workspaceId = randomUUID();
+  await seedWorkspace(workspaceId, `owned-${workspaceId.slice(0, 8)}`, "enterprise");
+  const ownerId = await seedPrincipal(workspaceId, "owner", {
+    user_name: `owner-${workspaceId.slice(0, 8)}@example.com`,
+  });
+  await db.query(
+    `INSERT INTO workspace_claims(workspace_id, repository_id, claim_id, entity_id, trust_state, impact_class, record_json, updated_at)
+       VALUES($1, 'repo-main', 'claim-owned', 'entity-owned', 'verified', 'low', '{"statement":"kept"}'::jsonb, now())`,
+    [workspaceId],
+  );
+  return { workspaceId, ownerId };
+}
+
+async function slugOf(workspaceId: string): Promise<string> {
+  const { rows } = await db.query<{ slug: string }>(
+    `SELECT slug FROM workspaces WHERE workspace_id = $1`,
+    [workspaceId],
+  );
+  return rows[0].slug;
+}
+
+/** POST the deletion route exactly as a browser would, including whatever the body claims. */
+async function deleteViaRoute(
+  workspaceId: string,
+  session: { token: string; csrf: string },
+  body: Record<string, unknown>,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const response = await fetch(`http://127.0.0.1:${server.port}/v1/workspaces/${workspaceId}/delete`, {
+    method: "POST",
+    headers: {
+      cookie: `kage_session=${session.token}`,
+      "x-kage-csrf": session.csrf,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const parsed = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  return { status: response.status, body: parsed };
+}
+
+// 1 -----------------------------------------------------------------------------------------
+test("OIDC never adopts an existing member from an email the IdP did not verify", async () => {
+  // The DEFAULT configuration: no allowed_email_domains list (migration 011 defaults it to '{}').
+  const provider = providerFor(enterpriseWorkspace, { allowed_email_domains: [] });
+  const victimId = await seedPrincipal(enterpriseWorkspace, "admin", {
+    user_name: "victim-unverified@example.com",
+    email: "victim-unverified@example.com",
+  });
+  const started = await beginOidcLogin(db, provider);
+  const idToken = await signIdToken({
+    nonce: started.nonce,
+    subject: "attacker-subject-1",
+    email: "victim-unverified@example.com",
+    email_verified: false,
+  });
+  await assert.rejects(
+    () =>
+      completeOidcLogin(db, provider, {
+        state: started.state,
+        code: "harden-1",
+        binding: started.binding,
+        fetcher: tokenFetcher(idToken),
+      }),
+    (error: unknown) => error instanceof OidcError && error.code === "oidc_email_unverified",
+  );
+  // The victim's principal must not have been linked to the attacker's subject.
+  const row = await db.query<{ external_id: string | null }>(
+    `SELECT external_id FROM workspace_principals WHERE workspace_id = $1 AND principal_id = $2`,
+    [enterpriseWorkspace, victimId],
+  );
+  assert.equal(row.rows[0].external_id, null);
+
+  // A VERIFIED email still adopts the member, so the fix does not break the legitimate path.
+  const good = await beginOidcLogin(db, provider);
+  const goodToken = await signIdToken({
+    nonce: good.nonce,
+    subject: "verified-subject-1",
+    email: "victim-unverified@example.com",
+    email_verified: true,
+  });
+  const completed = await completeOidcLogin(db, provider, {
+    state: good.state,
+    code: "harden-1b",
+    binding: good.binding,
+    fetcher: tokenFetcher(goodToken),
+  });
+  assert.equal(completed.principal_id, victimId);
+});
+
+// 2 -----------------------------------------------------------------------------------------
+test("workspace deletion takes the re-authentication instant from the server, not the request body", async () => {
+  const { workspaceId, ownerId } = await seedOwnedWorkspace();
+  const session = await createSession(db, { workspace_id: workspaceId, principal_id: ownerId });
+  // The session is real, live, and owner-held — but it was authenticated an hour ago.
+  await db.query(
+    `UPDATE workspace_sessions SET reauthenticated_at = now() - interval '1 hour'
+      WHERE workspace_id = $1 AND session_id = $2`,
+    [workspaceId, session.session_id],
+  );
+  const lied = await deleteViaRoute(workspaceId, session, {
+    confirm_slug: await slugOf(workspaceId),
+    // The client asserts it re-authenticated a second ago. The server must not believe it.
+    reauthenticated_at: new Date().toISOString(),
+  });
+  assert.equal(lied.status, 403);
+  assert.equal(lied.body.error, "reauthentication_required");
+  assert.equal(await workspaceExists(db, workspaceId), true);
+
+  // A genuinely fresh session deletes, with no re-authentication field in the body at all.
+  const fresh = await createSession(db, { workspace_id: workspaceId, principal_id: ownerId });
+  const allowed = await deleteViaRoute(workspaceId, fresh, { confirm_slug: await slugOf(workspaceId) });
+  assert.equal(allowed.status, 200);
+  assert.equal(await workspaceExists(db, workspaceId), false);
+});
+
+// 3 -----------------------------------------------------------------------------------------
+test("a SCIM directory can neither mint nor revoke a workspace owner", async () => {
+  const issued = await issueScimToken(db, enterpriseWorkspace, "authority-idp");
+  const minted = await scim(issued.token, "POST", "/scim/v2/Users", {
+    schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+    userName: "escalate@example.com",
+    roles: [{ value: "owner", primary: true }],
+  });
+  assert.equal(minted.status, 400);
+  const created = await db.query<{ count: string }>(
+    `SELECT count(*)::text AS count FROM workspace_principals
+      WHERE workspace_id = $1 AND lower(user_name) = 'escalate@example.com'`,
+    [enterpriseWorkspace],
+  );
+  assert.equal(created.rows[0].count, "0", "a directory must not be able to create an owner");
+
+  // Nor promote an existing member into one.
+  const memberId = await seedPrincipal(enterpriseWorkspace, "developer", {
+    external_id: "idp-promote",
+    user_name: "promote@example.com",
+  });
+  const promoted = await scim(issued.token, "PATCH", `/scim/v2/Users/${memberId}`, {
+    schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+    Operations: [{ op: "replace", path: "roles", value: [{ value: "owner" }] }],
+  });
+  assert.equal(promoted.status, 400);
+  const memberRow = await db.query<{ role: string }>(
+    `SELECT role FROM workspace_principals WHERE workspace_id = $1 AND principal_id = $2`,
+    [enterpriseWorkspace, memberId],
+  );
+  assert.equal(memberRow.rows[0].role, "developer");
+
+  // Nor deactivate or demote the owner it did not create.
+  const ownerId = await seedPrincipal(enterpriseWorkspace, "owner", {
+    external_id: "idp-owner",
+    user_name: "real-owner@example.com",
+  });
+  const revoked = await scim(issued.token, "PATCH", `/scim/v2/Users/${ownerId}`, {
+    schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+    Operations: [{ op: "replace", path: "active", value: false }],
+  });
+  assert.equal(revoked.status, 403);
+  const deleted = await scim(issued.token, "DELETE", `/scim/v2/Users/${ownerId}`);
+  assert.equal(deleted.status, 403);
+  const ownerRow = await db.query<{ active: boolean; role: string }>(
+    `SELECT active, role FROM workspace_principals WHERE workspace_id = $1 AND principal_id = $2`,
+    [enterpriseWorkspace, ownerId],
+  );
+  assert.equal(ownerRow.rows[0].active, true);
+  assert.equal(ownerRow.rows[0].role, "owner");
+});
+
+// 4 -----------------------------------------------------------------------------------------
+test("a deletion refuses to run when blobs exist and no object store is configured", async () => {
+  const { workspaceId, ownerId } = await seedDeletableWorkspace();
+  const session = await createSession(db, { workspace_id: workspaceId, principal_id: ownerId });
+  // The default server config supplies no object store, and this tenant has evidence blobs.
+  const result = await deleteViaRoute(workspaceId, session, { confirm_slug: await slugOf(workspaceId) });
+  assert.equal(result.status, 409);
+  assert.equal(result.body.error, "object_store_required");
+  assert.equal(await workspaceExists(db, workspaceId), true);
+  const ledger = await db.query<{ count: string }>(
+    `SELECT count(*)::text AS count FROM workspace_deletions WHERE workspace_id = $1`,
+    [workspaceId],
+  );
+  assert.equal(ledger.rows[0].count, "0", "no terminal record may claim a deletion that did not happen");
+});
+
+test("the deletion ledger records the object keys the store actually removed", async () => {
+  const { workspaceId, ownerId, store } = await seedDeletableWorkspace();
+  // The store no longer holds one of the two keys: it will report one deletion, not two.
+  store.keys.delete(`${workspaceId}/evidence/two`);
+  const session = await createSession(db, { workspace_id: workspaceId, principal_id: ownerId });
+  const result = await deleteWorkspace(db, workspaceId, {
+    confirmed_by: ownerId,
+    session_id: session.session_id,
+    directory: exportDir,
+    encryption_key: EXPORT_KEY,
+    object_store: store,
+  });
+  assert.equal(result.object_keys_total, 2);
+  assert.equal(result.object_keys_deleted, 1);
+  const ledger = await db.query<{ object_keys_deleted: number; object_keys_total: number }>(
+    `SELECT object_keys_deleted, object_keys_total FROM workspace_deletions WHERE workspace_id = $1`,
+    [workspaceId],
+  );
+  assert.equal(ledger.rows[0].object_keys_total, 2);
+  assert.equal(ledger.rows[0].object_keys_deleted, 1, "the compliance record must not overstate removal");
+});
+
+// 5 -----------------------------------------------------------------------------------------
+test("the OIDC callback refuses a login this browser did not start", async () => {
+  const workspaceSlug = "binding-tenant";
+  const bindingWorkspace = randomUUID();
+  await seedWorkspace(bindingWorkspace, workspaceSlug, "enterprise");
+  await storeOidcProvider(db, {
+    workspace_id: bindingWorkspace,
+    issuer: ISSUER,
+    client_id: CLIENT_ID,
+    client_secret_ref: "KAGE_TEST_OIDC_SECRET",
+    redirect_uri: "https://workspace.kage.dev/v1/auth/oidc/callback",
+    authorization_endpoint: `${ISSUER}/authorize`,
+    token_endpoint: `${ISSUER}/token`,
+    jwks_uri: `${ISSUER}/jwks`,
+    allowed_email_domains: [],
+    default_role: "developer",
+    allow_jit_provisioning: true,
+  });
+  // A server with an injected IdP transport and the test key set, so no network is touched.
+  let currentIdToken = "";
+  const bindingServer = await startWorkspaceServer(db, 0, {
+    oidcFetcher: async (url) => {
+      if (url.endsWith("/token")) {
+        return { ok: true, status: 200, json: async () => ({ id_token: currentIdToken }) };
+      }
+      if (url.endsWith("/jwks")) return { ok: true, status: 200, json: async () => jwks };
+      return { ok: false, status: 404, json: async () => ({}) };
+    },
+  });
+  try {
+    const started = await fetch(`http://127.0.0.1:${bindingServer.port}/v1/auth/oidc/start`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ workspace_slug: workspaceSlug }),
+    });
+    assert.equal(started.status, 200);
+    const startedBody = (await started.json()) as { authorization_url: string };
+    const setCookie = started.headers.get("set-cookie") ?? "";
+    const binding = /kage_oidc_binding=([^;]+)/.exec(setCookie)?.[1];
+    assert.ok(binding, `the start response must bind the login to this browser: ${setCookie}`);
+    const state = new URL(startedBody.authorization_url).searchParams.get("state") ?? "";
+    const nonceRow = await db.query<{ nonce: string }>(
+      `SELECT nonce FROM oidc_login_requests WHERE state = $1`,
+      [state],
+    );
+    currentIdToken = await signIdToken({
+      nonce: nonceRow.rows[0].nonce,
+      subject: "binding-subject",
+      email: "binding@example.com",
+    });
+
+    // The attacker forces the victim's browser to the callback. The victim's browser carries no
+    // binding cookie for this login, so no session may be issued.
+    const forced = await fetch(
+      `http://127.0.0.1:${bindingServer.port}/v1/auth/oidc/callback?workspace=${workspaceSlug}&state=${encodeURIComponent(state)}&code=forced`,
+    );
+    assert.equal(forced.status, 401);
+    assert.ok(
+      !(forced.headers.get("set-cookie") ?? "").includes("kage_session="),
+      "a forced callback must never set a session cookie",
+    );
+
+    // The browser that actually started the login completes it.
+    const legitimate = await fetch(
+      `http://127.0.0.1:${bindingServer.port}/v1/auth/oidc/callback?workspace=${workspaceSlug}&state=${encodeURIComponent(state)}&code=real`,
+      { headers: { cookie: `kage_oidc_binding=${binding}` } },
+    );
+    assert.equal(legitimate.status, 200);
+    assert.ok((legitimate.headers.get("set-cookie") ?? "").includes("kage_session="));
+  } finally {
+    await bindingServer.close();
+  }
+});
+
+// 6 -----------------------------------------------------------------------------------------
+test("an export is downloadable through the API and never lands in a shared temp path", async () => {
+  const { workspaceId, ownerId } = await seedOwnedWorkspace();
+  const session = await createSession(db, { workspace_id: workspaceId, principal_id: ownerId });
+  const response = await fetch(`http://127.0.0.1:${server.port}/v1/workspaces/${workspaceId}/export`, {
+    method: "POST",
+    headers: {
+      cookie: `kage_session=${session.token}`,
+      "x-kage-csrf": session.csrf,
+      "content-type": "application/json",
+    },
+    body: "{}",
+  });
+  assert.equal(response.status, 200);
+  const body = (await response.json()) as {
+    export_id?: string;
+    download_url?: string;
+    download_token?: string;
+    export_path?: string;
+    sha256?: string;
+    decryption_key?: string;
+  };
+  assert.ok(body.export_id, "an export must be addressable");
+  assert.ok(body.download_token, "an export must be deliverable");
+
+  // The default directory must not be the predictable, world-writable OS temp path.
+  const directory = dirname(String(body.export_path));
+  assert.notEqual(directory, join(tmpdir(), "kage-workspace-exports"));
+  assert.equal(statSync(directory).mode & 0o777, 0o700, "the export directory must be private");
+
+  const anonymous = await fetch(`http://127.0.0.1:${server.port}${body.download_url}`);
+  assert.equal(anonymous.status, 401);
+  const wrongTicket = await fetch(`http://127.0.0.1:${server.port}${body.download_url}`, {
+    headers: { authorization: `Bearer ${randomBytes(32).toString("base64url")}` },
+  });
+  assert.equal(wrongTicket.status, 401);
+
+  const downloaded = await fetch(`http://127.0.0.1:${server.port}${body.download_url}`, {
+    headers: { authorization: `Bearer ${body.download_token}` },
+  });
+  assert.equal(downloaded.status, 200);
+  const bytes = Buffer.from(await downloaded.arrayBuffer());
+  assert.equal(createHash("sha256").update(bytes).digest("hex"), body.sha256);
+  const local = join(exportDir, `downloaded-${workspaceId}.kexp`);
+  writeFileSync(local, bytes);
+  const opened = await readWorkspaceExport(local, Buffer.from(String(body.decryption_key), "base64"));
+  assert.equal(opened.manifest.workspace_id, workspaceId);
+});
+
+test("the export a deletion produced is still downloadable once the tenant is gone", async () => {
+  const { workspaceId, ownerId } = await seedOwnedWorkspace();
+  const session = await createSession(db, { workspace_id: workspaceId, principal_id: ownerId });
+  const result = await deleteViaRoute(workspaceId, session, { confirm_slug: await slugOf(workspaceId) });
+  assert.equal(result.status, 200);
+  assert.equal(await workspaceExists(db, workspaceId), false);
+  assert.ok(result.body.download_url, "a deletion must hand back a way to fetch the export");
+  assert.ok(result.body.download_token);
+
+  // The tenant, its principals, and its sessions are gone — the ticket is the only credential left.
+  assert.equal(await resolveSession(db, session.token), null);
+  const downloaded = await fetch(`http://127.0.0.1:${server.port}${result.body.download_url}`, {
+    headers: { authorization: `Bearer ${result.body.download_token}` },
+  });
+  assert.equal(downloaded.status, 200);
+  const bytes = Buffer.from(await downloaded.arrayBuffer());
+  assert.equal(createHash("sha256").update(bytes).digest("hex"), result.body.export_sha256);
+  const local = join(exportDir, `deleted-${workspaceId}.kexp`);
+  writeFileSync(local, bytes);
+  const opened = await readWorkspaceExport(local, Buffer.from(String(result.body.decryption_key), "base64"));
+  assert.equal(opened.manifest.workspace_id, workspaceId);
 });

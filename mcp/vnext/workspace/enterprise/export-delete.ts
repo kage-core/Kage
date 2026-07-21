@@ -6,7 +6,13 @@
 //
 // THE ORDER OF OPERATIONS IS THE SAFETY PROPERTY, and it is deliberate:
 //   1. Verify the confirming principal is an OWNER of this workspace and re-authenticated RECENTLY.
-//      A stolen long-lived session must not be able to delete a company's knowledge base.
+//      A stolen long-lived session must not be able to delete a company's knowledge base. The
+//      re-authentication instant is read from the SESSION ROW this server wrote when the credential was
+//      presented — never from the request. An instant the caller supplies is a value the caller controls,
+//      and a check whose input the attacker writes is not a check.
+//   1b. Verify the blobs can actually be removed. A tenant with object keys and no configured object
+//      store cannot be deleted: the alternative is a "deleted" tenant whose evidence blobs are still in
+//      a bucket while the terminal ledger says they were removed.
 //   2. Write an ENCRYPTED export first. If deletion is going to be irreversible, the customer holds a
 //      copy before anything is removed — and if the export fails, nothing is deleted.
 //   3. Record a TERMINAL row in `workspace_deletions`, which has no foreign key to `workspaces` on
@@ -18,10 +24,23 @@
 //   5. Delete every relational row in ONE transaction, in foreign-key-safe order, so the tenant either
 //      disappears entirely or not at all.
 //
+// AN EXPORT IS A DELIVERABLE, NOT A PATH. `registerExportDownload` mints a hashed, expiring ticket for
+// each export, and the ticket — not a session — is what the download route authenticates. That matters
+// most in the one case where it is hardest: after an irreversible deletion the customer has no
+// workspace, no principal, and no session left to authenticate with, so a session-authenticated download
+// would hand them a file they could never fetch.
+//
 // WHAT AN EXPORT DELIBERATELY OMITS. Session tokens, SCIM token hashes, and in-flight OIDC PKCE
 // verifiers are NOT exported. They are credentials, not customer data; putting them in a file the
 // customer downloads would hand an attacker who obtained that file a set of live secrets.
-import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+  randomUUID,
+  timingSafeEqual,
+} from "node:crypto";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -36,7 +55,8 @@ export interface ObjectStore {
 export type WorkspaceDeletionErrorCode =
   | "unknown_workspace"
   | "owner_required"
-  | "reauthentication_required";
+  | "reauthentication_required"
+  | "object_store_required";
 
 export class WorkspaceDeletionError extends Error {
   constructor(
@@ -49,10 +69,15 @@ export class WorkspaceDeletionError extends Error {
 }
 
 /**
- * How recently the confirming owner must have re-authenticated. Deleting a workspace is the single most
- * destructive act in the product, so an ordinary live session is not enough authority on its own.
+ * How recently the confirming owner must have re-authenticated, measured against
+ * `workspace_sessions.reauthenticated_at` — a column only this server writes. Deleting a workspace is
+ * the single most destructive act in the product, so an ordinary live session is not enough authority on
+ * its own: the owner must have presented their credential within this window.
  */
 export const REAUTHENTICATION_WINDOW_MS = 5 * 60 * 1000;
+
+/** How long a download ticket stays valid. Long enough to survive a failed download and a support ping. */
+export const EXPORT_DOWNLOAD_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 const EXPORT_MAGIC = Buffer.from("KAGEEXP1", "utf8");
 const IV_BYTES = 12;
@@ -171,7 +196,14 @@ export async function exportWorkspace(
     created_at: (options.now?.() ?? new Date()).toISOString(),
     schema_version: LATEST_MIGRATION,
     tables: counts,
-    excluded_tables: ["workspace_sessions", "workspace_scim_tokens", "oidc_login_requests"],
+    excluded_tables: [
+      "workspace_sessions",
+      "workspace_scim_tokens",
+      "oidc_login_requests",
+      // Download tickets are credentials for the very file being written; exporting them into it would
+      // make the file its own key.
+      "workspace_exports",
+    ],
   };
 
   const plaintext = gzipSync(Buffer.from(JSON.stringify({ manifest, data }), "utf8"));
@@ -182,7 +214,8 @@ export async function exportWorkspace(
   const tag = cipher.getAuthTag();
   const file = Buffer.concat([EXPORT_MAGIC, iv, tag, ciphertext]);
 
-  mkdirSync(options.directory, { recursive: true });
+  // 0700: an export is the whole tenant in one file. Nobody else on the host reads it.
+  mkdirSync(options.directory, { recursive: true, mode: 0o700 });
   const exportPath = join(options.directory, `kage-workspace-${workspaceId}-${Date.now()}.kexp`);
   writeFileSync(exportPath, file, { mode: 0o600 });
   return {
@@ -240,8 +273,12 @@ export async function objectKeysForWorkspace(db: Db, workspaceId: string): Promi
 export interface DeleteWorkspaceOptions {
   /** The principal confirming the deletion. Must be an active OWNER of this workspace. */
   confirmed_by: string;
-  /** ISO-8601 instant of that principal's most recent re-authentication. */
-  reauthenticated_at: string;
+  /**
+   * The session that requested the deletion. Its `reauthenticated_at` — written by this server when the
+   * credential was presented — is the only accepted proof of recent re-authentication. There is
+   * deliberately no way to pass the instant itself.
+   */
+  session_id: string;
   directory: string;
   encryption_key: Buffer | string;
   object_store?: ObjectStore;
@@ -253,8 +290,123 @@ export interface DeleteWorkspaceResult {
   deletion_id: string;
   export_path: string;
   export_sha256: string;
-  deleted_object_keys: string[];
+  /** How many object keys this tenant HAD. */
+  object_keys_total: number;
+  /** How many the object store REPORTED removing. These two are not the same number, and never merged. */
+  object_keys_deleted: number;
   rows_deleted: number;
+  /** The one-time ticket for fetching the export after the tenant (and every session) is gone. */
+  download: ExportDownloadTicket;
+}
+
+export interface ExportDownloadTicket {
+  export_id: string;
+  /** The raw ticket. Returned once, to the authenticated requester; only its hash is stored. */
+  token: string;
+  expires_at: string;
+}
+
+/**
+ * Record an export as a fetchable object and mint its download ticket.
+ *
+ * The ticket is what makes an export a deliverable rather than a path on our disk. It is stored hashed
+ * (SHA-256, like session and SCIM tokens) and it is bound to ONE export row, so it grants exactly one
+ * tenant's one file and nothing else. `workspace_exports` has no foreign key to `workspaces` on purpose:
+ * the export a deletion produced must remain fetchable after the tenant row is gone, which is the only
+ * moment the customer genuinely cannot authenticate any other way.
+ */
+export async function registerExportDownload(
+  db: Db,
+  input: {
+    workspace_id: string;
+    workspace_slug: string | null;
+    kind: "export" | "deletion";
+    export_path: string;
+    sha256: string;
+    byte_size: number;
+    ttlMs?: number;
+    now?: () => number;
+  },
+): Promise<ExportDownloadTicket> {
+  const exportId = randomUUID();
+  const token = randomBytes(32).toString("base64url");
+  const nowMs = input.now?.() ?? Date.now();
+  const expiresAt = new Date(nowMs + (input.ttlMs ?? EXPORT_DOWNLOAD_TTL_MS));
+  await db.query(
+    `INSERT INTO workspace_exports(export_id, workspace_id, workspace_slug, kind, export_path, sha256,
+                                   byte_size, download_token_hash, expires_at)
+       VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [
+      exportId,
+      input.workspace_id,
+      input.workspace_slug,
+      input.kind,
+      input.export_path,
+      input.sha256,
+      input.byte_size,
+      createHash("sha256").update(token).digest("hex"),
+      expiresAt.toISOString(),
+    ],
+  );
+  return { export_id: exportId, token, expires_at: expiresAt.toISOString() };
+}
+
+export interface ResolvedExportDownload {
+  export_id: string;
+  workspace_id: string;
+  export_path: string;
+  sha256: string;
+  byte_size: number;
+}
+
+/**
+ * Resolve a download ticket to the file it grants, or null.
+ *
+ * Null covers every failure — unknown export, wrong ticket, expired ticket — so a caller probing ids
+ * learns nothing from the answer. The stored hash is compared in CONSTANT TIME against the hash of what
+ * was presented, and the row is looked up by export id rather than by the token hash so that a mismatch
+ * cannot be distinguished from a miss by timing the index probe either.
+ */
+export async function resolveExportDownload(
+  db: Db,
+  exportId: string,
+  token: string | undefined,
+): Promise<ResolvedExportDownload | null> {
+  if (!token) return null;
+  // A non-uuid id would make Postgres raise rather than return no rows; treat it as a miss.
+  if (!/^[0-9a-fA-F-]{36}$/.test(exportId)) return null;
+  const { rows } = await db.query<{
+    export_id: string;
+    workspace_id: string;
+    export_path: string;
+    sha256: string;
+    byte_size: string | number;
+    download_token_hash: string;
+    expired: boolean;
+  }>(
+    `SELECT export_id, workspace_id, export_path, sha256, byte_size, download_token_hash,
+            expires_at <= now() AS expired
+       FROM workspace_exports
+      WHERE export_id = $1`,
+    [exportId],
+  );
+  const row = rows[0];
+  if (!row || row.expired) return null;
+  const stored = Buffer.from(row.download_token_hash, "utf8");
+  const presented = Buffer.from(createHash("sha256").update(token).digest("hex"), "utf8");
+  if (stored.length !== presented.length || !timingSafeEqual(stored, presented)) return null;
+  await db.query(
+    `UPDATE workspace_exports SET last_downloaded_at = now(), download_count = download_count + 1
+      WHERE export_id = $1`,
+    [exportId],
+  );
+  return {
+    export_id: row.export_id,
+    workspace_id: row.workspace_id,
+    export_path: row.export_path,
+    sha256: row.sha256,
+    byte_size: Number(row.byte_size),
+  };
 }
 
 /** Irreversibly delete a workspace, after exporting it. See the file header for why this order. */
@@ -285,13 +437,35 @@ export async function deleteWorkspace(
       "only an active workspace owner may confirm a deletion",
     );
   }
-  const reauthAt = Date.parse(options.reauthenticated_at);
-  if (!Number.isFinite(reauthAt) || nowMs - reauthAt > REAUTHENTICATION_WINDOW_MS || reauthAt > nowMs + 60_000) {
+  // The re-authentication instant comes from the SESSION ROW, matched to this tenant AND this owner, and
+  // only while the session is live. A NULL (a session minted before migration 012) fails the check:
+  // "never corroborated" must not read as "corroborated long ago is fine".
+  const session = await db.query<{ reauthenticated_at: Date | string | null }>(
+    `SELECT reauthenticated_at FROM workspace_sessions
+      WHERE workspace_id = $1 AND session_id = $2 AND principal_id = $3
+        AND revoked_at IS NULL AND expires_at > now()`,
+    [workspaceId, options.session_id, options.confirmed_by],
+  );
+  const recordedReauth = session.rows[0]?.reauthenticated_at ?? null;
+  const reauthAt = recordedReauth === null ? Number.NaN : new Date(recordedReauth).getTime();
+  if (!Number.isFinite(reauthAt) || nowMs - reauthAt > REAUTHENTICATION_WINDOW_MS) {
     throw new WorkspaceDeletionError(
       "reauthentication_required",
       `the confirming owner must have re-authenticated within the last ${
         REAUTHENTICATION_WINDOW_MS / 60000
       } minutes`,
+    );
+  }
+
+  // Blobs, before anything is written. A tenant whose evidence lives in a bucket this deployment cannot
+  // reach must not be "deleted": the rows would go, the blobs would stay, and the terminal ledger would
+  // record a removal that never happened. Refusing here leaves the tenant completely intact.
+  const keys = await objectKeysForWorkspace(db, workspaceId);
+  if (keys.length > 0 && !options.object_store) {
+    throw new WorkspaceDeletionError(
+      "object_store_required",
+      `this workspace references ${keys.length} object-storage keys and no object store is configured; ` +
+        "deleting the database rows would leave those blobs behind",
     );
   }
 
@@ -301,12 +475,25 @@ export async function deleteWorkspace(
     encryption_key: options.encryption_key,
   });
 
+  // 2b. The export is registered as a fetchable object BEFORE the tenant goes, because afterwards there
+  // is no session, no principal, and no workspace left to authorise a download with.
+  const download = await registerExportDownload(db, {
+    workspace_id: workspaceId,
+    workspace_slug: workspace.rows[0].slug,
+    kind: "deletion",
+    export_path: exported.export_path,
+    sha256: exported.sha256,
+    byte_size: exported.byte_size,
+    now: () => nowMs,
+  });
+
   // 3. The terminal record, outside the tenant partition, committed before the data goes.
   const deletionId = randomUUID();
   await db.query(
     `INSERT INTO workspace_deletions(deletion_id, workspace_id, workspace_slug, confirmed_by,
-                                     reauthenticated_at, export_path, export_sha256, export_bytes)
-       VALUES($1, $2, $3, $4, $5, $6, $7, $8)`,
+                                     reauthenticated_at, export_path, export_sha256, export_bytes,
+                                     object_keys_total)
+       VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
     [
       deletionId,
       workspaceId,
@@ -316,14 +503,15 @@ export async function deleteWorkspace(
       exported.export_path,
       exported.sha256,
       exported.byte_size,
+      keys.length,
     ],
   );
 
-  // 4. Object storage, before the database — see the header for why this direction.
-  const keys = await objectKeysForWorkspace(db, workspaceId);
-  if (keys.length > 0 && options.object_store) {
-    await options.object_store.deleteKeys(keys);
-  }
+  // 4. Object storage, before the database — see the header for why this direction. The count recorded
+  // is what the store REPORTED removing, never how many we asked it to remove: this ledger is the
+  // compliance record that outlives the tenant, and it is worth nothing if it rounds up.
+  const objectKeysDeleted =
+    keys.length > 0 && options.object_store ? await options.object_store.deleteKeys(keys) : 0;
 
   // 5. One transaction for every relational row: the tenant goes entirely, or not at all.
   const rowsDeleted = await db.transaction(async (tx) => {
@@ -344,7 +532,7 @@ export async function deleteWorkspace(
   await db.query(
     `UPDATE workspace_deletions SET completed_at = now(), object_keys_deleted = $2, rows_deleted = $3
       WHERE deletion_id = $1`,
-    [deletionId, keys.length, rowsDeleted],
+    [deletionId, objectKeysDeleted, rowsDeleted],
   );
 
   return {
@@ -352,7 +540,9 @@ export async function deleteWorkspace(
     deletion_id: deletionId,
     export_path: exported.export_path,
     export_sha256: exported.sha256,
-    deleted_object_keys: keys,
+    object_keys_total: keys.length,
+    object_keys_deleted: objectKeysDeleted,
     rows_deleted: rowsDeleted,
+    download,
   };
 }
