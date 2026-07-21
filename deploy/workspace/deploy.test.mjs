@@ -26,8 +26,8 @@ import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { createServer as createSocketServer } from "node:net";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { networkInterfaces, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
@@ -44,9 +44,11 @@ const { createDb } = await import(`${dist}/workspace/db.js`).then((m) => m.defau
 const { migrate, currentVersion, LATEST_MIGRATION } = await import(`${dist}/workspace/migrate.js`).then(
   (m) => m.default ?? m,
 );
-const { bootWorkspaceService, readBootConfigFromEnv, BootError } = await import(
-  `${dist}/workspace/boot.js`
-).then((m) => m.default ?? m);
+const { bootWorkspaceService, readBootConfigFromEnv, BootError, main, readServerOptionsFromEnv } =
+  await import(`${dist}/workspace/boot.js`).then((m) => m.default ?? m);
+const { computeSignature } = await import(`${dist}/workspace/github/signature.js`).then(
+  (m) => m.default ?? m,
+);
 const { createBackup, readBackup, restoreBackup, verifyBackup, BackupError, BACKUP_FORMAT } =
   await import(`${dist}/workspace/backup.js`).then((m) => m.default ?? m);
 const { createSession } = await import(`${dist}/workspace/auth/session.js`).then((m) => m.default ?? m);
@@ -703,4 +705,358 @@ test("env.example documents every variable the deployment reads and sets no real
     const value = line.split("=").slice(1).join("=").trim();
     assert.equal(value, "", `env.example ships a value for ${line.split("=")[0]}`);
   }
+});
+
+// ---------------------------------------------------------------------------------------------
+// Hardening: the packaging must actually WORK, not merely describe itself correctly.
+//
+// Every test below started as a reproduction of a defect in the shipped artifacts:
+//   1. the process bound loopback inside a container whose port compose publishes — DNAT to the bridge
+//      IP reached nothing, so a "(healthy)" container refused every external request;
+//   2. migrate() took no lock while boot.ts runs it in every replica — concurrent first starts crashed;
+//   3. main() read two variables, so every other secret env.example documents was inert;
+//   4. no .dockerignore existed, so `COPY mcp/ ./` shipped the developer's host node_modules;
+//   5. a non-32-byte backup key silently degraded to an unsalted single-iteration SHA-256.
+// ---------------------------------------------------------------------------------------------
+
+/** The first non-loopback IPv4 address of this host, or null when there is none (rare, but possible). */
+function externalIPv4() {
+  for (const addresses of Object.values(networkInterfaces())) {
+    for (const address of addresses ?? []) {
+      if (address.family === "IPv4" && !address.internal) return address.address;
+    }
+  }
+  return null;
+}
+
+test("the service listens on every interface, so a published container port actually reaches it", async () => {
+  // Docker DNATs a published port to the container's bridge IP. A process bound to 127.0.0.1 inside the
+  // container is not listening there, so every external request is refused — while the in-container
+  // healthcheck (which does talk to 127.0.0.1) reports the container healthy.
+  const port = await freePort();
+  const booted = await bootWorkspaceService({ connectionString: baseUrl, port });
+  try {
+    assert.equal(booted.host, "0.0.0.0", "boot must bind every interface by default");
+    const external = externalIPv4();
+    if (external) {
+      const response = await fetch(`http://${external}:${booted.port}/v1/health`);
+      assert.equal(response.status, 200, `the published address ${external} refused the request`);
+    }
+    // Loopback keeps working: that is the address the container healthcheck uses.
+    assert.equal((await fetch(`http://127.0.0.1:${booted.port}/v1/health`)).status, 200);
+  } finally {
+    await booted.close();
+  }
+});
+
+test("the bind address is configurable and defaults to every interface", () => {
+  const defaults = readBootConfigFromEnv({ KAGE_WORKSPACE_DATABASE_URL: "postgres://u:p@db:5432/k" });
+  assert.equal(defaults.host, "0.0.0.0");
+  const pinned = readBootConfigFromEnv({
+    KAGE_WORKSPACE_DATABASE_URL: "postgres://u:p@db:5432/k",
+    KAGE_WORKSPACE_HOST: "127.0.0.1",
+  });
+  assert.equal(pinned.host, "127.0.0.1");
+});
+
+test("the compose file publishes the port to the host loopback, not to every host interface", () => {
+  // The service speaks plain HTTP and expects a TLS terminator in front of it. Publishing 0.0.0.0:8787
+  // on the HOST puts that plain-HTTP port on every network the host is attached to.
+  const published = compose.match(/-\s*"\$\{KAGE_WORKSPACE_PUBLISH_ADDR:-([^}]+)\}/);
+  assert.ok(published, "compose does not make the published bind address explicit");
+  assert.equal(published[1], "127.0.0.1");
+});
+
+test("concurrent replicas migrating the same fresh database all converge on the schema", async () => {
+  // `docker compose up --scale workspace=3` and any Deployment with replicas>1 runs migrate() in every
+  // pod at once. Without a lock, migration 001's plain CREATE TABLE races: one pod wins and the others
+  // reject with `duplicate key value violates unique constraint "pg_type_typname_nsp_index"`, exit(1)
+  // before ever listening, and flap through restart backoff.
+  const database = `kage_concurrent_${randomUUID().replace(/-/g, "").slice(0, 12)}`;
+  await db.query(`CREATE DATABASE ${database}`);
+  const url = baseUrl.replace(/\/[^/]+$/, `/${database}`);
+  const replicas = [createDb(url), createDb(url), createDb(url)];
+  try {
+    const versions = await Promise.all(replicas.map((replica) => migrate(replica)));
+    assert.deepEqual(versions, [LATEST_MIGRATION, LATEST_MIGRATION, LATEST_MIGRATION]);
+    // And the schema is applied exactly once: a second pass over an already-migrated database is a no-op.
+    assert.equal(await migrate(replicas[0]), LATEST_MIGRATION);
+    const { rows } = await replicas[0].query(`SELECT COUNT(*)::text AS count FROM schema_migrations`);
+    assert.equal(Number.parseInt(rows[0].count, 10), LATEST_MIGRATION);
+  } finally {
+    await Promise.all(replicas.map((replica) => replica.close().catch(() => {})));
+  }
+});
+
+test("main() wires the deployment secrets env.example documents into the running server", async () => {
+  // env.example says an unset billing secret leaves the routes off, which implies a set one turns them
+  // on. Before this, main() read only the database url and the port: Stripe posted
+  // checkout.session.completed into a 404 forever and no subscription ever activated.
+  const port = await freePort();
+  const installationId = "4242";
+  const webhookSecret = "test-github-webhook-secret";
+  await db.query(
+    `INSERT INTO github_installations(workspace_id, installation_id, account_login,
+                                      repository_selection, permissions)
+       VALUES($1, $2, 'kage-test-org', 'selected', '{"metadata":"read"}'::jsonb)`,
+    [workspaceId, installationId],
+  );
+  const booted = await main({
+    KAGE_WORKSPACE_DATABASE_URL: baseUrl,
+    KAGE_WORKSPACE_PORT: String(port),
+    KAGE_STRIPE_SECRET_KEY: "sk_test_not_a_real_key",
+    KAGE_STRIPE_WEBHOOK_SECRET: "whsec_test_not_a_real_secret",
+    KAGE_GITHUB_APP_ID: "1",
+    KAGE_GITHUB_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\nnot-a-real-key\n-----END PRIVATE KEY-----",
+    KAGE_GITHUB_WEBHOOK_SECRET: webhookSecret,
+  });
+  assert.ok(booted, "main() did not return the booted service");
+  try {
+    const base = `http://127.0.0.1:${booted.port}`;
+    // Stripe: configured, so the route EXISTS. A forged signature is rejected on its own merits (401),
+    // never with the 404 that means "no billing here".
+    const stripe = await fetch(`${base}/v1/billing/stripe/webhook`, {
+      method: "POST",
+      headers: { "stripe-signature": "t=1,v1=forged" },
+      body: JSON.stringify({ id: "evt_test", type: "checkout.session.completed" }),
+    });
+    assert.notEqual(stripe.status, 404, "the Stripe webhook route is not mounted");
+    assert.equal(stripe.status, 401);
+
+    // GitHub: an invalid signature is 401 BEFORE any parsing, and no delivery is recorded.
+    const body = JSON.stringify({ installation: { id: Number(installationId) }, action: "opened" });
+    const forged = await fetch(`${base}/v1/github/webhook`, {
+      method: "POST",
+      headers: {
+        "x-hub-signature-256": "sha256=00",
+        "x-github-event": "pull_request",
+        "x-github-delivery": `forged-${randomUUID()}`,
+      },
+      body,
+    });
+    assert.notEqual(forged.status, 404, "the GitHub webhook route is not mounted");
+    assert.equal(forged.status, 401);
+
+    // A genuine delivery is recorded once, against the tenant that owns the installation.
+    const deliveryId = `delivery-${randomUUID()}`;
+    const headers = {
+      "x-hub-signature-256": computeSignature(webhookSecret, body),
+      "x-github-event": "pull_request",
+      "x-github-delivery": deliveryId,
+    };
+    const accepted = await fetch(`${base}/v1/github/webhook`, { method: "POST", headers, body });
+    assert.equal(accepted.status, 202);
+    const redelivered = await fetch(`${base}/v1/github/webhook`, { method: "POST", headers, body });
+    assert.equal(redelivered.status, 200);
+    const { rows } = await db.query(
+      `SELECT COUNT(*)::text AS count FROM github_deliveries WHERE workspace_id = $1 AND delivery_id = $2`,
+      [workspaceId, deliveryId],
+    );
+    assert.equal(Number.parseInt(rows[0].count, 10), 1);
+
+    // An installation this deployment has never mapped writes NOTHING: a webhook must not be able to
+    // invent a tenant. It is accepted (GitHub must not retry forever) and dropped.
+    const unmappedBody = JSON.stringify({ installation: { id: 999999 } });
+    const unmapped = await fetch(`${base}/v1/github/webhook`, {
+      method: "POST",
+      headers: {
+        "x-hub-signature-256": computeSignature(webhookSecret, unmappedBody),
+        "x-github-event": "pull_request",
+        "x-github-delivery": `unmapped-${randomUUID()}`,
+      },
+      body: unmappedBody,
+    });
+    assert.equal(unmapped.status, 202);
+    const dropped = await db.query(`SELECT COUNT(*)::text AS count FROM github_deliveries`);
+    assert.equal(Number.parseInt(dropped.rows[0].count, 10), 1);
+  } finally {
+    await booted.close();
+  }
+});
+
+test("an unconfigured deployment leaves both provider routes off rather than half-mounted", async () => {
+  const options = readServerOptionsFromEnv({});
+  assert.equal(options.stripe, undefined);
+  assert.equal(options.github, undefined);
+});
+
+/** Strip // line comments, block comments, and # script comments so only real code is scanned. */
+function stripComments(text) {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .split("\n")
+    .map((line) => line.replace(/\/\/.*$/, "").replace(/#.*$/, ""))
+    .join("\n");
+}
+
+/**
+ * A KAGE_* variable that is referenced INDIRECTLY, so it never appears as a literal in the code even
+ * though the deployment reads it. The OIDC client secret is resolved as `env[row.client_secret_ref]`
+ * from a per-workspace row (a database dump then carries no credential); KAGE_OIDC_CLIENT_SECRET is the
+ * conventional name an operator points that ref at, documented but never hard-coded.
+ */
+const DYNAMICALLY_REFERENCED = new Set(["KAGE_OIDC_CLIENT_SECRET"]);
+
+/**
+ * A KAGE_* variable the shipped scripts read that is NOT an operator-facing deployment value.
+ * KAGE_APP_DIR is where the app is installed inside the image (default `/app/mcp`); the scripts honour an
+ * override only so the deploy tests can run them against `mcp/dist`, never something an operator sets.
+ */
+const INTERNAL_ONLY = new Set(["KAGE_APP_DIR"]);
+
+/** Every KAGE_* variable the production artifacts actually read. Comments and test files are excluded. */
+function environmentNamesRead() {
+  const names = new Set();
+  const collect = (text) => {
+    for (const match of stripComments(text).matchAll(/KAGE_[A-Z0-9_]+/g)) names.add(match[0]);
+  };
+  const walk = (directory) => {
+    for (const entry of readdirSync(directory)) {
+      const full = join(directory, entry);
+      if (statSync(full).isDirectory()) {
+        if (entry === "test-support" || entry === "migrations") continue;
+        walk(full);
+        continue;
+      }
+      if (!entry.endsWith(".ts") || entry.endsWith(".test.ts")) continue;
+      collect(readFileSync(full, "utf8"));
+    }
+  };
+  walk(join(mcpDir, "vnext", "workspace"));
+  for (const file of ["healthcheck.mjs", "entrypoint.sh", "backup.sh", "restore.sh", "docker-compose.yml"]) {
+    collect(readFileSync(join(here, file), "utf8"));
+  }
+  return names;
+}
+
+test("env.example documents exactly the KAGE variables the deployment reads, in both directions", () => {
+  // The old one-directional substring check certified the wrong invariant: it passed while env.example
+  // named KAGE_GITHUB_APP_PRIVATE_KEY and the code read KAGE_GITHUB_PRIVATE_KEY, so an operator could
+  // fill in a private key the service never looked at. This checks BOTH directions, so a documented name
+  // nothing reads is caught too.
+  const documented = new Set(
+    [...envExample.matchAll(/^#?\s*(KAGE_[A-Z0-9_]+)=/gm)].map((match) => match[1]),
+  );
+  const read = environmentNamesRead();
+  for (const name of read) {
+    if (INTERNAL_ONLY.has(name)) continue;
+    assert.ok(documented.has(name), `${name} is read by the deployment but absent from env.example`);
+  }
+  for (const name of documented) {
+    if (DYNAMICALLY_REFERENCED.has(name)) continue;
+    assert.ok(read.has(name), `env.example documents ${name}, which nothing in the deployment reads`);
+  }
+});
+
+/**
+ * A deliberately small .dockerignore matcher: it supports exactly the pattern forms this repository
+ * ships (`**` , `*`, a trailing `/`, and a leading `!` negation), which is enough to prove what does and
+ * does not enter the build context without re-implementing Docker.
+ */
+function dockerIgnored(patterns, path) {
+  let ignored = false;
+  for (const raw of patterns) {
+    const negated = raw.startsWith("!");
+    const pattern = (negated ? raw.slice(1) : raw).replace(/\/$/, "");
+    const regex = new RegExp(
+      `^${pattern
+        .split("/")
+        .map((segment) =>
+          segment === "**"
+            ? "@@"
+            : segment.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]"),
+        )
+        .join("/")
+        .replace(/@@\//g, "(?:[^/]+/)*")
+        .replace(/\/@@/g, "(?:/[^/]+)*")}(?:/.*)?$`,
+    );
+    if (regex.test(path)) ignored = !negated;
+  }
+  return ignored;
+}
+
+test("the build context excludes the host dependency tree and every local secret", () => {
+  // `COPY mcp/ ./` runs AFTER `RUN npm ci`, so without a .dockerignore the developer's host
+  // mcp/node_modules overwrites the lockfile-resolved tree — and THAT is what the runtime stage copies
+  // forward. The pinned lockfile then guarantees nothing at all.
+  const ignoreFile = join(repoRoot, ".dockerignore");
+  const patterns = readFileSync(ignoreFile, "utf8")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"));
+  for (const path of [
+    "mcp/node_modules/pg/index.js",
+    "mcp/node_modules/@embedded-postgres/darwin-arm64/native/bin/postgres",
+    "platform/web/node_modules/react/index.js",
+    ".git/config",
+    "mcp/.env",
+    "deploy/workspace/.env",
+    "keys/github-app.private-key.pem",
+    ".agent_memory/packets/anything.md",
+    ".worktrees/branch/mcp/index.ts",
+    "mcp/dist/index.js",
+  ]) {
+    assert.equal(dockerIgnored(patterns, path), true, `${path} would enter the build context`);
+  }
+  for (const path of [
+    "mcp/package.json",
+    "mcp/package-lock.json",
+    "mcp/tsconfig.json",
+    "mcp/vnext/workspace/server.ts",
+    "mcp/vnext/workspace/migrations/001_workspace.sql",
+    "deploy/workspace/Dockerfile",
+  ]) {
+    assert.equal(dockerIgnored(patterns, path), false, `${path} is needed by the build but excluded`);
+  }
+});
+
+test("a backup refuses key material that is not a 32-byte key instead of hashing a passphrase", async () => {
+  // A .kbk is a whole-instance, every-tenant artifact: claims, audit log, subscriptions, SCIM token
+  // hashes. Silently deriving its key with one unsalted SHA-256 pass hands an attacker who obtains one
+  // file a raw-hash GPU brute force instead of a 256-bit key.
+  for (const weak of ["hunter2", "", "correct horse battery staple", Buffer.alloc(16, 1)]) {
+    await assert.rejects(
+      () => createBackup(db, { directory: workDir, encryption_key: weak }),
+      (error) => error instanceof BackupError && error.code === "weak_key",
+      `createBackup accepted ${JSON.stringify(String(weak))}`,
+    );
+  }
+  const strong = await createBackup(db, { directory: workDir, encryption_key: BACKUP_KEY });
+  await assert.rejects(
+    () => verifyBackup(strong.backup_path, "hunter2"),
+    (error) => error instanceof BackupError && error.code === "weak_key",
+  );
+  await assert.rejects(
+    () => readBackup(strong.backup_path, "hunter2"),
+    (error) => error instanceof BackupError && error.code === "weak_key",
+  );
+  // Both documented forms of a real key keep working, so this is a refusal of WEAK material only.
+  assert.ok(await readBackup(strong.backup_path, Buffer.from(BACKUP_KEY, "base64")));
+  const hexKeyed = await createBackup(db, {
+    directory: workDir,
+    encryption_key: Buffer.alloc(32, 3).toString("hex"),
+    file_name: "hex-keyed.kbk",
+  });
+  assert.ok(await readBackup(hexKeyed.backup_path, Buffer.alloc(32, 3).toString("hex")));
+});
+
+test("backup.sh refuses a passphrase in KAGE_BACKUP_KEY and says what to do instead", () => {
+  let message = "";
+  assert.throws(
+    () => runScript("backup.sh", [join(workDir, "weak.kbk")], { KAGE_BACKUP_KEY: "hunter2" }),
+    (error) => {
+      message = `${error.stdout ?? ""}${error.stderr ?? ""}`;
+      return true;
+    },
+  );
+  assert.match(message, /weak_key|32 bytes|openssl rand -base64 32/);
+});
+
+test("the self-hosted runbook does not contradict what the artifacts do", () => {
+  const runbook = readFileSync(join(repoRoot, "docs", "deployment", "workspace-self-hosted.md"), "utf8");
+  // The doc claimed the service "binds loopback in-process" while the compose file published its port.
+  assert.equal(/binds loopback/.test(runbook), false);
+  assert.match(runbook, /KAGE_WORKSPACE_HOST/);
+  // The multi-replica guidance is only true because migrate() takes an advisory lock; say so.
+  assert.match(runbook, /advisory lock/i);
 });

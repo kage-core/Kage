@@ -52,7 +52,8 @@ export type BackupErrorCode =
   | "schema_newer_than_build"
   | "target_schema_newer"
   | "migration_plan_required"
-  | "target_not_empty";
+  | "target_not_empty"
+  | "weak_key";
 
 export class BackupError extends Error {
   constructor(
@@ -152,16 +153,41 @@ export interface BackupResult {
   manifest: BackupManifest;
 }
 
+/**
+ * Resolve backup key material to a real 32-byte AES key, or REFUSE.
+ *
+ * A `.kbk` is a whole-instance, every-tenant artifact: every claim, the full audit log, subscriptions,
+ * and the SCIM/OIDC credential rows. Its confidentiality is exactly the strength of this key. The old
+ * behaviour silently hashed anything that was not already a 32-byte base64 string with a single unsalted
+ * SHA-256 pass — so an operator who set KAGE_BACKUP_KEY to a passphrase got a key an attacker who
+ * obtains one file can brute-force offline at raw-hash GPU speed, with no warning and no test covering
+ * it. We refuse instead: only 32 raw bytes, or a 32-byte key encoded as base64 or hex, is accepted.
+ * Deriving a key from a passphrase would need a salted KDF (scrypt/PBKDF2) with the salt stored in the
+ * file; until that exists, refusing is the honest posture for an artifact of this blast radius.
+ */
 function backupKey(material: Buffer | string): Buffer {
-  if (Buffer.isBuffer(material) && material.length === 32) return material;
-  const text = Buffer.isBuffer(material) ? material.toString("utf8") : material;
-  // A base64-encoded 32-byte key is the documented form; anything else is hashed into one so a
-  // passphrase still produces a valid key rather than an error at the last possible moment.
-  const decoded = Buffer.from(text, "base64");
-  if (decoded.length === 32 && decoded.toString("base64").replace(/=+$/, "") === text.replace(/=+$/, "")) {
-    return decoded;
+  if (Buffer.isBuffer(material)) {
+    if (material.length === 32) return material;
+    throw new BackupError(
+      "weak_key",
+      `backup key must be exactly 32 bytes; received ${material.length}. Generate one with ` +
+        `\`openssl rand -base64 32\`.`,
+    );
   }
-  return createHash("sha256").update(text, "utf8").digest();
+  const text = material.trim();
+  const base64 = Buffer.from(text, "base64");
+  if (base64.length === 32 && base64.toString("base64").replace(/=+$/, "") === text.replace(/=+$/, "")) {
+    return base64;
+  }
+  if (/^[0-9a-fA-F]{64}$/.test(text)) {
+    return Buffer.from(text, "hex");
+  }
+  throw new BackupError(
+    "weak_key",
+    "backup key must be 32 bytes, supplied as base64 (`openssl rand -base64 32`) or 64 hex chars. A " +
+      "passphrase is refused rather than silently hashed into a weak, unsalted key — a .kbk holds every " +
+      "tenant's data.",
+  );
 }
 
 function payloadChecksum(data: BackupData): string {
@@ -217,6 +243,9 @@ export async function createBackup(
     file_name?: string;
   },
 ): Promise<BackupResult> {
+  // Refuse a weak key BEFORE dumping any tenant data, so a bad KAGE_BACKUP_KEY fails fast and cheap
+  // rather than after reading every table.
+  backupKey(options.encryption_key);
   const schemaVersion = await currentVersion(db);
   const data: BackupData = {};
   const counts: Record<string, number> = {};
@@ -282,9 +311,12 @@ export async function readBackup(
   const iv = file.subarray(BACKUP_MAGIC.length, BACKUP_MAGIC.length + IV_BYTES);
   const tag = file.subarray(BACKUP_MAGIC.length + IV_BYTES, BACKUP_MAGIC.length + IV_BYTES + TAG_BYTES);
   const ciphertext = file.subarray(BACKUP_MAGIC.length + IV_BYTES + TAG_BYTES);
+  // Resolve the key BEFORE the decrypt try/catch: a weak-key refusal must surface as `weak_key`, not be
+  // swallowed into the generic `unreadable` that a wrong-but-valid key or a tampered file produces.
+  const key = backupKey(encryptionKey);
   let parsed: { manifest: BackupManifest; data: BackupData };
   try {
-    const decipher = createDecipheriv("aes-256-gcm", backupKey(encryptionKey), iv);
+    const decipher = createDecipheriv("aes-256-gcm", key, iv);
     decipher.setAuthTag(tag);
     const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
     parsed = JSON.parse(gunzipSync(plaintext).toString("utf8")) as {

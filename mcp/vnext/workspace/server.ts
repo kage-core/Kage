@@ -71,11 +71,16 @@ import {
   OidcError,
   type Fetcher as OidcFetcher,
 } from "./enterprise/oidc.js";
+import { verifySignature } from "./github/signature.js";
+import { handleWebhook } from "./github/webhooks.js";
+import type { GitHubAppConfig } from "./github/config.js";
 
 const REVIEW_ACTIONS: ReadonlySet<string> = new Set<ReviewAction>(["accept", "reject", "supersede"]);
 
 export interface WorkspaceServer {
   port: number;
+  /** The address the listener actually bound. See `startWorkspaceServer` for why this defaults wide. */
+  host: string;
   close(): Promise<void>;
 }
 
@@ -89,6 +94,12 @@ export interface WorkspaceServerOptions {
   stripe?: StripeConfig;
   /** Injected HTTP transport for provider calls, so tests never reach a live Stripe. */
   fetcher?: StripeFetcher;
+  /**
+   * GitHub App configuration. Present exactly when the deployment supplied app id, private key, and
+   * webhook secret (see `loadGitHubAppConfig`). Absent, the `/v1/github/webhook` route answers 404 —
+   * an unconfigured integration is simply not there, mirroring the Stripe webhook.
+   */
+  github?: GitHubAppConfig;
   /**
    * Where exports are written and how blobs are removed.
    *
@@ -292,6 +303,13 @@ export function createWorkspaceApp(db: Db, options: WorkspaceServerOptions = {})
     // Authority comes from the signature over the raw bytes; CSRF does not apply for the same reason.
     if (method === "POST" && path === "/v1/billing/stripe/webhook") {
       await handleStripeWebhook(db, options, req, res);
+      return;
+    }
+
+    // POST /v1/github/webhook — GitHub authenticates with an HMAC signature over the raw bytes, not a
+    // session, so it sits before the session gate for the same reason the Stripe webhook does.
+    if (method === "POST" && path === "/v1/github/webhook") {
+      await handleGitHubWebhook(db, options, req, res);
       return;
     }
 
@@ -712,6 +730,88 @@ async function handleStripeWebhook(
   const outcome = await handleStripeEvent(
     { db, config: options.stripe },
     { rawBody, signature: Array.isArray(header) ? header[0] : header },
+  );
+  json(res, outcome.status, { result: outcome.result });
+}
+
+/** The single header value for a name, collapsing the array Node hands back for repeated headers. */
+function headerValue(req: IncomingMessage, name: string): string | undefined {
+  const value = req.headers[name];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+/**
+ * Map a GitHub installation id to the workspace that installed it. Installation ids are globally unique
+ * on GitHub, so this is the ONE lookup that crosses from an external identifier to a tenant — it reads a
+ * single mapping row, never any tenant's knowledge. An unmapped installation returns null so a webhook
+ * can never invent a tenant that did not install the app.
+ */
+async function resolveInstallationWorkspace(db: Db, installationId: string): Promise<string | null> {
+  const { rows } = await db.query<{ workspace_id: string }>(
+    `SELECT workspace_id FROM github_installations WHERE installation_id = $1`,
+    [installationId],
+  );
+  return rows[0]?.workspace_id ?? null;
+}
+
+/**
+ * Take a GitHub webhook. The order is the security contract, and it is the same as the Stripe path:
+ *   1. Unconfigured deployment → 404, never 500, and never probeable for a secret it does not hold.
+ *   2. Verify the signature over the RAW bytes BEFORE any parse (`handleWebhook` enforces this; the
+ *      installation lookup below parses only after we ourselves confirm the signature).
+ *   3. Resolve the tenant from the installation id. An installation this deployment never mapped is
+ *      ACCEPTED (so GitHub stops retrying) but writes nothing — a webhook must not create a tenant.
+ * The per-tenant idempotency ledger (`github_deliveries`) then makes a redelivery a no-op.
+ */
+async function handleGitHubWebhook(
+  db: Db,
+  options: WorkspaceServerOptions,
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  if (!options.github) {
+    json(res, 404, { error: "not_found" });
+    return;
+  }
+  const rawBody = await readRawBody(req, MAX_WEBHOOK_BODY_BYTES);
+  const signature = headerValue(req, "x-hub-signature-256");
+  // Signature first, over the raw bytes, before we parse anything to find the installation.
+  if (!verifySignature(options.github.webhook_secret, rawBody, signature)) {
+    json(res, 401, { result: "invalid_signature" });
+    return;
+  }
+  let installationId: string | null = null;
+  try {
+    const parsed = JSON.parse(rawBody.toString("utf8")) as { installation?: { id?: unknown } };
+    const rawId = parsed?.installation?.id;
+    if (typeof rawId === "number" || typeof rawId === "string") installationId = String(rawId);
+  } catch {
+    json(res, 400, { result: "malformed_body" });
+    return;
+  }
+  const workspaceId = installationId
+    ? await resolveInstallationWorkspace(db, installationId)
+    : null;
+  if (!workspaceId) {
+    // Accepted so GitHub stops retrying; dropped because there is no tenant to attribute it to.
+    json(res, 202, { result: "installation_unmapped" });
+    return;
+  }
+  const outcome = await handleWebhook(
+    {
+      db,
+      secret: options.github.webhook_secret,
+      // The delivery ledger is the durable record for this phase; event fan-out lives in the ingest
+      // modules (github/checks.ts, github/auth.ts) and is added as those events are handled.
+      process: async () => {},
+    },
+    {
+      rawBody,
+      signature,
+      event: headerValue(req, "x-github-event"),
+      deliveryId: headerValue(req, "x-github-delivery"),
+      workspaceId,
+    },
   );
   json(res, outcome.status, { result: outcome.result });
 }
@@ -1413,11 +1513,22 @@ async function handleDelete(
   }
 }
 
-/** Start the workspace HTTP server on `127.0.0.1:<port>` (port 0 = an ephemeral port). */
+/**
+ * Start the workspace HTTP server (port 0 = an ephemeral port).
+ *
+ * The default bind address is `0.0.0.0`, NOT loopback, and that is a packaging requirement rather than a
+ * preference: inside a container Docker DNATs a published port to the container's bridge IP, so a
+ * process bound to 127.0.0.1 is not listening where the published port arrives — every external request
+ * is refused while the in-container healthcheck (which does hit 127.0.0.1) still reports healthy. The
+ * service speaks plain HTTP and expects a TLS terminator in front of it; where that terminator sits, and
+ * therefore how narrowly the HOST publishes the port, is the operator's decision (see the compose file's
+ * `KAGE_WORKSPACE_PUBLISH_ADDR`), not something this process can make by binding loopback.
+ */
 export async function startWorkspaceServer(
   db: Db,
   port = 0,
   options: WorkspaceServerOptions = {},
+  host = "0.0.0.0",
 ): Promise<WorkspaceServer> {
   const handle = createWorkspaceApp(db, options);
   const server: Server = createServer((req, res) => {
@@ -1426,11 +1537,12 @@ export async function startWorkspaceServer(
       else res.end();
     });
   });
-  await new Promise<void>((resolve) => server.listen(port, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => server.listen(port, host, resolve));
   const address = server.address();
   const boundPort = typeof address === "object" && address ? address.port : port;
   return {
     port: boundPort,
+    host,
     close() {
       return new Promise<void>((resolve) => server.close(() => resolve()));
     },

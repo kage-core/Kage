@@ -32,6 +32,10 @@ WORKDIR /app/mcp
 COPY mcp/package.json mcp/package-lock.json ./
 RUN npm ci
 
+# The repo-root .dockerignore keeps the host `mcp/node_modules` and `mcp/dist` OUT of the build context,
+# so this COPY (which runs AFTER `npm ci`) adds only sources and does NOT overwrite the lockfile-resolved
+# dependency tree with whatever a developer had installed. Without that .dockerignore the pinned lockfile
+# would guarantee nothing — the host tree, patched or compromised, would be what ships.
 COPY mcp/ ./
 RUN npm run build \
  && find dist -name '*.map' -delete

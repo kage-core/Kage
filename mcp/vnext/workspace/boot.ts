@@ -18,6 +18,8 @@
 import { createDb, type Db } from "./db.js";
 import { LATEST_MIGRATION, migrate } from "./migrate.js";
 import { startWorkspaceServer, type WorkspaceServer, type WorkspaceServerOptions } from "./server.js";
+import { loadStripeConfig } from "./billing/stripe.js";
+import { loadGitHubAppConfig } from "./github/config.js";
 
 export type BootErrorCode = "missing_database_url" | "invalid_port" | "schema_newer_than_build";
 
@@ -34,6 +36,16 @@ export class BootError extends Error {
 /** The port the image listens on by default, and the port the compose file and health probe assume. */
 export const DEFAULT_WORKSPACE_PORT = 8787;
 
+/**
+ * The default bind address: EVERY interface, not loopback. This is a packaging requirement, not a
+ * preference. Docker DNATs a published port to the container's bridge IP; a process bound to 127.0.0.1
+ * inside the container is not listening where the published port arrives, so every external request is
+ * refused while the in-container healthcheck (which does hit 127.0.0.1) still reports the container
+ * healthy. Operators who front the service with a terminator on the same host narrow the exposure at the
+ * PUBLISH boundary (compose `KAGE_WORKSPACE_PUBLISH_ADDR`), or override this with KAGE_WORKSPACE_HOST.
+ */
+export const DEFAULT_WORKSPACE_HOST = "0.0.0.0";
+
 export type BootPhase = "migrating" | "migrated" | "listening" | "stopping" | "stopped";
 
 export interface BootEvent {
@@ -45,6 +57,8 @@ export interface BootEvent {
 export interface BootOptions {
   connectionString: string;
   port?: number;
+  /** The address to bind. Defaults to `DEFAULT_WORKSPACE_HOST` (every interface). */
+  host?: string;
   /** Injected connection factory, so a test can observe the boot ordering. Defaults to `createDb`. */
   createDbFn?: (connectionString: string) => Db;
   serverOptions?: WorkspaceServerOptions;
@@ -53,6 +67,8 @@ export interface BootOptions {
 
 export interface BootedWorkspace {
   port: number;
+  /** The address the listener actually bound. */
+  host: string;
   schema_version: number;
   db: Db;
   /** Stop listening and release the pool. Idempotent, so SIGTERM and SIGINT can both call it. */
@@ -88,7 +104,12 @@ export async function bootWorkspaceService(options: BootOptions): Promise<Booted
 
   let server: WorkspaceServer;
   try {
-    server = await startWorkspaceServer(db, options.port ?? DEFAULT_WORKSPACE_PORT, options.serverOptions);
+    server = await startWorkspaceServer(
+      db,
+      options.port ?? DEFAULT_WORKSPACE_PORT,
+      options.serverOptions,
+      options.host ?? DEFAULT_WORKSPACE_HOST,
+    );
   } catch (error) {
     await db.close().catch(() => {});
     throw error;
@@ -98,6 +119,7 @@ export async function bootWorkspaceService(options: BootOptions): Promise<Booted
   let closed = false;
   return {
     port: server.port,
+    host: server.host,
     schema_version: schemaVersion,
     db,
     async close() {
@@ -115,6 +137,7 @@ export async function bootWorkspaceService(options: BootOptions): Promise<Booted
 export interface BootConfig {
   connectionString: string;
   port: number;
+  host: string;
 }
 
 /** Read the boot configuration from the environment. Refuses to invent a database URL. */
@@ -132,14 +155,36 @@ export function readBootConfigFromEnv(env: Record<string, string | undefined>): 
   if (!Number.isInteger(port) || port < 0 || port > 65535) {
     throw new BootError("invalid_port", `KAGE_WORKSPACE_PORT is not a valid port: ${raw}`);
   }
-  return { connectionString, port };
+  const host = env.KAGE_WORKSPACE_HOST?.trim() || DEFAULT_WORKSPACE_HOST;
+  return { connectionString, port, host };
+}
+
+/**
+ * Assemble the server's optional integrations from the environment. This is the missing wire that made
+ * every deployment secret env.example documents inert: `main()` read only the database url and port, so
+ * `options.stripe`/`options.github` were always undefined, the GitHub webhook route was never mounted at
+ * all, and the Stripe route answered 404 forever — an operator who set the secrets got no billing and no
+ * webhooks, with no error anywhere. Each loader returns null when its required secrets are absent, so an
+ * unconfigured deployment leaves the feature OFF (not half-mounted) exactly as before.
+ */
+export function readServerOptionsFromEnv(
+  env: Record<string, string | undefined> = process.env,
+): WorkspaceServerOptions {
+  const options: WorkspaceServerOptions = {};
+  const stripe = loadStripeConfig(env as NodeJS.ProcessEnv);
+  if (stripe) options.stripe = stripe;
+  const github = loadGitHubAppConfig(env as NodeJS.ProcessEnv);
+  if (github) options.github = github;
+  return options;
 }
 
 /**
  * The container entry point. Logs one structured line per phase (no secrets, no connection string) and
  * shuts down gracefully on SIGTERM/SIGINT so a rolling deploy drains instead of dropping connections.
  */
-export async function main(env: Record<string, string | undefined> = process.env): Promise<void> {
+export async function main(
+  env: Record<string, string | undefined> = process.env,
+): Promise<BootedWorkspace | undefined> {
   const log = (event: Record<string, unknown>): void => {
     process.stdout.write(`${JSON.stringify({ service: "kage-workspace", ...event })}\n`);
   };
@@ -149,21 +194,34 @@ export async function main(env: Record<string, string | undefined> = process.env
   } catch (error) {
     log({ level: "fatal", error: (error as Error).message });
     process.exitCode = 78; // EX_CONFIG
-    return;
+    return undefined;
   }
+  const serverOptions = readServerOptionsFromEnv(env);
   let booted: BootedWorkspace;
   try {
     booted = await bootWorkspaceService({
       connectionString: config.connectionString,
       port: config.port,
+      host: config.host,
+      serverOptions,
       onEvent: (event) => log({ level: "info", ...event }),
     });
   } catch (error) {
     log({ level: "fatal", error: (error as Error).message });
     process.exitCode = 1;
-    return;
+    return undefined;
   }
-  log({ level: "info", phase: "ready", port: booted.port, schema_version: booted.schema_version });
+  // Log which integrations came up, so an operator can see at a glance that a secret they set actually
+  // wired a route (billing_enabled / github_enabled), rather than discovering months later that it did not.
+  log({
+    level: "info",
+    phase: "ready",
+    port: booted.port,
+    host: booted.host,
+    schema_version: booted.schema_version,
+    billing_enabled: Boolean(serverOptions.stripe),
+    github_enabled: Boolean(serverOptions.github),
+  });
 
   let shuttingDown = false;
   const shutdown = (signal: string): void => {
@@ -179,6 +237,7 @@ export async function main(env: Record<string, string | undefined> = process.env
   };
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
+  return booted;
 }
 
 /* istanbul ignore next -- process entry point */

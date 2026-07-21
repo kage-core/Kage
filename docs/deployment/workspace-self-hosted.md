@@ -82,10 +82,24 @@ verified a schema.
 - **Graceful shutdown.** The entrypoint `exec`s node, so SIGTERM reaches it directly and in-flight
   requests drain within `stop_grace_period` (30s) instead of being SIGKILLed.
 
+## Binding and publishing, and why they are two decisions
+
+The service binds **every interface** inside its container by default (`KAGE_WORKSPACE_HOST=0.0.0.0`).
+That is not a security regression, it is a container requirement: Docker DNATs a published port to the
+container's bridge IP, so a process bound to `127.0.0.1` inside the container is not listening where the
+published port arrives — every external request is refused while the in-container healthcheck (which
+does hit `127.0.0.1`) still reports the container healthy. A loopback bind is exactly the bug that makes
+a `(healthy)` container answer nothing.
+
+The exposure is narrowed at the **publish** boundary on the host instead. The compose file publishes to
+`127.0.0.1` by default (`KAGE_WORKSPACE_PUBLISH_ADDR`), so the plain-HTTP port is reachable only from the
+host's loopback. Point a TLS terminator (your ingress, a reverse proxy) at `127.0.0.1:8787`. Set
+`KAGE_WORKSPACE_PUBLISH_ADDR=0.0.0.0` only if you deliberately intend plain HTTP on every host interface.
+
 ## TLS, and what this service does not do
 
-The workspace speaks plain HTTP and binds loopback in-process. Put a terminator (your ingress, a
-reverse proxy) in front of it. It does not manage certificates, and it does not want to.
+The workspace speaks plain HTTP. It does not manage certificates, and it does not want to — see the
+binding-and-publishing section above for where the terminator goes.
 
 ## Beyond one host
 
@@ -94,8 +108,12 @@ The compose file is a single-host deployment. For anything larger:
 - run PostgreSQL as a managed service with point-in-time recovery, and keep taking the application-level
   backups described in [workspace-backup-restore.md](workspace-backup-restore.md) — they are not the
   same recovery tool and neither replaces the other;
-- run several stateless workspace containers behind a load balancer. They share nothing but the database;
-  migrations are idempotent and version-tracked, so concurrent starts converge on the same schema;
+- run several stateless workspace containers behind a load balancer. They share nothing but the database.
+  Every replica runs the migrations before it listens, so on a fresh database they start concurrently;
+  `migrate()` takes a Postgres **advisory lock** around the migration loop, so exactly one replica applies
+  the schema while the others block on the lock and then find every migration already applied. Without
+  that lock the losers would crash on `duplicate key ... pg_type_typname_nsp_index` and flap through
+  restart backoff, so the lock is what makes `--scale workspace=3` and `replicas>1` safe;
 - keep `KAGE_WORKSPACE_EXPECTED_MIGRATION` in lockstep with the deployed image so a partially rolled-out
   version cannot take traffic against the wrong schema.
 
