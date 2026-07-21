@@ -17,7 +17,7 @@ import { request as httpRequest } from "node:http";
 import { existsSync, statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { resolve as resolvePath, sep } from "node:path";
-import { memoryRoot, observe, recall, type MemoryPacket } from "./kernel.js";
+import { memoryRoot, observe, recall, type MemoryPacket, recordValueEvent } from "./kernel.js";
 import {
   buildProxyDelivery,
   CONTEXT_APPEND_TRANSFORMATION,
@@ -130,11 +130,19 @@ export function composeInjection(
   const query = gateway.parseRequest(body).lastUserText.slice(0, 1000);
   if (!query.trim()) return { body, injected: 0 };
   const result = recall(projectDir, query, 4, false);
-  if (!result.results.length) return { body, injected: 0 };
   // Corpus-normalized relevance gate (W3): recall decides — from its own full candidate
   // distribution — whether the top hit SPIKES above this corpus's noise band. A flat band of
   // lexical accidents (the "pong problem": content-free prompts matching packet titles on big
-  // stores) stays out entirely; "inject nothing" is a first-class outcome.
+  // stores) stays out entirely; "inject nothing" is a first-class outcome. EVERY live decision —
+  // including the trivial no-candidates one — is recorded (T3) so `kage report team` shows the
+  // real-traffic injection rate, not only the bench; the recorder swallows its own failures, so
+  // telemetry can never break injection.
+  recordValueEvent(projectDir, {
+    kind: "injection_gate",
+    injected: result.results.length > 0 && result.injection.inject,
+    confidence: result.injection.confidence,
+  });
+  if (!result.results.length) return { body, injected: 0 };
   if (!result.injection.inject) return { body, injected: 0 };
   // Dominance trim: the decision above says the TOP hit deserves injection; co-attached packets
   // ride along only when they score within half of it. A spiking answer plus a tail of unrelated

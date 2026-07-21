@@ -3236,7 +3236,10 @@ export type ValueEvent =
   | { kind: "recall_served"; tokens_saved: number; replay_tokens?: number }
   | { kind: "stale_withheld"; packet_title: string }
   | { kind: "stale_caught"; packet_title: string }
-  | { kind: "caller_answered" };
+  | { kind: "caller_answered" }
+  // T3: the LIVE injection-gate decision (corpus-normalized) — recorded so `kage report team`
+  // shows real-session injection behaviour, not only the bench.
+  | { kind: "injection_gate"; injected: boolean; confidence: number };
 
 interface ValueLedgerEvent {
   at: string;
@@ -3246,12 +3249,14 @@ interface ValueLedgerEvent {
   // packets minus the compressed cost of re-reading them as context.
   replay_tokens?: number;
   packet_title?: string;
+  injected?: boolean;
+  confidence?: number;
 }
 
 interface ValueLedger {
   schema_version: number;
   // All-time rollups survive the event cap: events get trimmed, totals never lose history.
-  totals: { tokens_saved: number; replay_tokens: number; stale_withheld: number; stale_caught: number; recalls: number; caller_answers: number };
+  totals: { tokens_saved: number; replay_tokens: number; stale_withheld: number; stale_caught: number; recalls: number; caller_answers: number; injection_gates?: number; injections?: number };
   events: ValueLedgerEvent[];
 }
 
@@ -3302,7 +3307,7 @@ function readValueLedger(projectDir: string): ValueLedger {
         return Boolean(candidate)
           && typeof candidate?.at === "string"
           && Number.isFinite(Date.parse(candidate.at))
-          && (candidate.kind === "recall_served" || candidate.kind === "stale_withheld" || candidate.kind === "stale_caught" || candidate.kind === "caller_answered");
+          && (candidate.kind === "recall_served" || candidate.kind === "stale_withheld" || candidate.kind === "stale_caught" || candidate.kind === "caller_answered" || candidate.kind === "injection_gate");
       })
       .slice(-VALUE_LEDGER_EVENT_CAP);
     return {
@@ -3314,6 +3319,8 @@ function readValueLedger(projectDir: string): ValueLedger {
         stale_caught: nonNegativeCount(totals.stale_caught),
         recalls: nonNegativeCount(totals.recalls),
         caller_answers: nonNegativeCount(totals.caller_answers),
+        injection_gates: nonNegativeCount(totals.injection_gates),
+        injections: nonNegativeCount(totals.injections),
       },
       events,
     };
@@ -3341,6 +3348,11 @@ function recordValueEvents(projectDir: string, events: ValueEvent[]): void {
       } else if (event.kind === "stale_caught") {
         record.packet_title = event.packet_title;
         ledger.totals.stale_caught += 1;
+      } else if (event.kind === "injection_gate") {
+        record.injected = event.injected;
+        record.confidence = Number(event.confidence.toFixed(3));
+        ledger.totals.injection_gates = (ledger.totals.injection_gates ?? 0) + 1;
+        if (event.injected) ledger.totals.injections = (ledger.totals.injections ?? 0) + 1;
       } else {
         ledger.totals.caller_answers += 1;
       }
@@ -3361,6 +3373,166 @@ function recordValueEvents(projectDir: string, events: ValueEvent[]): void {
 
 export function recordValueEvent(projectDir: string, event: ValueEvent): void {
   recordValueEvents(projectDir, [event]);
+}
+
+// ---------------------------------------------------------------------------------------------
+// T3 — the lead-facing "is this helping?" report. Every number is measured from local ledgers and
+// the real store; anything unmeasured is null/"unavailable", never a fabricated zero. Estimated
+// figures keep their label (tokens_saved is the read-vs-source ESTIMATE, exactly as `kage gains`
+// reports it) and are never mixed with measured counts.
+// ---------------------------------------------------------------------------------------------
+
+export interface TeamValueReport {
+  generated_for: string;
+  value: {
+    recalls_served: number;
+    stale_withheld: number;
+    tokens_saved_estimated: number;
+    replay_tokens_estimated: number;
+  };
+  injection_gate: {
+    available: boolean;
+    gates: number;
+    injected: number;
+    injection_rate: number | null;
+    average_confidence: number | null;
+    note: string;
+  };
+  composition: {
+    total_packets: number;
+    non_derivable_share: number;
+    derivable_risk_share: number;
+    classes: Array<{ class: string; count: number; uses_30d: number }>;
+  };
+  top_memories: Array<{ title: string; type: MemoryType; uses_30d: number }>;
+  coverage: {
+    areas: number;
+    dark_areas: string[];
+    note: string;
+  };
+  review_health: {
+    pending: number;
+    oldest_pending_days: number | null;
+    contradictions: number;
+  };
+}
+
+// The T1 store-audit classifier, shipped as code so the report and the audit can never drift.
+export function classifyPacketDerivability(packet: MemoryPacket): string {
+  const text = `${packet.title}\n${packet.summary}\n${packet.body}`;
+  if (packet.status === "superseded") return "superseded";
+  if (packet.type === "gotcha" || packet.type === "negative_result") return "non-derivable: gotcha/dead-end";
+  if (packet.type === "decision" && /\b(because|why|instead of|rejected|trade-?off|rationale|deliberately|chose|rather than|the reason)\b/i.test(text)) {
+    return "non-derivable: decision+rationale";
+  }
+  if ((packet.type === "runbook" || packet.type === "workflow") && /\b(verified by|npm test|node --test|to verify|reproduce|deploy|docker|macos|node 18|node 22)\b/i.test(text)) {
+    return "non-derivable: ops/verify recipe";
+  }
+  if (packet.type === "code_explanation") return "derivable-risk: code explanation";
+  if (packet.type === "reference") return "derivable-risk: reference dump";
+  return `other (${packet.type})`;
+}
+
+export function teamValueReport(projectDir: string): TeamValueReport {
+  const approvedAll = loadApprovedPackets(projectDir);
+  const pending = loadPendingPackets(projectDir);
+  const packets: MemoryPacket[] = [...approvedAll, ...pending];
+  const approved = approvedAll.filter((packet: MemoryPacket) => packet.status === "approved");
+  const access = readMemoryAccessEntries(projectDir, packets);
+  const summary = valueSummary(projectDir);
+  const ledger = readValueLedger(projectDir);
+
+  const gates = ledger.totals.injection_gates ?? 0;
+  const injections = ledger.totals.injections ?? 0;
+  const gateEvents = ledger.events.filter((event) => event.kind === "injection_gate" && typeof event.confidence === "number");
+  const avgConfidence = gateEvents.length
+    ? Number((gateEvents.reduce((sum, event) => sum + (event.confidence ?? 0), 0) / gateEvents.length).toFixed(3))
+    : null;
+
+  const classes = new Map<string, { count: number; uses_30d: number }>();
+  for (const packet of packets) {
+    const cls = classifyPacketDerivability(packet);
+    const bucket = classes.get(cls) ?? { count: 0, uses_30d: 0 };
+    bucket.count += 1;
+    bucket.uses_30d += access.get(packet.id)?.uses_30d ?? 0;
+    classes.set(cls, bucket);
+  }
+  const classRows = [...classes.entries()]
+    .map(([cls, bucket]) => ({ class: cls, ...bucket }))
+    .sort((a, b) => b.count - a.count);
+  const nonDerivable = classRows.filter((row) => row.class.startsWith("non-derivable")).reduce((sum, row) => sum + row.count, 0);
+  const derivableRisk = classRows.filter((row) => row.class.startsWith("derivable-risk")).reduce((sum, row) => sum + row.count, 0);
+
+  const topMemories = approved
+    .map((packet) => ({ title: packet.title, type: packet.type, uses_30d: access.get(packet.id)?.uses_30d ?? 0 }))
+    .filter((entry) => entry.uses_30d > 0)
+    .sort((a, b) => b.uses_30d - a.uses_30d || a.title.localeCompare(b.title))
+    .slice(0, 5);
+
+  // Coverage: which top-level repo areas have ZERO memory citing them — where the team flies blind.
+  const citedTop = new Set(
+    approved.flatMap((packet) => packet.paths).map((path) => path.split("/")[0]).filter(Boolean),
+  );
+  let areaNames: string[] = [];
+  try {
+    areaNames = readdirSync(projectDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .filter((name) => !name.startsWith(".") && !["node_modules", "dist", "build", "out", "coverage", "tmp"].includes(name));
+  } catch {
+    areaNames = [];
+  }
+  const darkAreas = areaNames.filter((name) => !citedTop.has(name)).sort();
+
+  const oldestPending = pending.reduce<number | null>((oldest, packet) => {
+    const created = Date.parse(packet.created_at);
+    if (Number.isNaN(created)) return oldest;
+    const ageDays = Math.floor((Date.now() - created) / 86_400_000);
+    return oldest === null || ageDays > oldest ? ageDays : oldest;
+  }, null);
+  const contradictions = packets.reduce(
+    (sum, packet) => sum + (Array.isArray((packet.quality as Record<string, unknown> | undefined)?.contradicts) ? ((packet.quality as Record<string, unknown>).contradicts as unknown[]).length : 0),
+    0,
+  );
+
+  return {
+    generated_for: projectDir,
+    value: {
+      recalls_served: summary.all_time.recalls,
+      stale_withheld: summary.all_time.stale_withheld,
+      tokens_saved_estimated: summary.all_time.tokens_saved,
+      replay_tokens_estimated: summary.all_time.replay_tokens,
+    },
+    injection_gate: {
+      available: gates > 0,
+      gates,
+      injected: injections,
+      injection_rate: gates > 0 ? Number((injections / gates).toFixed(3)) : null,
+      average_confidence: avgConfidence,
+      note: gates > 0
+        ? "live corpus-normalized gate decisions recorded by the proxy"
+        : "unavailable — no proxy traffic has exercised the injection gate yet",
+    },
+    composition: {
+      total_packets: packets.length,
+      non_derivable_share: packets.length ? Number((nonDerivable / packets.length).toFixed(3)) : 0,
+      derivable_risk_share: packets.length ? Number((derivableRisk / packets.length).toFixed(3)) : 0,
+      classes: classRows,
+    },
+    top_memories: topMemories,
+    coverage: {
+      areas: areaNames.length,
+      dark_areas: darkAreas,
+      note: darkAreas.length
+        ? "top-level areas with no approved memory citing them"
+        : "every top-level area has at least one approved memory citing it",
+    },
+    review_health: {
+      pending: pending.length,
+      oldest_pending_days: oldestPending,
+      contradictions,
+    },
+  };
 }
 
 function estimatedTokenDollars(tokensSaved: number): number {

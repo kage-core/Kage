@@ -148,6 +148,7 @@ import {
   truthScorecardMarkdown,
   validateProject,
   valueSummary,
+  teamValueReport,
   formatTokenCount,
   formatValueGains,
   formatRecallValueReceipt,
@@ -2261,6 +2262,42 @@ async function main(): Promise<void> {
       console.log(`  Uses in 30d: ${result.memory_access.uses_30d}`);
       console.log(`  Hot / cold packets: ${result.memory_access.hot_packets} / ${result.memory_access.cold_packets}`);
     }
+    return;
+  }
+
+  if (command === "report" && args[1] === "team") {
+    // T3 — the lead-facing "is this helping?" report. Measured-or-unavailable, never fabricated;
+    // estimated figures keep their _estimated suffix so they can never masquerade as measured.
+    const report = teamValueReport(projectArg(args));
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(report, null, 2));
+      return;
+    }
+    console.log(`Team value report — ${report.generated_for}`);
+    console.log("");
+    console.log(`Value (measured counts): recalls served ${report.value.recalls_served}, stale withheld ${report.value.stale_withheld}`);
+    console.log(`Value (ESTIMATED tokens): read-vs-source ${report.value.tokens_saved_estimated}, knowledge replay ${report.value.replay_tokens_estimated}`);
+    console.log("");
+    if (report.injection_gate.available) {
+      console.log(`Injection gate (live): ${report.injection_gate.injected}/${report.injection_gate.gates} requests injected (rate ${report.injection_gate.injection_rate}), avg confidence ${report.injection_gate.average_confidence}`);
+    } else {
+      console.log(`Injection gate (live): ${report.injection_gate.note}`);
+    }
+    console.log("");
+    console.log(`Store composition: ${report.composition.total_packets} packets — ${Math.round(report.composition.non_derivable_share * 100)}% non-derivable (what code cannot say), ${Math.round(report.composition.derivable_risk_share * 100)}% derivable-risk`);
+    for (const row of report.composition.classes.slice(0, 6)) {
+      console.log(`  ${row.class}: ${row.count} packets, ${row.uses_30d} uses in 30d`);
+    }
+    console.log("");
+    if (report.top_memories.length) {
+      console.log("Most-used memory (30d):");
+      for (const memory of report.top_memories) console.log(`  ${memory.uses_30d}× [${memory.type}] ${memory.title}`);
+    } else {
+      console.log("Most-used memory (30d): none recorded yet");
+    }
+    console.log("");
+    console.log(`Coverage: ${report.coverage.areas} top-level areas; dark (no approved memory): ${report.coverage.dark_areas.length ? report.coverage.dark_areas.join(", ") : "none"}`);
+    console.log(`Review health: ${report.review_health.pending} pending${report.review_health.oldest_pending_days !== null ? ` (oldest ${report.review_health.oldest_pending_days}d)` : ""}, ${report.review_health.contradictions} contradiction link(s)`);
     return;
   }
 
