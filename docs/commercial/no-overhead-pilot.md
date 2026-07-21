@@ -5,6 +5,10 @@ no credit has been issued to anyone, no live Stripe account is connected, and th
 behind any number in this document. Everything below describes the mechanism and its limits. Nothing
 below is a result.
 
+"Implemented in code" now covers the whole path — measure, compute, record, and **apply** — because a
+credit nothing can apply is not a guarantee. What has never happened is any of it running against a live
+Stripe account or a real customer.
+
 ## The promise, stated precisely
 
 > If, during your pilot, Kage measurably **added** to your cost per request, we credit that measured
@@ -63,7 +67,27 @@ Every branch is machine-readable in the result's `reason`, and every result carr
 
 The credit is persisted once per `(workspace_id, pilot_id)` by a unique key, so re-running the
 calculation — a retried job, a re-imported receipt set, an operator repeating the command — can never
-double-credit an account.
+double-credit an account. **The stored row is the authority, not the calculator:** a re-run reads back
+the row that already exists and reports that, so the figure you are told is always the figure the
+auditable ledger holds, even if the inputs have changed since (an invoice arrived, receipts were
+re-imported). A number the ledger does not contain is never reported as a credit.
+
+## How the credit is actually applied
+
+`applyPilotCredit` (`mcp/vnext/workspace/billing/pilot-credit.ts`), reachable as
+`POST /v1/workspaces/:id/billing/pilot-credit` for a workspace owner:
+
+1. reads the customer's **first paid invoice** from Stripe and takes its platform fee as the cap — the
+   cap comes from the provider, never from the request;
+2. records the ledger row (the arithmetic above), which is what the response reports;
+3. if, and only if, the recorded credit is positive, posts a customer-balance **credit** at Stripe with
+   an idempotency key derived from the ledger row's own id, so a retry after a timeout cannot
+   double-credit;
+4. marks the row applied against that invoice with a conditional write, so two jobs racing cannot both
+   consider themselves the applier.
+
+A pilot with no measured overhead, or with no paid invoice, moves no money at all and says which of the
+two it was.
 
 ## What the customer keeps regardless
 
@@ -78,6 +102,16 @@ leave two things untouched:
 Only the team-scoped features (team sync, team review authority, GitHub checks, advanced policy,
 SSO/SCIM) switch off when a subscription lapses, and the billing page shows them switched off rather
 than hiding them, so you can see exactly what changed.
+
+"Switch off" means the routes refuse, not just that the page renders them greyed out. A lapsed workspace
+gets `402 entitlement_required` from `POST /v1/sync/push`, `GET /v1/sync/pull`, and the team review
+decision route, naming the feature and the resolved plan state. Two deliberate boundaries around that:
+
+- **Authority is still decided first.** A member who may not perform the action at all still gets `403`,
+  not a price tag for something they were never allowed to do.
+- **Reading and exporting your own data is not withdrawn.** The billing page, the aggregated team
+  metrics read, and export keep working on a lapsed plan. What stops is new team-scoped *writes* and the
+  ongoing sync of them — never access to what you already produced.
 
 ## Pricing this is credited against
 
@@ -99,7 +133,7 @@ from deployment secrets rather than this repository.
 ## What has and has not been verified
 
 **Verified in this repository, against a real ephemeral PostgreSQL and fixture Stripe payloads**
-(`mcp/vnext/workspace/billing/billing.test.ts`):
+(`mcp/vnext/workspace/billing/billing.test.ts`, `mcp/vnext/workspace/billing/hardening.test.ts`):
 
 - webhook signature verification over the raw bytes, in constant time, with a replay window, before any
   parse — a forged delivery is a 401 and leaves no record behind;
@@ -110,11 +144,26 @@ from deployment secrets rather than this repository.
 - the credit arithmetic above, including the cap, the exclusion of partial/unavailable receipts, and
   `measured_overhead_usd = null` for an unmeasured pilot;
 - tenant scoping: another workspace's subscription, credits, and active-developer count are not
-  readable, and the billing route answers 404 across a tenant boundary and 403 below owner authority.
+  readable, and the billing route answers 404 across a tenant boundary and 403 below owner authority;
+- **ordering**: a delayed, earlier-generated subscription event (distinct event id, freshly signed, so
+  neither the idempotency ledger nor the replay window stops it) does not re-grant a cancelled plan,
+  while two events sharing one second both still apply;
+- **the ledger is the authority**: re-running the credit with different inputs reports the stored row,
+  not a recomputed figure;
+- **application**: a positive credit is posted once, capped at the first paid invoice's platform fee,
+  with an idempotency key, and a second run moves no money;
+- **enforcement**: a lapsed subscription is refused (402) on sync push, sync pull, and team review, while
+  local runtime, export, and the billing read keep working;
+- **ingest limits**: an oversize body on the unauthenticated Stripe webhook is refused on ingest rather
+  than buffered;
+- **customer collision**: a second workspace presenting an already-bound Stripe customer is refused with
+  a 2xx rather than raising a 500 that Stripe would retry for days.
 
 **Not verified, and not claimed:**
 
-- no live Stripe account, API key, product, price, invoice, or webhook endpoint has been exercised;
+- no live Stripe account, API key, product, price, invoice, customer-balance transaction, or webhook
+  endpoint has been exercised — the crediting path exists and is tested only against a fixture
+  transport, so "a credit was applied" has never been observed at the provider;
 - no design-partner pilot has been run, so there is no cohort, no measured overhead from a real
   customer, and no credit that has ever been issued;
 - no paid conversion exists.

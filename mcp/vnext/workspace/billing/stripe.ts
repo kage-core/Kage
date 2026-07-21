@@ -22,7 +22,13 @@
 // key, account, product, price, or invoice has been exercised by this code.
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Db } from "../db.js";
-import { asPlanId, storeSubscription, workspaceForCustomer } from "./entitlements.js";
+import {
+  asPlanId,
+  customerBoundElsewhere,
+  lockSubscription,
+  storeSubscription,
+  workspaceForCustomer,
+} from "./entitlements.js";
 import type { PlanId, StoredSubscription, SubscriptionStatus } from "./types.js";
 
 /** How far in the past a signed delivery may have been produced. Stripe's own default is 5 minutes. */
@@ -148,10 +154,15 @@ export interface StripeDelivery {
 export type StripeOutcome =
   | { status: 401; result: "invalid_signature" }
   | { status: 400; result: "malformed_body" | "missing_event_id" }
-  | { status: 200; result: "duplicate_ignored" | "event_ignored" }
+  | { status: 200; result: "duplicate_ignored" | "event_ignored" | "stale_event_ignored" }
   | {
       status: 202;
-      result: "processed" | "unmapped_customer" | "unknown_price" | "entitlement_summary_noted";
+      result:
+        | "processed"
+        | "unmapped_customer"
+        | "unknown_price"
+        | "entitlement_summary_noted"
+        | "customer_workspace_conflict";
     };
 
 export interface StripeWebhookDeps {
@@ -282,33 +293,57 @@ export async function handleStripeEvent(
   const object = asObject(data?.object);
   if (!object) return { status: 400, result: "malformed_body" };
 
+  // Stripe's own generation time for this event. It is the ONLY ordering signal we have that survives
+  // out-of-order delivery and multi-day retries; our receipt time is exactly the thing that is unreliable.
+  const eventCreatedMs =
+    typeof event.created === "number" && Number.isFinite(event.created) ? event.created * 1000 : null;
+
   // 3. Claim + apply atomically.
-  return deps.db.transaction(async (tx) => {
-    const claimed = await tx.query(
-      `INSERT INTO billing_events(event_id, event_type) VALUES($1, $2)
+  try {
+    return await deps.db.transaction(async (tx) => {
+      const claimed = await tx.query(
+        `INSERT INTO billing_events(event_id, event_type) VALUES($1, $2)
          ON CONFLICT (event_id) DO NOTHING`,
-      [eventId, eventType],
-    );
-    if (claimed.rowCount === 0) return { status: 200, result: "duplicate_ignored" } as StripeOutcome;
+        [eventId, eventType],
+      );
+      if (claimed.rowCount === 0) return { status: 200, result: "duplicate_ignored" } as StripeOutcome;
 
-    const workspaceId = await resolveWorkspace(tx, object);
-    if (!workspaceId) {
-      // Recorded (so Stripe's retries terminate) but nothing applied: we will not guess a tenant.
-      return { status: 202, result: "unmapped_customer" } as StripeOutcome;
-    }
-    await tx.query(`UPDATE billing_events SET workspace_id = $1 WHERE event_id = $2`, [
-      workspaceId,
-      eventId,
-    ]);
+      const workspaceId = await resolveWorkspace(tx, object);
+      if (!workspaceId) {
+        // Recorded (so Stripe's retries terminate) but nothing applied: we will not guess a tenant.
+        return { status: 202, result: "unmapped_customer" } as StripeOutcome;
+      }
+      await tx.query(`UPDATE billing_events SET workspace_id = $1 WHERE event_id = $2`, [
+        workspaceId,
+        eventId,
+      ]);
 
-    if (eventType === "entitlements.active_entitlement_summary.updated") {
-      return applyEntitlementSummary();
-    }
-    if (eventType === "checkout.session.completed") {
-      return applyCheckoutCompleted(tx, workspaceId, object);
-    }
-    return applySubscriptionEvent(tx, deps.config, workspaceId, eventType, object);
-  });
+      if (eventType === "entitlements.active_entitlement_summary.updated") {
+        return applyEntitlementSummary();
+      }
+      if (eventType === "checkout.session.completed") {
+        return applyCheckoutCompleted(tx, workspaceId, object);
+      }
+      return applySubscriptionEvent(tx, deps.config, workspaceId, eventType, object, eventCreatedMs, eventId);
+    });
+  } catch (error) {
+    // The customer→workspace uniqueness is also enforced by the database, and a concurrent delivery can
+    // still lose that race after our own check passed. A constraint violation is a REFUSAL of this
+    // delivery, not a fault: the transaction (including the event claim) rolled back, and answering 2xx
+    // stops Stripe from retrying a delivery that will fail identically forever. This handler is
+    // documented as never throwing for provider input, and that has to include losing a race.
+    if (isUniqueViolation(error)) return { status: 202, result: "customer_workspace_conflict" };
+    throw error;
+  }
+}
+
+/** A Postgres unique-constraint violation (SQLSTATE 23505), whatever driver wrapper carries it. */
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: unknown }).code === "23505"
+  );
 }
 
 /**
@@ -332,6 +367,9 @@ async function applyCheckoutCompleted(
 ): Promise<StripeOutcome> {
   const customer = typeof object.customer === "string" ? object.customer : null;
   const subscriptionId = typeof object.subscription === "string" ? object.subscription : null;
+  if (customer && (await customerBoundElsewhere(tx, customer, workspaceId))) {
+    return { status: 202, result: "customer_workspace_conflict" };
+  }
   const { rows } = await tx.query<{ workspace_id: string }>(
     `SELECT workspace_id FROM workspace_subscriptions WHERE workspace_id = $1`,
     [workspaceId],
@@ -361,14 +399,42 @@ async function applyCheckoutCompleted(
   return { status: 202, result: "processed" };
 }
 
-/** Apply a subscription lifecycle event: the plan comes from OUR price map, the status from Stripe. */
+/**
+ * Apply a subscription lifecycle event: the plan comes from OUR price map, the status from Stripe.
+ *
+ * TWO REFUSALS COME FIRST, both of which would otherwise be exploitable by nothing more than ordinary
+ * Stripe behaviour:
+ *
+ *   1. STALE ORDER. Stripe does not guarantee delivery order and retries for days, so the last delivered
+ *      event is NOT necessarily the newest. An event generated before the mark on the row applies
+ *      nothing — otherwise a delayed `updated` that predates a cancellation re-grants a cancelled plan
+ *      for a whole period. The row is locked FOR UPDATE first, so two concurrent deliveries cannot both
+ *      read the same mark and both believe they are newest.
+ *
+ *   2. CUSTOMER COLLISION. One Stripe customer belongs to exactly one workspace (a unique index says so).
+ *      A second workspace presenting an already-bound customer is refused here, rather than left to raise
+ *      a constraint violation out of a handler that is documented as never throwing.
+ */
 async function applySubscriptionEvent(
   tx: Db,
   config: StripeConfig,
   workspaceId: string,
   eventType: string,
   object: Record<string, unknown>,
+  eventCreatedMs: number | null,
+  eventId: string,
 ): Promise<StripeOutcome> {
+  const customerId = typeof object.customer === "string" ? object.customer : null;
+  if (customerId && (await customerBoundElsewhere(tx, customerId, workspaceId))) {
+    return { status: 202, result: "customer_workspace_conflict" };
+  }
+
+  const existing = await lockSubscription(tx, workspaceId);
+  if (isStale(existing, eventCreatedMs, eventType)) {
+    // Claimed (so the retries stop) and applied to nothing.
+    return { status: 200, result: "stale_event_ignored" };
+  }
+
   const { priceId, quantity } = firstItem(object);
   const plan = planForPrice(config, priceId);
   const rawStatus = typeof object.status === "string" ? object.status : "";
@@ -391,10 +457,12 @@ async function applySubscriptionEvent(
     status,
     current_period_end: periodEnd,
     cancel_at_period_end: object.cancel_at_period_end === true,
-    stripe_customer_id: typeof object.customer === "string" ? object.customer : null,
+    stripe_customer_id: customerId,
     stripe_subscription_id: typeof object.id === "string" ? object.id : null,
     seats: quantity,
     updated_at: new Date().toISOString(),
+    last_event_created_at: eventCreatedMs === null ? null : new Date(eventCreatedMs).toISOString(),
+    last_event_id: eventCreatedMs === null ? null : eventId,
   };
   await storeSubscription(tx, subscription);
   // The state IS applied (so the customer mapping and status are current), but the caller is told the
@@ -403,8 +471,47 @@ async function applySubscriptionEvent(
   return { status: 202, result: "processed" };
 }
 
+/** States a subscription does not come back from. A same-second tie must never reverse one of these. */
+const TERMINAL_STATUSES: ReadonlySet<SubscriptionStatus> = new Set<SubscriptionStatus>([
+  "canceled",
+  "incomplete_expired",
+]);
+
+/**
+ * Is this delivery older than what the row has already absorbed?
+ *
+ * The comparison is against `event.created`, Stripe's own generation time, which is the only ordering
+ * signal that survives out-of-order delivery and multi-day retries.
+ *
+ *   - NO MARK (a row no subscription event has been applied to yet): never stale. The first event sets
+ *     the mark; inventing an earlier one would drop a legitimate event.
+ *   - NO GENERATION TIME: never stale. It cannot be ordered, and discarding a legitimately signed event
+ *     would be a worse failure than the one this guard prevents.
+ *   - STRICTLY OLDER: stale. This is the case that matters — a delayed `updated` generated before a
+ *     cancellation must not re-grant the plan.
+ *   - EXACT TIE: Stripe's timestamps have one-second granularity, so two legitimate events genuinely
+ *     share a second (a checkout that creates and immediately updates a subscription). Refusing ties
+ *     would drop real state, so a tie APPLIES — except that it can never resurrect a subscription that
+ *     is already terminal. Within one ambiguous second, the direction that costs the customer money is
+ *     the one we refuse to guess.
+ */
+function isStale(
+  existing: StoredSubscription | null,
+  eventCreatedMs: number | null,
+  eventType: string,
+): boolean {
+  const mark = existing?.last_event_created_at ?? null;
+  if (!mark || eventCreatedMs === null) return false;
+  const previous = Date.parse(mark);
+  if (!Number.isFinite(previous)) return false;
+  if (eventCreatedMs > previous) return false;
+  if (eventCreatedMs < previous) return true;
+  if (eventType === "customer.subscription.deleted") return false;
+  return existing !== null && TERMINAL_STATUSES.has(existing.status);
+}
+
 // ---------------------------------------------------------------------------------------------
-// checkout + customer portal
+// checkout, invoices, customer balance, and the portal
 // ---------------------------------------------------------------------------------------------
 
 /** The subset of `fetch` this module needs, so tests inject a fake transport instead of calling Stripe. */
@@ -478,6 +585,90 @@ export async function createCheckoutSession(
     throw new Error("stripe_checkout_malformed");
   }
   return { id: session.id, url: session.url };
+}
+
+/** The customer's FIRST paid invoice and what they paid US on it — the cap for the pilot guarantee. */
+export interface FirstPaidInvoice {
+  invoice_id: string;
+  /**
+   * The platform fee on that invoice, in USD. Every line on a Kage invoice IS the Kage platform fee
+   * (there is no model-provider spend on it), so this is the invoice's `amount_paid` converted from
+   * Stripe's minor units — not an estimate and not a share of anything.
+   */
+  platform_fee_usd: number;
+  created_unix: number;
+}
+
+/**
+ * Find the customer's earliest PAID invoice. Returns null when there is none, when the amount is not
+ * positive, or when the invoice is not denominated in USD — the credit and its cap are USD figures, and
+ * converting a foreign-currency invoice at an unrecorded rate would be an invented number.
+ */
+export async function fetchFirstPaidInvoice(
+  deps: StripeApiDeps,
+  customerId: string,
+): Promise<FirstPaidInvoice | null> {
+  const fetcher = deps.fetcher ?? ((url, init) => fetch(url, init) as unknown as ReturnType<Fetcher>);
+  const query = `customer=${encodeURIComponent(customerId)}&status=paid&limit=100`;
+  const response = await fetcher(`${deps.config.api_base_url}/v1/invoices?${query}`, {
+    method: "GET",
+    headers: { authorization: `Bearer ${deps.config.secret_key}` },
+  });
+  if (!response.ok) throw new Error(`stripe_invoices_failed:${response.status}`);
+  const list = asObject(await response.json());
+  const data = Array.isArray(list?.data) ? (list?.data as unknown[]) : [];
+  let earliest: FirstPaidInvoice | null = null;
+  for (const item of data) {
+    const invoice = asObject(item);
+    if (!invoice) continue;
+    if (invoice.status !== "paid") continue;
+    if (typeof invoice.currency !== "string" || invoice.currency.toLowerCase() !== "usd") continue;
+    if (typeof invoice.id !== "string") continue;
+    const amountPaid = typeof invoice.amount_paid === "number" ? invoice.amount_paid : 0;
+    if (!Number.isFinite(amountPaid) || amountPaid <= 0) continue;
+    const created = typeof invoice.created === "number" ? invoice.created : 0;
+    if (earliest && created >= earliest.created_unix) continue;
+    earliest = {
+      invoice_id: invoice.id,
+      platform_fee_usd: Math.round(amountPaid) / 100,
+      created_unix: created,
+    };
+  }
+  return earliest;
+}
+
+/**
+ * Post a customer-balance CREDIT at Stripe, which is applied against the customer's invoices.
+ *
+ * `idempotency_key` is mandatory rather than optional: this is the one call in the service that moves
+ * money, and a retry after a timeout must be a no-op at the provider even if our own bookkeeping never
+ * saw the first response. The amount is negative because a negative customer balance is a credit.
+ */
+export async function creditCustomerBalance(
+  deps: StripeApiDeps,
+  request: { stripe_customer_id: string; credit_usd: number; description: string; idempotency_key: string },
+): Promise<{ id: string }> {
+  const cents = Math.round(request.credit_usd * 100);
+  if (!Number.isFinite(cents) || cents <= 0) {
+    throw new Error("stripe_credit_must_be_positive");
+  }
+  const fetcher = deps.fetcher ?? ((url, init) => fetch(url, init) as unknown as ReturnType<Fetcher>);
+  const response = await fetcher(
+    `${deps.config.api_base_url}/v1/customers/${encodeURIComponent(request.stripe_customer_id)}/balance_transactions`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${deps.config.secret_key}`,
+        "content-type": "application/x-www-form-urlencoded",
+        "idempotency-key": request.idempotency_key,
+      },
+      body: formEncode({ amount: -cents, currency: "usd", description: request.description }),
+    },
+  );
+  if (!response.ok) throw new Error(`stripe_credit_failed:${response.status}`);
+  const transaction = asObject(await response.json());
+  if (typeof transaction?.id !== "string") throw new Error("stripe_credit_malformed");
+  return { id: transaction.id };
 }
 
 /** Create a Stripe customer-portal session so a customer manages payment details at Stripe, not here. */

@@ -189,6 +189,16 @@ async function seedWorkspace(id: string, slug: string): Promise<void> {
        ON CONFLICT (workspace_id) DO NOTHING`,
     [id, slug, `${slug}-${id.slice(0, 8)}`],
   );
+  // The team routes are ENTITLED routes: since Task 7's hardening, team sync and team review are refused
+  // with 402 on a workspace whose subscription lapsed (see billing/hardening.test.ts, which owns that
+  // rule). This suite is about AUTHORITY and TENANCY on a paying workspace, so it states the paid state
+  // explicitly rather than relying on an unentitled workspace being allowed to do team work.
+  await db.query(
+    `INSERT INTO workspace_subscriptions(workspace_id, plan_id, status, current_period_end)
+       VALUES($1, 'team', 'active', now() + interval '30 days')
+       ON CONFLICT (workspace_id) DO NOTHING`,
+    [id],
+  );
 }
 
 async function seedRepository(workspaceId: string, repositoryId: string): Promise<string> {

@@ -23,6 +23,7 @@ import {
   PLAN_IDS,
   type EntitlementState,
   type PilotCreditInput,
+  type PilotCreditReason,
   type PilotCreditResult,
   type PlanId,
   type StoredSubscription,
@@ -137,6 +138,8 @@ interface SubscriptionRow {
   stripe_subscription_id: string | null;
   seats: number | null;
   updated_at: Date | string;
+  last_event_created_at?: Date | string | null;
+  last_event_id?: string | null;
 }
 
 function toIso(value: Date | string | null): string | null {
@@ -155,16 +158,25 @@ function rowToSubscription(row: SubscriptionRow): StoredSubscription {
     stripe_subscription_id: row.stripe_subscription_id,
     seats: row.seats,
     updated_at: toIso(row.updated_at) ?? new Date(0).toISOString(),
+    last_event_created_at: toIso(row.last_event_created_at ?? null),
+    last_event_id: row.last_event_id ?? null,
   };
 }
 
-/** Upsert the subscription for a workspace. Called only from the verified-webhook path. */
+/**
+ * Upsert the subscription for a workspace. Called only from the verified-webhook path.
+ *
+ * The event high-water mark is written with COALESCE, so a write that carries no mark (the checkout
+ * mapping, an operator reconciliation) LEAVES THE STORED ONE ALONE. Clearing it would silently reopen
+ * the out-of-order window this column exists to close.
+ */
 export async function storeSubscription(db: Db, subscription: StoredSubscription): Promise<void> {
   await db.query(
     `INSERT INTO workspace_subscriptions(
        workspace_id, plan_id, status, current_period_end, cancel_at_period_end,
-       stripe_customer_id, stripe_subscription_id, seats, updated_at)
-     VALUES($1, $2, $3, $4, $5, $6, $7, $8, now())
+       stripe_customer_id, stripe_subscription_id, seats, updated_at,
+       last_event_created_at, last_event_id)
+     VALUES($1, $2, $3, $4, $5, $6, $7, $8, now(), $9, $10)
      ON CONFLICT (workspace_id) DO UPDATE SET
        plan_id = EXCLUDED.plan_id,
        status = EXCLUDED.status,
@@ -173,7 +185,10 @@ export async function storeSubscription(db: Db, subscription: StoredSubscription
        stripe_customer_id = EXCLUDED.stripe_customer_id,
        stripe_subscription_id = EXCLUDED.stripe_subscription_id,
        seats = EXCLUDED.seats,
-       updated_at = now()`,
+       updated_at = now(),
+       last_event_created_at = COALESCE(EXCLUDED.last_event_created_at,
+                                        workspace_subscriptions.last_event_created_at),
+       last_event_id = COALESCE(EXCLUDED.last_event_id, workspace_subscriptions.last_event_id)`,
     [
       subscription.workspace_id,
       subscription.plan_id,
@@ -183,19 +198,55 @@ export async function storeSubscription(db: Db, subscription: StoredSubscription
       subscription.stripe_customer_id,
       subscription.stripe_subscription_id,
       subscription.seats,
+      subscription.last_event_created_at ?? null,
+      subscription.last_event_id ?? null,
     ],
   );
 }
 
+const SUBSCRIPTION_COLUMNS = `workspace_id, plan_id, status, current_period_end, cancel_at_period_end,
+            stripe_customer_id, stripe_subscription_id, seats, updated_at,
+            last_event_created_at, last_event_id`;
+
 /** Load one workspace's subscription. Always scoped by workspace id; there is no unscoped variant. */
 export async function loadSubscription(db: Db, workspaceId: string): Promise<StoredSubscription | null> {
   const { rows } = await db.query<SubscriptionRow>(
-    `SELECT workspace_id, plan_id, status, current_period_end, cancel_at_period_end,
-            stripe_customer_id, stripe_subscription_id, seats, updated_at
-       FROM workspace_subscriptions WHERE workspace_id = $1`,
+    `SELECT ${SUBSCRIPTION_COLUMNS} FROM workspace_subscriptions WHERE workspace_id = $1`,
     [workspaceId],
   );
   return rows.length === 0 ? null : rowToSubscription(rows[0]);
+}
+
+/**
+ * Load a workspace's subscription and LOCK the row for the rest of the transaction. The Stripe applier
+ * uses this so two concurrent deliveries for the same workspace cannot both read the same high-water
+ * mark and both decide they are the newest — the ordering guarantee has to survive concurrency, not
+ * only sequential delivery.
+ */
+export async function lockSubscription(tx: Db, workspaceId: string): Promise<StoredSubscription | null> {
+  const { rows } = await tx.query<SubscriptionRow>(
+    `SELECT ${SUBSCRIPTION_COLUMNS} FROM workspace_subscriptions WHERE workspace_id = $1 FOR UPDATE`,
+    [workspaceId],
+  );
+  return rows.length === 0 ? null : rowToSubscription(rows[0]);
+}
+
+/**
+ * True when this Stripe customer is already bound to a DIFFERENT workspace. One customer maps to exactly
+ * one tenant (enforced by a unique index); asking first turns what would be an unhandled constraint
+ * violation — a 500 on an unauthenticated endpoint that Stripe then retries for days — into a refusal.
+ */
+export async function customerBoundElsewhere(
+  db: Db,
+  customerId: string,
+  workspaceId: string,
+): Promise<boolean> {
+  const { rows } = await db.query(
+    `SELECT 1 FROM workspace_subscriptions
+      WHERE stripe_customer_id = $1 AND workspace_id <> $2`,
+    [customerId, workspaceId],
+  );
+  return rows.length > 0;
 }
 
 /** Map a Stripe customer back to the workspace it belongs to, or null when we have never seen it. */
@@ -277,6 +328,10 @@ function isExactlyMeasured(outcome: TeamTaskOutcomeRecord): boolean {
   );
 }
 
+/** The arithmetic, spelled out on every result so a customer can re-derive or reject the number. */
+const CREDIT_FORMULA =
+  "Σ(net_input_cost_delta_usd + kage_processing_cost_usd) over receipts measuring BOTH; capped at the first invoice platform fee; partial/unavailable receipts contribute nothing";
+
 /** Round a money figure to cents, avoiding float dust like 12.499999999999998. */
 function toCents(value: number): number {
   return Math.round(value * 100) / 100;
@@ -298,8 +353,7 @@ export function calculatePilotCredit(input: PilotCreditInput): PilotCreditResult
     exact_receipts: exact.length,
     excluded_receipts: excluded,
     capped: false,
-    formula:
-      "Σ(net_input_cost_delta_usd + kage_processing_cost_usd) over receipts measuring BOTH; capped at the first invoice platform fee; partial/unavailable receipts contribute nothing",
+    formula: CREDIT_FORMULA,
   };
 
   if (exact.length === 0) {
@@ -352,33 +406,129 @@ export function calculatePilotCredit(input: PilotCreditInput): PilotCreditResult
   };
 }
 
+/** The persisted ledger row for a pilot credit — money, reason, measurement, and application state. */
+export interface StoredPilotCredit {
+  credit_id: string;
+  workspace_id: string;
+  pilot_id: string;
+  credit_usd: number;
+  reason: PilotCreditReason;
+  measured_overhead_usd: number | null;
+  exact_receipts: number;
+  excluded_receipts: number;
+  capped: boolean;
+  /** The invoice this credit was applied against, or null while it has not been applied. */
+  applied_invoice_id: string | null;
+}
+
+interface PilotCreditRow {
+  credit_id: string;
+  workspace_id: string;
+  pilot_id: string;
+  credit_usd: string | number;
+  reason: string;
+  measured_overhead_usd: string | number | null;
+  exact_receipts: number;
+  excluded_receipts: number;
+  capped: boolean;
+  applied_invoice_id: string | null;
+}
+
+const PILOT_CREDIT_COLUMNS = `credit_id, workspace_id, pilot_id, credit_usd, reason,
+            measured_overhead_usd, exact_receipts, excluded_receipts, capped, applied_invoice_id`;
+
+function rowToCredit(row: PilotCreditRow): StoredPilotCredit {
+  return {
+    credit_id: row.credit_id,
+    workspace_id: row.workspace_id,
+    pilot_id: row.pilot_id,
+    // NUMERIC arrives as a string from pg; Number() here keeps cents exact at these magnitudes.
+    credit_usd: Number(row.credit_usd),
+    reason: row.reason as PilotCreditReason,
+    measured_overhead_usd: row.measured_overhead_usd === null ? null : Number(row.measured_overhead_usd),
+    exact_receipts: row.exact_receipts,
+    excluded_receipts: row.excluded_receipts,
+    capped: row.capped,
+    applied_invoice_id: row.applied_invoice_id,
+  };
+}
+
+/** Re-derive the reported result from what the LEDGER holds, so the two can never disagree. */
+export function storedCreditToResult(stored: StoredPilotCredit): PilotCreditResult {
+  return {
+    pilot_id: stored.pilot_id,
+    workspace_id: stored.workspace_id,
+    credit_usd: stored.credit_usd,
+    reason: stored.reason,
+    measured_overhead_usd: stored.measured_overhead_usd,
+    exact_receipts: stored.exact_receipts,
+    excluded_receipts: stored.excluded_receipts,
+    capped: stored.capped,
+    formula: CREDIT_FORMULA,
+  };
+}
+
 /**
- * Compute and PERSIST the credit for a pilot, exactly once per (workspace, pilot). Re-running the
- * calculation is safe: the unique key makes the second write a no-op, so a retried job, a re-imported
- * receipt set, or a curious operator can never double-credit an account. The stored row keeps the
- * measurement and the reason alongside the money, so a credit is always auditable back to its receipts.
+ * Compute and PERSIST the credit for a pilot, exactly once per (workspace, pilot), and RETURN WHAT THE
+ * LEDGER HOLDS.
+ *
+ * The distinction is the whole point. The unique key makes a second write a no-op, so a re-run with
+ * different inputs — the invoice has since arrived, a receipt was re-imported — persists nothing new.
+ * Returning the fresh calculation in that case would hand the caller a number no row backs: it would
+ * issue a credit, email a customer, or feed the GA report with money the auditable ledger does not
+ * contain (and, with the inverse ordering, silently under-credit instead). So the insert RETURNS the row
+ * it wrote, and a conflict re-reads the existing one.
  */
 export async function recordPilotCredit(db: Db, input: PilotCreditInput): Promise<PilotCreditResult> {
-  const result = calculatePilotCredit(input);
-  await db.query(
+  return storedCreditToResult(await recordPilotCreditRow(db, input));
+}
+
+/** As `recordPilotCredit`, but returns the full ledger row (including its application state). */
+export async function recordPilotCreditRow(db: Db, input: PilotCreditInput): Promise<StoredPilotCredit> {
+  const calculated = calculatePilotCredit(input);
+  const { rows } = await db.query<PilotCreditRow>(
     `INSERT INTO workspace_billing_credits(
        credit_id, workspace_id, pilot_id, credit_usd, reason, measured_overhead_usd,
        exact_receipts, excluded_receipts, capped)
      VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
-     ON CONFLICT (workspace_id, pilot_id) DO NOTHING`,
+     ON CONFLICT (workspace_id, pilot_id) DO NOTHING
+     RETURNING ${PILOT_CREDIT_COLUMNS}`,
     [
       randomUUID(),
       input.workspace_id,
       input.pilot_id,
-      result.credit_usd,
-      result.reason,
-      result.measured_overhead_usd,
-      result.exact_receipts,
-      result.excluded_receipts,
-      result.capped,
+      calculated.credit_usd,
+      calculated.reason,
+      calculated.measured_overhead_usd,
+      calculated.exact_receipts,
+      calculated.excluded_receipts,
+      calculated.capped,
     ],
   );
-  return result;
+  if (rows.length > 0) return rowToCredit(rows[0]);
+  const existing = await loadPilotCreditRow(db, input.workspace_id, input.pilot_id);
+  if (!existing) {
+    // DO NOTHING found a conflicting row, so one exists; failing to read it back means the ledger is
+    // unreadable, and reporting the calculated figure anyway is exactly the lie this function refuses.
+    throw new Error(
+      `pilot_credit_not_readable:${input.workspace_id}:${input.pilot_id}`,
+    );
+  }
+  return existing;
+}
+
+/** The full ledger row for a workspace's pilot credit, or null when none has been computed. */
+export async function loadPilotCreditRow(
+  db: Db,
+  workspaceId: string,
+  pilotId: string,
+): Promise<StoredPilotCredit | null> {
+  const { rows } = await db.query<PilotCreditRow>(
+    `SELECT ${PILOT_CREDIT_COLUMNS}
+       FROM workspace_billing_credits WHERE workspace_id = $1 AND pilot_id = $2`,
+    [workspaceId, pilotId],
+  );
+  return rows.length === 0 ? null : rowToCredit(rows[0]);
 }
 
 /** The credit already recorded for a workspace's pilot, or null when none has been computed. */
@@ -387,20 +537,29 @@ export async function loadPilotCredit(
   workspaceId: string,
   pilotId: string,
 ): Promise<{ credit_usd: number; reason: string; measured_overhead_usd: number | null } | null> {
-  const { rows } = await db.query<{
-    credit_usd: string | number;
-    reason: string;
-    measured_overhead_usd: string | number | null;
-  }>(
-    `SELECT credit_usd, reason, measured_overhead_usd
-       FROM workspace_billing_credits WHERE workspace_id = $1 AND pilot_id = $2`,
-    [workspaceId, pilotId],
-  );
-  const row = rows[0];
+  const row = await loadPilotCreditRow(db, workspaceId, pilotId);
   if (!row) return null;
   return {
-    credit_usd: Number(row.credit_usd),
+    credit_usd: row.credit_usd,
     reason: row.reason,
-    measured_overhead_usd: row.measured_overhead_usd === null ? null : Number(row.measured_overhead_usd),
+    measured_overhead_usd: row.measured_overhead_usd,
   };
+}
+
+/**
+ * Claim a credit as applied to an invoice. The `applied_invoice_id IS NULL` predicate is the claim: a
+ * second attempt updates zero rows and therefore knows not to move money again. Returns false when the
+ * credit was already applied (by this process or another).
+ */
+export async function markPilotCreditApplied(
+  db: Db,
+  creditId: string,
+  invoiceId: string,
+): Promise<boolean> {
+  const { rowCount } = await db.query(
+    `UPDATE workspace_billing_credits SET applied_invoice_id = $2
+      WHERE credit_id = $1 AND applied_invoice_id IS NULL`,
+    [creditId, invoiceId],
+  );
+  return rowCount > 0;
 }

@@ -67,6 +67,15 @@ export interface StoredSubscription {
   /** Seats Stripe is billing. Informational: access is never gated on it, only reported. */
   seats: number | null;
   updated_at: string;
+  /**
+   * Generation time (`event.created`) of the newest Stripe subscription event applied to this row — the
+   * MONOTONIC high-water mark. Stripe does not guarantee delivery order and retries for days, so an
+   * event generated before this instant is stale and must apply nothing, however recently it arrived.
+   * Undefined/null on a write means "leave the stored mark alone", never "clear it".
+   */
+  last_event_created_at?: string | null;
+  /** The event id that set the mark, for provenance when reconciling a subscription by hand. */
+  last_event_id?: string | null;
 }
 
 /** Whether the stored subscription currently entitles anything. */

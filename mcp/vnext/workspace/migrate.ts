@@ -9,7 +9,7 @@ import { join } from "node:path";
 import type { Db } from "./db.js";
 
 /** Highest migration version shipped in this build; `migrate()` brings a database up to it. */
-export const LATEST_MIGRATION = 9;
+export const LATEST_MIGRATION = 10;
 
 // The .sql files live in the source tree next to this module. When running from `dist/`, the compiled
 // `migrate.js` is at `mcp/dist/vnext/workspace/`, so the source `migrations/` dir is three levels up.

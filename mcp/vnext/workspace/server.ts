@@ -14,13 +14,25 @@ import { can, scopeAllows } from "./auth/authorize.js";
 import type { Principal } from "./auth/types.js";
 import { applyBatch, pullChanges, ReviewAuthorityError } from "./sync-routes.js";
 import { reviewClaim, type ReviewAction } from "./review.js";
-import { loadTeamMetrics, MetricsWindowError, TaskOutcomeValidationError } from "./metrics.js";
+import {
+  loadTaskOutcomes,
+  loadTeamMetrics,
+  MetricsWindowError,
+  TaskOutcomeValidationError,
+} from "./metrics.js";
 import { forTarget } from "./audit.js";
 import { assertNoRawPayload } from "../sync/outbox.js";
 import type { SyncBatch } from "../sync/types.js";
-import { countActiveDevelopers, loadSubscription, resolveEntitlements } from "./billing/entitlements.js";
+import {
+  countActiveDevelopers,
+  loadSubscription,
+  resolveEntitlements,
+  resolveWorkspaceEntitlements,
+} from "./billing/entitlements.js";
+import { applyPilotCredit } from "./billing/pilot-credit.js";
 import {
   createCheckoutSession,
+  createPortalSession,
   handleStripeEvent,
   type Fetcher as StripeFetcher,
   type StripeConfig,
@@ -79,15 +91,105 @@ function requestToken(req: IncomingMessage): string | undefined {
   return cookieToken(req);
 }
 
-/** The EXACT bytes of the request body. A signature must be verified over these, never over a re-parse. */
-async function readRawBody(req: IncomingMessage): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
-  return Buffer.concat(chunks);
+/**
+ * The ingest ceiling for the UNAUTHENTICATED Stripe webhook.
+ *
+ * This limit cannot live after the parse, and it cannot live after authentication. Stripe authenticates
+ * by signing the whole raw body, so the body must be fully buffered BEFORE authority is known — which
+ * means an anonymous request can make the service allocate whatever it sends unless the ceiling is
+ * enforced as the bytes arrive. Stripe's own event payloads are orders of magnitude below this.
+ */
+export const MAX_WEBHOOK_BODY_BYTES = 1_048_576; // 1 MiB
+
+/**
+ * The ingest ceiling for AUTHENTICATED JSON routes. Higher than the webhook because a sync batch is a
+ * legitimately large body, but still bounded: an authenticated principal must not be able to exhaust a
+ * multi-tenant service's memory either.
+ */
+export const MAX_JSON_BODY_BYTES = 16_777_216; // 16 MiB
+
+/** A request that exceeded the ingest ceiling. Carries the limit so the refusal can state it. */
+class BodyTooLargeError extends Error {
+  constructor(readonly limit: number) {
+    super(`request body exceeds ${limit} bytes`);
+    this.name = "BodyTooLargeError";
+  }
 }
 
-async function readJsonBody(req: IncomingMessage): Promise<unknown> {
-  const raw = await readRawBody(req);
+/**
+ * The EXACT bytes of the request body, up to `limit`. A signature must be verified over these, never
+ * over a re-parse.
+ *
+ * Two checks, because either alone is bypassable: a declared `Content-Length` over the ceiling is
+ * refused before a byte is read, and the running total is checked as chunks arrive so a chunked body
+ * with no declared length is refused mid-flight rather than after it has all been buffered.
+ */
+function readRawBody(req: IncomingMessage, limit: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const declared = Number.parseInt(String(req.headers["content-length"] ?? ""), 10);
+    if (Number.isFinite(declared) && declared > limit) {
+      reject(new BodyTooLargeError(limit));
+      return;
+    }
+    const chunks: Buffer[] = [];
+    let total = 0;
+    let settled = false;
+    const done = (error: Error | null, body?: Buffer): void => {
+      if (settled) return;
+      settled = true;
+      req.off("data", onData);
+      req.off("end", onEnd);
+      req.off("error", onError);
+      if (error) reject(error);
+      else resolve(body as Buffer);
+    };
+    const onData = (chunk: Buffer): void => {
+      total += chunk.length;
+      if (total > limit) {
+        // Stop consuming immediately: the caller answers 413 and closes the connection, so the rest of
+        // the flood is never read and never allocated.
+        req.pause();
+        done(new BodyTooLargeError(limit));
+        return;
+      }
+      chunks.push(chunk);
+    };
+    const onEnd = (): void => done(null, Buffer.concat(chunks));
+    const onError = (error: Error): void => done(error);
+    req.on("data", onData);
+    req.on("end", onEnd);
+    req.on("error", onError);
+  });
+}
+
+/**
+ * Grace period between answering 413 and tearing the connection down.
+ *
+ * Destroying the socket the instant the response is written sends an RST while the client is still
+ * uploading, and an RST discards data the client has not read yet — including our own 413. The client is
+ * given a moment to read the refusal, and the connection is destroyed regardless afterwards. Nothing is
+ * being buffered in the meantime: reading has already stopped, so the flood stalls on TCP backpressure
+ * in the kernel rather than growing the heap.
+ */
+const OVERSIZE_CLOSE_GRACE_MS = 250;
+
+/** Answer an oversize request and close the connection instead of draining what it is still sending. */
+function rejectTooLarge(req: IncomingMessage, res: ServerResponse, limit: number): void {
+  const teardown = (): void => {
+    const timer = setTimeout(() => req.destroy(), OVERSIZE_CLOSE_GRACE_MS);
+    // Never hold the event loop open on a client that already went away.
+    timer.unref();
+  };
+  if (!res.headersSent) {
+    res.writeHead(413, { "content-type": "application/json", connection: "close" });
+    res.end(JSON.stringify({ error: "payload_too_large", limit_bytes: limit }), teardown);
+    return;
+  }
+  res.end(teardown);
+}
+
+async function readJsonBody(req: IncomingMessage, limit: number = MAX_JSON_BODY_BYTES): Promise<unknown> {
+  const raw = await readRawBody(req, limit);
   if (raw.length === 0) return undefined;
   try {
     return JSON.parse(raw.toString("utf8"));
@@ -117,7 +219,7 @@ function csrfError(req: IncomingMessage, session: ResolvedSession): "csrf_requir
 
 /** Build the request handler for the workspace service over a given database. */
 export function createWorkspaceApp(db: Db, options: WorkspaceServerOptions = {}): Handler {
-  return async function handle(req, res) {
+  const route = async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? "/", "http://localhost");
     const method = req.method ?? "GET";
     const path = url.pathname;
@@ -200,6 +302,7 @@ export function createWorkspaceApp(db: Db, options: WorkspaceServerOptions = {})
         json(res, 403, { error: "forbidden", action: "sync.pull" });
         return;
       }
+      if (!(await entitled(db, principal, "team_sync", res))) return;
       const cursor = url.searchParams.get("cursor");
       const result = await pullChanges(db, principal, cursor);
       json(res, 200, result);
@@ -229,6 +332,23 @@ export function createWorkspaceApp(db: Db, options: WorkspaceServerOptions = {})
       return;
     }
 
+    // POST /v1/workspaces/:workspaceId/billing/portal — hand the customer to Stripe's own portal, so
+    // payment instruments are managed there and never touch this service.
+    const portalMatch = /^\/v1\/workspaces\/([^/]+)\/billing\/portal$/.exec(path);
+    if (portalMatch && method === "POST") {
+      await handlePortal(db, options, principal, portalMatch[1], res);
+      return;
+    }
+
+    // POST /v1/workspaces/:workspaceId/billing/pilot-credit — compute, record, and APPLY the no-overhead
+    // pilot credit. This is the production caller for the guarantee: without it the credit is arithmetic
+    // nobody can act on.
+    const creditMatch = /^\/v1\/workspaces\/([^/]+)\/billing\/pilot-credit$/.exec(path);
+    if (creditMatch && method === "POST") {
+      await handlePilotCredit(db, options, principal, creditMatch[1], req, res);
+      return;
+    }
+
     // GET /v1/workspaces/:workspaceId/repositories — list, tenant- and scope-filtered.
     const reposMatch = /^\/v1\/workspaces\/([^/]+)\/repositories$/.exec(path);
     if (reposMatch && method === "GET") {
@@ -245,6 +365,59 @@ export function createWorkspaceApp(db: Db, options: WorkspaceServerOptions = {})
 
     json(res, 404, { error: "not_found" });
   };
+
+  // An oversize body is refused in ONE place, so no route can forget to bound its own ingest.
+  return async function handle(req, res) {
+    try {
+      await route(req, res);
+    } catch (error) {
+      if (error instanceof BodyTooLargeError) {
+        rejectTooLarge(req, res, error.limit);
+        return;
+      }
+      throw error;
+    }
+  };
+}
+
+/**
+ * The paid, TEAM-SCOPED features an entitlement can gate. `local_runtime` and `workspace_export` are
+ * deliberately absent: they are typed `true` and are never withheld, whatever the subscription says.
+ *
+ * Two things this service deliberately does NOT gate, so the code and the customer-facing promise agree:
+ *   - READS of a team's own already-synced data (the metrics report, the billing page). Withdrawing
+ *     access to what a customer already produced is the same confiscation `workspace_export` exists to
+ *     rule out; what lapses is new team-scoped writes and the sync of them.
+ *   - `github_checks`, because this service exposes no check-publishing route yet (Task 5 built the App
+ *     client, not an endpoint). The feature is listed here so the gate is one line when that route
+ *     lands — not because a gate is silently in force somewhere.
+ */
+type GatedFeature = "team_sync" | "team_review" | "github_checks" | "advanced_policy";
+
+/**
+ * Enforce a paid entitlement, resolved SERVER-SIDE from the stored subscription. Answers 402 (not 403)
+ * when the workspace is not entitled, because "you may do this but the plan lapsed" is a different fact
+ * from "you are not allowed to do this" — and it is checked AFTER the authority gate, so a role that may
+ * not act at all still sees 403 rather than a price tag.
+ *
+ * This is the enforcement half of what docs/commercial/no-overhead-pilot.md promises a customer: the
+ * team features switch OFF when a subscription lapses, rather than merely being displayed as off.
+ */
+async function entitled(
+  db: Db,
+  principal: Principal,
+  feature: GatedFeature,
+  res: ServerResponse,
+): Promise<boolean> {
+  const entitlements = await resolveWorkspaceEntitlements(db, principal.workspace_id);
+  if (entitlements[feature]) return true;
+  json(res, 402, {
+    error: "entitlement_required",
+    feature,
+    plan_id: entitlements.plan_id,
+    state: entitlements.state,
+  });
+  return false;
 }
 
 /**
@@ -263,6 +436,9 @@ async function handleSyncPush(
     json(res, 403, { error: "forbidden", action: "sync.push" });
     return;
   }
+  // Team sync is a PAID feature, and a lapsed subscription switches it off here — on the route — not
+  // only on the billing page. Authority first, then entitlement: a viewer still gets 403.
+  if (!(await entitled(db, principal, "team_sync", res))) return;
   const body = (await readJsonBody(req)) as Partial<SyncBatch> | undefined;
   if (!body || typeof body !== "object" || typeof body.batch_id !== "string" || typeof body.repository_id !== "string") {
     json(res, 400, { error: "invalid_batch" });
@@ -325,6 +501,9 @@ async function handleClaimReview(
     json(res, 404, { error: "not_found" });
     return;
   }
+  // Team review authority is a paid feature; a lapsed workspace stops making team decisions rather than
+  // quietly continuing to record them. The knowledge itself stays readable and exportable.
+  if (!(await entitled(db, principal, "team_review", res))) return;
   const body = (await readJsonBody(req)) as
     | { action?: unknown; expected_version?: unknown; decision_note?: unknown; request_id?: unknown }
     | undefined;
@@ -414,7 +593,9 @@ async function handleStripeWebhook(
     json(res, 404, { error: "not_found" });
     return;
   }
-  const rawBody = await readRawBody(req);
+  // The ceiling is enforced HERE, on ingest, because the signature can only be checked over the whole
+  // body — so "authenticate first" is impossible and an anonymous flood would otherwise be buffered.
+  const rawBody = await readRawBody(req, MAX_WEBHOOK_BODY_BYTES);
   const header = req.headers["stripe-signature"];
   const outcome = await handleStripeEvent(
     { db, config: options.stripe },
@@ -539,6 +720,120 @@ async function handleCheckout(
     // A plan with no configured price is a deployment gap, not a client error, and it must not look
     // like a successful checkout.
     json(res, 503, { error: "checkout_unavailable", detail: (error as Error).message });
+  }
+}
+
+/**
+ * Open a Stripe customer-portal session. Owner-gated and tenant-scoped like every other billing route,
+ * and it can only ever be opened for the customer id THIS service stored from a signed webhook — a
+ * request cannot name a customer.
+ */
+async function handlePortal(
+  db: Db,
+  options: WorkspaceServerOptions,
+  principal: Principal,
+  workspaceId: string,
+  res: ServerResponse,
+): Promise<void> {
+  if (workspaceId !== principal.workspace_id) {
+    json(res, 404, { error: "not_found" });
+    return;
+  }
+  if (!can(principal, "billing.manage")) {
+    json(res, 403, { error: "forbidden", action: "billing.manage" });
+    return;
+  }
+  if (!options.stripe) {
+    json(res, 404, { error: "billing_not_configured" });
+    return;
+  }
+  const subscription = await loadSubscription(db, principal.workspace_id);
+  if (!subscription?.stripe_customer_id) {
+    json(res, 409, { error: "no_stripe_customer" });
+    return;
+  }
+  try {
+    const session = await createPortalSession(
+      { config: options.stripe, fetcher: options.fetcher },
+      { stripe_customer_id: subscription.stripe_customer_id },
+    );
+    json(res, 200, { portal: session });
+  } catch (error) {
+    json(res, 503, { error: "portal_unavailable", detail: (error as Error).message });
+  }
+}
+
+/**
+ * Compute, record, and apply the no-overhead pilot credit for this workspace.
+ *
+ * Four gates before any money is considered: TENANCY (another workspace is a 404), AUTHORITY (owner
+ * only), SCOPE (a repository-scoped owner is refused rather than silently under-crediting from a partial
+ * view of the pilot), and CONFIGURATION (no Stripe, no crediting). The credit itself is derived only
+ * from measured receipts this principal may read, and the response reports the LEDGER row.
+ */
+async function handlePilotCredit(
+  db: Db,
+  options: WorkspaceServerOptions,
+  principal: Principal,
+  workspaceId: string,
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  if (workspaceId !== principal.workspace_id) {
+    json(res, 404, { error: "not_found" });
+    return;
+  }
+  if (!can(principal, "billing.manage")) {
+    json(res, 403, { error: "forbidden", action: "billing.manage" });
+    return;
+  }
+  if (principal.repository_ids !== "all") {
+    // A credit computed from part of the pilot is a wrong number, not a smaller one. Refuse instead.
+    json(res, 403, { error: "pilot_credit_requires_workspace_scope" });
+    return;
+  }
+  if (!options.stripe) {
+    json(res, 404, { error: "billing_not_configured" });
+    return;
+  }
+  const body = (await readJsonBody(req)) as
+    | { pilot_id?: unknown; since?: unknown; until?: unknown }
+    | undefined;
+  const pilotId = typeof body?.pilot_id === "string" ? body.pilot_id.trim() : "";
+  if (!pilotId) {
+    json(res, 400, { error: "invalid_pilot_id" });
+    return;
+  }
+  try {
+    const outcomes = await loadTaskOutcomes(db, principal, {
+      since: typeof body?.since === "string" ? body.since : undefined,
+      until: typeof body?.until === "string" ? body.until : undefined,
+    });
+    const application = await applyPilotCredit(
+      db,
+      { config: options.stripe, fetcher: options.fetcher },
+      { workspace_id: principal.workspace_id, pilot_id: pilotId, outcomes },
+    );
+    json(res, 200, {
+      credit: {
+        status: application.status,
+        credit_usd: application.result.credit_usd,
+        reason: application.result.reason,
+        measured_overhead_usd: application.result.measured_overhead_usd,
+        exact_receipts: application.result.exact_receipts,
+        excluded_receipts: application.result.excluded_receipts,
+        capped: application.result.capped,
+        formula: application.result.formula,
+        applied_invoice_id: application.applied_invoice_id,
+      },
+    });
+  } catch (error) {
+    if (error instanceof MetricsWindowError) {
+      json(res, 400, { error: "invalid_window", field: error.field });
+      return;
+    }
+    // A provider failure must not look like a credit that was applied.
+    json(res, 503, { error: "credit_unavailable", detail: (error as Error).message });
   }
 }
 
