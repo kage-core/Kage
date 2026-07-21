@@ -20,7 +20,7 @@ Before changing code, call `kage_context` with the current task. Continue strict
 
 ## Current position
 
-**Program status (2026-07-21):** ALL FIVE PHASES CODE-COMPLETE — Phase A, Phase B, provider-neutral gateway, Phase D, Phase C, **Phase E** (see dated sections). Technical GA gate passes against real PostgreSQL; commercial gate honestly NO-GO (design-partner pilots + live credentials are external-world steps, enumerated by scripts/vnext-phase-e-report.mjs which exits 1). Backend 1423/1423 aggregate (main 1375 + deploy 36 + dogfood 12); workspace 176/176 vs real embedded PG; frontend Vitest 105/105; builds clean; local sqlite migration v5 (workspace Postgres has its own 12-migration ledger); frozen wire protocol intact. Next: goal-expansion workstreams (provider-neutral pipeline W1, history compression W2, memory-algorithm overhaul W3, collaborative-memory doc W4, release packaging W5).
+**Program status (2026-07-21, FINAL):** PROGRAM COMPLETE AND PACKAGED — Phases A–E all code-complete with passing gates, plus the goal-expansion workstreams: W1 provider-neutral pipeline (OpenAI+Gemini injection/compression, 5848f0f), W2 history digestion ~93% measured (f09754b), W3 corpus-normalized injection (false-rate 0.667→0, 8b80f3c) + guarded TF-cosine dedup (ebd4be5), W4 framework doc with proofs (docs/COLLABORATIVE_MEMORY.md, 0c27cd1), W5 release v4.0.0 packaged (14b8a8a; npm pack clean 693 kB — publish itself needs the maintainer's npm auth). Suite 1463/1463 aggregate; workspace 176/176 vs real PostgreSQL; portal 105/105; commercial GA honestly NO-GO (design partners not run). Remaining to GA is the external world: pilots, live GitHub App/Stripe/IdP, Docker CI, npm publish.
 
 The Phase A table below is retained as historical detail.
 
