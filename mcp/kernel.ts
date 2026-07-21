@@ -3376,6 +3376,74 @@ export function recordValueEvent(projectDir: string, event: ValueEvent): void {
 }
 
 // ---------------------------------------------------------------------------------------------
+// T4 — day-one value. A fresh repo has an empty store, so the first recalls return nothing and the
+// value is invisible exactly when a new user is judging the tool. Bootstrap ONE honest starter
+// runbook from what is already verifiable — the repo's own package.json scripts — so "how do I run
+// the tests?" answers from memory on day one. It is runbook-shaped operational knowledge (the
+// highest-demand class in the store audit: ~1.0-1.4 uses/packet), grounded to package.json, tagged
+// `bootstrap`, and idempotent (a repo that already has a bootstrap packet gets nothing new).
+// ---------------------------------------------------------------------------------------------
+
+export interface BootstrapResult {
+  created: boolean;
+  title: string | null;
+  reason: string;
+}
+
+export function bootstrapStarterMemory(projectDir: string): BootstrapResult {
+  const existing = [...loadApprovedPackets(projectDir), ...loadPendingPackets(projectDir)]
+    .some((packet) => packet.tags.includes("bootstrap"));
+  if (existing) return { created: false, title: null, reason: "bootstrap memory already present" };
+
+  const packageJsonPath = join(projectDir, "package.json");
+  if (!existsSync(packageJsonPath)) {
+    return { created: false, title: null, reason: "no package.json to derive verifiable commands from" };
+  }
+  let scripts: Record<string, string> = {};
+  let name = "";
+  try {
+    const parsed = JSON.parse(readFileSync(packageJsonPath, "utf8")) as { scripts?: Record<string, string>; name?: string };
+    scripts = parsed.scripts ?? {};
+    name = typeof parsed.name === "string" ? parsed.name : "";
+  } catch {
+    return { created: false, title: null, reason: "package.json unreadable" };
+  }
+  const interesting = ["test", "build", "dev", "start", "lint"].filter((key) => typeof scripts[key] === "string");
+  if (!interesting.length) {
+    return { created: false, title: null, reason: "no runnable scripts found in package.json" };
+  }
+
+  const lines = interesting.map((key) => `- \`npm run ${key}\`${key === "test" ? " (run this before committing)" : ""} — \`${scripts[key]}\``);
+  const title = `How to run, build and test ${name || "this repo"}`;
+  const body = [
+    // Lead with the exact question users ask ("how do I run the tests") so the day-one direct match
+    // carries broad term evidence and decisively outranks auto-generated structural packets.
+    interesting.includes("test")
+      ? "To run the tests: \`npm run test\`. Run the tests before committing."
+      : `To run this repo: \`npm run ${interesting[0]}\`.`,
+    "",
+    "Bootstrap runbook derived from package.json scripts at install time — every command below is",
+    "verifiable against that file (re-verify with \`kage check\` after script changes).",
+    "",
+    ...lines,
+  ].join("\n");
+
+  const result = capture({
+    projectDir,
+    type: "runbook",
+    title,
+    summary: `Verified commands from package.json: ${interesting.map((key) => `npm run ${key}`).join(", ")}`,
+    body,
+    paths: ["package.json"],
+    tags: ["bootstrap", "runbook"],
+  });
+  if (!result.ok) {
+    return { created: false, title: null, reason: result.errors?.join("; ") ?? "capture refused the bootstrap packet" };
+  }
+  return { created: true, title, reason: "bootstrapped from package.json scripts" };
+}
+
+// ---------------------------------------------------------------------------------------------
 // T3 — the lead-facing "is this helping?" report. Every number is measured from local ledgers and
 // the real store; anything unmeasured is null/"unavailable", never a fabricated zero. Estimated
 // figures keep their label (tokens_saved is the read-vs-source ESTIMATE, exactly as `kage gains`
@@ -11499,9 +11567,17 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
     context_block: inputs.maxContextTokens ? boundContextBlock(assembledBlock, inputs.maxContextTokens) : assembledBlock,
     // Corpus-normalized injection decision, computed over the FULL ranked candidate list (the only
     // place the distribution exists) — automatic injectors gate on this, humans can ignore it.
+    // Corpus-normalized injection decision. Scores drive the tiny-corpus anchors; term-evidence
+    // relevances drive the z-band (freshness/quality boosts inflate every packet in a fresh store —
+    // auto-generated structural packets score 47+ with zero query-term hits — which would flatten
+    // the spike signal). Index 0 of both arrays is the top-SCORED entry: the one that would inject.
     injection: decideRecallInjection(
       rankedScored.map((entry) => entry.score),
       rankedScored.length ? countDistinctTermMatches(expansion.baseTerms, rankedScored[0].packet) : 0,
+      rankedScored.length
+        ? [rankedScored[0].relevance, ...rankedScored.slice(1).map((entry) => entry.relevance).sort((a, b) => b - a)]
+        : [],
+      unique(expansion.baseTerms.filter((term) => term.length >= 3)).length,
     ),
     results: scored,
     suppressed: suppressed.length ? suppressed : undefined,
@@ -11565,6 +11641,14 @@ function clamp01(value: number): number {
 export function decideRecallInjection(
   scoresDescending: number[],
   topDistinctTerms = 2,
+  // Term-evidence relevances (BM25-scale), aligned with scoresDescending: [top-scored entry's
+  // relevance, rest sorted desc]. The z-band branch normalizes over THESE, because final scores
+  // carry freshness/quality boosts that inflate every packet in a fresh store and flatten the
+  // spike signal. The tiny-corpus branch keeps SCORE semantics — its ratio/anchor rules are tuned
+  // on that scale, and BM25 values are too small for absolute anchors.
+  relevancesDescending?: number[],
+  /** How many meaningful (len>=3) terms the query itself carries — the denominator of coverage. */
+  queryTermCount = 0,
 ): RecallInjectionDecision {
   const scores = scoresDescending.filter((score) => Number.isFinite(score) && score > 0);
   const count = scores.length;
@@ -11585,6 +11669,21 @@ export function decideRecallInjection(
       top_score: top,
       candidate_count: count,
       why: `top candidate matches only ${topDistinctTerms} distinct query term(s) — one incidental token is not evidence (score ${top})`,
+    };
+  }
+
+  // QUERY COVERAGE override (any corpus size): when the top candidate matches essentially ALL of
+  // the query's meaningful terms (>=80%, and the query has at least two), it answers what was
+  // asked — inject regardless of corpus shape. Ties with auto-generated structural packets or a
+  // crowded topical band cannot demote a complete direct answer. Content-free and absent-topic
+  // prompts can never reach this bar: their terms are not covered by any one packet.
+  if (queryTermCount >= 2 && topDistinctTerms >= Math.ceil(queryTermCount * 0.8) && top >= 10) {
+    return {
+      inject: true,
+      confidence: 0.75,
+      top_score: top,
+      candidate_count: count,
+      why: `top candidate covers ${topDistinctTerms}/${queryTermCount} meaningful query terms — a complete direct answer`,
     };
   }
 
@@ -11615,13 +11714,19 @@ export function decideRecallInjection(
   }
 
   // Normal corpora: z-score of the top against the rest of the band, blended with the runner-up
-  // ratio. A spike (high z AND a real lead) injects; a flat band (z near zero, ratio near one) is
-  // topical noise regardless of its absolute level.
-  const mean = rest.reduce((sum, score) => sum + score, 0) / rest.length;
-  const variance = rest.reduce((sum, score) => sum + (score - mean) ** 2, 0) / rest.length;
+  // ratio — computed over term-evidence RELEVANCES when supplied (boost-free), else the scores.
+  // A spike (high z AND a real lead) injects; a flat band is topical noise at any absolute level.
+  const band = (relevancesDescending && relevancesDescending.length === scoresDescending.length
+    ? relevancesDescending
+    : scoresDescending
+  ).filter((value) => Number.isFinite(value) && value > 0);
+  const bandTop = band[0] ?? top;
+  const bandRest = band.slice(1);
+  const mean = bandRest.length ? bandRest.reduce((sum, value) => sum + value, 0) / bandRest.length : 0;
+  const variance = bandRest.length ? bandRest.reduce((sum, value) => sum + (value - mean) ** 2, 0) / bandRest.length : 0;
   const sd = Math.sqrt(variance);
-  const z = sd > 0 ? (top - mean) / sd : top > mean ? 4 : 0;
-  const ratio = rest[0] > 0 ? top / rest[0] : 4;
+  const z = sd > 0 ? (bandTop - mean) / sd : bandTop > mean ? 4 : 0;
+  const ratio = bandRest[0] > 0 ? bandTop / bandRest[0] : 4;
   const zComponent = clamp01(z / 4);
   const ratioComponent = clamp01((ratio - 1) / 1.5);
   const confidence = clamp01(Math.max(

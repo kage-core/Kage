@@ -148,6 +148,7 @@ import {
   truthScorecardMarkdown,
   validateProject,
   valueSummary,
+  bootstrapStarterMemory,
   teamValueReport,
   formatTokenCount,
   formatValueGains,
@@ -1221,6 +1222,9 @@ async function main(): Promise<void> {
     const detected = requested ?? probes.filter((p) => p.paths.some((path) => existsSync(path))).map((p) => p.agent);
 
     const init = initProject(project, { policy: false });
+    // T4 — day-one value: bootstrap one verifiable starter runbook from package.json scripts so the
+    // very first recall answers from memory instead of returning nothing.
+    const bootstrap = bootstrapStarterMemory(project);
     // Always write the repo policy (AGENTS.md + CLAUDE.md) — it is what instructs
     // agents to use Kage and it travels with the repo, so teammates who clone are
     // covered even before they wire their own agent. Decoupled from agent detection:
@@ -1238,12 +1242,16 @@ async function main(): Promise<void> {
       }
     }
     if (json) {
-      console.log(JSON.stringify({ project_dir: init.index.projectDir, packets: init.index.packets, validation_ok: init.validation.ok, agents: wired }, null, 2));
+      console.log(JSON.stringify({ project_dir: init.index.projectDir, packets: init.index.packets, validation_ok: init.validation.ok, agents: wired, bootstrap }, null, 2));
       if (!init.validation.ok) process.exit(2);
       return;
     }
     console.log(`Kage installed in ${init.index.projectDir}\n`);
     console.log("  Memory      .agent_memory/ created — packets are plain files, reviewable in git");
+    if (bootstrap.created) {
+      console.log(`  First win   starter runbook captured ("${bootstrap.title}") — try it now:`);
+      console.log(`                kage context "how do I run the tests" --project .`);
+    }
     console.log(`  Indexes     ${init.index.indexes.length} built (code graph, recall, structure)`);
     console.log(`  Policy      AGENTS.md + CLAUDE.md ${policy.created ? "written" : policy.updated ? "updated" : "current"} — commit these so every teammate's agent uses Kage`);
     if (skipAgents) {
