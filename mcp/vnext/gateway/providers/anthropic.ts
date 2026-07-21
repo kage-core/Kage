@@ -4,6 +4,8 @@ import { isCompletionsRequest } from "../../adapters/anthropic-proxy.js";
 import { anthropicLiveZone } from "../live-zone.js";
 import type { MessagesRequestBody } from "../transform.js";
 import type { GatewayProviderAdapter } from "./provider.js";
+import { createOpenAiProviderAdapter, OPENAI_PIPELINE_PROVIDER } from "./openai.js";
+import { createGeminiProviderAdapter, GEMINI_PIPELINE_PROVIDER } from "./gemini.js";
 
 // The Anthropic binding of the pipeline-facing provider adapter (Task 5). It wraps the SAME wire
 // logic the shipped Anthropic gateway already uses — path eligibility (isCompletionsRequest), the
@@ -64,13 +66,17 @@ export function createAnthropicProviderAdapter(
   };
 }
 
-// Phase D pipeline registry: only Anthropic is wired to the cache-aware transform pipeline. Other
-// providers (OpenAI, Gemini) still get provider-neutral injection through the ProviderGateway, but
-// no Phase D compression until they ship their own cache/injection fixtures — so this returns null
-// for them and the proxy skips the pipeline (fail-open, byte-preserving) for those providers.
+// Pipeline registry: Anthropic (Phase D), OpenAI and Gemini (W1) are wired to the cache-aware
+// transform pipeline, each with its own live-zone/injection/usage fixtures. OpenAI shares the
+// pipeline's native message shape; Gemini goes through a deterministic, lossless contents<->messages
+// view in its adapter (see providers/gemini.ts). An unknown provider still returns null and the
+// proxy skips the pipeline for it (fail-open, byte-preserving).
 export function providerAdapterFor(
   provider: string,
   options: AnthropicProviderAdapterOptions = {},
 ): GatewayProviderAdapter<MessagesRequestBody> | null {
-  return provider === ANTHROPIC_PROVIDER ? createAnthropicProviderAdapter(options) : null;
+  if (provider === ANTHROPIC_PROVIDER) return createAnthropicProviderAdapter(options);
+  if (provider === OPENAI_PIPELINE_PROVIDER) return createOpenAiProviderAdapter(options);
+  if (provider === GEMINI_PIPELINE_PROVIDER) return createGeminiProviderAdapter(options);
+  return null;
 }

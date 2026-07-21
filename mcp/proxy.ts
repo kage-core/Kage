@@ -435,18 +435,20 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
               transformationLabels.push(CONTEXT_APPEND_TRANSFORMATION);
             }
           }
-          // Step 2 — COMPRESS (Phase D pipeline, Anthropic only): store the exact original of every
-          // lossy payload and attach a kage-content reference before compressing, so nothing lossy is
-          // irretrievable. Lossy stays OFF unless the repo config enabled it, so by default this is a
-          // byte-preserving no-op layered on top of injection. Any throw inside fails open to the
-          // candidate unchanged (transformRequest never throws), preserving the client's bytes.
-          // The pipeline's ONLY wire effect is lossy payload compression, so it runs only when the
-          // repo explicitly enabled lossy — the default path (lossy off) stays pure injection with
-          // zero compressor work, and audit/protect on a lossy-off repo add no per-request overhead.
+          // Step 2 — COMPRESS (Phase D pipeline; Anthropic, OpenAI and Gemini via their pipeline
+          // adapters): store the exact original of every lossy payload and attach a kage-content
+          // reference before compressing, so nothing lossy is irretrievable. Lossy stays OFF unless
+          // the repo config enabled it, so by default this is a byte-preserving no-op layered on top
+          // of injection. Any throw inside fails open to the candidate unchanged (transformRequest
+          // never throws), preserving the client's bytes. The request goes THROUGH the adapter's
+          // parse/serialize view: for Anthropic/OpenAI that is an identity JSON round-trip, and for
+          // Gemini it is the lossless contents<->messages mapping the pipeline operates on. A body
+          // the adapter cannot parse (view null) skips the pipeline untouched.
           const policy = budgetPolicyFor(requestProjectDir);
           const adapter = policy.lossy_compression ? providerAdapterFor(gateway.provider) : null;
-          if (adapter) {
-            const pipeline = await transformRequest(candidate as MessagesRequestBody, {
+          const view = adapter ? adapter.parse(Buffer.from(JSON.stringify(candidate), "utf8")) : null;
+          if (adapter && view) {
+            const pipeline = await transformRequest(view, {
               task_id: proxyTaskId(requestProjectDir, sessionId),
               request_id: null,
               provider: gateway.provider,
@@ -462,7 +464,7 @@ export function startProxy(projectDir: string, options: ProxyOptions = {}): Serv
               liveZone: adapter.liveZone,
             });
             if (pipeline.receipt.status === "transformed") {
-              candidate = pipeline.request;
+              candidate = JSON.parse(adapter.serialize(pipeline.request).toString("utf8"));
               transformationLabels.push(...pipeline.receipt.transformations);
             }
           }

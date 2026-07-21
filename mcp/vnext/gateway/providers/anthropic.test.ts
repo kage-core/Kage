@@ -62,8 +62,13 @@ test("usage reads provider-reported input/output tokens from a response body", (
   assert.equal(usage.output_tokens, 3);
 });
 
-test("providerAdapterFor returns an adapter only for anthropic (Phase D is Anthropic-only)", () => {
-  assert.notEqual(providerAdapterFor("anthropic"), null);
-  assert.equal(providerAdapterFor("openai"), null);
-  assert.equal(providerAdapterFor("gemini"), null);
+test("providerAdapterFor registers anthropic, openai and gemini; unknown providers stay null (fail-open)", () => {
+  // W1 extended the Phase D pipeline registry beyond Anthropic: OpenAI and Gemini now have their own
+  // pipeline adapters (see openai.test.ts / gemini.test.ts for their live-zone/round-trip proofs).
+  // An unknown provider still returns null so the proxy skips the pipeline byte-preserving for it.
+  assert.equal(providerAdapterFor("anthropic")?.provider, "anthropic");
+  assert.equal(providerAdapterFor("openai")?.provider, "openai");
+  assert.equal(providerAdapterFor("gemini")?.provider, "gemini");
+  assert.equal(providerAdapterFor("mistral"), null);
+  assert.equal(providerAdapterFor(""), null);
 });
