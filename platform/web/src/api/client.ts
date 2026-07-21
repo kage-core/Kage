@@ -3,7 +3,7 @@
 // machine token as a Bearer header. Every method returns a DTO from the generated `types.ts`, so the
 // wire shape is checked against the backend at build time.
 
-import type {
+import type { TeamReportDto,
   EntityDetailDto,
   FeatureListDto,
   IntegrationsDto,
@@ -39,6 +39,7 @@ export interface ReviewMutationOutcome {
 }
 
 export interface KageApiClient {
+  teamReport(): Promise<{ report: TeamReportDto | null }>;
   overview(): Promise<OverviewDto>;
   systemMap(view?: SystemMapView, focus?: string | null): Promise<SystemMapDto>;
   features(): Promise<FeatureListDto>;
@@ -80,6 +81,10 @@ export class KageApi implements KageApiClient {
 
   overview(): Promise<OverviewDto> {
     return this.get<OverviewDto>("/v2/overview");
+  }
+
+  teamReport(): Promise<{ report: TeamReportDto | null }> {
+    return this.get<{ report: TeamReportDto | null }>("/v2/team-report");
   }
 
   systemMap(view?: SystemMapView, focus?: string | null): Promise<SystemMapDto> {

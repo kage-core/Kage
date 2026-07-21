@@ -3465,6 +3465,8 @@ export interface TeamValueReport {
     injection_rate: number | null;
     average_confidence: number | null;
     note: string;
+    /** IC transparency: the most recent live decisions (what attached and at what confidence). */
+    recent: Array<{ at: string; injected: boolean; confidence: number }>;
   };
   composition: {
     total_packets: number;
@@ -3577,6 +3579,11 @@ export function teamValueReport(projectDir: string): TeamValueReport {
       injected: injections,
       injection_rate: gates > 0 ? Number((injections / gates).toFixed(3)) : null,
       average_confidence: avgConfidence,
+      recent: gateEvents.slice(-10).map((event) => ({
+        at: event.at,
+        injected: event.injected === true,
+        confidence: event.confidence ?? 0,
+      })),
       note: gates > 0
         ? "live corpus-normalized gate decisions recorded by the proxy"
         : "unavailable — no proxy traffic has exercised the injection gate yet",

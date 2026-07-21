@@ -32,7 +32,8 @@ export type PortalRouteKind =
   | "review_items"
   | "tasks"
   | "task"
-  | "integrations";
+  | "integrations"
+  | "team_report";
 
 export interface PortalRoute {
   kind: PortalRouteKind;
@@ -49,6 +50,7 @@ export function matchPortalRoute(pathname: string): PortalRoute | undefined {
   if (pathname === "/v2/review-items") return { kind: "review_items" };
   if (pathname === "/v2/tasks") return { kind: "tasks" };
   if (pathname === "/v2/integrations") return { kind: "integrations" };
+  if (pathname === "/v2/team-report") return { kind: "team_report" };
 
   const entity = /^\/v2\/(features|components|flows|runbooks|decisions)\/([^/]+)$/.exec(pathname);
   if (entity) {
@@ -98,6 +100,12 @@ export interface PortalContext {
    * local overview is computed identically either way. Null renders as "no workspace connected".
    */
   team?: TeamMetricsPanelDto | null;
+  /**
+   * T5 — the lead-facing team value report (kage report team), supplied as a VALUE by the caller
+   * exactly like `team`: the portal read path never fetches or recomputes; server.ts assembles it
+   * from the local ledgers per request. Null renders as "report unavailable".
+   */
+  teamReport?: unknown;
 }
 
 export interface PortalResult {
@@ -196,5 +204,9 @@ export function handlePortalRoute(
     case "integrations":
       // Integration state is wired in Task 9; an honest empty list, never a fabricated "all healthy".
       return { status: 200, body: { integrations: [] } };
+    case "team_report":
+      // Measured-or-null, same honesty contract as the CLI report; null means the caller could not
+      // assemble it (never a fabricated empty report shaped like a healthy one).
+      return { status: 200, body: { report: ctx.teamReport ?? null } };
   }
 }

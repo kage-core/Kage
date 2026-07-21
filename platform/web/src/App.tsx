@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { KageApiClient } from "./api/client";
-import type {
+import type { TeamReportDto,
   DecisionDetailDto,
   EntityDetailDto,
   IntegrationDto,
@@ -21,6 +21,7 @@ import { FeaturePage } from "./pages/FeaturePage";
 import { IntegrationsPage } from "./pages/IntegrationsPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { OverviewPage } from "./pages/OverviewPage";
+import { TeamValuePanel } from "./components/TeamValuePanel";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ReviewQueuePage, type ReviewDecisionInput, type ReviewMutationFeedback } from "./pages/ReviewQueuePage";
 import { RunbookPage } from "./pages/RunbookPage";
@@ -78,6 +79,35 @@ function NotFoundPage({ path }: { path: string }): React.ReactElement {
 // lazily (only when the System Map section is open) and re-fetched when the view or focus changes,
 // so it NEVER sits on the context-delivery critical path. Switching views navigates the URL (which
 // resets focus); expanding a node sets a focus that re-roots the two-hop window in place.
+// T5 — lazy team-value loader (lead dashboard + IC injection transparency). Fetched only when the
+// overview is open, never on the context-delivery critical path; a fetch failure renders the
+// panel's honest unavailable state (null), never a fake healthy report.
+function TeamValueContainer({ api }: { api: KageApiClient }): React.ReactElement {
+  const [report, setReport] = useState<TeamReportDto | null | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .teamReport()
+      .then((body) => {
+        if (!cancelled) setReport(body.report);
+      })
+      .catch(() => {
+        if (!cancelled) setReport(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
+  if (report === undefined) {
+    return (
+      <p role="status" aria-live="polite">
+        Loading team value…
+      </p>
+    );
+  }
+  return <TeamValuePanel report={report} />;
+}
+
 function SystemMapContainer({
   api,
   view,
@@ -359,7 +389,12 @@ function RoutedPage({
       if (needsOnboarding(overview)) {
         return <OnboardingPage detectedRepository={overview.repository} />;
       }
-      return <OverviewPage overview={overview} />;
+      return (
+        <>
+          <OverviewPage overview={overview} />
+          <TeamValueContainer api={api} />
+        </>
+      );
     case "system-map":
       return <SystemMapContainer api={api} view={(route.view as SystemMapView) ?? "feature"} />;
     case "features":

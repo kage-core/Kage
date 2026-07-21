@@ -38,6 +38,17 @@ import type { TeamMetricsPanelDto } from "../api/types.js";
 import type { WorkspaceLink } from "../sync/workspace-link.js";
 import { createConnectedLink, readWorkspaceConnection, type WorkspaceConnection } from "../sync/workspace-config.js";
 import { handleReviewMutation, REVIEW_ACTIONS, type ReviewAction } from "../api/review.js";
+import { teamValueReport } from "../../kernel.js";
+
+// The portal must render even when the report cannot be assembled (fresh repo, unreadable ledger):
+// null is the honest answer, never a throw that 500s the whole portal.
+function safeTeamReport(projectDir: string): unknown {
+  try {
+    return teamValueReport(projectDir);
+  } catch {
+    return null;
+  }
+}
 import { PortalEventStream, type ClaimUpdatedEvent } from "../api/events.js";
 import { execFileSync } from "node:child_process";
 
@@ -428,9 +439,16 @@ function createRequestHandler(
       if (route.kind === "portal") {
         // A read-only projection over the repository model. The machine token has already proven a
         // local operator; the portal never mutates and never returns raw event payloads.
+        // teamReport is assembled lazily ONLY for its own route: it reads the packet store + value
+        // ledger from disk, which every other portal route neither needs nor should pay for.
         const result = handlePortalRoute(
           route.portal!,
-          { model: new Repository(db), receiptStore, team: getTeamPanel() },
+          {
+            model: new Repository(db),
+            receiptStore,
+            team: getTeamPanel(),
+            teamReport: route.portal!.kind === "team_report" ? safeTeamReport(projectDir) : undefined,
+          },
           url.searchParams,
         );
         json(res, result.status, result.body);

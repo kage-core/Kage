@@ -550,3 +550,43 @@ export interface SystemMapDto {
   // True when ANY shown node has a hidden neighbor — the map is a windowed view, not the whole repo.
   truncated: boolean;
 }
+
+
+// T5 — the lead-facing team value report (mirrors kernel teamValueReport; served at /v2/team-report
+// as { report: TeamReportDto | null }). Measured-or-null everywhere; estimated token figures keep
+// their _estimated suffix so they can never masquerade as measured counts.
+export interface TeamReportDto {
+  generated_for: string;
+  value: {
+    recalls_served: number;
+    stale_withheld: number;
+    tokens_saved_estimated: number;
+    replay_tokens_estimated: number;
+  };
+  injection_gate: {
+    available: boolean;
+    gates: number;
+    injected: number;
+    injection_rate: number | null;
+    average_confidence: number | null;
+    note: string;
+    recent: Array<{ at: string; injected: boolean; confidence: number }>;
+  };
+  composition: {
+    total_packets: number;
+    non_derivable_share: number;
+    derivable_risk_share: number;
+    classes: Array<{ class: string; count: number; uses_30d: number }>;
+  };
+  top_memories: Array<{ title: string; type: string; uses_30d: number }>;
+  coverage: {
+    areas: number;
+    dark_areas: string[];
+    note: string;
+  };
+  review_health: {
+    pending: number;
+    oldest_pending_days: number | null;
+    contradictions: number;
+  };
+}
