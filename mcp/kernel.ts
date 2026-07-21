@@ -3676,6 +3676,37 @@ function jaccard(a: Set<string>, b: Set<string>): number {
   return intersection / (a.size + b.size - intersection);
 }
 
+function termFrequencies(text: string): Map<string, number> {
+  const frequencies = new Map<string, number>();
+  for (const term of tokenize(text)) {
+    if (term.length <= 2) continue;
+    frequencies.set(term, (frequencies.get(term) ?? 0) + 1);
+  }
+  return frequencies;
+}
+
+// Term-frequency cosine between two texts (W3 dedup). Jaccard on token SETS punishes length
+// mismatch and ignores emphasis: a reworded near-duplicate that shares its core vocabulary but pads
+// different filler drops below a set-overlap threshold while its WEIGHTED overlap stays high. The
+// dedup scorer takes the max of both, so neither view alone can hide a near-duplicate.
+export function tfCosine(textA: string, textB: string): number {
+  const a = termFrequencies(textA);
+  const b = termFrequencies(textB);
+  if (a.size === 0 || b.size === 0) return 0;
+  let dot = 0;
+  const [small, large] = a.size <= b.size ? [a, b] : [b, a];
+  for (const [term, weight] of small) {
+    const other = large.get(term);
+    if (other) dot += weight * other;
+  }
+  if (dot === 0) return 0;
+  let normA = 0;
+  for (const weight of a.values()) normA += weight * weight;
+  let normB = 0;
+  for (const weight of b.values()) normB += weight * weight;
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
 function duplicateCandidates(projectDir: string, packet: MemoryPacket, threshold = 0.58): Array<{ id: string; title: string; score: number; status: string }> {
   return duplicateCandidatesWithContext(packet, memoryQualityContext(projectDir), threshold);
 }
@@ -3713,7 +3744,20 @@ function duplicateCandidatesWithContext(packet: MemoryPacket, context: MemoryQua
   return candidates
     .filter((candidate) => candidate.id !== packet.id)
     .filter((candidate) => !(isGeneratedChangeMemory(packet) && isGeneratedChangeMemory(candidate)))
-    .map((candidate) => ({ packet: candidate, score: jaccard(current, context.tokenSets.get(candidate.id) ?? tokenSet(packetText(candidate))) }))
+    .map((candidate) => {
+      const candidateText = packetText(candidate);
+      const candidateSet = context.tokenSets.get(candidate.id) ?? tokenSet(candidateText);
+      const setScore = jaccard(current, candidateSet);
+      // W3: weighted-overlap view alongside set overlap — a reworded near-duplicate whose padding
+      // differs but whose core vocabulary repeats scores high on TF-cosine while Jaccard dilutes.
+      // Guarded to texts with enough DISTINCT vocabulary: on short notes the vector is dominated by
+      // shared boilerplate ("Verified by: npm test"), and cosine over a dozen terms flags genuinely
+      // different facts as duplicates. Below the floor the set view alone decides, as before.
+      const cosineScore = Math.min(current.size, candidateSet.size) >= 12
+        ? tfCosine(packetText(packet), candidateText)
+        : 0;
+      return { packet: candidate, score: Math.max(setScore, cosineScore) };
+    })
     .filter((entry) => entry.score >= threshold)
     .sort((a, b) => b.score - a.score || a.packet.title.localeCompare(b.packet.title))
     .slice(0, 5)
