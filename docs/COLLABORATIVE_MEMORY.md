@@ -1,170 +1,81 @@
-# Kage as collaborative memory — design notes (v0: git-native team tier)
+# Kage Collaborative Memory — the Framework, its Invariants, and their Proofs
 
-Status: shipped. This documents what changed and why, grounded in an audit of
-the actual code (not the aspirational skill/doc text some of it had drifted
-from) — see `git log` around this file's introduction for the exact commits.
+Kage is a **collaborative repository memory** for coding agents: every agent working a repository —
+Claude Code, Codex, Cursor, Gemini, anything speaking Anthropic/OpenAI/Gemini wire — reads from and
+writes to one evidence-backed knowledge model, through one proxy, under one set of honesty gates.
+This document is the framework in one place: the model, the pain points it was built to kill, and
+the **measured proof** behind every claim. Nothing here is aspirational; every number was produced
+by a committed, re-runnable gate or benchmark in this repository.
 
-## The question this answers
+(The v0 git-native design notes and their honest audit are preserved at
+[`docs/history/collaborative-memory-v0-git-native.md`](history/collaborative-memory-v0-git-native.md);
+the git-tracked packet tier they describe remains the zero-infrastructure default.)
 
-"Is Kage the best framework for collaborative memory on OKF?" — before adding
-anything, we audited how memory is actually saved, extracted, ingested, and
-maintained today, across four independent passes over the real code
-(`mcp/kernel.ts`, `mcp/proxy.ts`, `mcp/cli.ts`, the hooks, the CI bot, the git
-merge driver). The honest finding: **the "collaborative" and "org/global"
-story in Kage's own skill descriptions and packet metadata was partly
-aspirational.**
+## 1. The model — evidence up, trust-gated down
 
-- `promotion_requires_review: true` is written onto every packet's
-  `quality` block, but nothing in `mcp/kernel.ts` ever reads it. It is
-  descriptive metadata, not an enforced gate. The real gate is a comment
-  ("never auto-promote org/global") and this repo's own standing agent
-  instructions — convention, not code.
-- `scope: "org"` exists in the `MemoryScope` type union and is never assigned
-  anywhere. There is no `kage_submit` / "contribute to the global graph"
-  command despite a shipped skill description claiming one. `docs/CLOUD.md`
-  confirms this directly: the hosted team tier is v2, gated on a waitlist
-  signal, "the business" — not built.
-- What **is** real: repo memory (`.agent_memory/packets/*.md`) is git-tracked,
-  so every teammate who clones the repo already shares it — for free, with no
-  new infrastructure. A real git merge driver
-  (`git config merge.kage-packet.driver`) already runs on conflicts. A real
-  interactive review queue (`kage review`) already exists for pending
-  packets. A CI bot (`kage-sync`) already keeps the shared graphs fresh on
-  every push to `master`.
+```
+  agent traffic (any provider)
+        │ proxy (audit | assist | protect)          ← ONE attach point, zero per-agent wiring
+        ▼
+  EVIDENCE  — observed events, command outcomes, diffs; exact bytes, measured usage
+        ▼ episode builder
+  EPISODES  — grouped evidence with outcome signals
+        ▼ extractors + admission (deterministic; shadow model proposes, never asserts)
+  CLAIMS    — typed knowledge (decision/runbook/gotcha/…) with TRUST STATES:
+              proposed → verified/approved → disputed/stale/superseded/archived
+        ▼ verification + staleness (citations re-checked against the real tree)
+  INJECTION — ONLY verified/approved claims are ever injectable, and only when the
+              corpus-normalized decision says the recall deserves tokens at all
+        ▼ sync outbox (idempotent, permission-scoped, approved-only, raw-never)
+  TEAM WORKSPACE — Postgres, tenant-isolated; review authority, ownership, audit;
+              billing/entitlements; GitHub App; portal
+```
 
-So the design decision was: **don't build a fake org tier. Make the team tier
-that already exists — git — actually trustworthy**, and make its state
-legible to a team lead in one command. That's a scoped, honest, shippable
-answer, and it's what a team would actually pay for: not a promise of a
-hosted backend, but proof that the memory they already share via git isn't
-quietly lying to them or losing their teammates' work.
+Interchange is **OKF** (Open Knowledge Format): packets are self-describing markdown with
+verification metadata in `x-kage-*` frontmatter, readable by any OKF consumer without Kage.
 
-## What was actually broken
+## 2. Pain points → what shipped → the measured proof
 
-1. **The merge driver silently discarded a teammate's concurrent edit.**
-   `mergePacketFiles()` is last-write-wins by each side's self-reported
-   `updated_at` — not a field-level three-way merge (the `base` argument was
-   explicitly unused: `// Reserved for a future field-level three-way
-   merge.`). When two teammates both touched the *same* packet file around
-   the same time (both reverified it, or one approved while another
-   superseded it), the losing side vanished with no trace. Personal
-   cross-machine sync (`kage sync`, see `docs/CLOUD.md`) already preserved
-   losers under `~/.kage/memory/conflicts/` — the repo-team path was the one
-   place this safety net was missing.
-2. **No attribution.** `author_branch` was captured but never `author_name`
-   — a reviewer looking at a pending packet, or an agent reading a recalled
-   claim, had no way to know *who* on the team said it.
-3. **No visible team-health signal.** `kage gains` and `kage savings` answer
-   "how much did Kage save me," not "is our shared memory trustworthy right
-   now" — contributor spread, review backlog age, how much is silently
-   withheld as stale, how many contradictions are unresolved.
-4. **The proxy's ingestion tagged every observation `session_id: "default"`**
-   — literally the string, not a real identifier. Every `kage proxy` run,
-   across every restart, on any repo, shared one dedup bucket, and diverged
-   from whatever real session id a `UserPromptSubmit` hook might be recording
-   under for the same conversation — a structural risk of double-capturing
-   the same exchange once both entry points are active.
+| # | Pain point (measured, not vibes) | What shipped | Proof (re-runnable) |
+|---|---|---|---|
+| P1 | Assist/compression was Anthropic-only at the pipeline seam — OpenAI/Gemini agents got audit only | Pipeline adapters for OpenAI (native shape) and Gemini (lossless `contents↔messages` view; `functionCall`/`functionResponse` untouched, serialize restores the exact wire — deep-equal proven); registry + proxy route through adapter parse/serialize | 21 tests in `mcp/vnext/gateway/providers/{openai,gemini}.test.ts`: byte-identical stable prefix, injection only in the mutable zone, reversible compression with marker, fail-open without a store |
+| P2 | Single-body compression honestly nets **~0%** on real traffic; the real waste is HISTORY (old tool results re-sent every turn) | Deterministic **history digestion**: prefix tool payloads → head/error-lines/tail digest + `kage-content:` marker, exact original stored FIRST, content-addressed dedup across turns; idempotent fixed point; off by default | `npm run bench:compression`: single-body real median ~0%; **history: 92.93% final-turn, 93.33% whole-session** on real repo bodies. 8 tests in `history.test.ts` (determinism = cache-stable digested prefix, idempotence, reversibility, zone safety, fail-open) |
+| P3 | Injection was eager: content-free prompts ("pong") attached 4 lexical accidents on big stores; absolute floors provably impossible (scores are un-normalized match sums) | **Corpus-normalized injection decision** in recall itself: top hit must match ≥2 distinct query terms (breadth) AND spike above this corpus's own score band (z + lead; gap/anchor on tiny corpora); `composeInjection` gates on it + dominance-trims co-attach to ≥0.5×top. "Inject nothing" is a first-class outcome | `npm run bench:injection` `--assert-baseline`: false_injection **0.667→0** (large store 1.0→0), absent-topic **0.875→0**, precision **0.154→0.636**, small-store recall & top-hit **held 1.0**, drift-checked against the real production path |
+| P4 | Paraphrased near-duplicates split recall mass (dedup was set-overlap only) | Dedup scores `max(jaccard, tf-cosine)`, cosine guarded to ≥12 distinct terms per side (short-note boilerplate would false-positive) | `dedup-cosine.test.ts`: real reworded runbook pair flagged through the REAL capture path; unrelated pair decisively below; short genuinely-different notes unaffected (reference-recall test held) |
+| P5 | Memory value was asserted, not fed back | Usage (`uses_30d` + best rank), helpful/stale feedback votes, and quality all feed the ranking fusion; recall receipts separate MEASURED counts from ESTIMATED tokens | `recallBreakdown` fusion (usage/quality/feedback components); `bench:reuse` value-receipt separation: measured `stale_withheld`/`recalls` vs estimated `tokens_saved`, never conflated |
+| P6 | "Trust me" collaboration | Team workspace on Postgres: every table tenant-keyed; sync is idempotent + approved-only + **raw-never**; review authority with self-approval blocked + optimistic versions; least-privilege GitHub App; server-side entitlements; fail-open locally | Technical GA gate (`phase-e-gate.test.ts` vs REAL embedded PostgreSQL): cross_tenant_reads=0, raw_payloads_synced=0, self_approvals=0, duplicate_sync_records=0, invalid_webhooks_accepted=0, local-context-during-outage=true, export-after-expiry=true |
 
-## What shipped
+## 3. The honesty gates (enforced in code, not documented aspirations)
 
-- **`mergePacketFiles()` now preserves the losing side.** When both sides of
-  a conflict parse and genuinely diverge (not a no-op race), the loser is
-  written to `.agent_memory/conflicts/<id>-lost-<timestamp>.md` instead of
-  being discarded, and the merge driver's stderr (what git shows during a
-  real merge) says so. Best-effort: a failure to preserve never blocks the
-  merge itself. Verified by a test that reverse-engineers the exact race (two
-  concurrent edits to one packet) and asserts the loser's real content is
-  recoverable from disk afterward.
-- **`author_name`** (git `user.name` at capture time) is now stored on every
-  repo-scoped packet, surfaced in `kage review`'s listing (`By: <name> on
-  <branch>`) and in the recall context block's `Team memory:` line (`decided
-  <date> by <name> · <path>`). Personal-store packets stay unattributed by
-  design — attribution is a team-collaboration concept, not a personal one.
-- **`kage team`** — the health receipt: approved-packet count, contributors
-  and their packet counts, pending-review count and the oldest item's age,
-  how many packets are currently withheld from recall as stale
-  (`recallStaleReason` — the live gate, not a lagging metric), open
-  contradictions (`kageConflicts`), and how many merge conflicts were caught
-  and preserved rather than silently dropped. Every field maps to a real,
-  audited mechanism; the caveats printed with `--json` say exactly what each
-  number does and doesn't mean.
-- **The proxy now tags its observations with a stable per-process session id**
-  (`proxy-<uuid>`), not the literal string `"default"` — fixes correct
-  within-run dedup and makes proxy-captured observations distinguishable from
-  hook-captured ones in `.agent_memory/observations`.
-- **Two pre-existing CLI documentation gaps fixed in passing**: `kage savings`
-  and `kage proxy` (both shipped earlier and never added to `kage help
-  --all`) are now documented alongside `kage team`.
+- **Measured, never estimated.** Token counts are provider-measured or `null`; a one-sided cost is
+  UNUSABLE, not zero; empty cohorts report `empty_cohort`, never a fabricated $0.
+- **Reversible.** No lossy byte is ever emitted without the exact original stored content-addressed
+  first and a `kage-content:<sha256>` retrieval reference embedded; retrieval is fingerprint-verified
+  and task-authorized.
+- **Fail-open, byte-preserving.** Any pipeline/store/runtime failure forwards the client's exact
+  bytes; audit mode is byte-identical always; a workspace outage never touches local context.
+- **Trust-gated.** Only verified/approved claims inject; shadow model extraction proposes, never
+  asserts; OKF export never upgrades human approval to "verified".
+- **Authority-gated.** A proposer cannot approve their own high-impact claim (403); versions are
+  optimistic (409 on drift); every decision audited; raw prompts/tool payloads never leave the machine.
+- **Cache-safe.** The stable prefix survives byte-for-byte; history digests are deterministic, so
+  the digested prefix is itself cache-stable (one miss, then re-keys).
 
-Full suite passing, including a simulated two-contributor,
-one-pending-review, one-stale-drift, one-preserved-conflict scenario that
-exercises the whole loop end to end and asserts on the receipt's exact
-numbers before and after a reverify.
+## 4. Current measured state (2026-07-21)
 
-## The selling point
+- Backend `npm test --prefix mcp`: **1463/1463** aggregate (main + deploy 36 + dogfood 12).
+- Workspace suite vs **real embedded PostgreSQL 18**: 176/176; technical GA gate green.
+- Frontend portal Vitest: 105/105 with a generated DTO drift guard in test+build+CI.
+- Phase gates: A, B, C (6/6), D (3/3), E (technical) all passing; the commercial GA report exits
+  non-zero with `partners_completed 0/3` — honestly NOT RUN, never fabricated.
+- Reuse A/B (live agent runs): memory takes an agent **0/3→3/3 correct, −41% cost** when the fact is
+  NOT in code; ~zero effect when it is — memory's value is conditional, and measured as such.
+- Compression: single-body ~0% (real bodies); **history digestion ~93%** (12-turn real-body session).
+- Injection: false injection **0**, absent-topic injection **0**, precision 0.636, recall held 1.0.
 
-Every other "AI memory" product either (a) is single-user and unverified —
-embeddings that don't know when the code under them changed, or (b) promises
-a team backend that doesn't exist yet. Kage's answer:
+## 5. What is deliberately NOT claimed
 
-> **Your team's memory already lives in your repo. Kage makes sure it's
-> never wrong and never silently lost — verified against your code on every
-> read, attributed to whoever wrote it, and legible in one command.**
-
-The artifact a team lead can screenshot is `kage team`: not "AI remembered
-things" (unfalsifiable), but a number for how much of what's remembered is
-currently verified-fresh, who wrote it, how big the review backlog is, and
-proof that concurrent edits don't vanish. That is what turns memory from a
-vibe into something a team can be accountable to — and it costs zero new
-infrastructure, because git already is the sync layer.
-
-## Update: the proxy now spans a whole workspace, and a real hosted tier exists
-
-Two things below were true when this doc was first written and no longer are.
-
-**The proxy is no longer pinned to one repo.** `kage proxy --workspace <dir>`
-reads the "Primary working directory" Claude Code actually sends in its
-system prompt (confirmed against a live captured request, not guessed) and
-routes each request to that repo's own memory — one proxy process, an entire
-workspace of repos, each getting its own recall/injection/capture. A
-candidate directory outside `--workspace` is never honored; without
-`--workspace` at all, behavior is byte-for-byte what it always was. Proven
-end-to-end: one proxy instance served two different repos in the same test
-run, each getting only its own memory injected (`mcp/proxy.test.ts`).
-
-**A real, tested, self-hostable team server now exists** — `kage cloud`, see
-`docs/CLOUD.md`'s "v1.5" section. It does not replace the honest limitation
-below about the *managed* hosted tier (nobody has deployed this publicly; the
-v2 SaaS waitlist gate is unchanged), but "there is no hosted team tier" is no
-longer accurate — there is one, self-run. `kage cloud push`/`pull` moves
-packets through a review gate (a submitter cannot approve their own packet)
-into a new "Team Memory" recall section, and every pulled packet is
-re-verified against the pulling machine's own checkout before an agent sees
-it — the same client-side trust boundary as everything else in this doc, now
-proven to hold across a real network hop, not just within one repo's git
-history.
-
-## What this still does not solve
-
-Said plainly, so it isn't oversold:
-
-- **The merge driver is still last-write-wins, not a field-level three-way
-  merge.** Preservation means nothing is silently lost, not that conflicts
-  resolve themselves — a human still reconciles `.agent_memory/conflicts/*`
-  by hand today. `mergePacketFiles()`'s unused `base` argument is exactly
-  where a real three-way merge would hook in; that's future work, not done.
-- **The proxy and hooks can still double-capture the same exchange** if both
-  are active for one session — the proxy has no visibility into Claude
-  Code's own session id at the HTTP layer, so a stable per-process id closes
-  the "default" bucket-collision risk but doesn't unify the two capture
-  paths. Confirmed live, not just theorized: a real proxied request produced
-  two independent observations, one from the proxy's own tap and one from
-  Claude Code's own ambient hooks firing under their real session id. A
-  shared session-id header would need cooperation from the client side
-  (Claude Code itself), which is out of Kage's control.
-- **The hosted server is unhardened and undeployed.** No TLS, no rate
-  limiting, bearer tokens instead of real SSO, no horizontal scaling story —
-  fine for a self-hosted internal tool behind your own proxy/VPN, not fine as
-  a public multi-tenant service. That gap, and the managed-SaaS business
-  decision itself, is exactly what the v2 waitlist gate in `docs/CLOUD.md`
-  still exists to test before anyone builds it.
+Design-partner pilots, paid conversion, live GitHub App/Stripe/IdP interop, and Docker-daemon builds
+require the external world; `scripts/vnext-phase-e-report.mjs` enumerates them and exits non-zero.
+The no-overhead credit logic is built and capped, but no live cohort has exercised it. E2E browser
+journeys are CI-gated behind a seeded daemon and are never green-washed.
