@@ -20,7 +20,7 @@ Before changing code, call `kage_context` with the current task. Continue strict
 
 ## Current position
 
-**Program status (2026-07-19):** Phase A COMPLETE, Phase B COMPLETE, provider-neutral gateway COMPLETE, **Phase D COMPLETE**, **Phase C COMPLETE** (e2e CI-gated) — see the dated sections below. Remaining: Phase E (team/commercial), then release metrics + packaging. Backend suite 1170/1170 + dogfood 12/12; frontend Vitest 91/91; build clean (backend + portal); migration v5; frozen wire protocol intact.
+**Program status (2026-07-21):** ALL FIVE PHASES CODE-COMPLETE — Phase A, Phase B, provider-neutral gateway, Phase D, Phase C, **Phase E** (see dated sections). Technical GA gate passes against real PostgreSQL; commercial gate honestly NO-GO (design-partner pilots + live credentials are external-world steps, enumerated by scripts/vnext-phase-e-report.mjs which exits 1). Backend 1423/1423 aggregate (main 1375 + deploy 36 + dogfood 12); workspace 176/176 vs real embedded PG; frontend Vitest 105/105; builds clean; local sqlite migration v5 (workspace Postgres has its own 12-migration ledger); frozen wire protocol intact. Next: goal-expansion workstreams (provider-neutral pipeline W1, history compression W2, memory-algorithm overhaul W3, collaborative-memory doc W4, release packaging W5).
 
 The Phase A table below is retained as historical detail.
 
@@ -150,6 +150,34 @@ Two honest catches worth noting: Task 2's agent recognized the scaffold was alre
 New surface: mcp/vnext/api/ (types, read-models, router, review, task-receipts, events, system-map + tests) + mcp/vnext/phase-c-gate.test.ts + platform/web/ (React/Vite portal: src/{pages,components,api,router,styles} + e2e/ Playwright specs + scripts/sync-types.mjs) + mcp/daemon.ts serving the SPA under /app/.
 
 Green-light: Phase E (team/commercial) remains, then release metrics + packaging.
+
+## Phase E — Team Workspace and Commercialization (2026-07-21) — CODE-COMPLETE (commercial gate honestly NO-GO)
+
+All 11 tasks implemented and committed. Delivery was hybrid after persistent API instability kept stalling the longest agents: Tasks 1 (tenant-scoped PG workspace foundation, f37fc9f) and 5 (least-privilege GitHub App, 21e15df) were hand-built in the main thread; Tasks 2–4 and 6–11 ran through the implement -> adversarial-review -> harden workflow. The review loop found REAL defects every round: a CSRF bypass via non-Bearer Authorization (e9908b5), a non-monotonic sync cursor + missing review-authority ingest gate (0b82abb), fake pooled-connection transactions where ROLLBACK could land on another backend (073db57 — db.ts now has a real single-client transaction() that destroys a poisoned connection), unordered Stripe events + an unapplied credit (0ba6123), six enterprise identity/data-control holes (78935fa), five deployment holes (aacc03d), and a gate test whose success path never actually asserted (06429a8).
+
+Independently re-verified end-to-end: build clean; `npm test --prefix mcp` **1423/1423 aggregate** (main 1375 + deploy 36 + dogfood 12); workspace suite 176/176 against a REAL ephemeral embedded PostgreSQL 18 (genuine server logs observed, not mocks); frontend Vitest 105/105; frozen wire protocol untouched across the entire phase (git-empty diff); no top-level node:sqlite (type-only import + guarded require, locked by a regression test); local sqlite migration still v5 — the workspace's 12 ordered Postgres migrations are a separate ledger.
+
+**Technical GA gate (mcp/vnext/phase-e-gate.test.ts) PASSES against real PG**, asserting with real backing: cross_tenant_reads=0 (tenant B sees zero of A's claims; cross-tenant review is 404 without disclosing existence), raw_payloads_synced=0 (a batch carrying local_raw evidence is refused 400 before any row lands), self_approvals=0 (403 self_approval_blocked while an independent reviewer's accept returns a real 202), duplicate_sync_records=0 (replayed push is a no-op), invalid_webhooks_accepted=0 (bad signature 401, processor never called; redelivery processed once), local_context_available_during_workspace_outage=true, export_available_after_entitlement_expiry=true.
+
+**Commercial gate: honest NO-GO.** `scripts/vnext-phase-e-report.mjs` exits 1 with decision NO-GO: technical_gates_all_enforced=true, but partners_completed 0/3, paid_conversions 0/1, pilot cohort status not_run with every figure null (never a fabricated zero). honest_gaps enumerates exactly: design_partner_pilots_not_run, live_github_app_registration_needed, live_stripe_keys_needed, live_oidc_scim_idp_needed, docker_build_not_run_here. These require real external partners/credentials/daemons and were NOT faked.
+
+| Task | Commit(s) |
+|---|---|
+| 1 PG workspace schema + boundary + embedded-PG harness | f37fc9f (hand-built) |
+| 2 identity, sessions, roles, tenant enforcement | cafdc59, harden e9908b5 |
+| 3 idempotent permission-aware sync outbox | 4131b46, harden 0b82abb |
+| 4 team review authority + ownership + audit | f5562f5 |
+| 5 least-privilege GitHub App | 21e15df (hand-built) |
+| 6 privacy-safe team metrics + pilot reports | 13ff24a, harden 073db57 |
+| 7 billing, entitlements, no-overhead credit | 3024644, harden 0ba6123 |
+| 8 enterprise OIDC/SCIM/retention/security | f185c02, harden 78935fa |
+| 9 managed + self-hosted packaging | dbff6b8, harden aacc03d |
+| 10 default-surface cutover + legacy quarantine | 76e4819 (default MCP surface = kage_context/kage_retrieve/kage_feedback; 12-tool core -> KAGE_TOOLS=legacy) |
+| 11 commercial readiness gate + GA report | ac0a495, harden 06429a8 |
+
+New surface: mcp/vnext/workspace/ (db with real transactions, migrate + 12 SQL migrations, server, auth/, sync-routes, review, ownership, audit, metrics, pilot-report, billing/, github/, test-support/pg.ts) + mcp/vnext/sync/ (outbox with assertNoRawPayload, client, conflicts) + deploy/workspace/ (Dockerfile, compose, backup/restore, deploy.test.mjs wired into npm test) + mcp/vnext/phase-e-gate.test.ts + scripts/vnext-phase-e-report.mjs + mcp/vnext/migration/legacy-command-map.ts + docs/{integrations/github-app.md, commercial/, migration/}.
+
+All five program phases (A, B, C, D, E) are now code-complete with passing gates. Remaining to GA: the external-world steps the report honestly names, and the goal-expansion workstreams (provider-neutral pipeline, history compression, memory-algorithm overhaul, collaborative-memory doc, release packaging).
 
 ## Commit ledger
 
