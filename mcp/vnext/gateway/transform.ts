@@ -7,6 +7,7 @@ import { selectCompressor } from "./compressors/provider.js";
 import { byteLength, type CompressorKind, type CompressorProvider } from "./compressors/types.js";
 import { ContentStore } from "./content-store.js";
 import { anthropicLiveZone, type LiveZone } from "./live-zone.js";
+import { digestHistoryMessages, HISTORY_DIGEST_TRANSFORMATION } from "./history.js";
 
 // The cache-aware transformation pipeline (Phase D, Task 4).
 //
@@ -460,6 +461,28 @@ export async function transformRequest(request: MessagesRequestBody, context: Tr
       retrievalIds.push(...compressed.retrieval_ids);
       warnings.push(...compressed.warnings);
       if (!transformations.includes(TRANSFORM_PAYLOAD_COMPRESS)) transformations.push(TRANSFORM_PAYLOAD_COMPRESS);
+    }
+
+    // Step 7b (W2): HISTORY digestion over the STABLE PREFIX. This is the one deliberate exception
+    // to "mutate only the live zone": tool payloads OLDER than the live zone are reduced to a
+    // deterministic head/errors/tail digest + retrieval marker (exact original stored first). The
+    // digest is a pure function of the payload bytes, so a session re-sending the same history gets
+    // a byte-identical digested prefix on every turn — the provider prompt cache misses once and
+    // re-keys on the digest form. Requires BOTH the repo's history opt-in and the lossy gate, plus a
+    // healthy store (no store, no digestion — fail-open, byte-preserving).
+    const lossyAllowed = context.lossy ?? context.policy.lossy_compression;
+    if (context.policy.history_compression && lossyAllowed && context.store) {
+      const digest = await digestHistoryMessages(messages, Math.min(zone.mutable_start, messages.length), {
+        store: context.store,
+        minBytes: Math.max(1, Math.floor(context.policy.history_min_bytes)),
+        task_id: context.task_id,
+      });
+      if (digest.changed) {
+        for (let i = 0; i < digest.messages.length; i += 1) messages[i] = digest.messages[i];
+        retrievalIds.push(...digest.retrieval_ids);
+        transformations.push(HISTORY_DIGEST_TRANSFORMATION);
+      }
+      warnings.push(...digest.warnings);
     }
 
     // Step 10 (early exit): nothing changed -> return the original object untouched, no receipt.

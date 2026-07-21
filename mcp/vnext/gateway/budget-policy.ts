@@ -30,6 +30,15 @@ export interface ContextBudgetPolicy {
   min_payload_tokens_for_compression: number;
   /** Whether lossy compression is permitted. Off until retrieval tests pass. */
   lossy_compression: boolean;
+  /**
+   * Whether HISTORY digestion is permitted: tool payloads OLDER than the live zone are reduced to a
+   * deterministic head/errors/tail digest plus a kage-content retrieval marker (exact original
+   * stored first). Off by default — a repo opts in; lossy_compression must ALSO be on, since a
+   * digest is a lossy (reversible) transform.
+   */
+  history_compression: boolean;
+  /** Prefix tool payloads smaller than this many bytes are never digested. */
+  history_min_bytes: number;
   /** Bounded raw-content retention for the reversible store, in days. */
   raw_content_retention_days: number;
   /** How many recent tasks a protect decision holds for before re-evaluating. */
@@ -47,6 +56,8 @@ export const DEFAULT_CONTEXT_BUDGET_POLICY: ContextBudgetPolicy = {
   max_p95_latency_ms: 150,
   min_payload_tokens_for_compression: 500,
   lossy_compression: false,
+  history_compression: false,
+  history_min_bytes: 2_048,
   raw_content_retention_days: 7,
   protect_window_tasks: 30,
 };
@@ -91,6 +102,8 @@ export function normalizeBudgetPolicy(value: unknown): ContextBudgetPolicy {
       d.min_payload_tokens_for_compression,
     ),
     lossy_compression: strictBoolean(value.lossy_compression, d.lossy_compression),
+    history_compression: strictBoolean(value.history_compression, d.history_compression),
+    history_min_bytes: positiveNumber(value.history_min_bytes, d.history_min_bytes),
     raw_content_retention_days: positiveNumber(value.raw_content_retention_days, d.raw_content_retention_days),
     protect_window_tasks: positiveNumber(value.protect_window_tasks, d.protect_window_tasks),
   };

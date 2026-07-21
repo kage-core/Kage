@@ -21,7 +21,7 @@
 //
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -100,12 +100,75 @@ const medianRealNet = sortedNet.length
   ? sortedNet[Math.floor((sortedNet.length - 1) / 2)]
   : 0;
 
+// ---- W2: HISTORY digestion over a multi-turn session of REAL bodies --------------------------
+//
+// Single-body compression nets ~0% on real traffic (above). The real waste is HISTORY: old tool
+// results re-sent verbatim every turn. This section replays a session whose tool_result payloads
+// are the REAL bodies gathered above, and measures per-request bytes with history digestion ON
+// (tool payloads older than the live zone digested to head/errors/tail + a kage-content marker,
+// exact originals stored) versus OFF. Measured request bytes, never estimates.
+import { transformRequest } from "../mcp/dist/vnext/gateway/transform.js";
+import { ContentStore } from "../mcp/dist/vnext/gateway/content-store.js";
+import { builtinCompressorProvider } from "../mcp/dist/vnext/gateway/compressors/provider.js";
+import { anthropicLiveZone } from "../mcp/dist/vnext/gateway/live-zone.js";
+import { DEFAULT_CONTEXT_BUDGET_POLICY } from "../mcp/dist/vnext/gateway/budget-policy.js";
+
+async function measureHistorySession() {
+  const realBodies = realRows.length ? cases.filter((c) => !c.name.startsWith("synthetic")).map((c) => c.body) : [];
+  if (!realBodies.length) return null;
+  const storeDir = mkdtempSync(join(tmpdir(), "kage-bench-hist-"));
+  const store = new ContentStore({ root: storeDir });
+  const policy = { ...DEFAULT_CONTEXT_BUDGET_POLICY, lossy_compression: true, history_compression: true };
+  const turns = 12;
+  const perTurn = [];
+  try {
+    const messages = [];
+    for (let t = 0; t < turns; t += 1) {
+      const body = realBodies[t % realBodies.length];
+      messages.push({ role: "user", content: `turn ${t}: run the next step` });
+      messages.push({ role: "assistant", content: [{ type: "tool_use", id: `tu_${t}`, name: "bash", input: {} }] });
+      messages.push({ role: "user", content: [{ type: "tool_result", tool_use_id: `tu_${t}`, content: body }] });
+      messages.push({ role: "assistant", content: `turn ${t} done` });
+      // The NEXT request re-sends this whole history plus a fresh live user turn.
+      const request = { model: "claude-sonnet-5", messages: [...messages, { role: "user", content: `turn ${t + 1}?` }] };
+      const rawBytes = Buffer.byteLength(JSON.stringify(request), "utf8");
+      const result = await transformRequest(request, {
+        task_id: "bench-history",
+        request_id: null,
+        provider: "anthropic",
+        store,
+        policy,
+        compressorProvider: builtinCompressorProvider(),
+        tokenCounter: null,
+        liveZone: anthropicLiveZone,
+      });
+      const digestedBytes = Buffer.byteLength(JSON.stringify(result.request), "utf8");
+      perTurn.push({ turn: t + 1, raw_bytes: rawBytes, digested_bytes: digestedBytes,
+        saved_pct: Number((((rawBytes - digestedBytes) / rawBytes) * 100).toFixed(2)) });
+    }
+  } finally {
+    rmSync(storeDir, { recursive: true, force: true });
+  }
+  const last = perTurn[perTurn.length - 1];
+  const totalRaw = perTurn.reduce((a, r) => a + r.raw_bytes, 0);
+  const totalDigested = perTurn.reduce((a, r) => a + r.digested_bytes, 0);
+  return {
+    turns,
+    per_turn: perTurn,
+    final_turn_saved_pct: last.saved_pct,
+    session_total_saved_pct: Number((((totalRaw - totalDigested) / totalRaw) * 100).toFixed(2)),
+  };
+}
+
+const history = await measureHistorySession();
+
 if (asJson) {
   console.log(JSON.stringify({
     marker_bytes: MARKER_BYTES,
     rows,
     real_body_median_net_pct: medianRealNet,
-    honest_note: "On real bodies compression nets ~0%; it only pays off on genuinely repetitive payloads. Passthrough is byte-preserving with zero saving. Numbers are measured, never estimated.",
+    history,
+    honest_note: "On real bodies single-body compression nets ~0%; the real savings are HISTORY digestion (old tool results reduced to reversible digests), measured above per turn. Numbers are measured, never estimated.",
   }, null, 2));
 } else {
   console.log("Kage vNext Phase D — real-body compression (measured, shipped compressors)\n");
@@ -128,5 +191,14 @@ if (asJson) {
     );
   }
   console.log(`\nReal-body median NET saving: ${medianRealNet}%  (synthetic repetitive log shown for contrast only)`);
-  console.log("Honest: real-traffic compression nets ~0%; audit stays the default; savings are measured, never estimated.");
+  if (history) {
+    console.log(`\nW2 — HISTORY digestion over a ${history.turns}-turn session of the real bodies above:`);
+    console.log("turn".padStart(5), "raw req bytes".padStart(14), "digested".padStart(10), "saved%".padStart(8));
+    for (const r of history.per_turn) {
+      console.log(String(r.turn).padStart(5), String(r.raw_bytes).padStart(14), String(r.digested_bytes).padStart(10), (r.saved_pct + "%").padStart(8));
+    }
+    console.log(`Final-turn request saving: ${history.final_turn_saved_pct}%  |  whole-session bytes saved: ${history.session_total_saved_pct}%`);
+    console.log("(exact originals stored content-addressed; digests deterministic so the digested prefix is cache-stable)");
+  }
+  console.log("Honest: single-body compression nets ~0% on real traffic; HISTORY digestion is where the measured savings are; audit stays the default; savings are measured, never estimated.");
 }
