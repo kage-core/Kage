@@ -41,6 +41,14 @@ jobs:
         working-directory: mcp
         run: npm run test:phase-c
 
+      # The Phase E / GA technical gate: one real end-to-end run (two workspaces, three users, two
+      # replicas, a GitHub fixture, a billing fixture, a restricted repo) against a real ephemeral
+      # PostgreSQL. This is a HARD gate — cross_tenant_reads/raw_payloads_synced/self_approvals/
+      # duplicate_sync_records/invalid_webhooks_accepted must all be 0 and the fail-open properties true.
+      - name: Kage vNext Phase E / GA technical gate
+        working-directory: mcp
+        run: npm run test:phase-e
+
       # Packaging and recovery for the team workspace: the migrate-then-listen boot sequence, the
       # container health probe, and a backup/restore round trip through the SHIPPED shell scripts —
       # all against a real ephemeral PostgreSQL provisioned in-process. `npm test` already runs this;
@@ -52,6 +60,15 @@ jobs:
 
       - name: Kage vNext Phase A audit report
         run: node scripts/vnext-phase-a-report.mjs --project . --json
+
+      # The GA DECISION report. This is INFORMATIONAL, not a build gate: it exits non-zero by design
+      # until real design-partner pilots run and one accepts paid terms (the commercial gate that no
+      # amount of code can complete). `continue-on-error` keeps the honest NO-GO visible in the job log
+      # without red-flagging every commit — the launch decision is a human gate, the technical gate above
+      # is the machine gate.
+      - name: Kage vNext Phase E / GA decision report (informational)
+        continue-on-error: true
+        run: node scripts/vnext-phase-e-report.mjs --project . --json
 
       - name: Generate Kage code index
         run: node mcp/dist/cli.js code-index --project . --json

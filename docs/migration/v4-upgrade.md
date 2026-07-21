@@ -86,3 +86,21 @@ query text. Recording is best-effort and never blocks the command.
 | --- | --- |
 | v4 | Deprecated commands and legacy tools remain callable (`kage legacy`, `KAGE_TOOLS=legacy`), each with a deprecation notice. |
 | v5 | Deprecated commands and the legacy tool registry are removed. Only the supported v4 surface remains. |
+
+## 6. When v4 goes GA
+
+The v4 GA decision is a gate, not a date. It is enforced by two things:
+
+- The **technical gate** — `npm run test:phase-e --prefix mcp` runs `mcp/vnext/phase-e-gate.test.ts`
+  end-to-end against a real PostgreSQL and must be green: tenant/repository/path isolation, raw payloads
+  staying local, self-approval prevention, sync idempotency, GitHub signature rejection, local context
+  during a workspace outage, and export after entitlement expiry.
+- The **commercial gate** — `node scripts/vnext-phase-e-report.mjs --project . --json` is the GA decision
+  report. It **exits non-zero until three design partners complete pilots and at least one accepts paid
+  terms** (see [`docs/commercial/ga-checklist.md`](../commercial/ga-checklist.md) and the
+  [pilot protocol](../commercial/design-partner-pilot.md)). This is deliberate: the report never fakes a
+  pilot, so until that real-world work is done, GA stays **NO-GO**.
+
+Upgrading your install and using the v4 surface does not wait on GA — the surface cutover above is
+already the shipped default. GA is the point at which we quote paid Team terms with the pilot evidence
+behind them.
