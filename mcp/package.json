@@ -27,6 +27,7 @@
     "test:vnext": "npm run build && node --test 'dist/vnext/**/*.test.js'",
     "test:phase-c": "npm run build && node --test dist/vnext/phase-c-gate.test.js dist/vnext/api/events.test.js",
     "test:dogfood": "node --test ../evals/agent-trajectory/replay.test.mjs",
+    "legacy:scan": "npm run build && node dist/cli.js legacy scan",
     "bench:injection": "node ../benchmarks/injection-relevance-kage.mjs",
     "bench:capture": "node ../benchmarks/capture-quality-kage.mjs",
     "bench:reuse": "node ../benchmarks/reuse-value-kage.mjs",

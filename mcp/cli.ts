@@ -167,35 +167,36 @@ import { lintOkfBundle, loadOkfConcepts, migratePacketsToOkf, okfBundleDir, okfV
 import { probeAssistStorage, startProxy } from "./proxy.js";
 import { startCloudServer } from "./cloud-server.js";
 import { cloudCreateTeam, cloudInvite, cloudPush, cloudPull, cloudList, cloudReview } from "./cloud-client.js";
+import {
+  isLegacyCommand,
+  mapLegacyCommand,
+  formatDeprecationNotice,
+  recordLegacyUsage,
+  renderLegacyHelp,
+  scanLegacyCommandUsage,
+} from "./vnext/migration/legacy-command-map.js";
 
 const CORE_USAGE = `Kage — code-grounded memory for coding agents
 
-Core commands:
-  kage install [--project <dir>]             one-shot: init + index + auto-wire detected agents
-  kage up [--project <dir>]                  bring the ambient stack up ONCE: audit config + runtime + background proxy
-  kage run -- <command>                      run any agent through the proxy, from any terminal (sets ANTHROPIC_BASE_URL for it)
-  kage down [--project <dir>]                stop the background proxy + runtime daemon that \`kage up\` started
-  kage check [--project <dir>]               verify CLAUDE.md/AGENTS.md/docs claims against the code — counted, not estimated
-  kage scan --project <dir>                  truth report on any repo, in seconds (zero setup)
-  kage init --project <dir>                  create repo memory (.agent_memory only)
-  kage index --project <dir> [--full]        build/refresh code graph + indexes
-  kage context "<query>" --project <dir>     validate + recall + code graph + knowledge graph in one call
-  kage recall "<query>" --project <dir>      grounded recall from repo memory
-  kage learn --project <dir> ...             capture a learning as a memory packet
-  kage gains --project <dir>                 value ledger: estimated token/$ savings + measured stale blocks and recalls
-  kage team --project <dir>                  team memory health: contributors, pending review, stale, contradictions
-  kage gate list --project <dir>             SDLC work items (proposals) and their stage; kage gate review to approve
-  kage verify --project <dir>                check memory citations against code
-  kage setup <agent> --project <dir> --write wire your agent (claude-code, codex, cursor, ...)
-  kage doctor --project <dir>                health check
-  kage repair --project <dir>                fix what doctor finds (indexes, broken packets, wiring)
-  kage viewer --project <dir>                local dashboard
+The v4 surface (portal + workspace):
   kage connect --project <dir>               attach the vNext runtime + adapters in audit mode (no prompt is changed)
   kage status --project <dir>                memory + runtime health and measurement coverage
-  kage open --project <dir>                  open the dashboard
-  kage receipts --project <dir>              measured before/after receipts for transformed requests
+  kage open --project <dir>                  open the local dashboard (recall, review, receipts, team)
+  kage doctor --project <dir>                health check
+  kage export --project <dir> --format okf --out <dir>   export the repository model as an OKF bundle
+  kage migrate plan --project <dir>          dry-run import of legacy packets into the repository model
 
-Run 'kage help --all' for the full command list (lifecycle, CI, benchmarks, daemon, workspace).`;
+Getting started:
+  kage install [--project <dir>]             one-shot: init + index + auto-wire detected agents
+  kage up [--project <dir>]                  bring the ambient stack up ONCE: audit config + runtime + background proxy
+  kage run -- <command>                      run any agent through the proxy (sets ANTHROPIC_BASE_URL for it)
+  kage down [--project <dir>]                stop the background proxy + runtime daemon that \`kage up\` started
+  kage context "<query>" --project <dir>     validate + recall + code graph + knowledge graph in one call
+  kage check [--project <dir>]               verify CLAUDE.md/AGENTS.md/docs claims against the code — counted, not estimated
+  kage setup <agent> --project <dir> --write wire your agent (claude-code, codex, cursor, ...)
+
+Run 'kage help --all' for the full command list (lifecycle, CI, benchmarks, daemon, workspace).
+Pre-vNext commands are deprecated but still callable — run 'kage legacy --help' for the map.`;
 
 const FULL_USAGE = `Kage — full command reference
 
@@ -466,12 +467,52 @@ async function gateReview(projectDir: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  const command = args[0];
+  let args = process.argv.slice(2);
+  let command = args[0];
   if (!command) usage();
   if (command === "help") {
     console.log(args.includes("--all") ? FULL_USAGE : CORE_USAGE);
     return;
+  }
+
+  // Phase E Task 10 quarantines the pre-vNext commands behind `kage legacy`. `kage legacy <command>`
+  // unwraps to the deprecated command; the banner below then fires exactly once for it.
+  if (command === "legacy") {
+    const inner = args.slice(1);
+    if (inner.length === 0 || inner[0] === "--help" || inner[0] === "help") {
+      console.log(renderLegacyHelp());
+      return;
+    }
+    // `kage legacy scan` — the migration report: which scripts/config still invoke a legacy command.
+    if (inner[0] === "scan") {
+      const projectDir = projectArg(inner);
+      const hits = scanLegacyCommandUsage(projectDir);
+      if (inner.includes("--json")) {
+        console.log(JSON.stringify({ project: projectDir, count: hits.length, hits }, null, 2));
+        return;
+      }
+      if (hits.length === 0) {
+        console.log("No scripts or config invoke a deprecated kage command.");
+        return;
+      }
+      console.log(`${hits.length} legacy command invocation(s) still present:`);
+      for (const hit of hits) {
+        const target = hit.removed ? "removed (no direct replacement)" : `use kage ${hit.replacement}`;
+        console.log(`  ${hit.file}:${hit.line}  kage ${hit.command} -> ${target}`);
+      }
+      return;
+    }
+    args = inner;
+    command = args[0];
+  }
+
+  // Every deprecated invocation — direct or via `kage legacy` — prints exactly one supported
+  // replacement, the v5 removal notice, and the docs link (to stderr, so --json stdout stays clean),
+  // and records ONLY the command name + version locally (never arguments, which can carry private
+  // paths or query text). The command still runs afterward for one major version.
+  if (isLegacyCommand(command)) {
+    console.error(formatDeprecationNotice(mapLegacyCommand(args)));
+    recordLegacyUsage(command);
   }
 
   if (command === "merge-packet") {

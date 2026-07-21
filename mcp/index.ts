@@ -131,22 +131,50 @@ export const CORE_TOOLS = new Set([
   "kage_docs_search",
 ]);
 
-// The Kage-vNext compatibility surface: the three verbs a vNext agent needs — recall context,
-// retrieve an exact reversible original, and give feedback. Opt-in via KAGE_TOOLS=vnext. This is a
-// REDUCTION, not a deletion: the default core surface and KAGE_TOOLS=full are untouched, so an agent
-// pinned to either keeps working. Tool removal is a later, major-version step, and it comes only
-// after the reversible retrieval path (kage_retrieve) exists — which it now does.
-export const VNEXT_TOOLS = new Set([
-  "kage_context",
-  "kage_retrieve",
-  "kage_feedback",
-]);
+// The v4 DEFAULT MCP surface: the three verbs a vNext agent needs — recall context, retrieve an exact
+// reversible original, and give feedback. As of Phase E Task 10 this is the DEFAULT (the product-surface
+// cutover), not just an opt-in: capture/refresh/review now flow through the ambient proxy + the portal,
+// so the model's default tool list is exactly these three. Ordered on purpose — listTools() returns them
+// in this order so the surface is stable and asserted deterministically.
+export const DEFAULT_V4_TOOLS = ["kage_context", "kage_retrieve", "kage_feedback"] as const;
+// Back-compat alias: the previous name for the default vNext surface.
+export const VNEXT_TOOLS = new Set(DEFAULT_V4_TOOLS);
 
-export function listTools() {
+// The pre-vNext core (12 tools). It is NO LONGER the default surface — it is the body of KAGE_TOOLS=legacy,
+// which keeps every legacy tool reachable for one major version with a deprecation note in each description.
+// KAGE_TOOLS=full remains the complete internal registry (no deprecation notes) for development.
+
+export type ToolSurfaceMode = "default" | "legacy" | "full";
+
+function resolveMode(explicit?: ToolSurfaceMode): ToolSurfaceMode {
+  if (explicit) return explicit;
+  if (process.env.KAGE_TOOLS === "full" || process.env.KAGE_ALL_TOOLS === "1") return "full";
+  if (process.env.KAGE_TOOLS === "legacy") return "legacy";
+  // KAGE_TOOLS=vnext is retained as an explicit spelling of the default surface.
+  return "default";
+}
+
+// One deterministic deprecation prefix on every legacy tool description so `KAGE_TOOLS=legacy` is
+// honestly labeled: the tool still works, but the description says it is deprecated and points at the
+// migration doc. The three survivors keep their normal descriptions.
+const LEGACY_TOOL_DEPRECATION =
+  "Deprecated in v4, removed in v5. Prefer kage_context, kage_retrieve, or kage_feedback; see docs/migration/v4-command-map.md. ";
+
+export function listTools(opts?: { mode?: ToolSurfaceMode }) {
   const all = allTools();
-  if (process.env.KAGE_TOOLS === "full" || process.env.KAGE_ALL_TOOLS === "1") return all;
-  if (process.env.KAGE_TOOLS === "vnext") return all.filter((tool) => VNEXT_TOOLS.has(tool.name));
-  return all.filter((tool) => CORE_TOOLS.has(tool.name));
+  const mode = resolveMode(opts?.mode);
+  if (mode === "full") return all;
+  if (mode === "legacy") {
+    const survivors = new Set<string>(DEFAULT_V4_TOOLS);
+    return all.map((tool) =>
+      survivors.has(tool.name)
+        ? tool
+        : { ...tool, description: LEGACY_TOOL_DEPRECATION + tool.description }
+    );
+  }
+  // default: exactly the three v4 verbs, in their canonical order.
+  const byName = new Map(all.map((tool) => [tool.name, tool]));
+  return DEFAULT_V4_TOOLS.map((name) => byName.get(name)).filter((tool): tool is NonNullable<typeof tool> => Boolean(tool));
 }
 
 function allTools() {

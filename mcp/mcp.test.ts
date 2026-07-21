@@ -23,39 +23,32 @@ function textContent(result: Awaited<ReturnType<typeof callTool>>): string {
   return String(first.text);
 }
 
-test("MCP default tool surface is the agent-facing core only", () => {
-  const core = listTools().map((tool) => tool.name).sort();
-  assert.deepEqual(core, [
-    "kage_check", "kage_context", "kage_feedback", "kage_learn", "kage_pr_check",
-    "kage_refresh", "kage_skills", "kage_supersede",
-    "kage_risk", "kage_decisions", "kage_dependency_path", "kage_docs_search",
-  ].sort());
+// Phase E Task 10 cuts the DEFAULT product surface over to the focused vNext verbs. The default MCP
+// surface is now exactly kage_context, kage_retrieve, and kage_feedback — in that canonical order.
+// Capture/refresh/review flow through the ambient proxy and the portal, so they no longer bloat the
+// model's always-loaded tool list. The old core stays reachable under KAGE_TOOLS=legacy (below).
+test("v4 default MCP surface is context retrieve and feedback", () => {
+  const names = listTools().map((tool) => tool.name);
+  assert.deepEqual(names, ["kage_context", "kage_retrieve", "kage_feedback"]);
   // None of the operator/diagnostic tools leak into the default agent surface.
-  assert.equal(core.includes("kage_metrics"), false);
-  assert.equal(core.includes("kage_xray"), false);
+  assert.equal(names.includes("kage_metrics"), false);
+  assert.equal(names.includes("kage_xray"), false);
+  assert.equal(names.includes("kage_learn"), false);
 });
 
-// Phase A of the vNext program adds CLI surfaces (connect/status/open/receipts) and automatic
-// adapters, and REMOVES NOTHING from the MCP surface. Tool reduction is a later, major-version
-// step that may only happen once the adapters have real usage evidence and a migration path — an
-// agent whose config names one of these tools today must keep working after Phase A.
-test("Phase A changes no default MCP tool names", () => {
-  const core = listTools().map((tool) => tool.name).sort();
-  assert.deepEqual(core, [
-    "kage_check",
-    "kage_context",
-    "kage_decisions",
-    "kage_dependency_path",
-    "kage_docs_search",
-    "kage_feedback",
-    "kage_learn",
-    "kage_pr_check",
-    "kage_refresh",
-    "kage_risk",
-    "kage_skills",
-    "kage_supersede",
-  ]);
-  assert.equal(core.length, 12);
+// The cutover is back-compat safe: an agent pinned to the old registry can set KAGE_TOOLS=legacy and
+// still get every legacy tool for one major version, each carrying a deprecation note that names the
+// v5 removal and the migration doc.
+test("legacy mode keeps old tools for one major version with deprecation metadata", () => {
+  const names = listTools({ mode: "legacy" }).map((tool) => tool.name);
+  const timeline = listTools({ mode: "legacy" }).find((tool) => tool.name === "kage_memory_timeline");
+  assert.ok(names.includes("kage_learn"), "legacy mode still exposes kage_learn");
+  assert.ok(timeline, "legacy mode still exposes kage_memory_timeline");
+  assert.ok(timeline!.description.includes("Deprecated"), "legacy tool description is marked Deprecated");
+  assert.ok(timeline!.description.includes("docs/migration/v4-command-map.md"), "legacy tool links the migration doc");
+  // The three survivors keep their normal (undeprecated) descriptions.
+  const context = listTools({ mode: "legacy" }).find((tool) => tool.name === "kage_context");
+  assert.equal(context!.description.startsWith("Deprecated"), false);
 });
 
 test("MCP full mode exposes the complete repo-local memory tool registry", () => {
@@ -127,10 +120,8 @@ test("MCP full mode exposes the complete repo-local memory tool registry", () =>
   assert.equal(names.includes("kage_retrieve"), true);
 });
 
-// Phase D reduces the MCP compatibility surface without deleting the legacy full mode: it offers an
-// opt-in `vnext` surface that exposes only the three verbs a Kage-vNext agent needs — recall,
-// reversible retrieval, and feedback. The default surface and `full` mode are unchanged, so an agent
-// pinned to either keeps working through v4.
+// KAGE_TOOLS=vnext is retained as an explicit spelling of the (now default) v4 surface, so a config
+// pinned to it keeps behaving identically to the default.
 test("KAGE_TOOLS=vnext exposes exactly kage_context, kage_retrieve, kage_feedback", () => {
   const prev = process.env.KAGE_TOOLS;
   process.env.KAGE_TOOLS = "vnext";
@@ -139,13 +130,15 @@ test("KAGE_TOOLS=vnext exposes exactly kage_context, kage_retrieve, kage_feedbac
   assert.deepEqual(names, ["kage_context", "kage_feedback", "kage_retrieve"]);
 });
 
-test("kage_retrieve is not in the default core surface (reduction is a later, opt-in step)", () => {
+// After the Task 10 cutover, kage_retrieve is now IN the default surface and the default is exactly
+// three tools — the reduction that Phase D staged behind KAGE_TOOLS=vnext is now the default.
+test("kage_retrieve is in the default surface and the default is exactly three tools", () => {
   const prev = process.env.KAGE_TOOLS;
   delete process.env.KAGE_TOOLS;
   const core = listTools().map((tool) => tool.name);
   process.env.KAGE_TOOLS = prev;
-  assert.equal(core.includes("kage_retrieve"), false);
-  assert.equal(core.length, 12);
+  assert.equal(core.includes("kage_retrieve"), true);
+  assert.equal(core.length, 3);
 });
 
 test("kage_workflow teaches the loop in its description and returns the same text", async () => {
