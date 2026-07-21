@@ -90,7 +90,10 @@ export async function resolveSession(db: Db, token: string | undefined): Promise
          ON p.workspace_id = s.workspace_id AND p.principal_id = s.principal_id
       WHERE s.token_hash = $1
         AND s.revoked_at IS NULL
-        AND s.expires_at > now()`,
+        AND s.expires_at > now()
+        -- A deprovisioned identity (SCIM active=false) can never resolve, even if a cookie survived
+        -- the revocation sweep. The switch is checked on EVERY request, not only at deactivation time.
+        AND p.active`,
     [sha256(token)],
   );
   const row = rows[0];

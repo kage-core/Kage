@@ -7,6 +7,9 @@
 // every query to that principal's workspace and repository allow-list. A client can never widen its own
 // scope, so a cross-tenant or cross-repository read returns 404 (existence is not even disclosed).
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { randomBytes } from "node:crypto";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Db } from "./db.js";
 import { currentVersion } from "./migrate.js";
 import { resolveSession, csrfMatches, type ResolvedSession } from "./auth/session.js";
@@ -38,6 +41,32 @@ import {
   type StripeConfig,
 } from "./billing/stripe.js";
 import { LAUNCH_PLANS, PLAN_IDS, type PlanId } from "./billing/types.js";
+import {
+  authenticateScim,
+  handleScimRequest,
+  SCIM_CONTENT_TYPE,
+} from "./enterprise/scim.js";
+import {
+  applyRetention,
+  loadRetentionPolicies,
+  RETENTION_CATEGORIES,
+  RetentionPolicyError,
+  setRetentionPolicy,
+  type RetentionCategory,
+} from "./enterprise/retention.js";
+import {
+  deleteWorkspace,
+  exportWorkspace,
+  WorkspaceDeletionError,
+  type ObjectStore,
+} from "./enterprise/export-delete.js";
+import {
+  beginOidcLogin,
+  completeOidcLogin,
+  loadOidcProvider,
+  OidcError,
+  type Fetcher as OidcFetcher,
+} from "./enterprise/oidc.js";
 
 const REVIEW_ACTIONS: ReadonlySet<string> = new Set<ReviewAction>(["accept", "reject", "supersede"]);
 
@@ -56,6 +85,18 @@ export interface WorkspaceServerOptions {
   stripe?: StripeConfig;
   /** Injected HTTP transport for provider calls, so tests never reach a live Stripe. */
   fetcher?: StripeFetcher;
+  /**
+   * Where exports are written and how blobs are removed. BOTH fields are optional, deliberately: an
+   * export must never depend on optional configuration, because `workspace_export` is a promise this
+   * product makes unconditionally. With nothing configured, exports land in a private directory under
+   * the OS temp dir and blob deletion is skipped (and reported as skipped) rather than refused.
+   */
+  dataControls?: {
+    export_directory?: string;
+    object_store?: ObjectStore;
+  };
+  /** Injected HTTP transport for the identity provider, so tests never reach a live IdP. */
+  oidcFetcher?: OidcFetcher;
 }
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => Promise<void>;
@@ -239,6 +280,24 @@ export function createWorkspaceApp(db: Db, options: WorkspaceServerOptions = {})
       return;
     }
 
+    // /scim/v2/* — the customer's DIRECTORY authenticates here, with a workspace-scoped SCIM bearer
+    // token, not a user session. It sits before the session gate for the same reason the Stripe webhook
+    // does: there is no cookie and no browser, so CSRF does not apply and a session lookup would fail.
+    if (path === "/scim/v2" || path.startsWith("/scim/v2/")) {
+      await handleScim(db, req, res, path, url.searchParams);
+      return;
+    }
+
+    // OIDC login is by definition unauthenticated: the whole point is that the caller has no session yet.
+    if (method === "POST" && path === "/v1/auth/oidc/start") {
+      await handleOidcStart(db, options, req, res);
+      return;
+    }
+    if (method === "GET" && path === "/v1/auth/oidc/callback") {
+      await handleOidcCallback(db, options, url, res);
+      return;
+    }
+
     // Every other route requires an authenticated, server-resolved principal.
     const session = await resolveSession(db, requestToken(req));
     if (!session) {
@@ -346,6 +405,35 @@ export function createWorkspaceApp(db: Db, options: WorkspaceServerOptions = {})
     const creditMatch = /^\/v1\/workspaces\/([^/]+)\/billing\/pilot-credit$/.exec(path);
     if (creditMatch && method === "POST") {
       await handlePilotCredit(db, options, principal, creditMatch[1], req, res);
+      return;
+    }
+
+    // GET|PUT /v1/workspaces/:workspaceId/retention — the retention policy actually in force.
+    const retentionMatch = /^\/v1\/workspaces\/([^/]+)\/retention$/.exec(path);
+    if (retentionMatch && (method === "GET" || method === "PUT")) {
+      await handleRetention(db, principal, retentionMatch[1], method, req, res);
+      return;
+    }
+
+    // POST /v1/workspaces/:workspaceId/retention/apply — run the purge now.
+    const retentionApplyMatch = /^\/v1\/workspaces\/([^/]+)\/retention\/apply$/.exec(path);
+    if (retentionApplyMatch && method === "POST") {
+      await handleRetentionApply(db, principal, retentionApplyMatch[1], res);
+      return;
+    }
+
+    // POST /v1/workspaces/:workspaceId/export — ALWAYS available. This route is deliberately not behind
+    // `entitled(...)`: taking your own data out is not a paid feature and never lapses.
+    const exportMatch = /^\/v1\/workspaces\/([^/]+)\/export$/.exec(path);
+    if (exportMatch && method === "POST") {
+      await handleExport(db, options, principal, exportMatch[1], res);
+      return;
+    }
+
+    // POST /v1/workspaces/:workspaceId/delete — irreversible, owner-confirmed, export-first.
+    const deleteMatch = /^\/v1\/workspaces\/([^/]+)\/delete$/.exec(path);
+    if (deleteMatch && method === "POST") {
+      await handleDelete(db, options, principal, session, deleteMatch[1], req, res);
       return;
     }
 
@@ -900,6 +988,299 @@ async function getRepository(
     return;
   }
   json(res, 200, { repository: rows[0] });
+}
+
+// ---------------------------------------------------------------------------------------------
+// enterprise: SCIM, OIDC, retention, export, deletion
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Dispatch a SCIM request. The bearer token resolves to exactly one workspace SERVER-SIDE, and that
+ * workspace is the only one the handler can read or write — nothing in the path or body can widen it.
+ */
+async function handleScim(
+  db: Db,
+  req: IncomingMessage,
+  res: ServerResponse,
+  path: string,
+  query: URLSearchParams,
+): Promise<void> {
+  const context = await authenticateScim(db, bearerToken(req));
+  if (!context) {
+    res.writeHead(401, {
+      "content-type": SCIM_CONTENT_TYPE,
+      "www-authenticate": 'Bearer realm="scim"',
+    });
+    res.end(
+      JSON.stringify({
+        schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+        status: "401",
+        detail: "a valid SCIM bearer token is required",
+      }),
+    );
+    return;
+  }
+  const method = req.method ?? "GET";
+  const body = method === "GET" || method === "DELETE" ? undefined : await readJsonBody(req);
+  const result = await handleScimRequest(db, context, { method, path, query, body });
+  if (result.body === null) {
+    res.writeHead(result.status, { "content-type": result.contentType });
+    res.end();
+    return;
+  }
+  res.writeHead(result.status, { "content-type": result.contentType });
+  res.end(JSON.stringify(result.body));
+}
+
+/** Look up a workspace id from the slug a login form supplies. Returns null when there is no such slug. */
+async function workspaceIdForSlug(db: Db, slug: string): Promise<string | null> {
+  const { rows } = await db.query<{ workspace_id: string }>(
+    `SELECT workspace_id FROM workspaces WHERE slug = $1`,
+    [slug],
+  );
+  return rows[0]?.workspace_id ?? null;
+}
+
+/**
+ * Begin an SSO login. Answers the same 404 for "no such workspace" and "this workspace has no SSO", so
+ * an anonymous caller cannot enumerate which customers exist or which of them bought enterprise.
+ */
+async function handleOidcStart(
+  db: Db,
+  options: WorkspaceServerOptions,
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const body = ((await readJsonBody(req)) ?? {}) as { workspace_slug?: unknown };
+  const slug = typeof body.workspace_slug === "string" ? body.workspace_slug : "";
+  const workspaceId = slug ? await workspaceIdForSlug(db, slug) : null;
+  const provider = workspaceId ? await loadOidcProvider(db, workspaceId) : null;
+  if (!provider) {
+    json(res, 404, { error: "not_found" });
+    return;
+  }
+  const started = await beginOidcLogin(db, provider);
+  // The nonce stays server-side: the browser needs only the URL it is being sent to.
+  json(res, 200, { authorization_url: started.authorization_url, expires_at: started.expires_at });
+}
+
+/**
+ * Complete an SSO login and set the session cookie. Every failure answers 401 with the machine-readable
+ * reason code but no detail an attacker could probe with — the codes are for the operator's logs and the
+ * error page, not a discovery channel.
+ */
+async function handleOidcCallback(
+  db: Db,
+  options: WorkspaceServerOptions,
+  url: URL,
+  res: ServerResponse,
+): Promise<void> {
+  const state = url.searchParams.get("state") ?? "";
+  const code = url.searchParams.get("code") ?? "";
+  const slug = url.searchParams.get("workspace") ?? "";
+  const workspaceId = slug ? await workspaceIdForSlug(db, slug) : null;
+  const provider = workspaceId ? await loadOidcProvider(db, workspaceId) : null;
+  if (!provider || !state || !code) {
+    json(res, 400, { error: "invalid_request" });
+    return;
+  }
+  const fetcher =
+    options.oidcFetcher ?? ((target, init) => fetch(target, init) as unknown as ReturnType<OidcFetcher>);
+  try {
+    const completed = await completeOidcLogin(db, provider, { state, code, fetcher });
+    res.writeHead(200, {
+      "content-type": "application/json",
+      "set-cookie": `kage_session=${completed.session.token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${Math.floor(
+        (completed.session.expires_at.getTime() - Date.now()) / 1000,
+      )}`,
+    });
+    res.end(
+      JSON.stringify({
+        principal_id: completed.principal_id,
+        workspace_id: completed.workspace_id,
+        csrf: completed.session.csrf,
+        provisioned: completed.provisioned,
+      }),
+    );
+  } catch (error) {
+    if (error instanceof OidcError) {
+      json(res, 401, { error: "sso_login_failed", code: error.code });
+      return;
+    }
+    throw error;
+  }
+}
+
+/** Read or set retention policy. Tenant-scoped, and gated on `policy.manage` authority. */
+async function handleRetention(
+  db: Db,
+  principal: Principal,
+  workspaceId: string,
+  method: string,
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  if (workspaceId !== principal.workspace_id) {
+    json(res, 404, { error: "not_found" });
+    return;
+  }
+  if (!can(principal, "policy.manage")) {
+    json(res, 403, { error: "forbidden", action: "policy.manage" });
+    return;
+  }
+  if (method === "GET") {
+    json(res, 200, { policies: await loadRetentionPolicies(db, principal.workspace_id) });
+    return;
+  }
+  const body = ((await readJsonBody(req)) ?? {}) as { category?: unknown; retention_days?: unknown };
+  const category = String(body.category ?? "") as RetentionCategory;
+  if (!RETENTION_CATEGORIES.includes(category)) {
+    json(res, 400, { error: "unknown_category" });
+    return;
+  }
+  const days =
+    body.retention_days === null || body.retention_days === undefined
+      ? null
+      : Number(body.retention_days);
+  try {
+    const policy = await setRetentionPolicy(db, {
+      workspace_id: principal.workspace_id,
+      category,
+      retention_days: days,
+      actor_id: principal.principal_id,
+    });
+    json(res, 200, { policy });
+  } catch (error) {
+    if (error instanceof RetentionPolicyError) {
+      json(res, 400, { error: error.code, message: error.message });
+      return;
+    }
+    throw error;
+  }
+}
+
+/** Run the retention purge for this tenant now. */
+async function handleRetentionApply(
+  db: Db,
+  principal: Principal,
+  workspaceId: string,
+  res: ServerResponse,
+): Promise<void> {
+  if (workspaceId !== principal.workspace_id) {
+    json(res, 404, { error: "not_found" });
+    return;
+  }
+  if (!can(principal, "policy.manage")) {
+    json(res, 403, { error: "forbidden", action: "policy.manage" });
+    return;
+  }
+  json(res, 200, await applyRetention(db, principal.workspace_id));
+}
+
+/** Where exports land when a deployment has not configured a directory. Private to this process's user. */
+function exportDirectory(options: WorkspaceServerOptions): string {
+  return options.dataControls?.export_directory ?? join(tmpdir(), "kage-workspace-exports");
+}
+
+/**
+ * Export a workspace. The encryption key is minted PER EXPORT, returned once to the authenticated
+ * requester, and never stored — so the file at rest is useless to anyone who obtains only the file, and
+ * this service cannot later decrypt a customer's export on its own.
+ */
+async function handleExport(
+  db: Db,
+  options: WorkspaceServerOptions,
+  principal: Principal,
+  workspaceId: string,
+  res: ServerResponse,
+): Promise<void> {
+  if (workspaceId !== principal.workspace_id) {
+    json(res, 404, { error: "not_found" });
+    return;
+  }
+  if (!can(principal, "workspace.manage")) {
+    json(res, 403, { error: "forbidden", action: "workspace.manage" });
+    return;
+  }
+  const key = randomBytes(32);
+  const result = await exportWorkspace(db, principal.workspace_id, {
+    directory: exportDirectory(options),
+    encryption_key: key,
+  });
+  json(res, 200, {
+    export_path: result.export_path,
+    sha256: result.sha256,
+    byte_size: result.byte_size,
+    schema_version: result.schema_version,
+    tables: result.manifest.tables,
+    // Shown exactly once. Losing it means the export cannot be opened — by the customer OR by us.
+    decryption_key: key.toString("base64"),
+  });
+}
+
+/**
+ * Delete a workspace. Two authority checks stack: the ROLE must be owner (checked again inside
+ * `deleteWorkspace` against the database, not just here), and the caller must have re-authenticated
+ * recently. The re-auth instant is taken from the request body and re-validated server-side against the
+ * window; a caller who lies about it still has to be an owner, and the window is enforced either way.
+ */
+async function handleDelete(
+  db: Db,
+  options: WorkspaceServerOptions,
+  principal: Principal,
+  session: ResolvedSession,
+  workspaceId: string,
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  if (workspaceId !== principal.workspace_id) {
+    json(res, 404, { error: "not_found" });
+    return;
+  }
+  if (principal.role !== "owner" || principal.principal_type !== "user") {
+    json(res, 403, { error: "forbidden", action: "workspace.delete" });
+    return;
+  }
+  const body = ((await readJsonBody(req)) ?? {}) as {
+    reauthenticated_at?: unknown;
+    confirm_slug?: unknown;
+  };
+  // Typing the slug is the human confirmation step: it makes an accidental or scripted POST inert.
+  const slug = await db.query<{ slug: string }>(`SELECT slug FROM workspaces WHERE workspace_id = $1`, [
+    principal.workspace_id,
+  ]);
+  if (String(body.confirm_slug ?? "") !== (slug.rows[0]?.slug ?? " ")) {
+    json(res, 400, { error: "confirmation_required" });
+    return;
+  }
+  const key = randomBytes(32);
+  try {
+    const result = await deleteWorkspace(db, principal.workspace_id, {
+      confirmed_by: principal.principal_id,
+      reauthenticated_at: String(body.reauthenticated_at ?? ""),
+      directory: exportDirectory(options),
+      encryption_key: key,
+      object_store: options.dataControls?.object_store,
+    });
+    json(res, 200, {
+      workspace_id: result.workspace_id,
+      export_path: result.export_path,
+      export_sha256: result.export_sha256,
+      rows_deleted: result.rows_deleted,
+      object_keys_deleted: result.deleted_object_keys.length,
+      object_store_configured: Boolean(options.dataControls?.object_store),
+      decryption_key: key.toString("base64"),
+    });
+  } catch (error) {
+    if (error instanceof WorkspaceDeletionError) {
+      json(res, error.code === "unknown_workspace" ? 404 : 403, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+    throw error;
+  }
 }
 
 /** Start the workspace HTTP server on `127.0.0.1:<port>` (port 0 = an ephemeral port). */

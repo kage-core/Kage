@@ -74,6 +74,26 @@ export async function forTarget(
   targetType: string,
   targetId: string,
 ): Promise<AuditEvent[]> {
+  return queryEvents(
+    db,
+    `WHERE workspace_id = $1 AND target_type = $2 AND target_id = $3`,
+    [workspaceId, targetType, targetId],
+  );
+}
+
+/**
+ * The audit trail for one ACTOR, oldest-first, scoped to a single workspace.
+ *
+ * This exists so deprovisioning can be proven non-destructive: when SCIM deactivates a leaver, their
+ * decisions must still be attributable. Deleting the person would orphan every approval they made, so
+ * the identity row is switched off and this query keeps returning what they did.
+ */
+export async function forActor(db: Db, workspaceId: string, actorId: string): Promise<AuditEvent[]> {
+  return queryEvents(db, `WHERE workspace_id = $1 AND actor_id = $2`, [workspaceId, actorId]);
+}
+
+/** Shared projection for the audit queries above. The WHERE clause is a literal, never caller data. */
+async function queryEvents(db: Db, where: string, params: unknown[]): Promise<AuditEvent[]> {
   const { rows } = await db.query<{
     audit_id: string;
     workspace_id: string;
@@ -89,9 +109,9 @@ export async function forTarget(
     `SELECT audit_id, workspace_id, actor_type, actor_id, action, target_type, target_id,
             metadata_json, occurred_at, audit_seq
        FROM audit_events
-      WHERE workspace_id = $1 AND target_type = $2 AND target_id = $3
+       ${where}
       ORDER BY audit_seq`,
-    [workspaceId, targetType, targetId],
+    params,
   );
   return rows.map((row) => ({
     audit_id: row.audit_id,
