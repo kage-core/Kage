@@ -221,9 +221,29 @@ export interface ValidationResult {
   warnings: string[];
 }
 
+// Corpus-normalized injection decision (W3). Recall scores are match-strength SUMS, not normalized
+// relevance — a 325-packet store's lexical noise outscores a small store's genuine direct match, so
+// an ABSOLUTE score floor is impossible (see the negative_result packet
+// "recall-scores-are-not-corpus-normalized"). What IS decidable is whether the top candidate stands
+// OUT of its own corpus's score distribution: a real answer is a spike above the noise band; topical
+// noise is a flat band with no spike. This decision is computed inside recall (the only place the
+// full candidate distribution exists) and consumed by composeInjection to answer the question an
+// eager injector never asked: "is ANY of this worth the tokens?"
+export interface RecallInjectionDecision {
+  /** Should an automatic injector attach this recall's results? */
+  inject: boolean;
+  /** 0..1 — how far the top candidate stands out of this corpus's own score distribution. */
+  confidence: number;
+  top_score: number | null;
+  /** How many packets scored above zero for this query. */
+  candidate_count: number;
+  why: string;
+}
+
 export interface RecallResult {
   query: string;
   context_block: string;
+  injection: RecallInjectionDecision;
   results: Array<{
     packet: MemoryPacket;
     score: number;
@@ -11205,6 +11225,12 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
   const result: RecallResult = {
     query,
     context_block: inputs.maxContextTokens ? boundContextBlock(assembledBlock, inputs.maxContextTokens) : assembledBlock,
+    // Corpus-normalized injection decision, computed over the FULL ranked candidate list (the only
+    // place the distribution exists) — automatic injectors gate on this, humans can ignore it.
+    injection: decideRecallInjection(
+      rankedScored.map((entry) => entry.score),
+      rankedScored.length ? countDistinctTermMatches(expansion.baseTerms, rankedScored[0].packet) : 0,
+    ),
     results: scored,
     suppressed: suppressed.length ? suppressed : undefined,
     team: teamEntries.length ? teamEntries : undefined,
@@ -11236,6 +11262,113 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
     ]);
   }
   return result;
+}
+
+// How far must the top candidate stand out of its corpus's score distribution before an automatic
+// injector may attach it. Tuned against benchmarks/injection-relevance-kage.mjs (the acceptance
+// harness for this decision): content-free and absent-topic queries must fall below it on BOTH the
+// small and large stores, while the genuine small-store direct match and large-store real questions
+// stay above it.
+const INJECTION_CONFIDENCE_FLOOR = 0.5;
+
+function clamp01(value: number): number {
+  return value < 0 ? 0 : value > 1 ? 1 : value;
+}
+
+/**
+ * Decide, from the FULL ranked candidate score list (descending) plus the top candidate's QUERY
+ * EVIDENCE BREADTH, whether this recall is worth injecting at all. Two orthogonal signals, both
+ * required, both deterministic:
+ *
+ *   EVIDENCE BREADTH — how many DISTINCT meaningful query terms the top candidate actually matches.
+ *   A content-free prompt ("Reply with the single word: pong") can spike a packet on ONE term
+ *   ("pong" all over a websocket-heartbeat runbook) with a score as high as a real question's; what
+ *   it cannot do is match several distinct query terms, because it does not contain several. Real
+ *   questions carry their topic in 2+ terms ("websocket gateway heartbeat connections").
+ *
+ *   CORPUS NORMALIZATION — does the top candidate SPIKE above this corpus's own score distribution?
+ *   Scores are un-normalized match sums (a big store's noise band outscores a small store's genuine
+ *   direct match), so no absolute floor exists; the spike-vs-flat-band shape is what generalizes.
+ */
+export function decideRecallInjection(
+  scoresDescending: number[],
+  topDistinctTerms = 2,
+): RecallInjectionDecision {
+  const scores = scoresDescending.filter((score) => Number.isFinite(score) && score > 0);
+  const count = scores.length;
+  if (count === 0) {
+    return { inject: false, confidence: 0, top_score: null, candidate_count: 0, why: "no candidate scored above zero" };
+  }
+  const top = scores[0];
+  const rest = scores.slice(1);
+
+  // Evidence-breadth gate: a top hit carried by a single query term is a lexical accident, not an
+  // answer — regardless of its score. It caps confidence below the floor rather than zeroing it, so
+  // the decision output still ranks "almost" cases above true zeros.
+  if (topDistinctTerms < 2) {
+    const confidence = Math.min(0.4, top >= 8 ? 0.4 : 0.2);
+    return {
+      inject: false,
+      confidence,
+      top_score: top,
+      candidate_count: count,
+      why: `top candidate matches only ${topDistinctTerms} distinct query term(s) — one incidental token is not evidence (score ${top})`,
+    };
+  }
+
+  // Tiny corpora (a new/small repo) have no distribution to normalize against. Decide by the gap to
+  // the runner-up plus a minimal evidence anchor: a genuine direct match dwarfs its runner-up (or
+  // stands alone with broad evidence); a marginal leader does not.
+  if (rest.length < 4) {
+    const runnerUp = rest[0] ?? 0;
+    const ratio = runnerUp > 0 ? top / runnerUp : Number.POSITIVE_INFINITY;
+    let confidence: number;
+    let why: string;
+    if (rest.length === 0) {
+      // One-term accidents were already refused by the breadth gate above, so a lone candidate here
+      // carries multi-term evidence — a modest anchor suffices.
+      confidence = top >= 12 ? 0.8 : top >= 6 ? 0.55 : 0.25;
+      why = `single candidate (score ${top}, ${topDistinctTerms} distinct terms)`;
+    } else if (ratio >= 2 && top >= 6) {
+      confidence = 0.8;
+      why = `top (${top}) dwarfs runner-up (${runnerUp}) in a ${count}-candidate corpus`;
+    } else if (ratio >= 1.5 && top >= 10) {
+      confidence = 0.6;
+      why = `top (${top}) clearly leads runner-up (${runnerUp})`;
+    } else {
+      confidence = 0.3;
+      why = `top (${top}) does not stand out of ${count} candidates (runner-up ${runnerUp})`;
+    }
+    return { inject: confidence >= INJECTION_CONFIDENCE_FLOOR, confidence, top_score: top, candidate_count: count, why };
+  }
+
+  // Normal corpora: z-score of the top against the rest of the band, blended with the runner-up
+  // ratio. A spike (high z AND a real lead) injects; a flat band (z near zero, ratio near one) is
+  // topical noise regardless of its absolute level.
+  const mean = rest.reduce((sum, score) => sum + score, 0) / rest.length;
+  const variance = rest.reduce((sum, score) => sum + (score - mean) ** 2, 0) / rest.length;
+  const sd = Math.sqrt(variance);
+  const z = sd > 0 ? (top - mean) / sd : top > mean ? 4 : 0;
+  const ratio = rest[0] > 0 ? top / rest[0] : 4;
+  const zComponent = clamp01(z / 4);
+  const ratioComponent = clamp01((ratio - 1) / 1.5);
+  const confidence = clamp01(Math.max(
+    zComponent * 0.7 + ratioComponent * 0.3,
+    ratioComponent * 0.7 + zComponent * 0.3,
+  ));
+  const why = `top ${top} vs band mean ${mean.toFixed(1)}±${sd.toFixed(1)} over ${count} candidates (z=${z.toFixed(2)}, lead ×${ratio.toFixed(2)}, ${topDistinctTerms} distinct terms)`;
+  return { inject: confidence >= INJECTION_CONFIDENCE_FLOOR, confidence: Number(confidence.toFixed(3)), top_score: top, candidate_count: count, why };
+}
+
+/** Count DISTINCT meaningful query terms (length >= 3) present in a packet's searchable text. */
+export function countDistinctTermMatches(terms: string[], packet: MemoryPacket): number {
+  const haystack = packetText(packet).toLowerCase();
+  const seen = new Set<string>();
+  for (const term of terms) {
+    if (!term || term.length < 3 || seen.has(term)) continue;
+    if (haystack.includes(term)) seen.add(term);
+  }
+  return seen.size;
 }
 
 export function recall(projectDir: string, query: string, limit = 5, explain = false, inputs: GraphInputs = {}): RecallResult {
@@ -20876,10 +21009,14 @@ function recallFromPackets(query: string, packets: MemoryPacket[], limit: number
       return { packet, score, why_matched: why };
     })
     .filter((result) => result.score > 0)
-    .sort((a, b) => b.score - a.score || b.packet.updated_at.localeCompare(a.packet.updated_at))
-    .slice(0, limit);
+    .sort((a, b) => b.score - a.score || b.packet.updated_at.localeCompare(a.packet.updated_at));
+  const injection = decideRecallInjection(
+    scored.map((entry) => entry.score),
+    scored.length ? countDistinctTermMatches(terms, scored[0].packet) : 0,
+  );
+  const limited = scored.slice(0, limit);
 
-  const context = scored.map((result, index) => {
+  const context = limited.map((result, index) => {
     const packet = result.packet;
     return [
       `### ${label} ${index + 1}: ${packet.title}`,
@@ -20898,7 +21035,8 @@ function recallFromPackets(query: string, packets: MemoryPacket[], limit: number
   return {
     query,
     context_block: context.length ? `# Kage ${label} Recall\n\n${context.join("\n\n---\n\n")}` : `No ${label.toLowerCase()} memory found for "${query}".`,
-    results: scored,
+    injection,
+    results: limited,
   };
 }
 

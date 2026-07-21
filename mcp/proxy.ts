@@ -131,9 +131,19 @@ export function composeInjection(
   if (!query.trim()) return { body, injected: 0 };
   const result = recall(projectDir, query, 4, false);
   if (!result.results.length) return { body, injected: 0 };
-  const memoryText = buildInjectedMemory(result.results).slice(0, MAX_MEMORY_CHARS);
+  // Corpus-normalized relevance gate (W3): recall decides — from its own full candidate
+  // distribution — whether the top hit SPIKES above this corpus's noise band. A flat band of
+  // lexical accidents (the "pong problem": content-free prompts matching packet titles on big
+  // stores) stays out entirely; "inject nothing" is a first-class outcome.
+  if (!result.injection.inject) return { body, injected: 0 };
+  // Dominance trim: the decision above says the TOP hit deserves injection; co-attached packets
+  // ride along only when they score within half of it. A spiking answer plus a tail of unrelated
+  // topical noise attaches as ONE packet, not four — precision over volume.
+  const topScore = result.results[0].score;
+  const attached = result.results.filter((entry, index) => index === 0 || entry.score >= topScore * 0.5);
+  const memoryText = buildInjectedMemory(attached).slice(0, MAX_MEMORY_CHARS);
   const injected = gateway.inject(body, memoryText);
-  return injected.applied ? { body: injected.body, injected: result.results.length } : { body, injected: 0 };
+  return injected.applied ? { body: injected.body, injected: attached.length } : { body, injected: 0 };
 }
 
 // Pure + exported so it is unit-testable without a network: given an Anthropic Messages request

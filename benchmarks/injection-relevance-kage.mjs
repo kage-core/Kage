@@ -2,17 +2,23 @@
 // Injection Relevance — does automatic injection attach the RIGHT memories, and
 // only when the prompt deserves them?
 //
-// The proxy's composeInjection (mcp/proxy.ts) injects whatever recall returns
-// with NO relevance gate: recall(projectDir, query, 4, false). Measured on
-// 2026-07-16 against the real 325-packet store, a content-free prompt like
-// "Reply with the single word: pong" recalled 4 lexical accidents (scores
-// 23-33, matching "single"/"word" in packet titles) and all 4 were injected.
-// Real questions scored 40-75 on the same store — but a direct, genuinely
-// relevant match on a small seeded store scored 14.3, BELOW the big store's
-// junk band. Recall scores are match-strength sums, not corpus-normalized
-// relevance, so an absolute score floor is impossible: any floor that removes
-// big-store noise also silences small/new repos. (See the negative_result
-// packet "recall-scores-are-not-corpus-normalized-...".)
+// HISTORY: composeInjection originally injected whatever recall returned with
+// NO relevance gate. Measured 2026-07-16 on the real 325-packet store, the
+// content-free prompt "Reply with the single word: pong" injected 4 lexical
+// accidents, while a genuine small-store direct match scored BELOW the big
+// store's junk band — recall scores are match-strength sums, not normalized
+// relevance, so an absolute score floor is impossible (see the superseded
+// negative_result packet "recall-scores-are-not-corpus-normalized-...").
+//
+// THE FIX (2026-07-21, W3): recall now computes a corpus-normalized injection
+// decision from its own full candidate distribution (RecallResult.injection):
+// the top hit must (a) match >= 2 DISTINCT meaningful query terms — a one-token
+// lexical accident like "pong" spiking a websocket runbook is not evidence —
+// and (b) SPIKE above this corpus's own score band (z-score + runner-up lead;
+// gap/anchor rules on tiny corpora where no distribution exists). Production
+// composeInjection gates on that decision and then dominance-trims co-attached
+// packets to those scoring >= 0.5×top. "Inject nothing" is a first-class
+// outcome; the numbers below are the measured result of that decision.
 //
 // This harness encodes that finding as a repeatable eval:
 //   - SMALL store (3 packets) and LARGE store (150 packets), both seeded
@@ -28,13 +34,14 @@
 //     scores; any disagreement with the production decision is reported as a
 //     per-case ERROR (drift detection), never skipped.
 //
-// HONESTY CONTRACT: this eval MEASURES the current baseline; it does not fail
-// the suite on the known-imperfect numbers (the pong problem is the baseline,
-// not a bug in the harness). It prints metrics plus a dated BASELINE block and
-// exits 0. `--assert-baseline` exits 1 only if a metric regressed below the
-// recorded baseline (or any case errored). This harness is the acceptance gate
-// for the "corpus-normalized relevance" kernel task: a real fix moves
-// false_injection_rate down WITHOUT moving small_store_recall down.
+// HONESTY CONTRACT: this eval MEASURES the shipped decision; the recorded
+// baseline is what the current code actually does, not an aspiration. It prints
+// metrics plus a dated BASELINE block and exits 0. `--assert-baseline` exits 1
+// only if a metric regressed below the recorded baseline (or any case errored).
+// This harness WAS the acceptance gate for the corpus-normalized relevance
+// task, and the fix passed it: false_injection 0.6667→0, absent 0.875→0,
+// precision 0.1538→0.6364, with small_store_recall and expected_top_hit_rate
+// held at 1.0. It now guards that result against regression.
 //
 // Deterministic: fixed in-file corpus, fixed case order (access-tracking side
 // effects of the production call are order-dependent and production-authentic),
@@ -59,22 +66,27 @@ const proxy = await import(pathToFileURL(join(repoRoot, "mcp/dist/proxy.js")).hr
 const args = parseArgs(process.argv.slice(2));
 
 // ---------------------------------------------------------------------------
-// Recorded baseline (2026-07-16). These are the MEASURED numbers of the current
-// ungated composeInjection on this harness's corpus — recorded, not aspired to.
+// Recorded baseline. These are the MEASURED numbers of the current GATED
+// composeInjection on this harness's corpus — recorded, not aspired to.
 // --assert-baseline fails only when a metric gets WORSE than this. The
 // corpus-normalized relevance kernel task should improve precision and the
 // false-injection rates while holding small_store_recall and
 // expected_top_hit_rate at 1.0.
 // ---------------------------------------------------------------------------
 const RECORDED_BASELINE = {
-  date: "2026-07-16",
-  injection_precision: 0.1538,
-  false_injection_rate_overall: 0.6667,
-  false_injection_rate_small: 0.3333,
-  false_injection_rate_large: 1.0,
+  // 2026-07-21: the corpus-normalized injection gate + dominance trim landed (W3). Every
+  // content-free and absent-topic case now injects NOTHING on both stores while the genuine
+  // small-store direct match and every real question still inject with the labeled top hit.
+  // (The 2026-07-16 ungated numbers this replaced: precision 0.1538, false 0.6667/0.3333/1.0,
+  // absent 0.875 — kept here as history so the improvement stays legible.)
+  date: "2026-07-21",
+  injection_precision: 0.6364,
+  false_injection_rate_overall: 0,
+  false_injection_rate_small: 0,
+  false_injection_rate_large: 0,
   small_store_recall: 1.0,
   expected_top_hit_rate: 1.0,
-  absent_injection_rate_overall: 0.875,
+  absent_injection_rate_overall: 0,
   errors: 0,
 };
 // higher_is_better: regression when current < recorded. Otherwise regression
@@ -351,11 +363,22 @@ function runCase(store, cls, spec) {
     // Drift check: if the production decision disagrees with the diagnostic
     // ranking, the decision path changed and this harness's identities can no
     // longer be trusted — report the case as an ERROR, never silently.
-    if (decision.injected !== diag.results.length) {
-      throw new Error(`decision-path drift: composeInjection injected ${decision.injected} but diagnostic recall returned ${diag.results.length}`);
+    // Production gates on recall's corpus-normalized injection decision (W3):
+    // when the diagnostic recall says inject=false, the expected count is 0.
+    // Model the production decision: the corpus-normalized GATE must agree exactly (inject vs not).
+    // The dominance-trimmed co-attach COUNT may differ by a packet between the diagnostic and the
+    // production call, because production recall runs AFTER earlier cases recorded access boosts
+    // (order-dependent and production-authentic, per this harness's design) and the 0.5×top trim is
+    // score-sensitive. Gate disagreement is drift; a count wobble under an agreeing gate is data.
+    const attachedDiag = diag.injection && diag.injection.inject === false
+      ? []
+      : diag.results.filter((r, i) => i === 0 || r.score >= diag.results[0].score * 0.5);
+    const gateSaysInject = !(diag.injection && diag.injection.inject === false);
+    if (gateSaysInject !== decision.injected > 0) {
+      throw new Error(`decision-path drift: gate expected inject=${gateSaysInject} but composeInjection injected ${decision.injected} (recall.injection: ${JSON.stringify(diag.injection ?? null)})`);
     }
     if (decision.injected > 0) {
-      for (const r of diag.results) {
+      for (const r of attachedDiag) {
         if (!record.memoryText || !record.memoryText.includes(r.packet.title)) {
           throw new Error(`decision-path drift: diagnostic hit "${r.packet.title}" is absent from the injected memory text`);
         }
@@ -363,7 +386,10 @@ function runCase(store, cls, spec) {
     }
 
     row.injected_count = decision.injected;
-    row.injected = diag.results.map((r) => ({
+    row.injection_decision = diag.injection
+      ? { inject: diag.injection.inject, confidence: diag.injection.confidence, why: diag.injection.why }
+      : null;
+        row.injected = attachedDiag.map((r) => ({
       // Unseeded hits are the store's own auto-created packets (repo_map);
       // keyed by type so the table stays deterministic despite the random
       // temp-dir token in their titles. Never labeled relevant.
@@ -498,7 +524,7 @@ const regressions = Object.entries(BASELINE_DIRECTIONS).flatMap(([key, direction
 
 const report = {
   benchmark: "Injection Relevance (composeInjection decision path)",
-  decision_under_test: "mcp/proxy.ts composeInjection — recall(projectDir, query.slice(0,1000), 4, false), no relevance gate; imported from mcp/dist/proxy.js, not mirrored",
+  decision_under_test: "mcp/proxy.ts composeInjection — recall + corpus-normalized injection gate (recall.injection) + 0.5×top dominance trim; imported from mcp/dist/proxy.js, not mirrored",
   stores: {
     small: { seeded_packets: small.seeded, approved_packet_files: small.approvedFiles },
     large: { seeded_packets: large.seeded, approved_packet_files: large.approvedFiles },
@@ -535,7 +561,7 @@ if (args.json) {
 }
 
 // Human-readable baseline block on stderr so stdout stays parseable JSON.
-console.error(`\nBASELINE ${RECORDED_BASELINE.date} (recorded in-file; the current ungated injector — measured, not aspired to)`);
+console.error(`\nBASELINE ${RECORDED_BASELINE.date} (recorded in-file; the current gated injector — measured, not aspired to)`);
 for (const [key, direction] of Object.entries(BASELINE_DIRECTIONS)) {
   const flag = regressions.some((r) => r.metric === key) ? "REGRESSED" : "ok";
   console.error(`  ${key.padEnd(34)} current ${String(current[key]).padEnd(8)} recorded ${String(RECORDED_BASELINE[key]).padEnd(8)} (${direction} is better)  ${flag}`);
