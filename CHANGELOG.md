@@ -1,5 +1,70 @@
 # Changelog
 
+## v4.0.0 — the collaborative repository memory, measured end-to-end
+
+The five-phase vNext program plus the goal-expansion workstreams, every claim
+behind a committed, re-runnable gate or benchmark. Full framework + proofs:
+`docs/COLLABORATIVE_MEMORY.md`.
+
+**One proxy, every agent.** `kage up` runs a background proxy fronting
+Anthropic (`/v1/messages`), OpenAI (`/v1/chat/completions`, `/v1/responses`)
+and Gemini (`generateContent`) behind one gateway seam — injection AND
+reversible compression now bind all three (Gemini through a lossless
+`contents↔messages` view; unknown providers pass through byte-preserving).
+Usage semantics stay per-provider and honest (Anthropic `input_tokens` is the
+uncached remainder; OpenAI/Gemini report full totals).
+
+**Compression that actually pays.** Single-body compression measures ~0% on
+real traffic — so v4 ships deterministic HISTORY digestion instead: old tool
+results reduce to head/error/tail digests with `kage-content:` markers, exact
+originals stored content-addressed first. Measured on a 12-turn real-body
+session: **92.93% final-turn, 93.33% whole-session** bytes saved, with a
+cache-stable digested prefix (deterministic + idempotent). Off by default;
+`history_compression` + `lossy_compression` opt in.
+
+**Injection that knows when to stay silent.** recall() now computes a
+corpus-normalized injection decision (evidence breadth ≥2 distinct terms +
+spike-above-own-band); the proxy gates on it and dominance-trims co-attached
+packets. Measured: false injection **0.667→0**, absent-topic injection
+**0.875→0**, precision **0.154→0.636**, small-store recall and top-hit held
+at 1.0 (`bench:injection --assert-baseline`).
+
+**Near-duplicates caught.** Capture-time dedup adds a guarded TF-cosine view:
+reworded packets that kept their core vocabulary are flagged through the real
+capture path; short genuinely-different notes are unaffected.
+
+**Repository model + portal.** Evidence → episodes → claims with trust states
+(only verified/approved ever inject); a React knowledge portal (overview with
+exactness-labeled metrics, accessible system maps, current-truth-vs-history
+pages, evidence-first review queue with self-approval blocked and versioned
+mutations, exact-vs-cohort task receipts, identifier-only SSE) served by the
+daemon under `/app/`.
+
+**Team workspace (technical GA).** A separate Postgres service: tenant-keyed
+everything, idempotent approved-only sync (raw prompts never leave the
+machine), team review authority + append-only audit, least-privilege GitHub
+App (constant-time signatures, delivery-id idempotency, checks-write as a
+separate opt-in), Stripe-driven entitlements resolved server-side with the
+no-overhead credit capped at the first invoice, OIDC/SCIM for enterprise
+plans, backup/restore/export, Docker packaging. The technical GA gate passes
+against a real embedded PostgreSQL: cross-tenant reads 0, raw payloads synced
+0, self-approvals 0, duplicate sync records 0, invalid webhooks accepted 0,
+local context fully working during a workspace outage, export after
+entitlement expiry. The commercial gate honestly reports NO-GO (no design
+partners run yet) and exits non-zero.
+
+**The v4 surface.** Default MCP tools are `kage_context`, `kage_retrieve`,
+`kage_feedback`; primary CLI is `connect`/`status`/`open`/`doctor`/`export`/
+`migrate` (+ `install`/`up`/`run`/`down` to get started). Every pre-v4 command
+still runs, prints its one supported replacement and a v5 removal notice, and
+is callable deliberately via `kage legacy <cmd>`; `kage legacy scan` finds
+scripts still using them. Migration: `docs/migration/v4-upgrade.md` +
+`docs/migration/v4-command-map.md`.
+
+Suite at release: **1463/1463** aggregate (incl. deploy 36 + dogfood 12);
+workspace 176/176 vs real PostgreSQL; portal 105/105; phase gates A–E green.
+
+
 ## v3.3.0 — the memory loop works end-to-end
 
 The core promise — session 2 inherits what session 1 learned — now holds, proven
