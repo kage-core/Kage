@@ -41,6 +41,15 @@ jobs:
         working-directory: mcp
         run: npm run test:phase-c
 
+      # Packaging and recovery for the team workspace: the migrate-then-listen boot sequence, the
+      # container health probe, and a backup/restore round trip through the SHIPPED shell scripts —
+      # all against a real ephemeral PostgreSQL provisioned in-process. `npm test` already runs this;
+      # it runs again here on its own so a packaging regression is legible in the job list instead of
+      # being buried in a 1300-test log.
+      - name: Kage workspace deployment and recovery
+        working-directory: mcp
+        run: npm run test:deploy
+
       - name: Kage vNext Phase A audit report
         run: node scripts/vnext-phase-a-report.mjs --project . --json
 
@@ -127,6 +136,61 @@ jobs:
             exit 0
           fi
           npm run test:e2e
+
+  workspace-image:
+    name: Workspace image builds and starts
+    runs-on: ubuntu-latest
+    # The deployment tests check the Dockerfile STRUCTURALLY (pinned digests, multi-stage, non-root,
+    # exec-form entrypoint, no baked secrets) because the environment they run in has no Docker daemon.
+    # A structural check is not a build, so the build happens here, where there is one — and the image is
+    # actually started against a real Postgres so "it builds" is not mistaken for "it runs".
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build the workspace image
+        run: docker build -f deploy/workspace/Dockerfile -t kage-workspace:ci .
+
+      - name: Start Postgres
+        run: |
+          docker run -d --name kage-ci-pg \
+            -e POSTGRES_PASSWORD=ci-not-a-secret \
+            -e POSTGRES_USER=kage \
+            -e POSTGRES_DB=kage_workspace \
+            --health-cmd 'pg_isready -U kage -d kage_workspace' \
+            --health-interval 3s --health-retries 20 \
+            postgres@sha256:cc9f4143a8d2fa8cf3749d0cb4d26ecf2d53a77a2ac807e9ebd67ae22426221a
+          for _ in $(seq 1 40); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' kage-ci-pg)" = healthy ] && break
+            sleep 2
+          done
+          docker inspect -f '{{.State.Health.Status}}' kage-ci-pg
+
+      - name: Run the image and prove it migrates before it serves
+        run: |
+          docker run -d --name kage-ci-workspace --link kage-ci-pg:postgres \
+            --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
+            -e KAGE_WORKSPACE_DATABASE_URL='postgres://kage:ci-not-a-secret@postgres:5432/kage_workspace' \
+            -e KAGE_WORKSPACE_PORT=8787 \
+            -p 8787:8787 \
+            kage-workspace:ci
+          for _ in $(seq 1 40); do
+            curl -fsS localhost:8787/v1/health && break
+            sleep 2
+          done
+          # The health body must report a migrated schema, not merely an open port.
+          curl -fsS localhost:8787/v1/health | tee /tmp/health.json
+          node -e 'const h=require("/tmp/health.json"); if(h.status!=="ok"||!(h.database_migration>0)) { console.error("unhealthy", h); process.exit(1); }'
+          # Non-root is a property of the running container, not just of the Dockerfile text.
+          test "$(docker exec kage-ci-workspace id -u)" != "0"
+
+      - name: Container logs (always)
+        if: always()
+        run: docker logs kage-ci-workspace || true
+
+      - name: Tear down
+        if: always()
+        run: docker rm -f kage-ci-workspace kage-ci-pg || true
 
   legacy-node18:
     name: Legacy CLI loads on Node 18

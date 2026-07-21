@@ -609,7 +609,7 @@ git commit -m "feat: add enterprise identity and data controls"
 - Create: `docs/deployment/workspace-backup-restore.md`
 - Modify: `.github/workflows/ci.yml`
 
-- [ ] **Step 1: Write failing container and backup tests**
+- [x] **Step 1: Write failing container and backup tests**
 
 ```js
 test("workspace image starts only after migrations and health passes", async () => {
@@ -626,21 +626,21 @@ test("backup restores knowledge audit and entitlements into an empty database", 
 });
 ```
 
-- [ ] **Step 2: Run deployment tests and confirm failure**
+- [x] **Step 2: Run deployment tests and confirm failure**
 
 ```bash
 node --test deploy/workspace/deploy.test.mjs
 ```
 
-- [ ] **Step 3: Build a non-root production image**
+- [x] **Step 3: Build a non-root production image**
 
 Use a pinned Node 22 base digest, multi-stage build, non-root runtime user, read-only root filesystem compatibility, `/healthz` health check, graceful SIGTERM, database migration before listen, and no source maps containing customer data.
 
-- [ ] **Step 4: Add tested backup and restore**
+- [x] **Step 4: Add tested backup and restore**
 
 Back up PostgreSQL plus workspace object storage manifest, encrypt at rest, record schema/app version, and verify checksums. Restore refuses incompatible major schema without an explicit migration plan.
 
-- [ ] **Step 5: Run deployment verification and commit**
+- [x] **Step 5: Run deployment verification and commit**
 
 ```bash
 docker compose -f deploy/workspace/docker-compose.yml build

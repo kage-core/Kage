@@ -46,3 +46,8 @@ docs/assets/*.typescript
 # Private keys (e.g. MCP registry DNS-auth ed25519 key) — never commit
 *.pem
 kage-mcp-key.pem
+
+# Self-hosted workspace deployment configuration. env.example is committed; the filled-in .env
+# (database password, backup key, Stripe/GitHub/OIDC secrets) never is.
+deploy/workspace/.env
+*.kbk
