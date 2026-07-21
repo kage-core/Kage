@@ -191,6 +191,39 @@ describe("OverviewPage", () => {
     expect(within(team).queryByText("0ms")).not.toBeInTheDocument();
   });
 
+  test("a workspace with no data reads as unmeasured, never as withheld for privacy", () => {
+    // Regression guard for the backend fix: an empty window carries NO suppression reason, so neither
+    // the panel notice nor any card may claim the numbers are being hidden. A brand-new team being told
+    // its metrics are "withheld for privacy" is the exact confusion the withheld label exists to avoid.
+    render(
+      <OverviewPage
+        overview={fixtureOverview({
+          team: fixtureTeamPanel({
+            tasks: 0,
+            repositories: 0,
+            agents: 0,
+            suppression_reason: null,
+            metrics: [
+              fixtureMetric({
+                id: "team_time_to_verified_change",
+                label: "Time to verified change",
+                value: null,
+                unit: "milliseconds",
+                exactness: "unavailable",
+                trend: null,
+                suppression_reason: null,
+              }),
+            ],
+          }),
+        })}
+      />,
+    );
+    const team = screen.getByRole("region", { name: /team/i });
+    expect(within(team).queryByText(/withheld/i)).not.toBeInTheDocument();
+    expect(within(team).queryByText(/minimum_cohort/i)).not.toBeInTheDocument();
+    expect(within(team).getAllByText(/unavailable/i).length).toBeGreaterThan(0);
+  });
+
   test("surfaces the attention queue and integration health", () => {
     render(<OverviewPage overview={fixtureOverview()} />);
     expect(

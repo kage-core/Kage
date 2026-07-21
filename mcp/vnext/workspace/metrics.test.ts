@@ -20,11 +20,13 @@ import { startTestPostgres, type TestPostgres } from "./test-support/pg.js";
 import { createDb, type Db } from "./db.js";
 import { migrate } from "./migrate.js";
 import {
+  MINIMUM_ACTORS,
   MINIMUM_COHORT,
   assertNoRawTaskOutcomeField,
   buildTeamMetrics,
   loadTeamMetrics,
   storeTaskOutcomes,
+  validateTaskOutcome,
   type TeamTaskOutcomeRecord,
 } from "./metrics.js";
 import {
@@ -36,6 +38,18 @@ import {
 import { startWorkspaceServer, type WorkspaceServer } from "./server.js";
 import { applyBatch } from "./sync-routes.js";
 import { buildSyncBatch } from "../sync/outbox.js";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { openVnextDatabase } from "../storage/database.js";
+import { migrateLocalDatabase } from "../storage/migrations.js";
+import { ReceiptStore } from "../storage/receipt-store.js";
+import { DeliveryStore, type StoredContextDelivery } from "../storage/delivery-store.js";
+import type { TransformationReceipt } from "../protocol/index.js";
+import { collectTaskOutcomes } from "../sync/task-outcomes.js";
+import { createWorkspaceLink } from "../sync/workspace-link.js";
+import { httpTransport } from "../sync/client.js";
+import { teamMetricsPanel } from "../api/read-models.js";
 import { createSession, type SessionCredentials } from "./auth/session.js";
 import type { Principal, WorkspaceRole } from "./auth/types.js";
 
@@ -369,6 +383,205 @@ test("a batch whose task outcome carries a raw payload is refused before anythin
   assert.equal(metrics.tasks, 0);
 });
 
+// ---------------------------------------------------------------------------------------------
+// Task 6 hardening — suppression that cannot be reversed, per-person k-anonymity, and a validated ingest
+// ---------------------------------------------------------------------------------------------
+
+test("a suppressed cohort withholds the numerators its rates are computable from", () => {
+  // Nulling only the RATE is not suppression: a reader who is handed tasks, tasks_with_reuse, decisions
+  // and failed_open.tasks in the same body simply divides and recovers every withheld figure.
+  const records = [
+    ...Array.from({ length: 2 }, () => fixtureTaskOutcome()),
+    fixtureTaskOutcome({ delivery_status: "failed_open" }),
+  ];
+  const report = buildTeamMetrics(records);
+  assert.equal(report.suppression_reason, "minimum_cohort_5");
+  assert.equal(report.verified_reuse.rate, null);
+  assert.equal(report.verified_reuse.tasks_with_reuse, null);
+  assert.equal(report.verified_reuse.distinct_knowledge_ids, null);
+  assert.equal(report.review_burden.decisions, null);
+  assert.equal(report.review_burden.decisions_per_task, null);
+  assert.equal(report.failed_open.tasks, null);
+  assert.equal(report.failed_open.rate, null);
+});
+
+test("a cohort of tasks from too few people is one person's record, and is suppressed", () => {
+  // MINIMUM_COHORT counts TASKS. Six tasks logged by a single engineer publish that individual's
+  // behaviour under a team label, which is exactly what the k-anonymity floor exists to prevent.
+  const solo = Array.from({ length: MINIMUM_COHORT + 1 }, () =>
+    fixtureTaskOutcome({ actor_id: "engineer-1" }),
+  );
+  const report = buildTeamMetrics(solo);
+  assert.equal(report.actors, 1);
+  assert.equal(report.suppression_reason, "minimum_actors_3");
+  assert.equal(report.time_to_verified_change, null);
+  assert.equal(report.verified_reuse.rate, null);
+  assert.equal(report.review_burden.decisions_per_task, null);
+  assert.equal(report.failed_open.rate, null);
+});
+
+test("a cohort spread across enough people publishes its trends", () => {
+  const spread = Array.from({ length: MINIMUM_COHORT }, (_, index) =>
+    fixtureTaskOutcome({ actor_id: `engineer-${index % MINIMUM_ACTORS}` }),
+  );
+  const report = buildTeamMetrics(spread);
+  assert.equal(report.actors, MINIMUM_ACTORS);
+  assert.equal(report.suppression_reason, null);
+  assert.ok(report.time_to_verified_change);
+});
+
+test("an empty window is unmeasured, never 'withheld for privacy'", () => {
+  // There is nothing to withhold from a workspace with no data; claiming suppression tells a new team
+  // its numbers are being hidden from it.
+  const report = buildTeamMetrics([]);
+  assert.equal(report.tasks, 0);
+  assert.equal(report.suppression_reason, null);
+  assert.equal(report.actors, 0);
+});
+
+test("an identifier field cannot carry free text", () => {
+  // The allow-list only proves WHICH keys travel. Unbounded TEXT under a permitted key is where a
+  // prompt would actually hide, so shape and length are checked too.
+  const leak = "SSN 123-45-6789; the user's full prompt text with customer data";
+  assert.throws(() => validateTaskOutcome(fixtureTaskOutcome({ task_id: leak })), /task_id/);
+  assert.throws(() => validateTaskOutcome(fixtureTaskOutcome({ agent_surface: leak })), /agent_surface/);
+  assert.throws(() => validateTaskOutcome(fixtureTaskOutcome({ repository_id: leak })), /repository_id/);
+  assert.throws(() => validateTaskOutcome(fixtureTaskOutcome({ actor_id: leak })), /actor_id/);
+  assert.throws(
+    () => validateTaskOutcome(fixtureTaskOutcome({ knowledge_ids_reused: [leak] })),
+    /knowledge_ids_reused/,
+  );
+  assert.throws(
+    () => validateTaskOutcome(fixtureTaskOutcome({ task_id: "t".repeat(1024) })),
+    /task_id/,
+  );
+});
+
+test("an out-of-vocabulary class or malformed number is refused before Postgres sees it", () => {
+  assert.throws(
+    () => validateTaskOutcome({ ...fixtureTaskOutcome(), mode: "pwned" } as unknown as TeamTaskOutcomeRecord),
+    /mode/,
+  );
+  assert.throws(
+    () => validateTaskOutcome({ task_id: "only-an-id" } as unknown as TeamTaskOutcomeRecord),
+    /repository_id|actor_id|agent_surface/,
+  );
+  assert.throws(
+    () => validateTaskOutcome(fixtureTaskOutcome({ review_decisions: -3 })),
+    /review_decisions/,
+  );
+  assert.throws(
+    () => validateTaskOutcome(fixtureTaskOutcome({ started_at: "not-a-timestamp" })),
+    /started_at/,
+  );
+  assert.throws(
+    () => validateTaskOutcome(fixtureTaskOutcome({ latency_ms: Number.NaN })),
+    /latency_ms/,
+  );
+});
+
+test("a free-text identifier is refused by the store AND by the table itself", async () => {
+  const repo = await seedRepository(workspaceA, `repo-${randomUUID().slice(0, 8)}`);
+  const leaking = fixtureTaskOutcome({
+    repository_id: repo,
+    task_id: "SSN 123-45-6789; the user's full prompt text",
+  });
+  await assert.rejects(() => storeTaskOutcomes(db, workspaceA, repo, [leaking]), /task_id/);
+
+  // Even a direct INSERT that bypasses the TypeScript layer is refused by the schema.
+  await assert.rejects(
+    () =>
+      db.query(
+        `INSERT INTO workspace_task_outcomes(
+           workspace_id, repository_id, task_id, actor_id, agent_surface, mode, measurement_quality,
+           delivery_status, verification_outcome, knowledge_ids_reused, review_decisions, started_at)
+         VALUES($1,$2,$3,$4,$5,'assist','exact','delivered','verified',$6,0,now())`,
+        [
+          workspaceA,
+          repo,
+          "the user's full prompt text with customer data",
+          "actor-1",
+          "claude_code",
+          ["another whole prompt, verbatim"],
+        ],
+      ),
+    /constraint|check/i,
+  );
+  const metrics = await loadTeamMetrics(db, principal(workspaceA, "admin"), { repository_id: repo });
+  assert.equal(metrics.tasks, 0);
+});
+
+test("the metrics route suppresses the numerators too", async () => {
+  const repo = await seedRepository(workspaceA, `repo-${randomUUID().slice(0, 8)}`);
+  await storeTaskOutcomes(db, workspaceA, repo, [
+    fixtureTaskOutcome({ repository_id: repo, task_id: `t-${randomUUID().slice(0, 8)}` }),
+  ]);
+  const reader = await seedSession(workspaceA, "developer");
+  const response = await fetch(
+    `http://127.0.0.1:${server.port}/v1/workspaces/${workspaceA}/metrics?repository=${repo}`,
+    { headers: { cookie: `kage_session=${reader.token}` } },
+  );
+  assert.equal(response.status, 200);
+  const body = (await response.json()) as {
+    metrics: {
+      suppression_reason: string | null;
+      verified_reuse: { tasks_with_reuse: number | null };
+      review_burden: { decisions: number | null };
+      failed_open: { tasks: number | null };
+    };
+  };
+  assert.equal(body.metrics.suppression_reason, "minimum_cohort_5");
+  assert.equal(body.metrics.verified_reuse.tasks_with_reuse, null);
+  assert.equal(body.metrics.review_burden.decisions, null);
+  assert.equal(body.metrics.failed_open.tasks, null);
+});
+
+test("an unparseable metrics window is a 400, not a 500", async () => {
+  const reader = await seedSession(workspaceA, "developer");
+  const response = await fetch(
+    `http://127.0.0.1:${server.port}/v1/workspaces/${workspaceA}/metrics?since=not-a-date`,
+    { headers: { cookie: `kage_session=${reader.token}` } },
+  );
+  assert.equal(response.status, 400);
+  const body = (await response.json()) as { error: string };
+  assert.equal(body.error, "invalid_window");
+});
+
+test("an invalid pushed task outcome is a 400, not a 500", async () => {
+  const repo = await seedRepository(workspaceA, `repo-${randomUUID().slice(0, 8)}`);
+  const principalId = randomUUID();
+  await db.query(
+    `INSERT INTO workspace_principals(workspace_id, principal_id, principal_type, role, repository_ids)
+       VALUES($1, $2, 'service', 'developer', $3)`,
+    [workspaceA, principalId, JSON.stringify([repo])],
+  );
+  const session = await createSession(db, { workspace_id: workspaceA, principal_id: principalId });
+  const response = await fetch(`http://127.0.0.1:${server.port}/v1/sync/push`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${session.token}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      protocol_version: 1,
+      batch_id: `invalid-${randomUUID()}`,
+      workspace_id: workspaceA,
+      repository_id: repo,
+      base_cursor: null,
+      entities: [],
+      claims: [],
+      evidence: [],
+      relations: [],
+      review_decisions: [],
+      measurements: [],
+      task_outcomes: [{ ...fixtureTaskOutcome({ repository_id: repo }), mode: "pwned" }],
+      created_at: new Date().toISOString(),
+    }),
+  });
+  assert.equal(response.status, 400);
+  const body = (await response.json()) as { error: string };
+  assert.equal(body.error, "invalid_task_outcome");
+  const metrics = await loadTeamMetrics(db, principal(workspaceA, "admin"), { repository_id: repo });
+  assert.equal(metrics.tasks, 0);
+});
+
 test("the metrics route is tenant-scoped and role-gated", async () => {
   const repo = await seedRepository(workspaceA, `repo-${randomUUID().slice(0, 8)}`);
   await storeTaskOutcomes(db, workspaceA, repo, [
@@ -399,4 +612,145 @@ test("the metrics route is tenant-scoped and role-gated", async () => {
     { headers: { cookie: `kage_session=${stranger.token}` } },
   );
   assert.equal(crossTenant.status, 404);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Task 6 hardening — the pipeline on REAL data, end to end
+// ---------------------------------------------------------------------------------------------
+//
+// Every privacy and honesty rule above was unit-green over hand-written fixtures while NOTHING in the
+// product produced a task outcome and NOTHING consumed the team panel. This test runs the whole path on
+// records a real install writes: local sqlite tasks + receipts + deliveries -> the producer -> the
+// outbox -> a real HTTP push -> real PostgreSQL -> the metrics route -> the portal panel.
+
+test("local task records reach the portal team panel through the real sync path", async () => {
+  const repo = await seedRepository(workspaceA, `repo-${randomUUID().slice(0, 8)}`);
+  const dir = mkdtempSync(join(tmpdir(), "kage-pipeline-"));
+  const localDb = openVnextDatabase(join(dir, "kage.db"));
+  try {
+    migrateLocalDatabase(localDb);
+    const receiptStore = new ReceiptStore(localDb);
+    const deliveryStore = new DeliveryStore(localDb);
+    const engineers = ["ada@example.com", "grace@example.com", "alan@example.com"];
+    for (let index = 0; index < 6; index += 1) {
+      const taskId = `local-task-${index}`;
+      localDb
+        .prepare(
+          `INSERT INTO tasks (task_id, session_id, repository_id, agent_surface, user_id, started_at, ended_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          taskId,
+          `session-${index}`,
+          repo,
+          "claude_code",
+          engineers[index % engineers.length],
+          "2026-07-20T00:00:00.000Z",
+          "2026-07-20T00:05:00.000Z",
+        );
+      const receipt: TransformationReceipt = {
+        receipt_id: `r-${index}`,
+        task_id: taskId,
+        request_id: `req-${index}`,
+        provider: "anthropic",
+        model: "claude-sonnet",
+        mode: "assist",
+        measurement_quality: "exact",
+        before_input_bytes: 4_000,
+        after_input_bytes: 2_000,
+        before_input_tokens: 1_000,
+        after_input_tokens: 500,
+        output_tokens: 300,
+        kage_processing_cost_usd: 0.001,
+        provider_input_cost_before_usd: 0.05,
+        provider_input_cost_after_usd: 0.03,
+        latency_ms: 40,
+        transformations: ["compress"],
+        created_at: "2026-07-20T00:00:01.000Z",
+      };
+      receiptStore.write(receipt);
+      const delivery: StoredContextDelivery = {
+        protocol_version: 1,
+        delivery_id: `d-${index}`,
+        capsule_id: `capsule-${index}`,
+        task_id: taskId,
+        adapter_id: "claude_code",
+        injection_location: "system",
+        delivered_at: "2026-07-20T00:00:02.000Z",
+        added_bytes: 512,
+        added_tokens: 128,
+        measurement_quality: "exact",
+        status: "delivered",
+        reason: "capsule injected",
+        composition_latency_ms: 12,
+      } as StoredContextDelivery;
+      deliveryStore.write(delivery);
+    }
+
+    const outcomes = collectTaskOutcomes(
+      { database: localDb, receipts: receiptStore, deliveries: deliveryStore },
+      { actorSalt: "install-salt", repositoryId: repo },
+    );
+    assert.equal(outcomes.length, 6);
+
+    // Push over real HTTP with a real service token, exactly as a daemon would.
+    const principalId = randomUUID();
+    await db.query(
+      `INSERT INTO workspace_principals(workspace_id, principal_id, principal_type, role, repository_ids)
+         VALUES($1, $2, 'service', 'developer', $3)`,
+      [workspaceA, principalId, JSON.stringify([repo])],
+    );
+    const service = await createSession(db, { workspace_id: workspaceA, principal_id: principalId });
+    const reader = await seedSession(workspaceA, "developer");
+    const baseUrl = `http://127.0.0.1:${server.port}`;
+    const link = createWorkspaceLink({
+      transport: httpTransport(baseUrl, service.token),
+      async fetchTeamMetrics() {
+        const response = await fetch(`${baseUrl}/v1/workspaces/${workspaceA}/metrics?repository=${repo}`, {
+          headers: { cookie: `kage_session=${reader.token}` },
+        });
+        if (!response.ok) throw new Error(`metrics failed: ${response.status}`);
+        return ((await response.json()) as { metrics: Awaited<ReturnType<typeof loadTeamMetrics>> }).metrics;
+      },
+    });
+
+    const summary = await link.syncOnce({
+      workspace_id: workspaceA,
+      repository_id: repo,
+      entities: [],
+      claims: [],
+      evidence: [],
+      relations: [],
+      task_outcomes: outcomes,
+    });
+    assert.equal(summary.offline, false);
+    assert.equal(summary.pushed, 1);
+
+    // The workspace holds exactly the six tasks, from three distinct people, so nothing is suppressed.
+    const stored = await loadTeamMetrics(db, principal(workspaceA, "admin"), { repository_id: repo });
+    assert.equal(stored.tasks, 6);
+    assert.equal(stored.actors, 3);
+    assert.equal(stored.suppression_reason, null);
+    assert.equal(stored.exact_cost.receipts, 6);
+    assert.equal(stored.exact_cost.total_net_input_cost_delta_usd, -0.12);
+
+    // No engineer's address, and nothing resembling a payload, survived the trip.
+    const raw = await db.query<{ row: string }>(
+      `SELECT row_to_json(t)::text AS row FROM workspace_task_outcomes t WHERE workspace_id = $1 AND repository_id = $2`,
+      [workspaceA, repo],
+    );
+    assert.equal(raw.rows.length, 6);
+    for (const row of raw.rows) {
+      for (const engineer of engineers) assert.equal(row.row.includes(engineer), false);
+    }
+
+    await link.refreshTeamPanel();
+    const panel = link.teamPanel();
+    assert.ok(panel, "the portal panel must be populated from the live workspace");
+    assert.equal(panel?.tasks, 6);
+    assert.deepEqual(panel, teamMetricsPanel(stored));
+  } finally {
+    localDb.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

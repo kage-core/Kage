@@ -31,8 +31,12 @@ import { matchContentRoute, retrieve } from "../api/retrieve.js";
 import { matchMinimalChangeRoute, minimalChangeForTask } from "../api/minimal-change.js";
 import { buildTaskReceiptAggregate, buildTaskReceiptsBody } from "../api/task-receipts.js";
 import { findTaskSummary } from "../api/read-models.js";
-import { DeliveryStore } from "../storage/delivery-store.js";
 import { handlePortalRoute, matchPortalRoute, type PortalRoute } from "../api/router.js";
+import { DeliveryStore } from "../storage/delivery-store.js";
+import { buildLocalSnapshot } from "../sync/snapshot.js";
+import type { TeamMetricsPanelDto } from "../api/types.js";
+import type { WorkspaceLink } from "../sync/workspace-link.js";
+import { createConnectedLink, readWorkspaceConnection, type WorkspaceConnection } from "../sync/workspace-config.js";
 import { handleReviewMutation, REVIEW_ACTIONS, type ReviewAction } from "../api/review.js";
 import { PortalEventStream, type ClaimUpdatedEvent } from "../api/events.js";
 import { execFileSync } from "node:child_process";
@@ -65,6 +69,15 @@ export interface LocalRuntimeOptions {
   port?: number;
   mode?: "audit" | "assist";
   contextSource?: ContextSource | null;
+  /**
+   * A workspace link to publish through and read the team panel from. Omitted means "read the
+   * environment"; explicit null means "local only, do not connect" (tests, and any install that has no
+   * workspace). Either way the local runtime is fully functional: the link is only ever used off the
+   * request path, and the portal falls back to "no workspace connected".
+   */
+  workspaceLink?: WorkspaceLink | null;
+  /** Connection details when a link is injected; omitted means read them from the environment. */
+  workspaceConnection?: WorkspaceConnection | null;
 }
 
 export interface LocalRuntimeHandle {
@@ -366,6 +379,9 @@ function createRequestHandler(
   projectDir: string,
   onEventAppended: (repositoryId: string) => void,
   eventStream: PortalEventStream,
+  // The team panel as of the last successful workspace answer, or null. Read synchronously from
+  // memory: a portal request must never wait on (or fail because of) the workspace.
+  getTeamPanel: () => TeamMetricsPanelDto | null,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
     try {
@@ -412,7 +428,11 @@ function createRequestHandler(
       if (route.kind === "portal") {
         // A read-only projection over the repository model. The machine token has already proven a
         // local operator; the portal never mutates and never returns raw event payloads.
-        const result = handlePortalRoute(route.portal!, { model: new Repository(db), receiptStore }, url.searchParams);
+        const result = handlePortalRoute(
+          route.portal!,
+          { model: new Repository(db), receiptStore, team: getTeamPanel() },
+          url.searchParams,
+        );
         json(res, result.status, result.body);
         return;
       }
@@ -584,6 +604,18 @@ function closeServer(server: Server, sockets: ReadonlySet<Socket>): Promise<void
   return closed;
 }
 
+/** The first repository this install has any knowledge for; null on a fresh store. */
+function firstRepositoryId(db: LocalDatabase): string | null {
+  const row = db
+    .prepare(`SELECT repository_id FROM entities ORDER BY repository_id LIMIT 1`)
+    .get() as { repository_id: string } | undefined;
+  if (row) return row.repository_id;
+  const task = db
+    .prepare(`SELECT repository_id FROM tasks ORDER BY started_at, task_id LIMIT 1`)
+    .get() as { repository_id: string } | undefined;
+  return task?.repository_id ?? null;
+}
+
 async function runCleanupSteps(
   steps: readonly (() => void | Promise<void>)[],
 ): Promise<unknown | undefined> {
@@ -657,6 +689,21 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
       }
     }
     const scheduler = new CompilerScheduler(compilerModel, eventStore);
+    // The workspace connection, if this install has one. `undefined` in the options means "read the
+    // environment"; an explicit null means local-only. A local-only runtime never opens a socket to a
+    // workspace and its portal honestly reports no workspace connected.
+    const workspaceConnection =
+      options.workspaceConnection !== undefined
+        ? options.workspaceConnection
+        : readWorkspaceConnection(process.env, options.projectDir);
+    const workspaceLink =
+      options.workspaceLink !== undefined
+        ? options.workspaceLink
+        : workspaceConnection
+          ? createConnectedLink(workspaceConnection)
+          : null;
+    const deliveryStore = new DeliveryStore(openedDatabase);
+    let workspaceTimer: NodeJS.Timeout | undefined;
     // The authenticated live feed. It is owned by the runtime so its heartbeat and open connections
     // are torn down on close().
     const eventStream = new PortalEventStream();
@@ -671,6 +718,7 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
       options.projectDir,
       (repositoryId) => scheduler.notify(repositoryId),
       eventStream,
+      () => workspaceLink?.teamPanel() ?? null,
     ));
     server.on("connection", (socket) => {
       sockets.add(socket);
@@ -707,10 +755,45 @@ export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<L
     statusLease = writeRuntimeStatus(paths.statusPath, status);
     assertRuntimeDirectoryLease(directoryLease);
 
+    // OFF THE REQUEST PATH, ALWAYS. Publishing and panel refresh run on their own timer; every failure
+    // is swallowed, so a workspace outage costs this runtime nothing but a null team panel. The timer is
+    // unref'd so it can never hold the process open.
+    if (workspaceLink && workspaceConnection) {
+      const publish = async (): Promise<void> => {
+        try {
+          const repositoryId = workspaceConnection.repository_id ?? firstRepositoryId(openedDatabase);
+          if (repositoryId) {
+            await workspaceLink.syncOnce(
+              buildLocalSnapshot({
+                model: compilerModel,
+                database: openedDatabase,
+                receipts: receiptStore,
+                deliveries: deliveryStore,
+                workspaceId: workspaceConnection.workspace_id,
+                repositoryId,
+                actorSalt: workspaceConnection.actor_salt,
+              }),
+            );
+          }
+          await workspaceLink.refreshTeamPanel();
+        } catch {
+          // Fail-open by construction: local context, the portal and export keep working regardless.
+        }
+      };
+      workspaceTimer = setInterval(() => void publish(), workspaceConnection.sync_interval_ms);
+      workspaceTimer.unref?.();
+      void publish();
+    }
+
     let closePromise: Promise<void> | undefined;
     const close = (): Promise<void> => {
       closePromise ??= (async () => {
         const cleanupFailure = await runCleanupSteps([
+          // Stop workspace publishing BEFORE the database closes, so a background snapshot can never
+          // read a closed handle.
+          () => {
+            if (workspaceTimer) clearInterval(workspaceTimer);
+          },
           // End every open SSE connection and stop the heartbeat before the socket teardown.
           () => eventStream.close(),
           () => closeServer(server!, sockets),

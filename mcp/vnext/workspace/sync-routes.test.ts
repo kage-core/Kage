@@ -354,3 +354,87 @@ test("concurrent divergent claim versions preserve both instead of overwriting",
   );
   assert.equal(Number.parseInt(conflicts.rows[0].count, 10), 1);
 });
+
+// ---------------------------------------------------------------------------------------------
+// Task 6 hardening — a logical transaction must own ONE connection
+// ---------------------------------------------------------------------------------------------
+//
+// `Db.query` used to be `pool.query`, so BEGIN / INSERT / COMMIT / ROLLBACK from one logical
+// transaction were free to land on DIFFERENT pooled backends. Under concurrency that means a rolled
+// back batch can leave rows behind (its ROLLBACK ran on somebody else's connection), and a committed
+// batch id can outlive the data it claims to have applied — after which the retry is answered
+// "duplicate" and the data is gone for good. Both are proven here against real PostgreSQL.
+
+test("a logical transaction stays on one backend connection under pool contention", async () => {
+  const contended = createDb(embedded?.url ?? process.env.KAGE_TEST_DATABASE_URL!);
+  try {
+    const pids = await contended.transaction(async (tx) => {
+      const first = await tx.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
+      // Churn the pool while the transaction is open: any handout-per-query seam changes backend here.
+      await Promise.all(
+        Array.from({ length: 12 }, () => contended.query("SELECT pg_sleep(0.02)")),
+      );
+      const second = await tx.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
+      return [first.rows[0].pid, second.rows[0].pid];
+    });
+    assert.equal(pids[0], pids[1], "a transaction must not change backend mid-flight");
+  } finally {
+    await contended.close();
+  }
+});
+
+test("a batch that fails mid-apply leaves NOTHING behind, even with many batches in flight", async () => {
+  const repositoryId = "repo-atomic";
+  await seedRepository(workspaceA, repositoryId);
+  const { principal } = await seedService(workspaceA, [repositoryId]);
+  const contended = createDb(embedded?.url ?? process.env.KAGE_TEST_DATABASE_URL!);
+  try {
+    const attempts = 24;
+    const results = await Promise.all(
+      Array.from({ length: attempts }, async (_, index) => {
+        // A batch whose SECOND entity violates a NOT NULL constraint: the first entity has already been
+        // written when the failure hits, so only a real transaction can undo it.
+        const good = makeEntity(`atomic-good-${index}`, repositoryId);
+        const poisoned = { ...makeEntity(`atomic-bad-${index}`, repositoryId), updated_at: null } as unknown as typeof good;
+        const batch: SyncBatch = {
+          protocol_version: 1,
+          batch_id: `atomic-${index}-${randomUUID()}`,
+          workspace_id: workspaceA,
+          repository_id: repositoryId,
+          base_cursor: null,
+          entities: [good, poisoned],
+          claims: [],
+          evidence: [],
+          relations: [],
+          review_decisions: [],
+          measurements: [],
+          task_outcomes: [],
+          created_at: new Date().toISOString(),
+        };
+        try {
+          await applyBatch(contended, principal, batch);
+          return "applied";
+        } catch {
+          return "rejected";
+        }
+      }),
+    );
+    assert.equal(results.filter((r) => r === "applied").length, 0, "no poisoned batch may apply");
+
+    const entities = await db.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM workspace_entities WHERE workspace_id = $1 AND repository_id = $2`,
+      [workspaceA, repositoryId],
+    );
+    assert.equal(Number.parseInt(entities.rows[0].count, 10), 0, "a rolled-back batch left rows behind");
+
+    // And no batch id may be recorded as applied when its data never landed: that combination makes the
+    // retry a no-op ("duplicate") and loses the batch permanently.
+    const batches = await db.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM sync_batches WHERE workspace_id = $1 AND repository_id = $2`,
+      [workspaceA, repositoryId],
+    );
+    assert.equal(Number.parseInt(batches.rows[0].count, 10), 0, "a failed batch claimed its batch id");
+  } finally {
+    await contended.close();
+  }
+});

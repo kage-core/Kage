@@ -40,7 +40,7 @@ function arm(count: number, verifiedAfterMs: number, overrides: Partial<TeamTask
 test("a pilot with no recorded tasks reports not_run rather than a zeroed comparison", () => {
   const report = buildPilotReport({ pilot_id: "pilot-1", audit: [], assist: [] });
   assert.equal(report.status, "not_run");
-  assert.equal(report.comparison.exact_input_cost_delta_usd, null);
+  assert.equal(report.comparison.exact_input_cost_delta_usd_per_task, null);
   assert.equal(report.comparison.time_to_verified_change_delta_ms, null);
   assert.equal(report.time_savings.usd, null);
   assert.equal(report.audit.tasks, 0);
@@ -73,7 +73,7 @@ test("a configured cost model dollarizes the time trend as a cohort estimate, ne
   assert.equal(report.time_savings.basis, "cohort_estimate");
   assert.equal(report.time_savings.exactness, "cohort");
   // The estimate is NEVER folded into the exact measured request economics.
-  assert.notEqual(report.comparison.exact_input_cost_delta_usd, 300);
+  assert.notEqual(report.comparison.exact_input_cost_delta_usd_per_task, 300);
   assert.equal(report.assist.exact_cost.total_net_input_cost_delta_usd, -0.1);
 });
 
@@ -96,7 +96,7 @@ test("an exact cost delta requires exact receipts in BOTH arms", () => {
     assist: Array.from({ length: MINIMUM_COHORT }, () => exactReceipt(-0.02)),
   });
   assert.equal(report.audit.exact_cost.receipts, 0);
-  assert.equal(report.comparison.exact_input_cost_delta_usd, null);
+  assert.equal(report.comparison.exact_input_cost_delta_usd_per_task, null);
   assert.ok(report.caveats.some((c) => c.includes("exact")));
 });
 
@@ -127,4 +127,53 @@ test("the report carries task counts, repositories, agents, coverage, latency an
   assert.equal(report.assist.review_burden.decisions_per_task, 1);
   assert.equal(report.comparison.p50_latency_delta_ms, 0);
   assert.equal(report.comparison.failed_open_delta_percent, 0);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Task 6 hardening — an arm-size artifact is not a result
+// ---------------------------------------------------------------------------------------------
+
+test("unequal arms cannot manufacture a cost difference out of arm size", () => {
+  // Every task in BOTH arms measured the identical −$0.02, so the honest per-task difference is exactly
+  // zero. Comparing arm TOTALS instead reports −$0.90 of "assist requests cost measurably less", which
+  // is nothing but 45 extra assist tasks.
+  const report = buildPilotReport({
+    pilot_id: "pilot-imbalance",
+    audit: Array.from({ length: 5 }, () => exactReceipt(-0.02, { mode: "audit" })),
+    assist: Array.from({ length: 50 }, () => exactReceipt(-0.02, { mode: "assist" })),
+  });
+  assert.equal(report.comparison.exact_input_cost_delta_usd_per_task, 0);
+  assert.equal(report.arms.audit_tasks, 5);
+  assert.equal(report.arms.assist_tasks, 50);
+  assert.equal(report.arms.imbalance_ratio, 10);
+  assert.equal(report.arms.balanced, false);
+  assert.ok(
+    report.caveats.some((c) => /arm/i.test(c) && /imbalance|unequal/i.test(c)),
+    "an imbalanced pilot must say so",
+  );
+});
+
+test("balanced arms with a real per-task difference still report it", () => {
+  const report = buildPilotReport({
+    pilot_id: "pilot-balanced",
+    audit: Array.from({ length: 6 }, () => exactReceipt(-0.01, { mode: "audit" })),
+    assist: Array.from({ length: 6 }, () => exactReceipt(-0.03, { mode: "assist" })),
+  });
+  assert.equal(report.comparison.exact_input_cost_delta_usd_per_task, -0.02);
+  assert.equal(report.arms.balanced, true);
+  assert.equal(report.arms.imbalance_ratio, 1);
+});
+
+test("a dollarized time saving is capped at the balanced cohort, never the larger arm", () => {
+  const report = buildPilotReport({
+    pilot_id: "pilot-imbalanced-dollars",
+    audit: arm(5, 3_600_000),
+    assist: arm(50, 1_800_000),
+    cost_model: COST_MODEL,
+  });
+  // 0.5h saved per task x $120/h x the 5-task COMPARABLE cohort = $300 — never x 50 assist tasks
+  // ($3,000), which would bill the customer for a saving the pilot never measured symmetrically.
+  assert.equal(report.time_savings.usd, 300);
+  assert.equal(report.time_savings.basis, "cohort_estimate");
+  assert.ok(report.time_savings.formula?.includes("5 comparable task(s)"));
 });

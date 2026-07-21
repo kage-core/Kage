@@ -14,7 +14,7 @@ import { can, scopeAllows } from "./auth/authorize.js";
 import type { Principal } from "./auth/types.js";
 import { applyBatch, pullChanges, ReviewAuthorityError } from "./sync-routes.js";
 import { reviewClaim, type ReviewAction } from "./review.js";
-import { loadTeamMetrics } from "./metrics.js";
+import { loadTeamMetrics, MetricsWindowError, TaskOutcomeValidationError } from "./metrics.js";
 import { forTarget } from "./audit.js";
 import { assertNoRawPayload } from "../sync/outbox.js";
 import type { SyncBatch } from "../sync/types.js";
@@ -226,7 +226,13 @@ async function handleSyncPush(
   const batch = normalizeBatch(body);
   try {
     assertNoRawPayload(batch);
-  } catch {
+  } catch (error) {
+    // Both refusals are the CLIENT's error and both happen before any row is touched. They are reported
+    // distinctly so a daemon can tell "you tried to send raw evidence" from "this record is malformed".
+    if (error instanceof TaskOutcomeValidationError) {
+      json(res, 400, { error: "invalid_task_outcome", field: error.field });
+      return;
+    }
     json(res, 400, { error: "raw_payload_rejected" });
     return;
   }
@@ -238,6 +244,13 @@ async function handleSyncPush(
     // back inside applyBatch, so nothing landed. Any other error is a real fault and rethrows.
     if (error instanceof ReviewAuthorityError) {
       json(res, 403, { error: error.code });
+      return;
+    }
+    // A malformed task outcome is the CLIENT's error, not a server fault: it is refused structurally
+    // before any row lands (the batch rolls back), so it must answer 400. Letting it escape as a 500
+    // would let any authenticated principal fault the workspace at will.
+    if (error instanceof TaskOutcomeValidationError) {
+      json(res, 400, { error: "invalid_task_outcome", field: error.field });
       return;
     }
     throw error;
@@ -316,12 +329,21 @@ async function handleTeamMetrics(
     json(res, 404, { error: "not_found" });
     return;
   }
-  const metrics = await loadTeamMetrics(db, principal, {
-    repository_id: repositoryId,
-    since: url.searchParams.get("since") ?? undefined,
-    until: url.searchParams.get("until") ?? undefined,
-  });
-  json(res, 200, { metrics });
+  try {
+    const metrics = await loadTeamMetrics(db, principal, {
+      repository_id: repositoryId,
+      since: url.searchParams.get("since") ?? undefined,
+      until: url.searchParams.get("until") ?? undefined,
+    });
+    json(res, 200, { metrics });
+  } catch (error) {
+    // An unparseable window bound is a bad request, not a server fault.
+    if (error instanceof MetricsWindowError) {
+      json(res, 400, { error: "invalid_window", field: error.field });
+      return;
+    }
+    throw error;
+  }
 }
 
 /** Coerce a parsed body into a full SyncBatch, defaulting every collection so apply never dereferences null. */

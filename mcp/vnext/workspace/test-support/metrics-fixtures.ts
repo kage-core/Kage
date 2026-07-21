@@ -4,7 +4,7 @@
 // outcome: identifiers, classes, counts, and measured numbers only. There is deliberately no field
 // here that could carry a prompt, a tool payload, or a claim body — the fixtures cannot express one,
 // which is the same structural guarantee the table and the sync record carry.
-import type { TeamTaskOutcomeRecord } from "../metrics.js";
+import { MINIMUM_ACTORS, type TeamTaskOutcomeRecord } from "../metrics.js";
 
 const T0 = Date.parse("2026-07-20T00:00:00.000Z");
 
@@ -32,6 +32,9 @@ export function fixtureTaskOutcome(
   return {
     task_id: nextId(),
     repository_id: "repo-a1",
+    // Fixtures rotate over MINIMUM_ACTORS pseudonyms, so a cohort at the task floor is also a cohort of
+    // real people rather than one engineer's record. A test that wants the single-actor case overrides it.
+    actor_id: `actor-${(counter % MINIMUM_ACTORS) + 1}`,
     agent_surface: "claude_code",
     mode: "assist",
     measurement_quality: "exact",

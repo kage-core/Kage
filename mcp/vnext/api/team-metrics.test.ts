@@ -79,3 +79,34 @@ test("an empty team window projects to unavailable cards, not zeros", () => {
     assert.equal(card.value, null, `${card.id} must be unavailable, never a fabricated zero`);
   }
 });
+
+test("an empty team window is unmeasured, never 'withheld for privacy'", () => {
+  // A workspace with no data has nothing to withhold. Reporting minimum_cohort_5 here makes the portal
+  // tell a brand-new team that its numbers are being hidden from it — the exact confusion the panel's
+  // suppression label exists to prevent.
+  const panel = teamMetricsPanel(buildTeamMetrics([]));
+  assert.equal(panel.tasks, 0);
+  assert.equal(panel.suppression_reason, null);
+  for (const card of panel.metrics) {
+    assert.equal(card.value, null, `${card.id} must be unavailable, never a fabricated zero`);
+    assert.equal(
+      card.suppression_reason,
+      null,
+      `${card.id} must not claim privacy suppression over zero data`,
+    );
+  }
+});
+
+test("a suppressed panel does not carry the numerators its withheld rates come from", () => {
+  const panel = teamMetricsPanel(
+    buildTeamMetrics(Array.from({ length: 3 }, () => fixtureTaskOutcome())),
+  );
+  assert.equal(panel.suppression_reason, "minimum_cohort_5");
+  const serialized = JSON.stringify(panel);
+  const parsed = JSON.parse(serialized) as { metrics: Array<{ id: string; value: number | null }> };
+  for (const card of parsed.metrics) {
+    if (card.id === "team_verified_reuse" || card.id === "team_review_burden" || card.id === "team_failed_open") {
+      assert.equal(card.value, null, `${card.id} must be withheld below the cohort floor`);
+    }
+  }
+});

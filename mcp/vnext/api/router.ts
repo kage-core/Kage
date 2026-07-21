@@ -7,7 +7,7 @@
 import type { Repository } from "../repo-model/repository.js";
 import type { ReceiptStore } from "../storage/receipt-store.js";
 import type { EntityKind } from "../repo-model/types.js";
-import type { SystemMapView } from "./types.js";
+import type { SystemMapView, TeamMetricsPanelDto } from "./types.js";
 import { buildSystemMap } from "./system-map.js";
 import {
   buildOverview,
@@ -91,6 +91,13 @@ function decodeSlug(raw: string): string | undefined {
 export interface PortalContext {
   model: Repository;
   receiptStore: ReceiptStore;
+  /**
+   * The team panel a connected workspace last answered with, or null/absent when this install has no
+   * workspace (or the workspace is unreachable). It is a VALUE, never a fetch: the portal read path must
+   * never wait on the network, so the caller supplies whatever the workspace link has cached and the
+   * local overview is computed identically either way. Null renders as "no workspace connected".
+   */
+  team?: TeamMetricsPanelDto | null;
 }
 
 export interface PortalResult {
@@ -141,7 +148,9 @@ export function handlePortalRoute(
 
   switch (route.kind) {
     case "overview":
-      return { status: 200, body: buildOverview(model, repoId, receiptStore.list()) };
+      // `ctx.team ?? null` keeps the fail-open contract explicit: no workspace, or a workspace that
+      // did not answer, yields null — never a zeroed team panel.
+      return { status: 200, body: buildOverview(model, repoId, receiptStore.list(), ctx.team ?? null) };
 
     case "system_map": {
       const requested = search.get("view") ?? "feature";

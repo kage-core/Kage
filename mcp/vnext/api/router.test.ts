@@ -7,6 +7,11 @@ import test from "node:test";
 import { Repository } from "../repo-model/repository.js";
 import type { ClaimRecord, EvidenceRecord } from "../repo-model/types.js";
 import { startLocalRuntime, type LocalRuntimeHandle } from "../runtime/server.js";
+import { teamMetricsPanel } from "./read-models.js";
+import type { TeamMetricsPanelDto } from "./types.js";
+import { buildTeamMetrics } from "../workspace/metrics.js";
+import { fixtureTaskOutcome } from "../workspace/test-support/metrics-fixtures.js";
+import { Outbox } from "../sync/outbox.js";
 
 const NOW = "2026-07-13T00:00:00.000Z";
 
@@ -267,4 +272,77 @@ test("tasks and integrations routes respond with honest empty collections", asyn
     assert.equal(integrations.status, 200);
     assert.ok(Array.isArray(integrations.body.integrations));
   });
+});
+
+// Phase E Task 6 hardening — the live runtime is the non-test consumer of the team panel.
+//
+// The portal's `team` panel was a parameter nothing ever passed, so /v2/overview could only ever report
+// "no workspace connected". These two tests hold the wiring AND the fail-open rule that governs it: a
+// connected workspace reaches the overview, and an unreachable one costs the local overview nothing.
+
+test("a local-only runtime reports no workspace, and the overview still answers in full", async () => {
+  const projectDir = mkdtempSync(join(tmpdir(), `kage-portal-local-${randomUUID()}-`));
+  let runtime: LocalRuntimeHandle | undefined;
+  try {
+    runtime = await startLocalRuntime({
+      projectDir,
+      port: 0,
+      mode: "audit",
+      contextSource: null,
+      workspaceLink: null,
+      workspaceConnection: null,
+    });
+    seed(new Repository(runtime.database));
+    const response = await fetch(`${runtime.url}/v2/overview`, { headers: authHeaders(runtime.token) });
+    const body = (await response.json()) as { team: unknown; metrics: unknown[] };
+    assert.equal(response.status, 200);
+    assert.equal(body.team, null, "a local install has no team panel — never a zeroed one");
+    assert.ok(body.metrics.length > 0, "the LOCAL overview is complete without a workspace");
+  } finally {
+    await runtime?.close();
+    rmSync(projectDir, { recursive: true, force: true });
+  }
+});
+
+test("a connected workspace's team panel reaches /v2/overview, and an outage withdraws it", async () => {
+  const projectDir = mkdtempSync(join(tmpdir(), `kage-portal-team-${randomUUID()}-`));
+  let runtime: LocalRuntimeHandle | undefined;
+  try {
+    let panel: TeamMetricsPanelDto | null = teamMetricsPanel(
+      buildTeamMetrics(Array.from({ length: 6 }, () => fixtureTaskOutcome())),
+    );
+    const link = {
+      outbox: new Outbox(),
+      async syncOnce() {
+        return { pushed: 0, remaining: 0, offline: false };
+      },
+      async refreshTeamPanel() {},
+      teamPanel: () => panel,
+    };
+    runtime = await startLocalRuntime({
+      projectDir,
+      port: 0,
+      mode: "audit",
+      contextSource: null,
+      workspaceLink: link,
+      workspaceConnection: null,
+    });
+    seed(new Repository(runtime.database));
+
+    const connected = await fetch(`${runtime.url}/v2/overview`, { headers: authHeaders(runtime.token) });
+    const connectedBody = (await connected.json()) as { team: TeamMetricsPanelDto | null };
+    assert.ok(connectedBody.team, "a connected workspace must reach the portal overview");
+    assert.equal(connectedBody.team?.tasks, 6);
+
+    // The workspace goes away: the panel is withdrawn and the local overview keeps answering.
+    panel = null;
+    const outage = await fetch(`${runtime.url}/v2/overview`, { headers: authHeaders(runtime.token) });
+    const outageBody = (await outage.json()) as { team: unknown; metrics: unknown[] };
+    assert.equal(outage.status, 200);
+    assert.equal(outageBody.team, null);
+    assert.ok(outageBody.metrics.length > 0, "a workspace outage must not degrade local context");
+  } finally {
+    await runtime?.close();
+    rmSync(projectDir, { recursive: true, force: true });
+  }
 });

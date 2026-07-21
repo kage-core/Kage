@@ -20,6 +20,12 @@
 //   4. SMALL COHORTS ARE SUPPRESSED. If either arm is below MINIMUM_COHORT, the behaviour trends stay
 //      suppressed (metrics.ts already withholds them) and the pilot is `insufficient_data`.
 //
+//   5. ARM SIZE IS NOT A RESULT. Every comparison is PER TASK, and any extrapolation is bounded by the
+//      SMALLER arm. Comparing arm totals lets pure arm size masquerade as a finding: 5 audit tasks and
+//      50 assist tasks each measuring an identical −$0.02 "prove" a −$0.90 saving that is 45 extra
+//      tasks and nothing else. The `arms` section states both sizes and their ratio so a reader can
+//      judge the comparison instead of trusting it.
+//
 // PURE + DETERMINISTIC: no I/O, no wall clock, no randomness.
 import {
   MINIMUM_COHORT,
@@ -40,8 +46,15 @@ export interface PilotCostModel {
 }
 
 export interface PilotComparison {
-  /** assist − audit over EXACT receipts in both arms. Negative = assist requests cost measurably less. */
-  exact_input_cost_delta_usd: number | null;
+  /**
+   * assist − audit, PER TASK, over the exact receipts in both arms. Negative = an assist request cost
+   * measurably less than an audit request.
+   *
+   * It is per-task because arm TOTALS are not comparable: 5 audit tasks and 50 assist tasks each
+   * measuring an identical −$0.02 produce a −$0.90 "saving" that is nothing but 45 extra assist tasks.
+   * A pilot comparison must answer "what changed per task", never "which arm was bigger".
+   */
+  exact_input_cost_delta_usd_per_task: number | null;
   p50_latency_delta_ms: number | null;
   p95_latency_delta_ms: number | null;
   verified_reuse_delta_percent: number | null;
@@ -66,9 +79,30 @@ export interface PilotTimeSavings {
 
 export type PilotStatus = "not_run" | "insufficient_data" | "reportable";
 
+/**
+ * How comparable the two arms actually are. A reader cannot judge a delta without it: the same numbers
+ * mean something different when one arm has ten times the tasks of the other.
+ */
+export interface PilotArms {
+  audit_tasks: number;
+  assist_tasks: number;
+  audit_exact_receipts: number;
+  assist_exact_receipts: number;
+  /** larger ÷ smaller, rounded; null when either arm is empty. 1 = equally sized arms. */
+  imbalance_ratio: number | null;
+  /** True only when the ratio is at or under MAX_ARM_IMBALANCE. */
+  balanced: boolean;
+  /**
+   * The cohort size a per-task figure may honestly be extrapolated over: the SMALLER arm. Extrapolating
+   * across the larger one bills the customer for tasks the comparison never measured symmetrically.
+   */
+  comparable_tasks: number;
+}
+
 export interface PilotReport {
   pilot_id: string;
   status: PilotStatus;
+  arms: PilotArms;
   audit: TeamMetricsReport;
   assist: TeamMetricsReport;
   comparison: PilotComparison;
@@ -96,17 +130,34 @@ function round(value: number, places = 6): number {
   return Math.round(value * factor) / factor;
 }
 
+/**
+ * The largest arm ratio at which a comparison is still called balanced. Beyond it the delta is still
+ * reported (per task, so it is not an arm-size artifact) but the report says plainly that one arm is
+ * much smaller, because a baseline built from a handful of tasks is a weak baseline however it is
+ * normalized.
+ */
+export const MAX_ARM_IMBALANCE = 1.5;
+
 /** Build the pilot comparison. Deterministic; every absent measurement propagates as null. */
 export function buildPilotReport(input: PilotReportInput): PilotReport {
   const audit = buildTeamMetrics(input.audit);
   const assist = buildTeamMetrics(input.assist);
   const caveats: string[] = [];
 
+  const arms = describeArms(audit, assist);
+  if (!arms.balanced && arms.imbalance_ratio !== null) {
+    caveats.push(
+      `unequal arms: audit=${arms.audit_tasks} task(s), assist=${arms.assist_tasks} task(s) — an arm imbalance of ${arms.imbalance_ratio}x. ` +
+        `Every comparison below is PER TASK for that reason, and the smaller arm (${arms.comparable_tasks} task(s)) bounds any extrapolation.`,
+    );
+  }
+
   const bothArmsHaveExactCost = audit.exact_cost.receipts > 0 && assist.exact_cost.receipts > 0;
+  // PER-TASK, never arm totals: the mean over each arm's exact receipts, then assist − audit.
   const exactCostDelta = bothArmsHaveExactCost
     ? delta(
-        assist.exact_cost.total_net_input_cost_delta_usd,
-        audit.exact_cost.total_net_input_cost_delta_usd,
+        perReceipt(assist.exact_cost.total_net_input_cost_delta_usd, assist.exact_cost.receipts),
+        perReceipt(audit.exact_cost.total_net_input_cost_delta_usd, audit.exact_cost.receipts),
       )
     : null;
   if (!bothArmsHaveExactCost) {
@@ -121,7 +172,7 @@ export function buildPilotReport(input: PilotReportInput): PilotReport {
   );
 
   const comparison: PilotComparison = {
-    exact_input_cost_delta_usd: exactCostDelta,
+    exact_input_cost_delta_usd_per_task: exactCostDelta,
     p50_latency_delta_ms: delta(assist.latency.p50_ms, audit.latency.p50_ms),
     p95_latency_delta_ms: delta(assist.latency.p95_ms, audit.latency.p95_ms),
     verified_reuse_delta_percent: delta(assist.verified_reuse.rate, audit.verified_reuse.rate),
@@ -147,13 +198,45 @@ export function buildPilotReport(input: PilotReportInput): PilotReport {
     status = "reportable";
   }
 
-  const timeSavings = dollarize(timeDelta, assist.tasks, input.cost_model ?? null, caveats);
+  // The dollarization is bounded by the COMPARABLE cohort (the smaller arm), never the assist arm.
+  const timeSavings = dollarize(timeDelta, arms.comparable_tasks, input.cost_model ?? null, caveats);
 
   caveats.push(
     "exact request economics are measured per request; the time trend is a cohort observation. They are reported separately and are never summed into one ROI figure.",
   );
 
-  return { pilot_id: input.pilot_id, status, audit, assist, comparison, time_savings: timeSavings, caveats };
+  return {
+    pilot_id: input.pilot_id,
+    status,
+    arms,
+    audit,
+    assist,
+    comparison,
+    time_savings: timeSavings,
+    caveats,
+  };
+}
+
+/** A per-task mean over an arm's exact receipts; null when the arm measured none. */
+function perReceipt(total: number | null, receipts: number): number | null {
+  if (total === null || receipts === 0) return null;
+  return total / receipts;
+}
+
+/** Describe how comparable the arms are. Pure arithmetic over the two reports. */
+function describeArms(audit: TeamMetricsReport, assist: TeamMetricsReport): PilotArms {
+  const smaller = Math.min(audit.tasks, assist.tasks);
+  const larger = Math.max(audit.tasks, assist.tasks);
+  const ratio = smaller === 0 ? null : Math.round((larger / smaller) * 100) / 100;
+  return {
+    audit_tasks: audit.tasks,
+    assist_tasks: assist.tasks,
+    audit_exact_receipts: audit.exact_cost.receipts,
+    assist_exact_receipts: assist.exact_cost.receipts,
+    imbalance_ratio: ratio,
+    balanced: ratio !== null && ratio <= MAX_ARM_IMBALANCE,
+    comparable_tasks: smaller,
+  };
 }
 
 /**
@@ -166,7 +249,7 @@ export function buildPilotReport(input: PilotReportInput): PilotReport {
  */
 function dollarize(
   timeDeltaMs: number | null,
-  assistTasks: number,
+  comparableTasks: number,
   costModel: PilotCostModel | null,
   caveats: string[],
 ): PilotTimeSavings {
@@ -176,20 +259,23 @@ function dollarize(
     );
     return { usd: null, basis: "no_cost_model_configured", exactness: "unavailable", formula: null };
   }
-  if (timeDeltaMs === null || timeDeltaMs >= 0 || assistTasks === 0) {
+  if (timeDeltaMs === null || timeDeltaMs >= 0 || comparableTasks === 0) {
     caveats.push(
       "no measured cohort time saving, so no dollar estimate is produced (an unmeasured or non-positive trend never becomes money)",
     );
     return { usd: null, basis: "no_measured_time_delta", exactness: "unavailable", formula: null };
   }
+  // The multiplier is the COMPARABLE cohort — the smaller arm. Multiplying a per-task saving by the
+  // (possibly much larger) assist arm would bill for tasks the pilot never measured on both sides.
   const savedHoursPerTask = -timeDeltaMs / 3_600_000;
-  const usd = round(savedHoursPerTask * costModel.usd_per_engineer_hour * assistTasks, 2);
+  const usd = round(savedHoursPerTask * costModel.usd_per_engineer_hour * comparableTasks, 2);
   return {
     usd,
     basis: "cohort_estimate",
     exactness: "cohort",
     formula:
       `(audit_p50_time_to_verified_change − assist_p50_time_to_verified_change) ÷ 3600000 × ` +
-      `${costModel.usd_per_engineer_hour} usd/engineer-hour (configured by ${costModel.configured_by}) × ${assistTasks} assist task(s)`,
+      `${costModel.usd_per_engineer_hour} usd/engineer-hour (configured by ${costModel.configured_by}) × ` +
+      `${comparableTasks} comparable task(s) (the smaller arm)`,
   };
 }

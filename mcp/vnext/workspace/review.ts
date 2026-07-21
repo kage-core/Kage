@@ -110,20 +110,22 @@ export async function reviewClaim(
   const nextTrust = nextTrustState(request.action);
   const updatedClaim: ClaimRecord = { ...claim, trust_state: nextTrust, updated_at: newVersion };
 
-  await db.query("BEGIN");
-  try {
-    await db.query(
+  // The claim update, its decision row and the audit event are ONE unit on ONE connection: a decision
+  // that is visible without its audit trail (or an audit trail for a decision that never landed) would
+  // make the review record unfalsifiable. `db.transaction` owns the connection for the whole unit.
+  await db.transaction(async (tx) => {
+    await tx.query(
       `UPDATE workspace_claims
           SET trust_state = $4, record_json = $5, updated_at = $6
         WHERE workspace_id = $1 AND repository_id = $2 AND claim_id = $3`,
       [workspaceId, repositoryId, claimId, nextTrust, JSON.stringify(updatedClaim), newVersion],
     );
-    await db.query(
+    await tx.query(
       `INSERT INTO workspace_review_decisions(workspace_id, repository_id, decision_id, claim_id, action, actor_id, expected_version, decision_note, decided_at)
          VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [workspaceId, repositoryId, randomUUID(), claimId, request.action, principal.principal_id, request.expected_version, request.decision_note, newVersion],
     );
-    await recordAuditEvent(db, {
+    await recordAuditEvent(tx, {
       workspace_id: workspaceId,
       actor_type: principal.principal_type,
       actor_id: principal.principal_id,
@@ -138,11 +140,7 @@ export async function reviewClaim(
         reason: request.decision_note,
       },
     });
-    await db.query("COMMIT");
-  } catch (error) {
-    await db.query("ROLLBACK");
-    throw error;
-  }
+  });
 
   return { status: 202, claim_id: claimId, version: newVersion };
 }

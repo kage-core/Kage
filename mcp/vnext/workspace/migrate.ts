@@ -9,7 +9,7 @@ import { join } from "node:path";
 import type { Db } from "./db.js";
 
 /** Highest migration version shipped in this build; `migrate()` brings a database up to it. */
-export const LATEST_MIGRATION = 7;
+export const LATEST_MIGRATION = 8;
 
 // The .sql files live in the source tree next to this module. When running from `dist/`, the compiled
 // `migrate.js` is at `mcp/dist/vnext/workspace/`, so the source `migrations/` dir is three levels up.
@@ -46,15 +46,13 @@ export async function migrate(db: Db): Promise<number> {
   for (const { version, file, dir } of migrationFiles()) {
     if (applied.has(version)) continue;
     const sql = readFileSync(join(dir, file), "utf8");
-    await db.query("BEGIN");
-    try {
-      await db.query(sql);
-      await db.query(`INSERT INTO schema_migrations(version) VALUES($1)`, [version]);
-      await db.query("COMMIT");
-    } catch (error) {
-      await db.query("ROLLBACK");
-      throw error;
-    }
+    // One connection for the whole migration: DDL and its version row commit together or not at all.
+    // Sent through the pool instead, the version row could commit on a different backend than the DDL
+    // that failed, leaving a database recorded as migrated that never ran the statements.
+    await db.transaction(async (tx) => {
+      await tx.query(sql);
+      await tx.query(`INSERT INTO schema_migrations(version) VALUES($1)`, [version]);
+    });
   }
   return currentVersion(db);
 }

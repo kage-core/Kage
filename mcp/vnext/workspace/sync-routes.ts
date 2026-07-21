@@ -60,22 +60,24 @@ export async function applyBatch(db: Db, principal: Principal, batch: SyncBatch)
     task_outcomes: (batch.task_outcomes ?? []).length,
   };
 
-  await db.query("BEGIN");
-  try {
+  // ONE connection for the whole batch. `db.query` is pooled, so BEGIN/INSERT/COMMIT sent through it
+  // can land on different backends: under concurrency the ROLLBACK then runs on somebody else's
+  // connection and the "rejected" rows stay committed, while a batch id can commit without the data it
+  // claims to have applied — after which the retry is answered "duplicate" and the data is lost.
+  return db.transaction(async (tx) => {
     // Claim the batch id atomically. If it is already present, this is a replay: apply nothing.
-    const claimed = await db.query(
+    const claimed = await tx.query(
       `INSERT INTO sync_batches(workspace_id, batch_id, repository_id, base_cursor, applied_counts)
          VALUES($1, $2, $3, $4, $5)
        ON CONFLICT (workspace_id, batch_id) DO NOTHING`,
       [workspaceId, batch.batch_id, repositoryId, batch.base_cursor, JSON.stringify(counts)],
     );
     if (claimed.rowCount === 0) {
-      await db.query("COMMIT");
-      return { batch_id: batch.batch_id, status: "duplicate", applied_counts: {} };
+      return { batch_id: batch.batch_id, status: "duplicate", applied_counts: {} } as ApplyResult;
     }
 
     for (const entity of batch.entities) {
-      await db.query(
+      await tx.query(
         // An UPSERT bumps sync_seq to a fresh value so an updated row is re-delivered exactly once on the
         // next pull; a first insert takes the column default (also nextval on the shared sequence).
         `INSERT INTO workspace_entities(workspace_id, repository_id, entity_id, model_version, record_json, updated_at)
@@ -88,11 +90,11 @@ export async function applyBatch(db: Db, principal: Principal, batch: SyncBatch)
     }
 
     for (const claim of batch.claims) {
-      await applyClaim(db, workspaceId, repositoryId, claim);
+      await applyClaim(tx, workspaceId, repositoryId, claim);
     }
 
     for (const evidence of batch.evidence) {
-      await db.query(
+      await tx.query(
         `INSERT INTO workspace_evidence(workspace_id, repository_id, evidence_id, privacy_class, metadata_json, object_key, updated_at)
            VALUES($1, $2, $3, $4, $5, NULL, $6)
          ON CONFLICT (workspace_id, repository_id, evidence_id)
@@ -102,7 +104,7 @@ export async function applyBatch(db: Db, principal: Principal, batch: SyncBatch)
     }
 
     for (const relation of batch.relations) {
-      await db.query(
+      await tx.query(
         `INSERT INTO workspace_relations(workspace_id, repository_id, relation_id, from_entity_id, relation_type, to_entity_id, record_json, updated_at)
            VALUES($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (workspace_id, repository_id, relation_id)
@@ -115,8 +117,8 @@ export async function applyBatch(db: Db, principal: Principal, batch: SyncBatch)
       // Enforce the Phase C REVIEW AUTHORITY contract at the ingest boundary, BEFORE the row lands. A
       // forged/unauthorized approval throws, the whole batch rolls back, and nothing is written — so a
       // low-privilege sync token can never forge an authoritative approval that defeats self_approvals=0.
-      await assertReviewDecisionAuthority(db, principal, workspaceId, repositoryId, decision);
-      await db.query(
+      await assertReviewDecisionAuthority(tx, principal, workspaceId, repositoryId, decision);
+      await tx.query(
         `INSERT INTO workspace_review_decisions(workspace_id, repository_id, decision_id, claim_id, action, actor_id, expected_version, decision_note, decided_at)
            VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (workspace_id, repository_id, decision_id) DO NOTHING`,
@@ -125,7 +127,7 @@ export async function applyBatch(db: Db, principal: Principal, batch: SyncBatch)
     }
 
     for (const measurement of batch.measurements) {
-      await db.query(
+      await tx.query(
         `INSERT INTO workspace_measurements(workspace_id, repository_id, measurement_id, metric, window_start, window_end, sample_count, values_json)
            VALUES($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (workspace_id, repository_id, measurement_id) DO NOTHING`,
@@ -135,14 +137,10 @@ export async function applyBatch(db: Db, principal: Principal, batch: SyncBatch)
 
     // Aggregated task outcomes for team metrics. storeTaskOutcomes re-checks the privacy allow-list per
     // record, so a raw field aborts the transaction and NOTHING from the batch lands.
-    await storeTaskOutcomes(db, workspaceId, repositoryId, batch.task_outcomes ?? []);
+    await storeTaskOutcomes(tx, workspaceId, repositoryId, batch.task_outcomes ?? []);
 
-    await db.query("COMMIT");
-    return { batch_id: batch.batch_id, status: "applied", applied_counts: counts };
-  } catch (error) {
-    await db.query("ROLLBACK");
-    throw error;
-  }
+    return { batch_id: batch.batch_id, status: "applied", applied_counts: counts } as ApplyResult;
+  });
 }
 
 /**

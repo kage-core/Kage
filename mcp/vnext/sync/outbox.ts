@@ -12,7 +12,7 @@ import { createHash } from "node:crypto";
 import { isInjectableTrustState } from "../repo-model/types.js";
 // The metrics allow-list lives with the workspace's task-outcome type so exactly one definition of
 // "what a task outcome may contain" governs both the local outbox and the workspace ingest.
-import { assertNoRawTaskOutcomeField } from "../workspace/metrics.js";
+import { validateTaskOutcome } from "../workspace/metrics.js";
 import type {
   AggregatedMeasurementRecord,
   EvidenceRecord,
@@ -82,8 +82,9 @@ export function assertNoRawPayload(batch: SyncBatch): void {
     throw new Error(`sync batch would transmit local_raw evidence ${leaked.evidence_id}; raw payloads never sync`);
   }
   // Task outcomes are metrics, and "metrics" is exactly where a raw prompt would hide. Each record is
-  // checked against the workspace's field ALLOW-LIST, so an unknown key never reaches the wire.
-  for (const outcome of batch.task_outcomes ?? []) assertNoRawTaskOutcomeField(outcome);
+  // fully validated against the workspace's own rules — the field ALLOW-LIST (no unknown key reaches
+  // the wire) AND the identifier SHAPE (no free text hides inside a permitted key like task_id).
+  for (const outcome of batch.task_outcomes ?? []) validateTaskOutcome(outcome);
 }
 
 /**
