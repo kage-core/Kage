@@ -293,13 +293,19 @@ async function runPhaseETeamGate(): Promise<GateResult> {
   result.cross_tenant_reads += restrictedClaims.filter((c) => c.repository_id === REPO_RESTRICTED).length;
 
   // (c) TENANT via a mutation: B's developer tries to review a claim that lives in A. Cross-tenant target
-  // is not even disclosed — a 200 here would mean a leaked cross-tenant write; count any such success.
+  // is not even disclosed — the claim is loaded under B's SERVER-resolved tenant, so it is simply not
+  // found (404, existence undisclosed). A successful review write is 202 (see reviewClaim + the positive
+  // control below), so ANY 2xx here would mean a leaked cross-tenant write; count every such success.
+  // The 404 assert is the load-bearing backing check: it fails the moment tenant isolation on the load
+  // leaks (e.g. a found-but-unauthorized 403 that discloses the row's existence across tenants).
   const crossReview = await review(developerB.session, REPO_OPEN, "claim-1", {
     expected_version: "2026-07-20T00:00:00.000Z",
     action: "accept",
     decision_note: "cross-tenant attempt",
   });
-  if (crossReview.status === 200) result.cross_tenant_reads += 1;
+  if (crossReview.status >= 200 && crossReview.status < 300) result.cross_tenant_reads += 1;
+  assert.equal(crossReview.status, 404, "a cross-tenant review must be 404 — the target's existence is not disclosed");
+  assert.equal(crossReview.body.error, "claim_not_found");
 
   // ============================ 2. RAW PAYLOADS STAY LOCAL ============================
   const rawPush = await pushBatch(replicaFull.session, batchWithRawEvidence(workspaceA, REPO_OPEN));
@@ -328,7 +334,9 @@ async function runPhaseETeamGate(): Promise<GateResult> {
     action: "accept",
     decision_note: "approving my own high-impact claim",
   });
-  if (selfReview.status === 200) result.self_approvals += 1;
+  // A successful review write is 202 (not 200); count ANY 2xx as an escaped self-approval so the counter
+  // actually moves if the self-approval rule ever regresses, independent of the 403 assert below.
+  if (selfReview.status >= 200 && selfReview.status < 300) result.self_approvals += 1;
   assert.equal(selfReview.status, 403, "a proposer's self-approval of a high-impact claim must be 403");
   assert.equal(selfReview.body.error, "self_approval_blocked");
 
