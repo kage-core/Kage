@@ -5,22 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Google shipped OKF, a standard for agent memory as plain markdown in your repo. Kage is the framework that keeps it true: every memory is checked against your real code, deterministically, so stale claims get caught before they mislead an agent. One command to install, no account, no API key."
+      content="Kage is code-grounded memory for coding agents: every memory is verified against your real repository before it is injected, stale memory is withheld with a stated reason, and every number is measured, never estimated. One proxy fronts the Anthropic, OpenAI-compatible, and Gemini wire formats — Claude Code, Codex CLI, Cursor, aider, Gemini CLI — with zero per-agent plugins. Memory lives as OKF markdown in git."
     />
-    <title>Kage — verified OKF memory for coding agents, kept true to your code</title>
+    <title>Kage — memory for coding agents, checked against your code</title>
     <link rel="icon" type="image/svg+xml" href="assets/kage-eye.svg" />
     <link rel="canonical" href="https://kage-core.com/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Kage" />
     <meta property="og:url" content="https://kage-core.com/" />
-    <meta property="og:title" content="Kage: the verification layer for Google's OKF agent memory" />
-    <meta property="og:description" content="Google shipped OKF, a standard for agent memory as plain markdown in your repo. Kage is the framework that keeps it true: every memory checked against your real code, deterministically. No account, no API key." />
+    <meta property="og:title" content="Kage — memory for coding agents, checked against your code" />
+    <meta property="og:description" content="Code-grounded memory for coding agents. Verified against the repo before injection, stale memory withheld with a reason, receipts for every number. One proxy fronts Anthropic, OpenAI-compatible, and Gemini wires — zero per-agent plugins." />
     <meta property="og:image" content="https://kage-core.com/assets/kage-cover.png" />
     <meta property="og:image:width" content="1000" />
     <meta property="og:image:height" content="420" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Kage: the verification layer for Google's OKF agent memory" />
-    <meta name="twitter:description" content="Google shipped OKF for agent memory. Kage is the framework that keeps it true: every memory checked against your real code, deterministically. No account, no API key." />
+    <meta name="twitter:title" content="Kage — memory for coding agents, checked against your code" />
+    <meta name="twitter:description" content="Code-grounded memory for coding agents. Verified against the repo before injection, stale memory withheld with a reason, receipts for every number. One proxy, three wire formats, zero per-agent plugins." />
     <meta name="twitter:image" content="https://kage-core.com/assets/kage-cover.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -28,567 +28,368 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..600&display=swap"
     />
-    <link rel="stylesheet" href="assets/site.css?v=5" />
+    <link rel="stylesheet" href="assets/site.css?v=6" />
     <style>
       /* ——— Hero ——— */
-      .hero { padding: 96px 0 64px; }
-      .hero-grid {
+      .hero h1 { max-width: 660px; }
+      .hero-copy {
+        margin-top: 20px;
+        max-width: 540px;
+        color: var(--muted);
+        font: 400 18px/1.6 var(--sans);
+      }
+      .hero-copy strong { color: var(--ink); font-weight: 600; }
+      .hero-sub { margin-top: 16px; color: var(--faint); font: 400 13.5px/1.6 var(--sans); max-width: 540px; }
+      .hero-sub code { font-size: 12px; }
+
+      /* ——— Wires ——— */
+      .wire {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(340px, 0.72fr);
-        gap: clamp(32px, 5vw, 64px);
-        align-items: center;
+        grid-template-columns: auto 1fr;
+        gap: 14px;
+        align-items: start;
+        padding: 18px 20px;
+        border: 1px solid var(--line);
+        border-radius: var(--r-card);
+        background: var(--paper);
       }
-      .hero h1 { max-width: 640px; }
-      .hero h1 .accent { color: var(--green); font-style: italic; }
-      .hero-copy { margin-top: 18px; max-width: 520px; color: var(--muted); font: 400 18px/1.6 var(--sans); }
-
-      /* ——— OKF: front and center ——— */
-      .okf-badge {
-        display: inline-flex; align-items: center; gap: 9px;
-        padding: 7px 14px 7px 9px; margin-bottom: 20px;
-        border: 1px solid var(--hairline-green); border-radius: 999px;
-        background: var(--paper); box-shadow: var(--shadow-card);
-        color: var(--ink); font: 600 13px/1 var(--sans); text-decoration: none;
+      .wire .port {
+        padding: 5px 10px;
+        border: 1px solid var(--hairline-green);
+        border-radius: 8px;
+        background: var(--green-soft);
+        color: var(--green);
+        font: 600 11px/1.4 var(--mono);
+        white-space: nowrap;
       }
-      .okf-badge:hover { border-color: var(--green); }
-      .okf-badge .by { color: var(--faint); font-weight: 500; }
-      .okf-badge .arr { color: var(--green); }
-      .okf-badge .by { display: inline-flex; align-items: center; gap: 4px; }
-      .okf-badge .by img { width: 13px; height: 13px; }
-      .okf-lockup { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin-bottom: 14px; }
-      .okf-lockup img { width: 19px; height: 19px; }
-      .okf-lockup .lbl { color: #d6dcd2; font: 600 13px/1 var(--sans); }
-      .okf-lockup .sep { color: rgba(255,255,255,0.22); }
-      .okf-band { background: var(--code-bg); padding: 84px 0; }
-      .okf-band .eyebrow { color: var(--green-strong); }
-      .okf-band h2 { color: #f3f6f2; max-width: 760px; }
-      .okf-band h2 .accent { color: var(--green); font-style: italic; }
-      .okf-band code { color: var(--green-strong); }
-      .okf-band a { color: var(--green); }
-      .okf-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(320px,0.82fr); gap: clamp(32px,5vw,60px); align-items: center; margin-top: 38px; }
-      .okf-lede { color: #aeb6ac; max-width: 600px; font: 400 17px/1.65 var(--sans); }
-      .okf-brings { display: grid; gap: 16px; margin-top: 28px; }
-      .okf-bring { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
-      .okf-bring .n { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); font: 700 13px/1 var(--mono); flex: 0 0 auto; }
-      .okf-bring b { display: block; color: #f3f6f2; font: 600 15px/1.4 var(--sans); }
-      .okf-bring p { margin: 3px 0 0; color: #9aa49c; font: 400 14px/1.55 var(--sans); }
-      .okf-closer { margin-top: 30px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.1); color: #cdd4ca; font: 500 16px/1.6 var(--sans); max-width: 680px; }
-      .okf-closer b { color: var(--green); }
-      .okf-concept { border: 1px solid rgba(255,255,255,0.12); border-radius: var(--r-card); background: #0c110d; overflow: hidden; box-shadow: var(--shadow-pop); }
-      .okf-concept .h { display: flex; justify-content: space-between; padding: 11px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); color: #8d968e; font: 500 11.5px/1 var(--mono); }
-      .okf-concept .h .ok { color: var(--green); }
-      .okf-concept pre { margin: 0; padding: 16px 18px; font: 400 12.5px/1.7 var(--mono); color: #c7cfc4; overflow-x: auto; }
-      .okf-concept .kx { color: var(--green-strong); }
-      .okf-concept .cm { color: #6f786e; }
+      .wire b { display: block; color: var(--ink); font: 600 14.5px/1.4 var(--sans); }
+      .wire p { margin-top: 4px; font: 400 13px/1.55 var(--sans); }
+      .wires { display: grid; gap: 10px; }
 
-      /* ——— Feature rows: text + product artifact ——— */
+      /* ——— Split feature rows ——— */
       .feature {
         display: grid;
-        grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
         gap: clamp(28px, 5vw, 72px);
         align-items: center;
       }
       .feature.flip > .feature-copy { order: 2; }
-      .feature-copy h2 { max-width: 420px; }
+      .feature-copy h2 { max-width: 460px; }
       .feature-copy .lede { font-size: 16px; }
-      .feature-copy .more { display: inline-block; margin-top: 14px; color: var(--green); font: 600 14px/1 var(--sans); }
+      .feature-copy .more { display: inline-block; margin-top: 16px; color: var(--green); font: 600 14px/1 var(--sans); }
       .feature-copy .more:hover { color: var(--green-strong); }
 
-      .stream { display: grid; gap: 10px; }
-      .pktcard {
-        padding: 14px 16px;
-        border: 1px solid var(--line);
-        border-radius: var(--r-panel);
-        background: var(--paper);
-        box-shadow: var(--shadow-card);
-      }
-      .pktcard .meta { display: flex; align-items: center; gap: 10px; font: 600 11px/1 var(--mono); color: var(--faint); text-transform: uppercase; letter-spacing: 0.08em; }
-      .pktcard .meta .t { margin-left: auto; text-transform: none; letter-spacing: 0; }
-      .pktcard .meta .kind { color: var(--memory); }
-      .pktcard b { display: block; margin-top: 8px; color: var(--ink); font: 600 14.5px/1.35 var(--sans); }
-      .pktcard .check { display: block; margin-top: 7px; font: 500 12.5px/1.5 var(--mono); color: var(--green); }
-      .pktcard.is-rejected { border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
-      .pktcard.is-rejected .check { color: var(--danger); }
-      .pktcard.is-withheld { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); opacity: 0.92; }
-      .pktcard.is-withheld .check { color: var(--warn); }
-
-      .sysmsg {
-        overflow: hidden;
-        border: 1px solid var(--hairline-green);
-        border-radius: var(--r-card);
-        background: var(--code-bg);
-        color: var(--code-text);
-        font: 400 13px/1.7 var(--mono);
-        box-shadow: var(--shadow-pop);
-      }
-      .sysmsg .head { display: flex; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); color: #9aa49c; font: 500 11.5px/1 var(--mono); }
-      .sysmsg .body { padding: 14px 18px 16px; white-space: pre-wrap; }
-      .sysmsg .g { color: var(--green-strong); }
-      .sysmsg .dim { color: #8d968e; }
-
-      .prwarn {
-        border: 1px solid color-mix(in srgb, var(--warn) 50%, var(--line));
-        border-radius: var(--r-card);
-        background: var(--paper);
-        box-shadow: var(--shadow-card);
-        overflow: hidden;
-      }
-      .prwarn .head { padding: 13px 18px; border-bottom: 1px solid var(--line); color: var(--warn); font: 600 14px/1.4 var(--sans); }
-      .prwarn .row { display: grid; gap: 3px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
-      .prwarn .row:last-child { border-bottom: 0; }
-      .prwarn .row b { color: var(--ink); font: 500 13.5px/1.45 var(--sans); }
-      .prwarn .row span { color: var(--muted); font: 400 12.5px/1.5 var(--mono); }
-      .prwarn .row .fix { color: var(--green); }
-
-      /* ——— Agents row ——— */
-      .agents { display: flex; flex-wrap: wrap; gap: 8px; }
-      .agent {
-        padding: 9px 15px;
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        background: var(--paper);
-        color: var(--muted);
-        font: 500 13px/1 var(--sans);
-      }
-
-      /* ——— Early access: waitlist + demo ——— */
-      .access {
-        border: 1px solid var(--hairline-green);
-        border-radius: var(--r-hero);
-        background: linear-gradient(180deg, color-mix(in srgb, var(--green) 7%, var(--paper)) 0%, var(--paper) 70%);
-        box-shadow: var(--shadow-pop);
-        padding: clamp(32px, 5vw, 56px);
-        text-align: center;
-      }
-      .access h2 { margin: 0 auto; max-width: 560px; }
-      .access .lede { margin: 14px auto 0; max-width: 560px; }
-      .access .actions { justify-content: center; margin-top: 26px; }
-      .access .fine { margin-top: 16px; color: var(--faint); font: 400 12.5px/1.6 var(--sans); }
-      .access .fine a { color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
-      .access .fine a:hover { color: var(--green); }
-
       @media (max-width: 820px) {
-        /* minmax(0,1fr), not 1fr: keep min:0 so the column shrinks to the
-           viewport instead of growing to fit wide/unbreakable content. */
-        .hero-grid { grid-template-columns: minmax(0, 1fr); }
         .feature, .feature.flip { grid-template-columns: minmax(0, 1fr); }
         .feature.flip > .feature-copy { order: 0; }
-        .okf-grid { grid-template-columns: minmax(0, 1fr); }
-        .okf-lede { max-width: 100%; }
-        /* never let hero blocks exceed the screen */
         .hero h1, .hero-copy, .cmd { max-width: 100%; }
-        /* let command boxes wrap and break the long URL instead of overflowing */
-        .cmd { white-space: normal; }
-        .cmd > span { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
-        /* kill the desktop-scale empty gap above the hero and tighten the lede */
-        .hero { padding: 36px 0 44px; }
-        .hero-copy { margin-top: 14px; font-size: 16px; line-height: 1.55; }
       }
     </style>
   </head>
   <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
     <nav class="nav" aria-label="Main navigation">
       <a class="brand" href="./" aria-label="Kage home">
         <img src="assets/kage-eye.svg" alt="" />
         <span>Kage</span>
       </a>
       <div class="nav-links">
-        <a href="./#how">How it works</a>
-        <a href="./#compare">Compare</a>
-        <a href="./#pricing">Pricing</a>
-        <a href="guide.html">Docs</a>
-        <a href="viewer/">Viewer</a>
+        <a href="./" aria-current="page">Home</a>
+        <a href="guide.html">Guide</a>
+        <a href="benchmarks.html">Benchmarks</a>
+        <a href="releases.html">Releases</a>
+        <a href="demo.html">Demo</a>
         <a class="gh-btn" href="https://github.com/kage-core/Kage" target="_blank" rel="noopener" aria-label="Kage on GitHub">
-        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
-        <span>GitHub</span>
-        <span class="gh-sep"></span>
-        <span class="gh-star">★</span>
-        <span id="gh-stars">6</span>
-      </a>
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
+          <span>GitHub</span>
+          <span class="gh-sep"></span>
+          <span class="gh-star">★</span>
+          <span id="gh-stars">6</span>
+        </a>
       </div>
-      <a class="nav-cta" href="demo.html">Book a demo</a>
+      <a class="nav-cta" href="#quickstart">Get started</a>
     </nav>
 
-    <main>
+    <main id="main">
       <!-- ——————————————— HERO ——————————————— -->
       <section class="hero">
         <div class="wrap hero-grid">
           <div>
-            <a class="okf-badge" href="https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf" target="_blank" rel="noopener">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <rect x="1.5" y="1.5" width="21" height="21" rx="6" stroke="var(--green)" stroke-width="1.5"/>
-                <path d="M7.6 7.5 L16.4 8.6 M7.6 7.5 L11 16.2 M16.4 8.6 L11 16.2" stroke="var(--green)" stroke-width="1.1" opacity="0.55"/>
-                <circle cx="7.6" cy="7.5" r="2.1" fill="var(--green)"/><circle cx="16.4" cy="8.6" r="2.1" fill="var(--green)"/><circle cx="11" cy="16.2" r="2.1" fill="var(--green)"/>
-              </svg>
-              Built on Open Knowledge Format <span class="by">·&nbsp;<img src="assets/google-g.svg" alt="" aria-hidden="true" width="13" height="13"> Google Cloud</span> <span class="arr">↗</span>
-            </a>
-            <h1>Google shipped OKF. Kage keeps it <span class="accent">true</span>.</h1>
+            <h1>Memory for coding agents, <span class="accent">checked</span> against your code.</h1>
             <p class="hero-copy">
-              <a href="https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf">Google&nbsp;OKF</a> made agent
-              memory an open standard, Markdown in your repo with no lock-in, but left out the part that keeps it honest.
-              Kage is that part: every memory is checked against your code, so your agent never acts on a stale fact.
+              Kage captures what your agents learn as plain markdown in git — then verifies every
+              claim against the real repository before it is ever injected. <strong>Stale memory is
+              withheld, with the reason stated.</strong> Every number below is measured, never estimated.
             </p>
             <div class="cmd">
               <span class="ps1">$</span>
-              <span id="install-cmd">npx -y @kage-core/kage-graph-mcp install</span>
+              <span id="install-cmd">npx -y @kage-core/kage-graph-mcp install &amp;&amp; kage up</span>
               <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('install-cmd').textContent).then(()=>{this.textContent='copied';setTimeout(()=>this.textContent='copy',1200)})">copy</button>
             </div>
-            <p style="margin:12px 0 0;color:var(--muted);font:400 14px/1.5 var(--sans)">One command, then restart your agent. No account, no API key.</p>
-            <div class="actions">
-              <a class="button primary" href="guide.html#quickstart">Install in 60s</a>
-              <a class="button" href="guide.html">Read the docs</a>
-            </div>
-            <p style="margin:14px 0 0;color:var(--muted);font:400 13px/1.6 var(--sans)">
-              <strong style="color:var(--ink)">100/100</strong> trust benchmark ·
-              <strong style="color:var(--ink)">zero-config</strong> install ·
-              no account, no API key ·
-              free &amp; open source —
-              or try it before installing anything: <code>npx -y @kage-core/kage-graph-mcp scan&nbsp;--project&nbsp;.</code>
+            <p class="hero-sub">
+              One proxy fronts the Anthropic, OpenAI-compatible, and Gemini wire formats —
+              Claude Code, Codex CLI, Cursor, aider, Gemini CLI — with zero per-agent plugins.
+              No account, no API key, memory as <a href="https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf" target="_blank" rel="noopener" style="text-decoration:underline;text-underline-offset:3px">OKF markdown</a> in your repo.
             </p>
+            <div class="actions">
+              <a class="button primary" href="#quickstart">Install in two commands</a>
+              <a class="button" href="benchmarks.html">See the receipts</a>
+            </div>
           </div>
 
-          <div class="receipt" aria-label="Example Kage savings receipt">
-            <div class="r-head"><span>Kage · savings receipt</span><span>example week</span></div>
-            <div class="r-hero">
-              <div class="big"><b>412K</b><span class="unit">tokens saved<br />this week</span><span class="dollars">≈ $1.24</span></div>
+          <figure class="receipt" aria-label="Live reuse A/B receipt: memory versus no memory, real agent through the real proxy">
+            <div class="r-head"><span>live reuse a/b · same agent, same repo</span><span class="measured">measured</span></div>
+            <div class="r-big">
+              <b>0/3 → 3/3</b>
+              <span class="unit">tasks answered correctly when the needed fact is <em>not</em> in the code — without vs. with memory</span>
             </div>
             <div class="r-lines">
-              <div class="r-line"><span>Recalls served from memory</span><span class="dots"></span><b class="gain">38</b></div>
-              <div class="r-line"><span>Stale memories caught &amp; withheld</span><span class="dots"></span><b class="warn">4</b></div>
-              <div class="r-line"><span>Caller questions answered from the graph</span><span class="dots"></span><b>11</b></div>
+              <div class="r-line"><span>cost per task</span><span class="dots"></span><b class="gain">−41%</b></div>
+              <div class="r-line"><span>turns to the answer</span><span class="dots"></span><b class="gain">8.3 → 3.3</b></div>
+              <div class="r-line"><span>when the fact IS in the code</span><span class="dots"></span><b>5/5 both arms</b></div>
             </div>
-            <div class="r-foot">your numbers, from your repo, at $3/1M (configurable) · <span style="color:var(--ink)">kage gains</span> or the viewer's live feed</div>
-          </div>
-        </div>
-
-        </section>
-
-      <!-- ——————————————— OPEN KNOWLEDGE FORMAT ——————————————— -->
-      <section class="okf-band">
-        <div class="wrap">
-          <div class="section-head">
-            <div class="okf-lockup">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <rect x="1.5" y="1.5" width="21" height="21" rx="6" stroke="var(--green)" stroke-width="1.5"/>
-                <path d="M7.6 7.5 L16.4 8.6 M7.6 7.5 L11 16.2 M16.4 8.6 L11 16.2" stroke="var(--green)" stroke-width="1.1" opacity="0.55"/>
-                <circle cx="7.6" cy="7.5" r="2.1" fill="var(--green)"/><circle cx="16.4" cy="8.6" r="2.1" fill="var(--green)"/><circle cx="11" cy="16.2" r="2.1" fill="var(--green)"/>
-              </svg>
-              <span class="lbl">Open Knowledge Format</span>
-              <span class="sep">·</span>
-              <img src="assets/google-g.svg" alt="Google" width="18" height="18">
-              <span class="lbl">Google Cloud</span>
-            </div>
-            <h2>Open Knowledge Format is now the <span class="accent">standard</span>.</h2>
-          </div>
-          <div class="okf-grid">
-            <div>
-              <p class="okf-lede">
-                Kage always kept agent memory as plain files in your repo — no cloud, no lock-in,
-                while everyone else built memory clouds. In June 2026, Google Cloud shipped
-                <a href="https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf" target="_blank" rel="noopener">OKF</a>:
-                the same idea, now an open standard. <strong style="color:#e6ebe3">We adopted it on day one, and added the verification layer it's missing.</strong>
-              </p>
-              <div class="okf-brings">
-                <div class="okf-bring"><span class="n">1</span><div><b>Verification</b><p>Every concept is checked against your real code; hallucinated citations are refused on write.</p></div></div>
-                <div class="okf-bring"><span class="n">2</span><div><b>Freshness</b><p>OKF has no notion of staleness. Kage catches drift the moment code changes and withholds it.</p></div></div>
-                <div class="okf-bring"><span class="n">3</span><div><b>Code-grounding</b><p>A code graph anchors each concept to the exact symbols it describes.</p></div></div>
-              </div>
-              <p class="okf-closer">OKF standardizes the store. <b>Kage is the verification layer Google left out</b> — in OKF-legal <code>x-kage-*</code> fields, so a Kage bundle stays 100% conformant.</p>
-            </div>
-            <div class="okf-concept" aria-label="A Kage memory is a conformant OKF concept">
-              <div class="h"><span>orders.md — a Kage memory, as an OKF concept</span><span class="ok">verified ✓</span></div>
-<pre><span class="cm"># OKF fields — readable by any OKF consumer</span>
-type: Decision
-title: Auth uses jose, not jsonwebtoken
-resource: src/auth/session.ts
-tags: [auth, security]
-<span class="cm"># Kage's verification layer (OKF-legal extension)</span>
-<span class="kx">x-kage-verified</span>: fresh
-<span class="kx">x-kage-anchors</span>: [src/auth/session.ts@9f3c1a…]
-<span class="kx">x-kage-freshness</span>: { ttl_days: 365, policy: source_hash }
----
-<span class="cm"># … prose + # Citations, kept true to the code.</span></pre>
-            </div>
-          </div>
+            <div class="r-foot">real agent through the real proxy, this repo. Memory pays where knowledge is tribal — when the code already says it, we measure no difference, and we say so.</div>
+          </figure>
         </div>
       </section>
 
       <!-- ——————————————— HOW IT WORKS ——————————————— -->
-      <section class="section" id="how">
+      <section class="section" id="how" aria-labelledby="how-h">
         <div class="wrap">
           <div class="section-head">
             <span class="eyebrow">How it works</span>
-            <h2>Install once. It runs itself.</h2>
+            <h2 id="how-h">Capture → verify → inject → receipts. <span class="accent">A loop, not a database.</span></h2>
+            <p class="lede">Agents write down what they learn. Kage decides — deterministically, against the code — what is still true enough to say back.</p>
           </div>
-          <div class="cards cards-4">
-            <div class="card"><h3>1 · Install</h3><p>One command creates repo memory, builds the code graph, and auto-wires Claude Code and Codex — with a paste-in snippet for every other agent.</p></div>
-            <div class="card"><h3>2 · It takes notes</h3><p>Learnings become packets — explicit or auto-distilled — and every citation is verified against your repo before it's written.</p></div>
-            <div class="card"><h3>3 · Recall, right when it's needed</h3><p>On Claude Code, verified memory for your task is injected as you work — recalled on each prompt and the moment the agent reads a cited file. Other agents pull the same memory through the MCP tools.</p></div>
-            <div class="card"><h3>4 · Diffs get checked</h3><p><code>kage pr check</code> warns when your change invalidates team memory — before the PR lands.</p></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ——————————————— FEATURES ——————————————— -->
-      <section class="section">
-        <div class="wrap feature">
-          <div class="feature-copy">
-            <span class="eyebrow">Capture — with proof</span>
-            <h2>It takes notes. Then it checks them.</h2>
-            <p class="lede">Every memory is checked against your code before it's saved — cite a file that doesn't exist and it's refused on the spot.</p>
-            <a class="more" href="guide.html#lifecycle">How a packet earns trust →</a>
-          </div>
-          <div class="stream" aria-label="Memory packets being written, verification visible">
-            <div class="pktcard">
-              <div class="meta"><span class="kind">gotcha</span><span class="t">09:24</span></div>
-              <b>Don't merge the retry paths — one uses idempotency keys</b>
-              <span class="check">✓ citations verified · src/payments/retry.ts · fingerprinted</span>
-            </div>
-            <div class="pktcard">
-              <div class="meta"><span class="kind">decision</span><span class="t">09:41</span></div>
-              <b>Auth uses jose, not jsonwebtoken — CVE in the transitive dep</b>
-              <span class="check">✓ citations verified · src/auth/session.ts · fingerprinted</span>
-            </div>
-            <div class="pktcard is-rejected">
-              <div class="meta"><span class="kind">refused</span><span class="t">09:52</span></div>
-              <b>"Use the helper in src/ghost.ts"</b>
-              <span class="check">✗ rejected on write — no such path in this repo</span>
-            </div>
-            <div class="pktcard is-withheld">
-              <div class="meta"><span class="kind">stale</span><span class="t">10:05</span></div>
-              <b>Legacy retry helper is the fallback</b>
-              <span class="check">⊘ withheld from recall — cited file deleted since capture</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="wrap feature">
-          <div class="feature-copy">
-            <span class="eyebrow">Catch — before it merges</span>
-            <h2>Your diff gets fact-checked.</h2>
-            <p class="lede">When your change invalidates what the team knew, <code>kage pr check</code> flags it in the same review — the fix one command away.</p>
-            <a class="more" href="guide.html#cli">The stale-catch commands →</a>
-          </div>
-          <div class="prwarn" aria-label="kage pr check stale-catch output">
-            <div class="head">⚠ Your changes invalidated 2 team memories</div>
-            <div class="row">
-              <b>Auth uses jose, not jsonwebtoken</b>
-              <span>cites src/auth/session.ts — file changed in this diff</span>
-              <span class="fix">fix: kage reverify --packet auth-jose · or kage supersede --packet &lt;old&gt; --replacement &lt;new&gt;</span>
-            </div>
-            <div class="row">
-              <b>Webhook retries are capped at 3</b>
-              <span>cites src/webhooks/retry.ts — constant removed</span>
-              <span class="fix">fix: kage learn (update) — then this warning disappears</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ——————————————— COMPARE ——————————————— -->
-      <section class="section" id="compare">
-        <div class="wrap">
-          <div class="section-head">
-            <span class="eyebrow">Compare</span>
-            <h2>Remembering is solved. Trusting isn't.</h2>
-            <p class="lede">Capture-everything memory solves <em>remembering</em>. Kage solves <em>trusting what's remembered</em> — it re-checks every claim against your code.</p>
-          </div>
-          <div class="compare-scroll">
-            <table class="compare">
-              <thead>
-                <tr>
-                  <th scope="col"></th>
-                  <th scope="col" class="is-kage">Kage</th>
-                  <th scope="col">claude-mem</th>
-                  <th scope="col">mem0 / Zep</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th scope="row">Automatic capture + session-start recall</th>
-                  <td class="is-kage"><span class="yes">✓</span></td>
-                  <td><span class="yes">✓</span></td>
-                  <td>via SDK</td>
-                </tr>
-                <tr>
-                  <th scope="row">Hallucinated citations rejected at write time</th>
-                  <td class="is-kage"><span class="yes">✓</span></td>
-                  <td><span class="no">—</span></td>
-                  <td><span class="no">—</span></td>
-                </tr>
-                <tr>
-                  <th scope="row">Stale memory withheld at recall</th>
-                  <td class="is-kage"><span class="yes">✓</span></td>
-                  <td><span class="no">—</span></td>
-                  <td><span class="no">—</span></td>
-                </tr>
-                <tr>
-                  <th scope="row">Diff-time stale-catch before the PR lands</th>
-                  <td class="is-kage"><span class="yes">✓</span></td>
-                  <td><span class="no">—</span></td>
-                  <td><span class="no">—</span></td>
-                </tr>
-                <tr>
-                  <th scope="row">Memory reviewed in git, same PR as the code</th>
-                  <td class="is-kage"><span class="yes">✓</span> plain files</td>
-                  <td>SQLite + cloud</td>
-                  <td>hosted API</td>
-                </tr>
-                <tr>
-                  <th scope="row">Savings receipts (tokens + $ per recall)</th>
-                  <td class="is-kage"><span class="yes">✓</span> per-recall</td>
-                  <td>token index</td>
-                  <td><span class="no">—</span></td>
-                </tr>
-                <tr>
-                  <th scope="row">Cross-machine sync</th>
-                  <td class="is-kage"><span class="yes">✓</span> your own git remote</td>
-                  <td>their cloud</td>
-                  <td>their cloud</td>
-                </tr>
-                <tr>
-                  <th scope="row">Account / API key required</th>
-                  <td class="is-kage">none</td>
-                  <td>cloud optional</td>
-                  <td>yes</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <p class="lede" style="margin-top:18px; font-size:15px;">Already running claude-mem? Audit your existing store — read-only, no account: <code>npx -y @kage-core/kage-graph-mcp audit-claude-mem</code> classifies every observation as verified, drifted, gone, or uncited.</p>
-        </div>
-      </section>
-
-      <!-- ——————————————— PROOF ——————————————— -->
-      <section class="section">
-        <div class="wrap">
-          <div class="section-head">
-            <span class="eyebrow">Proof</span>
-            <h2>Trust you can measure — on your own repo.</h2>
-            <p class="lede">Most memory tools benchmark recall. Kage benchmarks the thing that matters when an agent acts: whether the memory can be trusted. Run it yourself; every gate executes in front of you.</p>
-          </div>
-          <div class="terminal">
-            <div class="terminal-head">
-              <span>kage benchmark --trust</span>
-              <span>no API key · runs locally</span>
-            </div>
-            <pre>Trust score: 99/100  (PASS)   · example, depends on your repo
-  Hallucinated-citation rejection: 100%
-  Stale-memory exclusion:          100%
-  Live grounding rate:              98%</pre>
-          </div>
-          <p class="demo-cap">See what your own repo is hiding first: <code>npx -y @kage-core/kage-graph-mcp scan --project .</code></p>
-        </div>
-      </section>
-
-      <!-- ——————————————— USED EVERYWHERE ——————————————— -->
-      <section class="section">
-        <div class="wrap">
-          <div class="section-head">
-            <span class="eyebrow">Used everywhere</span>
-            <h2>Every MCP agent. Built in the open.</h2>
-            <p class="lede"><code>kage install</code> auto-detects your agents — wiring Claude Code and Codex directly, and printing a paste-in MCP snippet for the rest. Claude Code users can also <code>/plugin marketplace add kage-core/Kage</code>.</p>
-          </div>
-          <div class="agents">
-            <span class="agent">Claude Code</span>
-            <span class="agent">Codex</span>
-            <span class="agent">Cursor</span>
-            <span class="agent">Windsurf</span>
-            <span class="agent">Gemini CLI</span>
-            <span class="agent">Cline</span>
-            <span class="agent">Goose</span>
-            <span class="agent">Roo Code</span>
-            <span class="agent">Kilo Code</span>
-            <span class="agent">OpenCode</span>
-            <span class="agent">Aider</span>
-            <span class="agent">Claude Desktop</span>
-            <span class="agent">Copilot</span>
-            <span class="agent">OpenClaw</span>
-            <span class="agent">Hermes</span>
-            <span class="agent">any MCP client</span>
-          </div>
-          <div class="stat-strip" aria-label="Kage signals">
-            <div class="stat-chip"><strong>100%</strong><span>hallucination &amp; stale rejection</span></div>
-            <div class="stat-chip"><strong>no account</strong><span>no API key, no database — just files in git</span></div>
-            <div class="stat-chip"><strong>Fully tested</strong><span>the full suite runs on every release</span></div>
-            <div class="stat-chip"><strong>Git-native</strong><span>memory reviewed in the same PR as code</span></div>
-          </div>
-          <div style="display:flex; gap:8px; margin-top:18px; flex-wrap:wrap;">
-            <img alt="npm version" src="https://img.shields.io/npm/v/@kage-core/kage-graph-mcp?style=flat-square&color=43c98a" style="height:20px" />
-            <img alt="npm downloads" src="https://img.shields.io/npm/dm/@kage-core/kage-graph-mcp?style=flat-square&color=43c98a" style="height:20px" />
-            <img alt="GitHub stars" src="https://img.shields.io/github/stars/kage-core/Kage?style=flat-square&color=41463f" style="height:20px" />
-          </div>
-        </div>
-      </section>
-
-      <!-- ——————————————— PRICING ——————————————— -->
-      <section class="section" id="pricing">
-        <div class="wrap">
-          <div class="section-head">
-            <span class="eyebrow">Pricing</span>
-            <h2>Free where it matters. Verified everywhere.</h2>
-            <p class="lede">The open-source core is complete on its own — verification, receipts, sync over your own git remote. Local-first, private by default: secrets are scanned out and <code>&lt;private&gt;…&lt;/private&gt;</code> is never stored.</p>
-          </div>
-          <div class="cards">
+          <div class="grid-4">
             <div class="card">
-              <h3>Open source</h3>
-              <p style="font: 600 26px/1 var(--serif); color: var(--ink); margin-top: 10px;">$0 <span style="font: 400 13px/1 var(--sans); color: var(--muted);">forever</span></p>
-              <p>Everything on this page: verified memory, Truth Report, receipts, auto-capture, repair, live viewer, 15 agents, <code>kage sync</code> over your own private git remote, and <code>kage cloud</code> — a real, self-hostable team server with review-gated packet sharing. No account, no API key.</p>
-            </div>
-            <div class="card" style="border-color: var(--hairline-green);">
-              <h3>Kage Cloud</h3>
-              <p style="font: 600 26px/1 var(--serif); color: var(--ink); margin-top: 10px;">Not built yet</p>
-              <p>Memory that follows you: your packets on every machine behind one private MCP link — verification stays client-side, so the cloud never sees your code. Gated on real demand; the waitlist is how we measure it.</p>
-              <p style="margin-top: 12px;"><a class="button primary" href="#access">Join the waitlist</a></p>
+              <span class="k">1 · Capture</span>
+              <h3>Learnings become markdown in git</h3>
+              <p>Decisions, gotchas, runbooks — written as OKF concept files under <code>.agent_memory/</code>. No lock-in: teammates get the memory by cloning the repo.</p>
             </div>
             <div class="card">
-              <h3>Team (managed)</h3>
-              <p style="font: 600 26px/1 var(--serif); color: var(--ink); margin-top: 10px;">Coming soon</p>
-              <p>The same review-gated team server, run by us — TLS, uptime, real auth. Self-host it today for free with <code>kage cloud</code>; this is that, hosted. Early design partners shape it.</p>
-              <p style="margin-top: 12px;"><a class="button" href="demo.html">Book a demo</a></p>
+              <span class="k">2 · Verify</span>
+              <h3>Every claim is checked against the repo</h3>
+              <p>Citations are resolved against the real code, deterministically. A memory that cites a file that changed under it is flagged — not silently trusted.</p>
+            </div>
+            <div class="card">
+              <span class="k">3 · Inject</span>
+              <h3>Only verified memory reaches the prompt</h3>
+              <p>Verified, approved claims inject where relevant. Stale memory is withheld with a stated reason. Injecting nothing is a first-class outcome.</p>
+            </div>
+            <div class="card">
+              <span class="k">4 · Receipts</span>
+              <h3>Everything measurable gets measured</h3>
+              <p>Bytes, injections, recalls served, stale withheld — receipts on your real traffic. Anything estimated is labelled an estimate.</p>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- ——————————————— EARLY ACCESS ——————————————— -->
-      <section class="section" id="access">
+      <!-- ——————————————— PROXY / ALL AGENTS ——————————————— -->
+      <section class="section" id="proxy" aria-labelledby="proxy-h">
+        <div class="wrap feature">
+          <div class="feature-copy">
+            <span class="eyebrow">One proxy, every agent</span>
+            <h2 id="proxy-h">One command. Zero per-agent plugins.</h2>
+            <p class="lede">
+              <code>kage up</code> starts a local proxy that fronts three wire formats. Any agent
+              that speaks one of them gets injection, reversible history compression, and the same
+              honesty gates — with no per-agent wiring at all.
+            </p>
+            <a class="more" href="guide.html">How the proxy works →</a>
+          </div>
+          <div class="wires" role="list" aria-label="Supported wire formats">
+            <div class="wire" role="listitem">
+              <span class="port">anthropic</span>
+              <div><b>Anthropic Messages API</b><p>Claude Code, Codex CLI, aider — anything that honors <code>ANTHROPIC_BASE_URL</code>, or just <code>kage run -- claude</code>.</p></div>
+            </div>
+            <div class="wire" role="listitem">
+              <span class="port">openai</span>
+              <div><b>OpenAI-compatible</b><p>Cursor and the wide world of OpenAI-format clients, pointed at the same local port.</p></div>
+            </div>
+            <div class="wire" role="listitem">
+              <span class="port">gemini</span>
+              <div><b>Gemini</b><p>Gemini CLI and Gemini-format tools, through the same proxy with the same gates.</p></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ——————————————— HONESTY GATES ——————————————— -->
+      <section class="section section-alt" id="gates" aria-labelledby="gates-h">
+        <div class="wrap feature flip">
+          <div class="feature-copy">
+            <span class="eyebrow">The honesty gates</span>
+            <h2 id="gates-h">The gate that says <span class="accent">nothing</span> when it should.</h2>
+            <p class="lede">
+              Most memory tools optimize recall. Kage also measures the other side: never injecting
+              on absent topics, never injecting what the code disproves. Both rates are benchmarked
+              at zero — and drift-checked so they stay there.
+            </p>
+            <p class="lede" style="font-size:14.5px">
+              A store audit of 367 real packets shows what earns its keep: ops and verification
+              runbooks are the most-recalled class (~1.0–1.4 uses per packet); reference dumps that
+              restate the code measure 0.00. Kage stores what code cannot say.
+            </p>
+            <a class="more" href="benchmarks.html">Full benchmark table →</a>
+          </div>
+          <figure class="receipt" aria-label="Injection gate benchmark receipt">
+            <div class="r-head"><span>injection gate</span><span class="measured">measured</span></div>
+            <div class="r-lines" style="border-top:0">
+              <div class="r-line"><span>false-injection rate</span><span class="dots"></span><b class="gain">0</b></div>
+              <div class="r-line"><span>absent-topic injection</span><span class="dots"></span><b class="gain">0</b></div>
+              <div class="r-line"><span>recall</span><span class="dots"></span><b class="gain">1.0</b></div>
+              <div class="r-line"><span>top-hit precision</span><span class="dots"></span><b class="gain">1.0</b></div>
+            </div>
+            <div class="r-foot"><code>benchmarks/injection-relevance-kage.mjs</code> · drift-checked in CI</div>
+          </figure>
+        </div>
+      </section>
+
+      <!-- ——————————————— HISTORY DIGESTION ——————————————— -->
+      <section class="section" id="digestion" aria-labelledby="digestion-h">
+        <div class="wrap feature">
+          <div class="feature-copy">
+            <span class="eyebrow">History digestion · opt-in</span>
+            <h2 id="digestion-h">Long sessions, digested. Nothing lost.</h2>
+            <p class="lede">
+              Turned on, the proxy digests conversation history into compact form — reversibly.
+              The exact originals are always retrievable. Measured on real repo bodies over a
+              12-turn session, not on synthetic filler.
+            </p>
+            <p class="lede" style="font-size:14.5px">
+              The honest caveat: compressing a <em>single</em> body on real traffic measures
+              roughly 0%. History is where the savings are — which is why this works on history.
+            </p>
+            <a class="more" href="benchmarks.html">How it is measured →</a>
+          </div>
+          <figure class="receipt" aria-label="History digestion receipt">
+            <div class="r-head"><span>history digestion · 12-turn session</span><span class="measured">measured</span></div>
+            <div class="r-big">
+              <b>−93.33%</b>
+              <span class="unit">total request bytes across the whole session, real repo bodies</span>
+            </div>
+            <div class="r-lines">
+              <div class="r-line"><span>final-turn request bytes</span><span class="dots"></span><b class="gain">−92.93%</b></div>
+              <div class="r-line"><span>single body, real traffic</span><span class="dots"></span><b>~0%</b></div>
+              <div class="r-line"><span>exact originals retrievable</span><span class="dots"></span><b class="gain">always</b></div>
+            </div>
+            <div class="r-foot">reversible by construction · <code>npm run bench:compression</code></div>
+          </figure>
+        </div>
+      </section>
+
+      <!-- ——————————————— TEAM ——————————————— -->
+      <section class="section section-alt" id="team" aria-labelledby="team-h">
         <div class="wrap">
-          <div class="access">
-            <span class="eyebrow">Early access</span>
-            <h2>Stop letting your agent forget.</h2>
-            <p class="lede">The open-source core installs in 60 seconds. Kage Cloud — memory on every machine behind one private MCP link — isn't built yet; the waitlist is how we decide whether it should be.</p>
-            <div class="actions">
-              <a class="button primary" href="https://github.com/kage-core/Kage/issues/74">Join the Cloud waitlist</a>
-              <a class="button" href="demo.html">Book a demo</a>
+          <div class="section-head">
+            <span class="eyebrow">Team workspace</span>
+            <h2 id="team-h">Shared memory, with a report your lead can trust.</h2>
+            <p class="lede">
+              A workspace syncs approved memory across the team — review-gated, tenant-isolated,
+              and proven against a real PostgreSQL, not a mock. If the workspace goes down, local
+              memory keeps working. <code>kage report team</code> answers the only question that
+              matters: is this actually helping?
+            </p>
+          </div>
+          <div class="grid-2">
+            <figure class="receipt" aria-label="Workspace isolation test receipt">
+              <div class="r-head"><span>workspace · real postgresql</span><span class="measured">measured</span></div>
+              <div class="r-lines" style="border-top:0">
+                <div class="r-line"><span>cross-tenant reads</span><span class="dots"></span><b class="gain">0</b></div>
+                <div class="r-line"><span>raw payloads synced</span><span class="dots"></span><b class="gain">0</b></div>
+                <div class="r-line"><span>self-approvals</span><span class="dots"></span><b class="gain">0</b></div>
+                <div class="r-line"><span>duplicate syncs</span><span class="dots"></span><b class="gain">0</b></div>
+                <div class="r-line"><span>invalid webhooks accepted</span><span class="dots"></span><b class="gain">0</b></div>
+                <div class="r-line"><span>test suite</span><span class="dots"></span><b>1474/1474 + 109/109</b></div>
+              </div>
+              <div class="r-foot">backend aggregate + portal suites · local memory keeps working when the workspace is down</div>
+            </figure>
+            <div class="card">
+              <h3><code>$ kage report team</code></h3>
+              <p style="margin-top:12px">One command, measured on your traffic:</p>
+              <ul style="margin-top:10px">
+                <li>Recalls served and stale withheld — counted, not sampled</li>
+                <li>Live injection rate with confidence</li>
+                <li>Store composition by derivability — what memory holds that code cannot say</li>
+                <li>Dark areas: subsystems with zero memory coverage</li>
+                <li>Review health across the team</li>
+              </ul>
             </div>
-            <p class="fine">Waitlist is one click on GitHub — 👍 or comment to join. Demos are 30 minutes, your repo, live. Or skip the line: <a href="guide.html#quickstart">install the open-source core now</a>.</p>
           </div>
         </div>
       </section>
 
+      <!-- ——————————————— QUICKSTART ——————————————— -->
+      <section class="section" id="quickstart" aria-labelledby="quickstart-h">
+        <div class="wrap-narrow">
+          <div class="section-head">
+            <span class="eyebrow">Quickstart</span>
+            <h2 id="quickstart-h">Two commands. Then any terminal.</h2>
+            <p class="lede">Requires Node.js 18+. No account, no API key. Memory lives in your repo as markdown — review it in the same PR as the code.</p>
+          </div>
+          <div class="term">
+            <div class="term-head"><span>your repo</span><span>zsh</span></div>
+            <pre><span class="ps1">$</span> npx -y @kage-core/kage-graph-mcp install   <span class="dim"># memory store + code graph, once per repo</span>
+<span class="ps1">$</span> kage up                                    <span class="dim"># background proxy: anthropic · openai-compatible · gemini</span>
+<span class="ps1">$</span> kage run -- claude                         <span class="dim"># or: export ANTHROPIC_BASE_URL=http://localhost:8788</span>
+<span class="ps1">$</span> kage status --project .                    <span class="dim"># receipts for what it measured</span>
+<span class="ps1">$</span> kage down                                  <span class="dim"># stop it when you are done</span></pre>
+          </div>
+          <p class="footnote" style="margin-top:16px; border-style:solid">
+            <strong><code>kage up</code> starts in audit mode</strong> — measurement only; your bytes
+            are forwarded unchanged and nothing is injected until you opt in with
+            <code>kage up --mode assist</code>. Off by default is a feature, not a limitation.
+          </p>
+          <div class="actions">
+            <a class="button primary" href="guide.html">Read the guide</a>
+            <a class="button" href="demo.html">Book a demo</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- ——————————————— HONEST LIMITS ——————————————— -->
+      <section class="section" id="limits" aria-labelledby="limits-h">
+        <div class="wrap-narrow">
+          <h2 id="limits-h" style="font-size:22px; margin-bottom:16px">What we will not claim</h2>
+          <div class="footnote">
+            <strong>Where the value is conditional:</strong> the A/B above shows memory is
+            transformative when the needed fact is tribal — not written in the code — and makes no
+            measurable difference when the code already answers (5/5 in both arms). If your pain is
+            purely code-derivable, Kage will not speed you up, and its own store audit filters those
+            restatements out.
+            <br /><br />
+            <strong>Where we are:</strong> every number on this page comes from this repository's
+            own benchmarks and test suites, reproducible from the
+            <a href="https://github.com/kage-core/Kage">source</a>. There are no customer pilots
+            yet; nothing here is a testimonial. "Works with all agents" means the three wire
+            formats named above — Anthropic, OpenAI-compatible, and Gemini — not literally
+            everything.
+          </div>
+        </div>
+      </section>
     </main>
 
     <footer class="footer">
       <div class="wrap footer-inner">
         <span>
           <strong style="color:var(--ink);font:700 14px/1 var(--serif)">Kage</strong><br />
-          Git-native memory your team shares.<br />
+          Code-grounded memory for coding agents.<br />
           <span style="color:var(--faint);font-size:12px">© 2026 Kage · GPL-3.0 · no account, no API key</span>
         </span>
         <span>
           <strong style="color:var(--ink)">Product</strong><br />
           <a href="./#how">How it works</a><br />
-          <a href="./#compare">Compare</a><br />
-          <a href="./#pricing">Pricing</a><br />
-          <a href="viewer/">Viewer</a>
+          <a href="./#proxy">The proxy</a><br />
+          <a href="./#gates">Honesty gates</a><br />
+          <a href="./#team">Team workspace</a>
         </span>
         <span>
           <strong style="color:var(--ink)">Learn</strong><br />
-          <a href="guide.html#quickstart">Quickstart</a><br />
-          <a href="guide.html">Docs</a><br />
+          <a href="./#quickstart">Quickstart</a><br />
+          <a href="guide.html">Guide</a><br />
           <a href="benchmarks.html">Benchmarks</a><br />
           <a href="releases.html">Releases</a>
         </span>
@@ -596,11 +397,10 @@ tags: [auth, security]
           <strong style="color:var(--ink)">Company</strong><br />
           <a href="https://github.com/kage-core/Kage">GitHub</a><br />
           <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a><br />
-          <a href="https://github.com/kage-core/Kage/issues/74">Cloud waitlist</a><br />
           <a href="demo.html">Book a demo</a>
         </span>
       </div>
     </footer>
-      <script src="assets/stars.js" defer></script>
+    <script src="assets/stars.js" defer></script>
   </body>
 </html>
