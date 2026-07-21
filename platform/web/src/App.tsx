@@ -15,6 +15,7 @@ import type {
 import { AppShell } from "./components/AppShell";
 import { AdminDiagnosticsPage } from "./pages/AdminDiagnosticsPage";
 import { AgentTasksPage } from "./pages/AgentTasksPage";
+import { BillingPage } from "./pages/BillingPage";
 import { DecisionPage } from "./pages/DecisionPage";
 import { FeaturePage } from "./pages/FeaturePage";
 import { IntegrationsPage } from "./pages/IntegrationsPage";
@@ -434,6 +435,14 @@ function RoutedPage({
       return <IntegrationsContainer api={api} />;
     case "settings":
       return <SettingsPage />;
+    case "billing":
+      // The portal is served by the LOCAL daemon, which deliberately has no workspace-billing feed:
+      // putting one on this page would place the (remote) workspace on a path the local portal needs
+      // to render, and a workspace outage must never degrade local operation. The workspace serves
+      // this DTO itself at GET /v1/workspaces/:id/billing; until an install is linked to one, the
+      // honest answer for a local install is "no workspace connected", which is exactly what a null
+      // panel renders — never a fabricated plan or an empty-looking subscription.
+      return <BillingPage billing={null} />;
     case "admin-diagnostics":
       return <AdminDiagnosticsPage />;
     case "not-found":

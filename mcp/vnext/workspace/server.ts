@@ -18,12 +18,32 @@ import { loadTeamMetrics, MetricsWindowError, TaskOutcomeValidationError } from 
 import { forTarget } from "./audit.js";
 import { assertNoRawPayload } from "../sync/outbox.js";
 import type { SyncBatch } from "../sync/types.js";
+import { countActiveDevelopers, loadSubscription, resolveEntitlements } from "./billing/entitlements.js";
+import {
+  createCheckoutSession,
+  handleStripeEvent,
+  type Fetcher as StripeFetcher,
+  type StripeConfig,
+} from "./billing/stripe.js";
+import { LAUNCH_PLANS, PLAN_IDS, type PlanId } from "./billing/types.js";
 
 const REVIEW_ACTIONS: ReadonlySet<string> = new Set<ReviewAction>(["accept", "reject", "supersede"]);
 
 export interface WorkspaceServer {
   port: number;
   close(): Promise<void>;
+}
+
+/**
+ * Optional service integrations. Billing is genuinely optional: with no Stripe configuration the
+ * workspace still starts and every knowledge, review, sync, and metrics route keeps working — the
+ * billing routes simply report the unpaid local plan. A missing payment provider must never be able to
+ * take a team's own knowledge service down.
+ */
+export interface WorkspaceServerOptions {
+  stripe?: StripeConfig;
+  /** Injected HTTP transport for provider calls, so tests never reach a live Stripe. */
+  fetcher?: StripeFetcher;
 }
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => Promise<void>;
@@ -59,12 +79,18 @@ function requestToken(req: IncomingMessage): string | undefined {
   return cookieToken(req);
 }
 
-async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+/** The EXACT bytes of the request body. A signature must be verified over these, never over a re-parse. */
+async function readRawBody(req: IncomingMessage): Promise<Buffer> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(chunk as Buffer);
-  if (chunks.length === 0) return undefined;
+  return Buffer.concat(chunks);
+}
+
+async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+  const raw = await readRawBody(req);
+  if (raw.length === 0) return undefined;
   try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    return JSON.parse(raw.toString("utf8"));
   } catch {
     return undefined;
   }
@@ -90,7 +116,7 @@ function csrfError(req: IncomingMessage, session: ResolvedSession): "csrf_requir
 }
 
 /** Build the request handler for the workspace service over a given database. */
-export function createWorkspaceApp(db: Db): Handler {
+export function createWorkspaceApp(db: Db, options: WorkspaceServerOptions = {}): Handler {
   return async function handle(req, res) {
     const url = new URL(req.url ?? "/", "http://localhost");
     const method = req.method ?? "GET";
@@ -100,6 +126,14 @@ export function createWorkspaceApp(db: Db): Handler {
     if (method === "GET" && path === "/v1/health") {
       const databaseMigration = await currentVersion(db);
       json(res, 200, { status: "ok", database_migration: databaseMigration });
+      return;
+    }
+
+    // POST /v1/billing/stripe/webhook — Stripe authenticates with a SIGNATURE, not a session, so this
+    // route sits deliberately before the session gate (Stripe has no cookie and no service token).
+    // Authority comes from the signature over the raw bytes; CSRF does not apply for the same reason.
+    if (method === "POST" && path === "/v1/billing/stripe/webhook") {
+      await handleStripeWebhook(db, options, req, res);
       return;
     }
 
@@ -176,6 +210,22 @@ export function createWorkspaceApp(db: Db): Handler {
     const metricsMatch = /^\/v1\/workspaces\/([^/]+)\/metrics$/.exec(path);
     if (metricsMatch && method === "GET") {
       await handleTeamMetrics(db, principal, metricsMatch[1], url, res);
+      return;
+    }
+
+    // GET /v1/workspaces/:workspaceId/billing — the SERVER-resolved plan and entitlements.
+    const billingMatch = /^\/v1\/workspaces\/([^/]+)\/billing$/.exec(path);
+    if (billingMatch && method === "GET") {
+      await handleBillingRead(db, principal, billingMatch[1], res);
+      return;
+    }
+
+    // POST /v1/workspaces/:workspaceId/billing/checkout — start a Stripe Checkout for a PLAN. The
+    // client names a plan; the SERVER chooses the price. There is deliberately no route that writes an
+    // entitlement: only a signature-verified Stripe webhook can do that.
+    const checkoutMatch = /^\/v1\/workspaces\/([^/]+)\/billing\/checkout$/.exec(path);
+    if (checkoutMatch && method === "POST") {
+      await handleCheckout(db, options, principal, checkoutMatch[1], req, res);
       return;
     }
 
@@ -346,6 +396,152 @@ async function handleTeamMetrics(
   }
 }
 
+/**
+ * Take a Stripe webhook. Three properties this handler exists to hold:
+ *   1. It reads the RAW bytes and hands them to the verifier untouched — no parse, no re-serialize.
+ *   2. With no Stripe configured it answers 404 rather than 500: an unconfigured integration is simply
+ *      not there, and an unconfigured deployment must not be probeable for a secret it does not have.
+ *   3. It returns the handler's own status verbatim (401 forged, 200 duplicate, 202 applied), so the
+ *      authority decision lives in one place and cannot drift by endpoint.
+ */
+async function handleStripeWebhook(
+  db: Db,
+  options: WorkspaceServerOptions,
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  if (!options.stripe) {
+    json(res, 404, { error: "not_found" });
+    return;
+  }
+  const rawBody = await readRawBody(req);
+  const header = req.headers["stripe-signature"];
+  const outcome = await handleStripeEvent(
+    { db, config: options.stripe },
+    { rawBody, signature: Array.isArray(header) ? header[0] : header },
+  );
+  json(res, outcome.status, { result: outcome.result });
+}
+
+/**
+ * Serve the billing state for a workspace. Three gates in this order: TENANCY (another workspace is a
+ * 404 — existence is never disclosed across a tenant boundary), AUTHORITY (`billing.manage`, i.e. the
+ * owner; a developer gets 403), and only then the read. Every value in the response is resolved from
+ * the stored subscription; nothing in the request can influence it.
+ */
+async function handleBillingRead(
+  db: Db,
+  principal: Principal,
+  workspaceId: string,
+  res: ServerResponse,
+): Promise<void> {
+  if (workspaceId !== principal.workspace_id) {
+    json(res, 404, { error: "not_found" });
+    return;
+  }
+  if (!can(principal, "billing.manage")) {
+    json(res, 403, { error: "forbidden", action: "billing.manage" });
+    return;
+  }
+  const subscription = await loadSubscription(db, principal.workspace_id);
+  const entitlements = resolveEntitlements(subscription);
+  const window = currentBillingMonth();
+  const activeDevelopers = await countActiveDevelopers(db, principal.workspace_id, window);
+  const credit = await loadLatestCredit(db, principal.workspace_id);
+  json(res, 200, {
+    billing: {
+      plan_id: entitlements.plan_id,
+      state: entitlements.state,
+      entitlements,
+      current_period_end: subscription?.current_period_end ?? null,
+      cancel_at_period_end: subscription?.cancel_at_period_end ?? false,
+      seats: subscription?.seats ?? null,
+      active_developers: activeDevelopers,
+      usd_per_active_developer_month:
+        LAUNCH_PLANS[entitlements.plan_id].usd_per_active_developer_month,
+      credit,
+    },
+  });
+}
+
+/** The current calendar month in UTC — the window an "active developer" is counted over. */
+function currentBillingMonth(now: Date = new Date()): { since: string; until: string } {
+  const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const until = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  return { since: since.toISOString(), until: until.toISOString() };
+}
+
+/** The most recent pilot credit recorded for a workspace, or null when none has been computed. */
+async function loadLatestCredit(
+  db: Db,
+  workspaceId: string,
+): Promise<{ credit_usd: number; reason: string; measured_overhead_usd: number | null } | null> {
+  const { rows } = await db.query<{
+    credit_usd: string | number;
+    reason: string;
+    measured_overhead_usd: string | number | null;
+  }>(
+    `SELECT credit_usd, reason, measured_overhead_usd
+       FROM workspace_billing_credits WHERE workspace_id = $1
+      ORDER BY created_at DESC LIMIT 1`,
+    [workspaceId],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    credit_usd: Number(row.credit_usd),
+    reason: row.reason,
+    measured_overhead_usd: row.measured_overhead_usd === null ? null : Number(row.measured_overhead_usd),
+  };
+}
+
+/**
+ * Start a Stripe Checkout session. The client names a PLAN; the price comes from the server's
+ * configured map, so a request can never choose what it is charged, and it can never grant itself
+ * anything — a checkout only starts a payment, and only the signed webhook that follows moves state.
+ */
+async function handleCheckout(
+  db: Db,
+  options: WorkspaceServerOptions,
+  principal: Principal,
+  workspaceId: string,
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  if (workspaceId !== principal.workspace_id) {
+    json(res, 404, { error: "not_found" });
+    return;
+  }
+  if (!can(principal, "billing.manage")) {
+    json(res, 403, { error: "forbidden", action: "billing.manage" });
+    return;
+  }
+  if (!options.stripe) {
+    json(res, 404, { error: "billing_not_configured" });
+    return;
+  }
+  const body = (await readJsonBody(req)) as { plan_id?: unknown } | undefined;
+  const planId = typeof body?.plan_id === "string" && PLAN_IDS.has(body.plan_id) ? (body.plan_id as PlanId) : null;
+  if (!planId || planId === "local") {
+    json(res, 400, { error: "invalid_plan" });
+    return;
+  }
+  // Seats are the SERVER's count of people who actually worked this month, never a client-supplied
+  // quantity: a client that could name its own seat count could under-buy at will.
+  const quantity = Math.max(1, await countActiveDevelopers(db, principal.workspace_id, currentBillingMonth()));
+  try {
+    const session = await createCheckoutSession(
+      { config: options.stripe, fetcher: options.fetcher },
+      { workspace_id: principal.workspace_id, plan_id: planId, quantity },
+    );
+    json(res, 200, { checkout: session });
+  } catch (error) {
+    // A plan with no configured price is a deployment gap, not a client error, and it must not look
+    // like a successful checkout.
+    json(res, 503, { error: "checkout_unavailable", detail: (error as Error).message });
+  }
+}
+
 /** Coerce a parsed body into a full SyncBatch, defaulting every collection so apply never dereferences null. */
 function normalizeBatch(body: Partial<SyncBatch>): SyncBatch {
   return {
@@ -412,8 +608,12 @@ async function getRepository(
 }
 
 /** Start the workspace HTTP server on `127.0.0.1:<port>` (port 0 = an ephemeral port). */
-export async function startWorkspaceServer(db: Db, port = 0): Promise<WorkspaceServer> {
-  const handle = createWorkspaceApp(db);
+export async function startWorkspaceServer(
+  db: Db,
+  port = 0,
+  options: WorkspaceServerOptions = {},
+): Promise<WorkspaceServer> {
+  const handle = createWorkspaceApp(db, options);
   const server: Server = createServer((req, res) => {
     handle(req, res).catch(() => {
       if (!res.headersSent) json(res, 500, { error: "internal_error" });

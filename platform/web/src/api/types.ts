@@ -126,6 +126,39 @@ export interface TeamMetricsPanelDto {
   caveats: string[];
 }
 
+/**
+ * The billing surface. Every field is the SERVER's resolved answer: the portal renders it, it never
+ * computes an entitlement, and no value here can be influenced by the browser.
+ *
+ * `credit_usd` is null when no pilot credit has been CALCULATED — which is a different fact from a
+ * calculated credit of $0.00, and the page says so in words rather than showing a confident zero.
+ */
+export interface BillingPanelDto {
+  plan_id: "local" | "team" | "business" | "enterprise";
+  state: "active" | "expired" | "none";
+  entitlements: {
+    local_runtime: true;
+    workspace_export: true;
+    team_sync: boolean;
+    team_review: boolean;
+    github_checks: boolean;
+    advanced_policy: boolean;
+    sso: boolean;
+    scim: boolean;
+    self_host_support: boolean;
+  };
+  current_period_end: string | null;
+  /** People who started a task or made a review decision this month — the seats actually consumed. */
+  active_developers: number;
+  /** List price for the plan in force; null for enterprise, which is quoted rather than listed. */
+  usd_per_active_developer_month: number | null;
+  credit_usd: number | null;
+  credit_reason: string | null;
+  /** Measured pilot overhead, in full. Null when no receipt measured both sides — never a zero. */
+  measured_overhead_usd: number | null;
+  caveats: string[];
+}
+
 export interface OverviewDto {
   repository: RepositoryDto;
   metrics: MetricDto[];

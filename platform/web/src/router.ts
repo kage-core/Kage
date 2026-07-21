@@ -26,6 +26,7 @@ export type Route =
   | { page: "costs" }
   | { page: "integrations" }
   | { page: "settings" }
+  | { page: "billing" }
   | { page: "admin-diagnostics" }
   | { page: "not-found"; path: string };
 
@@ -49,6 +50,7 @@ export const navLinks: NavLink[] = [
   { label: "Costs and Outcomes", href: "/costs" },
   { label: "Integrations", href: "/integrations" },
   { label: "Settings", href: "/settings" },
+  { label: "Billing", href: "/billing" },
 ];
 
 // The daemon serves the portal under `/app/`. Detect that mount from the current pathname so the SPA
@@ -125,6 +127,9 @@ export function parseRoute(input: string): Route {
     case "settings":
       if (segments.length === 1) return { page: "settings" };
       break;
+    case "billing":
+      if (segments.length === 1) return { page: "billing" };
+      break;
     case "admin":
       // The segregated operator surface. Raw packets, graph edges, checkpoints, and DB diagnostics
       // live ONLY here, never on the main portal pages.
@@ -173,6 +178,8 @@ export function routeToPath(route: Route): string {
       return "/integrations";
     case "settings":
       return "/settings";
+    case "billing":
+      return "/billing";
     case "admin-diagnostics":
       return "/admin/diagnostics";
     case "not-found":
