@@ -24,8 +24,15 @@ const EXACTNESS_LABELS: Record<Exclude<MetricExactness, "unavailable">, string> 
   structural: "Structural coverage",
 };
 
+// A null value has two very different causes and they are never conflated: "Unavailable" means nothing
+// measured it; "Withheld" means it WAS measured but is suppressed to protect a cohort too small to
+// publish, and the reason is shown next to it.
+function isWithheld(metric: MetricDto): boolean {
+  return metric.value === null && Boolean(metric.suppression_reason);
+}
+
 function formatValue(metric: MetricDto): string {
-  if (metric.value === null) return "Unavailable";
+  if (metric.value === null) return isWithheld(metric) ? "Withheld" : "Unavailable";
   const v = metric.value;
   switch (metric.unit) {
     case "usd":
@@ -68,6 +75,12 @@ export function MetricCard({ metric }: MetricCardProps): React.ReactElement {
       <p className="metric-value" data-unavailable={unavailable || undefined}>
         {formatValue(metric)}
       </p>
+
+      {isWithheld(metric) && (
+        <p className="metric-suppression">
+          Withheld for privacy: <code>{metric.suppression_reason}</code>
+        </p>
+      )}
 
       <p className="metric-meta">
         {!unavailable && (

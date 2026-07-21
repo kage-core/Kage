@@ -27,7 +27,17 @@ export type MetricId =
   | "attach_reliability"
   | "open_contradictions"
   | "stale_critical"
-  | "runbook_health";
+  | "runbook_health"
+  // Team (workspace) metrics. Deliberately distinct ids from the repository-local ones above: a team
+  // aggregate answers a different question over a different population and must never silently
+  // substitute for the local measurement in a card the reader believes is about their own repository.
+  | "team_exact_context_cost"
+  | "team_measurement_coverage"
+  | "team_time_to_verified_change"
+  | "team_verified_reuse"
+  | "team_review_burden"
+  | "team_failed_open"
+  | "team_latency";
 
 export interface MetricDto {
   id: MetricId;
@@ -38,6 +48,12 @@ export interface MetricDto {
   formula: string;
   source_path: string;
   trend: number | null;
+  /**
+   * Why a null value is WITHHELD rather than merely unmeasured — e.g. `minimum_cohort_5` when a team
+   * cohort is too small to publish a human-behaviour trend without singling someone out. Absent/null
+   * means the metric simply was not measured. The two are different facts and are never conflated.
+   */
+  suppression_reason?: string | null;
 }
 
 export interface RepositoryDto {
@@ -62,11 +78,33 @@ export interface IntegrationDto {
   last_success_at: string | null;
 }
 
+/**
+ * Aggregated TEAM metrics for the connected workspace. Identifiers, classes, and counts only — no task
+ * rows, no actor names, no prompts. `suppression_reason` is set when the cohort is too small to publish
+ * behaviour trends, and `caveats` carries the plain-language limits of every number in the panel.
+ */
+export interface TeamMetricsPanelDto {
+  window_start: string | null;
+  window_end: string | null;
+  tasks: number;
+  repositories: number;
+  agents: number;
+  metrics: MetricDto[];
+  suppression_reason: string | null;
+  caveats: string[];
+}
+
 export interface OverviewDto {
   repository: RepositoryDto;
   metrics: MetricDto[];
   attention: AttentionDto[];
   integrations: IntegrationDto[];
+  /**
+   * The team panel, or null when this install has no workspace connected. Null renders as "no workspace
+   * connected", NEVER as an empty team with zeroed metrics — a local-only user has no team data, which
+   * is a different statement from "your team did nothing".
+   */
+  team: TeamMetricsPanelDto | null;
 }
 
 // A single supporting/contradicting evidence anchor. Only ground-truth anchors and verification

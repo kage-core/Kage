@@ -1,4 +1,4 @@
-import type { MetricDto, MetricId, OverviewDto } from "../api/types";
+import type { MetricDto, MetricId, OverviewDto, TeamMetricsPanelDto } from "../api/types";
 import { AttentionQueue } from "../components/AttentionQueue";
 import { IntegrationStrip } from "../components/IntegrationStrip";
 import { MetricCard } from "../components/MetricCard";
@@ -9,7 +9,9 @@ import { MetricCard } from "../components/MetricCard";
 //      understanding coverage — each carrying its own exactness label and provenance.
 //   3. Four SECONDARY metrics — attach reliability, open contradictions, stale critical claims,
 //      runbook health.
-//   4. The attention queue (what needs a human) and integration health.
+//   4. The TEAM panel — aggregated workspace metrics when a workspace is connected, and an explicit
+//      "no workspace connected" when it is not (an absent team is never drawn as an idle team).
+//   5. The attention queue (what needs a human) and integration health.
 //
 // Honesty invariants (enforced by MetricCard + the page tests): an unmeasured metric renders
 // "Unavailable", never a fabricated `$0.00`; exact dollar economics and cohort time outcomes are
@@ -50,6 +52,45 @@ function partition(metrics: MetricDto[]): { primary: MetricDto[]; secondary: Met
   return { primary, secondary: [...secondaryFromOrder, ...extras] };
 }
 
+// The team panel. Three honesty rules are visible here:
+//   - a null `team` says "no workspace connected"; it never renders zeros for a team that does not exist;
+//   - the panel states its scope (tasks / repositories / agents) so a reader knows what population the
+//     numbers describe;
+//   - the caveats the backend attached travel with the numbers instead of being dropped on the floor.
+function TeamPanel({ team }: { team: TeamMetricsPanelDto | null }): React.ReactElement {
+  if (!team) {
+    return (
+      <p className="muted">
+        No workspace connected. Team metrics appear once this repository is linked to a Kage workspace.
+      </p>
+    );
+  }
+  return (
+    <>
+      <p className="team-scope">
+        {team.tasks} tasks across {team.repositories} repositories and {team.agents} agents
+        {team.window_start && team.window_end
+          ? `, ${team.window_start.slice(0, 10)} to ${team.window_end.slice(0, 10)}`
+          : ""}
+        .
+      </p>
+      {team.suppression_reason && (
+        <p className="team-suppression">
+          Cohort trends are withheld for this window: <code>{team.suppression_reason}</code>
+        </p>
+      )}
+      <MetricGrid metrics={team.metrics} />
+      {team.caveats.length > 0 && (
+        <ul className="team-caveats">
+          {team.caveats.map((caveat) => (
+            <li key={caveat}>{caveat}</li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
 function MetricGrid({ metrics }: { metrics: MetricDto[] }): React.ReactElement {
   return (
     <div className="metric-grid">
@@ -61,7 +102,7 @@ function MetricGrid({ metrics }: { metrics: MetricDto[] }): React.ReactElement {
 }
 
 export function OverviewPage({ overview }: OverviewPageProps): React.ReactElement {
-  const { repository, metrics, attention, integrations } = overview;
+  const { repository, metrics, attention, integrations, team } = overview;
   const { primary, secondary } = partition(metrics);
 
   return (
@@ -95,6 +136,11 @@ export function OverviewPage({ overview }: OverviewPageProps): React.ReactElemen
             <MetricGrid metrics={secondary} />
           </>
         )}
+      </section>
+
+      <section aria-label="Team">
+        <h2>Team</h2>
+        <TeamPanel team={team} />
       </section>
 
       <section aria-label="Needs attention">

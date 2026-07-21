@@ -14,6 +14,7 @@ import { can, scopeAllows } from "./auth/authorize.js";
 import type { Principal } from "./auth/types.js";
 import { applyBatch, pullChanges, ReviewAuthorityError } from "./sync-routes.js";
 import { reviewClaim, type ReviewAction } from "./review.js";
+import { loadTeamMetrics } from "./metrics.js";
 import { forTarget } from "./audit.js";
 import { assertNoRawPayload } from "../sync/outbox.js";
 import type { SyncBatch } from "../sync/types.js";
@@ -171,6 +172,13 @@ export function createWorkspaceApp(db: Db): Handler {
       return;
     }
 
+    // GET /v1/workspaces/:workspaceId/metrics — aggregated, privacy-safe team metrics.
+    const metricsMatch = /^\/v1\/workspaces\/([^/]+)\/metrics$/.exec(path);
+    if (metricsMatch && method === "GET") {
+      await handleTeamMetrics(db, principal, metricsMatch[1], url, res);
+      return;
+    }
+
     // GET /v1/workspaces/:workspaceId/repositories — list, tenant- and scope-filtered.
     const reposMatch = /^\/v1\/workspaces\/([^/]+)\/repositories$/.exec(path);
     if (reposMatch && method === "GET") {
@@ -279,6 +287,43 @@ async function handleClaimReview(
   json(res, outcome.status, responseBody);
 }
 
+/**
+ * Serve the aggregated team metrics for a workspace. Three gates, in this order:
+ *   1. TENANCY — another workspace's metrics are a 404 (existence is never disclosed cross-tenant), and
+ *      the report is always built from the SERVER-resolved principal, never the path parameter;
+ *   2. AUTHORITY — `metrics.read` (a viewer does not have it);
+ *   3. SCOPE — a `repository` filter outside the principal's allow-list yields an empty report from the
+ *      query layer itself, not a filtered-after-the-fact list.
+ * The response body is aggregate only: counts, classes, and measured numbers, never a task-level row.
+ */
+async function handleTeamMetrics(
+  db: Db,
+  principal: Principal,
+  workspaceId: string,
+  url: URL,
+  res: ServerResponse,
+): Promise<void> {
+  if (workspaceId !== principal.workspace_id) {
+    json(res, 404, { error: "not_found" });
+    return;
+  }
+  if (!can(principal, "metrics.read")) {
+    json(res, 403, { error: "forbidden", action: "metrics.read" });
+    return;
+  }
+  const repositoryId = url.searchParams.get("repository") ?? undefined;
+  if (repositoryId && !scopeAllows(principal, repositoryId)) {
+    json(res, 404, { error: "not_found" });
+    return;
+  }
+  const metrics = await loadTeamMetrics(db, principal, {
+    repository_id: repositoryId,
+    since: url.searchParams.get("since") ?? undefined,
+    until: url.searchParams.get("until") ?? undefined,
+  });
+  json(res, 200, { metrics });
+}
+
 /** Coerce a parsed body into a full SyncBatch, defaulting every collection so apply never dereferences null. */
 function normalizeBatch(body: Partial<SyncBatch>): SyncBatch {
   return {
@@ -293,6 +338,7 @@ function normalizeBatch(body: Partial<SyncBatch>): SyncBatch {
     relations: body.relations ?? [],
     review_decisions: body.review_decisions ?? [],
     measurements: body.measurements ?? [],
+    task_outcomes: body.task_outcomes ?? [],
     created_at: body.created_at ?? new Date().toISOString(),
   };
 }

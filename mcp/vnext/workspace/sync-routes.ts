@@ -15,6 +15,7 @@ import type { Principal } from "./auth/types.js";
 import { can, scopeAllows } from "./auth/authorize.js";
 import { assertNoRawPayload } from "../sync/outbox.js";
 import { mergeConcurrentClaims } from "../sync/conflicts.js";
+import { storeTaskOutcomes } from "./metrics.js";
 import type { ClaimRecord } from "../repo-model/types.js";
 import type { ReviewDecisionRecord, SyncBatch } from "../sync/types.js";
 
@@ -56,6 +57,7 @@ export async function applyBatch(db: Db, principal: Principal, batch: SyncBatch)
     relations: batch.relations.length,
     review_decisions: batch.review_decisions.length,
     measurements: batch.measurements.length,
+    task_outcomes: (batch.task_outcomes ?? []).length,
   };
 
   await db.query("BEGIN");
@@ -130,6 +132,10 @@ export async function applyBatch(db: Db, principal: Principal, batch: SyncBatch)
         [workspaceId, repositoryId, measurement.measurement_id, measurement.metric, measurement.window_start, measurement.window_end, measurement.sample_count, JSON.stringify(measurement.values)],
       );
     }
+
+    // Aggregated task outcomes for team metrics. storeTaskOutcomes re-checks the privacy allow-list per
+    // record, so a raw field aborts the transaction and NOTHING from the batch lands.
+    await storeTaskOutcomes(db, workspaceId, repositoryId, batch.task_outcomes ?? []);
 
     await db.query("COMMIT");
     return { batch_id: batch.batch_id, status: "applied", applied_counts: counts };

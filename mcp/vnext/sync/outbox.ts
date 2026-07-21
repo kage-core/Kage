@@ -10,6 +10,9 @@
 //     which is what keeps duplicate_sync_records at zero end-to-end.
 import { createHash } from "node:crypto";
 import { isInjectableTrustState } from "../repo-model/types.js";
+// The metrics allow-list lives with the workspace's task-outcome type so exactly one definition of
+// "what a task outcome may contain" governs both the local outbox and the workspace ingest.
+import { assertNoRawTaskOutcomeField } from "../workspace/metrics.js";
 import type {
   AggregatedMeasurementRecord,
   EvidenceRecord,
@@ -17,6 +20,7 @@ import type {
   OutboxRecord,
   ReviewDecisionRecord,
   SyncBatch,
+  TeamTaskOutcomeRecord,
 } from "./types.js";
 
 /** Evidence that may leave the machine: local_raw is quarantined to the local store, never synced. */
@@ -46,6 +50,7 @@ export function buildSyncBatch(snapshot: LocalModelSnapshot, createdAt = new Dat
   const evidence = snapshot.evidence.filter(isSyncableEvidence);
   const reviewDecisions: ReviewDecisionRecord[] = snapshot.review_decisions ?? [];
   const measurements: AggregatedMeasurementRecord[] = snapshot.measurements ?? [];
+  const taskOutcomes: TeamTaskOutcomeRecord[] = snapshot.task_outcomes ?? [];
 
   const body = {
     protocol_version: 1 as const,
@@ -58,6 +63,7 @@ export function buildSyncBatch(snapshot: LocalModelSnapshot, createdAt = new Dat
     relations: snapshot.relations,
     review_decisions: reviewDecisions,
     measurements,
+    task_outcomes: taskOutcomes,
   };
   const batchId = createHash("sha256").update(canonical(body)).digest("hex");
 
@@ -75,6 +81,9 @@ export function assertNoRawPayload(batch: SyncBatch): void {
   if (leaked) {
     throw new Error(`sync batch would transmit local_raw evidence ${leaked.evidence_id}; raw payloads never sync`);
   }
+  // Task outcomes are metrics, and "metrics" is exactly where a raw prompt would hide. Each record is
+  // checked against the workspace's field ALLOW-LIST, so an unknown key never reaches the wire.
+  for (const outcome of batch.task_outcomes ?? []) assertNoRawTaskOutcomeField(outcome);
 }
 
 /**

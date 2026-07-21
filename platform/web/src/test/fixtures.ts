@@ -12,6 +12,7 @@ import type {
   IntegrationDto,
   MetricDto,
   OverviewDto,
+  TeamMetricsPanelDto,
   RelatedEntityDto,
   RepositoryDto,
   ReviewItemDto,
@@ -136,6 +137,49 @@ export function fixtureOverview(overrides: Partial<OverviewDto> = {}): OverviewD
     ],
     attention: [fixtureAttention()],
     integrations: [fixtureIntegration()],
+    // Default to NO workspace: the local-only install is the common case, and the page must say
+    // "no workspace connected" rather than render an empty team as if it had zero activity.
+    team: null,
+    ...overrides,
+  };
+}
+
+// A team panel at (not below) the privacy cohort floor: the trends are published, the exact dollar
+// figure is measured, and one card is unavailable so the page test can assert an unmeasured team
+// metric still renders honestly.
+export function fixtureTeamPanel(
+  overrides: Partial<TeamMetricsPanelDto> = {},
+): TeamMetricsPanelDto {
+  return {
+    window_start: "2026-07-01T00:00:00.000Z",
+    window_end: "2026-07-14T00:00:00.000Z",
+    tasks: 12,
+    repositories: 3,
+    agents: 2,
+    metrics: [
+      fixtureMetric({
+        id: "team_exact_context_cost",
+        label: "Team net context cost",
+        value: -3.4,
+        unit: "usd",
+        exactness: "exact",
+        trend: null,
+        suppression_reason: null,
+      }),
+      fixtureMetric({
+        id: "team_time_to_verified_change",
+        label: "Time to verified change",
+        value: 120000,
+        unit: "milliseconds",
+        exactness: "cohort",
+        trend: null,
+        suppression_reason: null,
+      }),
+    ],
+    suppression_reason: null,
+    caveats: [
+      "exact request economics (usd) and cohort outcome trends (milliseconds) are reported separately and are never multiplied into a single savings number",
+    ],
     ...overrides,
   };
 }

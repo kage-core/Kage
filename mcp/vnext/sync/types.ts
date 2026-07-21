@@ -12,6 +12,8 @@ import type {
   EvidenceRecord,
   RelationRecord,
 } from "../repo-model/types.js";
+// Type-only: erased at build time, so the local outbox never pulls the workspace's Postgres modules in.
+import type { TeamTaskOutcomeRecord } from "../workspace/metrics.js";
 
 export type {
   ClaimRecord,
@@ -49,6 +51,14 @@ export interface AggregatedMeasurementRecord {
   values: Record<string, number>;
 }
 
+/**
+ * A privacy-safe task outcome, re-exported from the workspace metrics module so the outbox and the
+ * workspace agree on exactly one shape. It is identifiers, classes, counts, and measured numbers — the
+ * type has no field that could hold a prompt, tool payload, model response, or claim body, and
+ * `assertNoRawPayload` rejects any extra key at the wire boundary.
+ */
+export type { TeamTaskOutcomeRecord } from "../workspace/metrics.js";
+
 export interface SyncBatch {
   protocol_version: 1;
   batch_id: string;
@@ -62,6 +72,8 @@ export interface SyncBatch {
   relations: RelationRecord[];
   review_decisions: ReviewDecisionRecord[];
   measurements: AggregatedMeasurementRecord[];
+  /** Aggregated, privacy-safe task outcomes for team metrics. Optional so an older daemon stays valid. */
+  task_outcomes?: TeamTaskOutcomeRecord[];
   created_at: string;
 }
 
@@ -76,6 +88,7 @@ export interface LocalModelSnapshot {
   relations: RelationRecord[];
   review_decisions?: ReviewDecisionRecord[];
   measurements?: AggregatedMeasurementRecord[];
+  task_outcomes?: TeamTaskOutcomeRecord[];
 }
 
 /** A single immutable outbox entry: one batch, its stable id, and whether it has been acknowledged. */

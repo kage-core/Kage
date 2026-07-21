@@ -9,9 +9,27 @@ import {
   fixtureIntegration,
   fixtureMetric,
   fixtureOverview,
+  fixtureTeamPanel,
 } from "../test/fixtures";
 
 describe("MetricCard honesty", () => {
+  test("a privacy-withheld metric says it is withheld and why", () => {
+    render(
+      <MetricCard
+        metric={fixtureMetric({
+          id: "team_time_to_verified_change",
+          value: null,
+          unit: "milliseconds",
+          exactness: "unavailable",
+          suppression_reason: "minimum_cohort_5",
+        })}
+      />,
+    );
+    expect(screen.getByText("Withheld")).toBeInTheDocument();
+    expect(screen.getByText(/minimum_cohort_5/)).toBeInTheDocument();
+    expect(screen.queryByText("Unavailable")).not.toBeInTheDocument();
+  });
+
   test("unavailable cost is displayed as unavailable instead of zero", () => {
     render(
       <MetricCard
@@ -124,6 +142,53 @@ describe("OverviewPage", () => {
     expect(screen.queryByText("0%")).not.toBeInTheDocument();
     // At least one metric shows the honest "Unavailable" state.
     expect(screen.getAllByText("Unavailable").length).toBeGreaterThan(0);
+  });
+
+  test("says no workspace is connected instead of showing an empty team", () => {
+    render(<OverviewPage overview={fixtureOverview({ team: null })} />);
+    const team = screen.getByRole("region", { name: /team/i });
+    expect(within(team).getByText(/no workspace connected/i)).toBeInTheDocument();
+    // An absent team is never rendered as a team that did nothing.
+    expect(within(team).queryByText("0")).not.toBeInTheDocument();
+  });
+
+  test("renders team scope and caveats alongside the team metrics", () => {
+    render(<OverviewPage overview={fixtureOverview({ team: fixtureTeamPanel() })} />);
+    const team = screen.getByRole("region", { name: /team/i });
+    expect(within(team).getByText(/12 tasks/i)).toBeInTheDocument();
+    expect(within(team).getByText(/3 repositories/i)).toBeInTheDocument();
+    expect(within(team).getByText(/2 agents/i)).toBeInTheDocument();
+    expect(within(team).getByText("Team net context cost")).toBeInTheDocument();
+    expect(within(team).getByText(/never multiplied into a single savings number/i)).toBeInTheDocument();
+  });
+
+  test("a suppressed team cohort is labeled withheld, not measured as zero", () => {
+    render(
+      <OverviewPage
+        overview={fixtureOverview({
+          team: fixtureTeamPanel({
+            tasks: 3,
+            suppression_reason: "minimum_cohort_5",
+            metrics: [
+              fixtureMetric({
+                id: "team_time_to_verified_change",
+                label: "Time to verified change",
+                value: null,
+                unit: "milliseconds",
+                exactness: "unavailable",
+                trend: null,
+                suppression_reason: "minimum_cohort_5",
+              }),
+            ],
+          }),
+        })}
+      />,
+    );
+    const team = screen.getByRole("region", { name: /team/i });
+    // Both the panel-level notice and the card itself say so.
+    expect(within(team).getAllByText(/withheld/i).length).toBeGreaterThan(0);
+    expect(within(team).getAllByText(/minimum_cohort_5/i).length).toBeGreaterThan(0);
+    expect(within(team).queryByText("0ms")).not.toBeInTheDocument();
   });
 
   test("surfaces the attention queue and integration health", () => {
