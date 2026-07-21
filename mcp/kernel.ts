@@ -4549,6 +4549,41 @@ function evaluateMemoryQuality(projectDir: string, packet: MemoryPacket, context
   };
 }
 
+// What share of the packet body's distinct meaningful terms already appear in its cited files.
+// A high containment with no rationale/trigger language means the body RESTATES the code — the
+// lowest-value memory class (measured: ~0 uses/packet), because an agent can read the code itself.
+// Prefix-lite matching (first 5 chars) absorbs simple morphology ("retries" vs "retry"). Bounded:
+// first 3 cited files, 50 KB each; unreadable files contribute nothing (containment can only drop).
+function citedCodeContainment(projectDir: string, packet: MemoryPacket): number {
+  let corpus = "";
+  for (const relPath of packet.paths.slice(0, 3)) {
+    try {
+      const filePath = join(projectDir, relPath);
+      if (!existsSync(filePath)) continue;
+      corpus += `\n${readFileSync(filePath, "utf8").slice(0, 50_000).toLowerCase()}`;
+    } catch {
+      continue;
+    }
+  }
+  if (!corpus) return 0;
+  const terms = unique(tokenize(packet.body).filter((term) => term.length >= 4));
+  if (terms.length < 6) return 0; // too few terms to judge restatement
+  let contained = 0;
+  for (const term of terms) {
+    // Prefix fallbacks absorb simple morphology ("retries"→"retry", "doubling"→"doubl"). This only
+    // ever runs on trigger-free bodies (the caller gates it), so the looseness cannot penalize
+    // rationale-bearing memory.
+    if (
+      corpus.includes(term) ||
+      (term.length > 5 && corpus.includes(term.slice(0, 5))) ||
+      (term.length > 4 && corpus.includes(term.slice(0, 4)))
+    ) {
+      contained += 1;
+    }
+  }
+  return contained / terms.length;
+}
+
 export function evaluateMemoryAdmission(projectDir: string, packet: MemoryPacket): MemoryAdmissionResult {
   const reasons: string[] = [];
   const risks: string[] = [];
@@ -4598,6 +4633,27 @@ export function evaluateMemoryAdmission(projectDir: string, packet: MemoryPacket
   if (packet.body.length < 80) {
     score -= 10;
     risks.push("too little context");
+  }
+  // T2 — derivability. The live reuse A/B measured memory's value as ~ZERO when the fact is
+  // derivable from code and transformative when it is not; the store audit confirmed it in usage
+  // (reference dumps 0.00 uses/packet, code explanations 0.12, vs rationale/gotcha/ops carrying all
+  // demand). So admission BOOSTS knowledge the code cannot express and PENALIZES a body that merely
+  // restates its cited code.
+  const nonDerivable =
+    packet.type === "gotcha" ||
+    packet.type === "negative_result" ||
+    /\b(instead of|rejected|rather than|dead[- ]?ends?|does not work|external|upstream|rate[- ]?limits?|incident|postmortem|stampede|tribal)\b/i.test(text);
+  if (nonDerivable) {
+    score += 10;
+    reasons.push("non-derivable knowledge the code cannot express");
+  }
+  const hasTriggerLanguage = /(when|after|before|because|requires|must|avoid|prefer|use this|run this|root cause|rationale|decision|convention|gotcha|workaround|fix|policy|issue|hypothesis|unresolved|data flow|invariant|coupling|constraint)/i.test(packet.body);
+  if (!nonDerivable && !hasTriggerLanguage && packet.paths.length) {
+    const containment = citedCodeContainment(projectDir, packet);
+    if (containment >= 0.65) {
+      score -= 30;
+      risks.push(`restates what the cited code already says (derivable; ${Math.round(containment * 100)}% of body terms appear in the cited files — agents read code)`);
+    }
   }
   // Ungrounded conversational chatter (a path-less, repo-reference-free user outburst) is not
   // durable memory regardless of its other signals — keywords like "issue"/"before" can
@@ -17531,7 +17587,23 @@ export function capture(input: CaptureInput): CaptureResult {
     ...evaluateMemoryQuality(input.projectDir, packet),
     ...(contradictions.length ? { contradicts: contradictions.map((c) => c.packet_id) } : {}),
   };
-  const path = writePacket(input.projectDir, packet, routeToPending ? "pending" : "packets");
+  // T2 — derivability gate on the explicit path. A body that merely RESTATES its cited code is the
+  // measured-lowest-value memory class (~0 uses/packet; the reuse A/B measured ~zero value when the
+  // fact is in code). The deliberate capture is still WRITTEN — never lose a human act — but it
+  // lands in pending review instead of trusted recall, with the why spelled out.
+  let routeToPendingFinal = routeToPending;
+  if (!routeToPendingFinal && packet.paths.length) {
+    const admission = evaluateMemoryAdmission(input.projectDir, packet);
+    const restates = admission.risks.find((risk) => risk.includes("restates what the cited code already says"));
+    if (restates) {
+      routeToPendingFinal = true;
+      packet.status = "pending";
+      warnings.push(
+        `Routed to pending review: ${restates}. Add what the code cannot say — the why, the rejected alternative, the trap — to make this durable memory.`,
+      );
+    }
+  }
+  const path = writePacket(input.projectDir, packet, routeToPendingFinal ? "pending" : "packets");
   recordMemoryAudit(input.projectDir, "capture", [packet], {
     type: packet.type,
     status: packet.status,

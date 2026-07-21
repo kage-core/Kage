@@ -5586,7 +5586,9 @@ test("recall receipt uses knowledge replay value when larger, floored at the rea
   const floored = tempProject();
   mkdirSync(join(floored, "src"), { recursive: true });
   writeFileSync(join(floored, "src", "big.ts"), `// big module\n${"export const line = 1;\n".repeat(4000)}`, "utf8");
-  capture({ projectDir: floored, title: "Big module invariant", body: "Big module exports stable line constants from src/big.ts.", type: "reference", paths: ["src/big.ts"], discoveryTokens: 10 });
+  // Body carries WHY (an invariant downstream depends on), so the T2 derivability gate correctly
+  // treats it as durable memory rather than a restatement of the cited file.
+  capture({ projectDir: floored, title: "Big module invariant", body: "Big module must keep exporting stable line constants (src/big.ts) because downstream fixtures depend on the exact export count.", type: "reference", paths: ["src/big.ts"], discoveryTokens: 10 });
   const flooredResult = recall(floored, "big module line constants", 5);
   assert.equal(flooredResult.results.some((entry) => entry.packet.title === "Big module invariant"), true);
   assert.ok(flooredResult.value_receipt);
