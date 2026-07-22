@@ -3,143 +3,235 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Kage benchmarks: the Trust Benchmark (hallucinated-citation rejection, stale-memory exclusion, live grounding) plus dependency-free retrieval on LongMemEval-S. Reproducible commands included." />
-    <title>Kage Benchmarks — trust you can measure</title>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <meta name="description" content="Kage benchmarks: the live reuse A/B, injection-gate precision, reversible history digestion, and the honesty gates — every number with the command that reproduces it, and what each number does NOT show." />
+    <title>Kage Benchmarks — every number has a receipt</title>
+    <link rel="icon" type="image/svg+xml" href="assets/kage-eye.svg" />
+    <link rel="canonical" href="https://kage-core.com/benchmarks.html" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Kage" />
+    <meta property="og:url" content="https://kage-core.com/benchmarks.html" />
+    <meta property="og:title" content="Kage Benchmarks — every number has a receipt" />
+    <meta property="og:description" content="The live reuse A/B, injection precision, reversible history digestion — reproducible commands included, honest limits stated." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..600&display=swap" />
-    <link rel="stylesheet" href="assets/site.css?v=5" />
-    <style>
-      .bm-wrap { width: min(900px, calc(100% - 32px)); margin: 0 auto; padding: 40px 0 64px; }
-      .bm-table { width: 100%; border-collapse: collapse; margin: 16px 0; font: 400 14px/1.5 var(--sans, system-ui); }
-      .bm-table th, .bm-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line, #1c3b29); }
-      .bm-table th { color: var(--muted, #7fa88a); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
-      .bm-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
-      .bm-table strong { color: var(--brand, #0f8f57); }
-      .bm-cmd { display: block; margin: 14px 0; padding: 14px 16px; border-radius: 10px; background: #0a0f0c; color: #b9fbc0; border: 1px solid var(--line, #1c3b29); font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-x: auto; white-space: pre; }
-      .bm-note { color: var(--muted, #7fa88a); font-size: 14px; line-height: 1.6; }
-      .bm-wrap h1 { font: 800 34px/1.1 var(--sans, system-ui); margin: 0 0 8px; }
-      .bm-wrap h2 { margin: 40px 0 6px; font: 700 20px/1.2 var(--sans, system-ui); }
-      .bm-eyebrow { color: var(--brand, #0f8f57); font: 700 12px/1 var(--sans, system-ui); letter-spacing: .12em; text-transform: uppercase; }
-    </style>
+    <link rel="stylesheet" href="assets/site.css?v=6" />
   </head>
   <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
     <nav class="nav" aria-label="Main navigation">
       <a class="brand" href="./" aria-label="Kage home">
         <img src="assets/kage-eye.svg" alt="" />
         <span>Kage</span>
       </a>
       <div class="nav-links">
-        <a href="./#how">How it works</a>
-        <a href="./#compare">Compare</a>
-        <a href="./#pricing">Pricing</a>
-        <a href="guide.html">Docs</a>
-        <a href="viewer/">Viewer</a>
+        <a href="./">Home</a>
+        <a href="guide.html">Guide</a>
+        <a href="benchmarks.html" aria-current="page">Benchmarks</a>
+        <a href="releases.html">Releases</a>
+        <a href="demo.html">Demo</a>
         <a class="gh-btn" href="https://github.com/kage-core/Kage" target="_blank" rel="noopener" aria-label="Kage on GitHub">
-        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
-        <span>GitHub</span>
-        <span class="gh-sep"></span>
-        <span class="gh-star">★</span>
-        <span id="gh-stars">6</span>
-      </a>
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
+          <span>GitHub</span>
+          <span class="gh-sep"></span>
+          <span class="gh-star">★</span>
+          <span id="gh-stars">6</span>
+        </a>
       </div>
-      <a class="nav-cta" href="demo.html">Book a demo</a>
+      <a class="nav-cta" href="./#quickstart">Get started</a>
     </nav>
 
-    <main class="bm-wrap">
-      <span class="bm-eyebrow">Benchmarks</span>
-      <h1>Trust you can measure.</h1>
-      <p class="bm-note">We publish our own numbers and exactly how to reproduce them. We don't post
-      head-to-head tables against other tools — a score only means something relative to the harness
-      that produced it, so cross-tool numbers measured on different harnesses aren't a fair comparison.
-      Run these on your own repo.</p>
+    <main id="main">
+      <section class="hero">
+        <div class="wrap wrap-narrow">
+          <p class="eyebrow">Benchmarks</p>
+          <h1>Every number has a <span class="accent">receipt</span>.</h1>
+          <p class="lede">
+            Each result below states what was measured, the command that reproduces it in the open repo,
+            and — because a benchmark that hides its limits is marketing — what it does <em>not</em> show.
+          </p>
+        </div>
+      </section>
 
-      <h2>1. The Trust Benchmark — the one that matters</h2>
-      <p class="bm-note">The question retrieval benchmarks never ask: <strong>can you trust what the
-      memory returns?</strong> An agent acting on stale or hallucinated memory is worse than one with
-      none. This is what Kage is built for — a property tools that auto-capture everything into a
-      vector store structurally can't measure, because they have no rejection or staleness gate to
-      score. See <a href="https://github.com/kage-core/Kage/blob/master/docs/TRUST.md">docs/TRUST.md</a> for why.</p>
-      <code class="bm-cmd">kage benchmark --trust --project .</code>
-      <table class="bm-table">
-        <tr><th>Metric</th><th class="num">Result</th></tr>
-        <tr><td>Hallucinated-citation rejection</td><td class="num">100%</td></tr>
-        <tr><td>Stale-memory exclusion</td><td class="num">100%</td></tr>
-        <tr><td>Live grounding rate</td><td class="num">99%</td></tr>
-        <tr><td><strong>Trust score</strong></td><td class="num"><strong>100 / 100</strong></td></tr>
-      </table>
-      <p class="bm-note">Controlled gates run in an isolated sandbox; grounding runs on your real repo.
-      Methodology: <a href="https://github.com/kage-core/Kage/blob/master/docs/TRUST.md">docs/TRUST.md</a>.</p>
+      <section class="section" id="reuse">
+        <div class="wrap wrap-narrow">
+          <div class="section-head">
+            <p class="eyebrow">The headline result</p>
+            <h2>The live reuse A/B — where memory pays, and where it doesn't</h2>
+          </div>
+          <p>
+            A real coding agent ran through the real proxy against the same repository, with and without
+            Kage memory. When the fact the agent needed was <strong>not in the code</strong> — tribal
+            knowledge — memory changed the outcome. When it was in the code, memory honestly made no
+            measurable difference.
+          </p>
+          <div class="grid-2">
+            <div class="receipt">
+              <div class="r-head">Fact NOT in the code <span class="measured">measured</span></div>
+              <div class="r-big"><b>0/3 → 3/3</b><span class="unit">correct answers, without → with memory</span></div>
+              <div class="r-lines">
+                <div class="r-line"><span>Cost per task</span><span class="dots"></span><b class="gain">−41%</b></div>
+                <div class="r-line"><span>Turns per task</span><span class="dots"></span><b class="gain">8.3 → 3.3</b></div>
+              </div>
+              <div class="r-foot">Live agent runs through the shipped proxy; harness committed in benchmarks/reuse-ab-live.mjs</div>
+            </div>
+            <div class="receipt">
+              <div class="r-head">Fact IS in the code <span class="measured">measured</span></div>
+              <div class="r-big"><b>5/5 = 5/5</b><span class="unit">both arms correct — no measurable difference</span></div>
+              <div class="r-lines">
+                <div class="r-line"><span>Cost delta</span><span class="dots"></span><b>−1.2% (noise)</b></div>
+              </div>
+              <div class="r-foot">Agents read code fine. Kage does not pretend otherwise.</div>
+            </div>
+          </div>
+          <p class="footnote">
+            What this does NOT show: a team-wide token saving over weeks of real traffic. That number can
+            only come from your own receipts — which is what <code>kage report team</code> accumulates.
+          </p>
+        </div>
+      </section>
 
-      <h2>2. Retrieval — competitive, dependency-free (a sanity check)</h2>
-      <p class="bm-note">We run the recognized long-term-memory retrieval benchmark, LongMemEval-S, as an
-      external sanity check. It's a <em>conversational</em> benchmark — not Kage's core use case (durable
-      repo memory) — but it shows our retrieval is strong with <strong>zero dependencies: no vector DB,
-      no embedding model, no API key.</strong></p>
-      <table class="bm-table">
-        <tr><th>Metric</th><th class="num">Kage strict recall</th></tr>
-        <tr><td>R@5</td><td class="num">96.17%</td></tr>
-        <tr><td>R@10</td><td class="num">98.72%</td></tr>
-        <tr><td>R@20</td><td class="num">99.79%</td></tr>
-        <tr><td>MRR</td><td class="num">0.909</td></tr>
-        <tr><td>Median latency</td><td class="num">~210 ms</td></tr>
-      </table>
-      <code class="bm-cmd">node benchmarks/longmemeval-kage-retrieval.mjs --data longmemeval_s_cleaned.json --limit 470 --top-k 20</code>
-      <p class="bm-note"><strong>Read this honestly:</strong> these are session-level retrieval-recall
-      scores, not end-to-end QA accuracy. On this dataset a plain BM25 baseline also reaches ~96.6% R@5 —
-      the benchmark is lexically tractable and strong retrievers cluster at 95–97%. The takeaway is
-      <em>"Kage matches strong lexical retrieval with no dependencies,"</em> not "Kage is uniquely best
-      at retrieval." Details:
-      <a href="https://github.com/kage-core/Kage/blob/master/benchmarks/LONGMEMEVAL.md">benchmarks/LONGMEMEVAL.md</a>.</p>
+      <section class="section section-alt" id="injection">
+        <div class="wrap wrap-narrow">
+          <div class="section-head">
+            <p class="eyebrow">Precision</p>
+            <h2>The injection gate — measured on hostile prompts</h2>
+          </div>
+          <p>
+            The gate must inject nothing on content-free prompts ("fix it", "thanks"), nothing on topics
+            the store cannot answer, and the right memory on direct questions. The acceptance bench holds
+            all four properties at once, and is drift-checked against the shipped recall code:
+          </p>
+          <div class="receipt">
+            <div class="r-head">benchmarks/injection-relevance-kage.mjs <span class="measured">measured</span></div>
+            <div class="r-lines">
+              <div class="r-line"><span>False-injection rate (content-free prompts)</span><span class="dots"></span><b class="gain">0</b></div>
+              <div class="r-line"><span>Absent-topic injection rate</span><span class="dots"></span><b class="gain">0</b></div>
+              <div class="r-line"><span>Small-store recall (direct questions)</span><span class="dots"></span><b class="gain">1.0</b></div>
+              <div class="r-line"><span>Expected top-hit rate</span><span class="dots"></span><b class="gain">1.0</b></div>
+              <div class="r-line"><span>Injection precision</span><span class="dots"></span><b>0.636</b></div>
+            </div>
+            <div class="r-foot">Re-run: <code>npm run bench:injection --prefix mcp</code> (use --assert-baseline in CI)</div>
+          </div>
+          <p class="footnote">
+            What this does NOT show: relevance on your corpus. The gate normalizes against each store's own
+            score distribution, and every live decision is recorded so your real rate shows up in
+            <code>kage report team</code> — not just our fixtures.
+          </p>
+        </div>
+      </section>
 
-      <h2>3. Coding-task memory — the category-correct benchmark</h2>
-      <p class="bm-note">Retrieval recall doesn't tell you whether memory makes a coding agent <em>better</em>.
-      Kage ships a <strong>SWE-bench Verified memory ablation</strong> — a controlled, single-variable
-      experiment measuring whether repo memory improves real GitHub-issue resolution. See
-      <a href="https://github.com/kage-core/Kage/blob/master/benchmark/README.md">benchmark/README.md</a>.</p>
+      <section class="section" id="compression">
+        <div class="wrap wrap-narrow">
+          <div class="section-head">
+            <p class="eyebrow">Context efficiency</p>
+            <h2>History digestion — reversible, and honest about the alternative</h2>
+          </div>
+          <p>
+            Single-body compression on real traffic measures <strong>~0%</strong> net — we ship that number
+            rather than the wish. The real waste is <em>history</em>: old tool outputs re-sent verbatim on
+            every turn. Opt-in history digestion reduces them to deterministic digests, with the exact
+            original always retrievable from the content-addressed store:
+          </p>
+          <div class="grid-2">
+            <div class="receipt">
+              <div class="r-head">12-turn session, real repo bodies <span class="measured">measured</span></div>
+              <div class="r-big"><b>−93.33%</b><span class="unit">whole-session request bytes</span></div>
+              <div class="r-lines">
+                <div class="r-line"><span>Final-turn request</span><span class="dots"></span><b class="gain">−92.93%</b></div>
+                <div class="r-line"><span>Reversibility</span><span class="dots"></span><b class="gain">exact originals retrievable</b></div>
+                <div class="r-line"><span>Cache stability</span><span class="dots"></span><b class="gain">deterministic digests</b></div>
+              </div>
+              <div class="r-foot">Re-run: <code>npm run bench:compression --prefix mcp</code></div>
+            </div>
+            <div class="receipt">
+              <div class="r-head">Single-body compression, real bodies <span class="measured">measured</span></div>
+              <div class="r-big"><b>~0%</b><span class="unit">median net saving — reported, not hidden</span></div>
+              <div class="r-lines">
+                <div class="r-line"><span>Real git diff</span><span class="dots"></span><b>~0.1%</b></div>
+                <div class="r-line"><span>Source / JSON</span><span class="dots"></span><b>passthrough</b></div>
+              </div>
+              <div class="r-foot">Compression only pays where payloads repeat. The pipeline passes through rather than claim a saving it didn't achieve.</div>
+            </div>
+          </div>
+          <p class="footnote">
+            What this does NOT show: token-level savings on cached providers (a digested prefix re-keys the
+            provider cache once, then stays stable — bytes are the measured unit here), and history
+            digestion is off by default until you opt in.
+          </p>
+        </div>
+      </section>
 
-      <h2>Principle</h2>
-      <p class="bm-note">Lead with trust (ours, uncontested). Treat retrieval as a sanity check, stated
-      precisely. Never compare against a number measured on someone else's harness. Every number here is
-      reproducible with the commands above.</p>
+      <section class="section section-alt" id="gates">
+        <div class="wrap wrap-narrow">
+          <div class="section-head">
+            <p class="eyebrow">Safety as tests</p>
+            <h2>The honesty gates — enforced, not documented</h2>
+          </div>
+          <div class="receipt">
+            <div class="r-head">Suite + gates <span class="measured">measured</span></div>
+            <div class="r-lines">
+              <div class="r-line"><span>Backend aggregate</span><span class="dots"></span><b class="gain">1474 / 1474</b></div>
+              <div class="r-line"><span>Portal tests</span><span class="dots"></span><b class="gain">109 / 109</b></div>
+              <div class="r-line"><span>Workspace vs real PostgreSQL</span><span class="dots"></span><b class="gain">176 / 176</b></div>
+              <div class="r-line"><span>Cross-tenant reads · raw payloads synced · self-approvals</span><span class="dots"></span><b class="gain">0 · 0 · 0</b></div>
+              <div class="r-line"><span>Duplicate syncs · invalid webhooks accepted</span><span class="dots"></span><b class="gain">0 · 0</b></div>
+              <div class="r-line"><span>Local memory during workspace outage</span><span class="dots"></span><b class="gain">fully working</b></div>
+            </div>
+            <div class="r-foot">Re-run: <code>npm test --prefix mcp</code> · gate: <code>node --test mcp/dist/vnext/phase-e-gate.test.js</code></div>
+          </div>
+          <p class="footnote">
+            What this does NOT show: production pilots. No design-partner pilot has run yet; the GA report
+            says so and exits non-zero rather than pretending. Live GitHub/Stripe/identity-provider interop
+            is fixture-proven, not exercised against production accounts.
+          </p>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="wrap wrap-narrow">
+          <div class="cta">
+            <h2>Run them yourself</h2>
+            <p>The repo is open; every bench is a committed script with its baseline recorded.</p>
+            <div class="actions">
+              <a class="button primary" href="https://github.com/kage-core/Kage">Clone the repo</a>
+              <a class="button" href="guide.html">Read the guide</a>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
 
     <footer class="footer">
       <div class="wrap footer-inner">
         <span>
           <strong style="color:var(--ink);font:700 14px/1 var(--serif)">Kage</strong><br />
-          Git-native memory your team shares.<br />
+          Code-grounded memory for coding agents.<br />
           <span style="color:var(--faint);font-size:12px">© 2026 Kage · GPL-3.0 · no account, no API key</span>
         </span>
         <span>
           <strong style="color:var(--ink)">Product</strong><br />
           <a href="./#how">How it works</a><br />
-          <a href="./#compare">Compare</a><br />
-          <a href="./#pricing">Pricing</a><br />
-          <a href="viewer/">Viewer</a>
+          <a href="./#proxy">The proxy</a><br />
+          <a href="./#gates">Honesty gates</a><br />
+          <a href="./#team">Team workspace</a>
         </span>
         <span>
           <strong style="color:var(--ink)">Learn</strong><br />
-          <a href="guide.html#quickstart">Quickstart</a><br />
-          <a href="guide.html">Docs</a><br />
+          <a href="./#quickstart">Quickstart</a><br />
+          <a href="guide.html">Guide</a><br />
           <a href="benchmarks.html">Benchmarks</a><br />
           <a href="releases.html">Releases</a>
         </span>
         <span>
           <strong style="color:var(--ink)">Company</strong><br />
-          <a class="gh-btn" href="https://github.com/kage-core/Kage" target="_blank" rel="noopener" aria-label="Kage on GitHub">
-        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
-        <span>GitHub</span>
-        <span class="gh-sep"></span>
-        <span class="gh-star">★</span>
-        <span id="gh-stars">6</span>
-      </a><br />
+          <a href="https://github.com/kage-core/Kage">GitHub</a><br />
           <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a><br />
-          <a href="https://github.com/kage-core/Kage/issues/74">Cloud waitlist</a><br />
           <a href="demo.html">Book a demo</a>
         </span>
       </div>
     </footer>
-      <script src="assets/stars.js" defer></script>
+    <script src="assets/stars.js" defer></script>
   </body>
 </html>

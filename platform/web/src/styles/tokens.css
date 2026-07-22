@@ -21,9 +21,9 @@
   --color-border-strong: #b4bac4;
 
   /* Accent + status. Each has AA-contrast text-on-color and a subtle tint background. */
-  --color-accent: #2f5bd7;
+  --color-accent: #177a4d;
   --color-accent-contrast: #ffffff;
-  --color-focus: #1f3fae;
+  --color-focus: #0f5c39;
 
   --color-success: #1f7a45;
   --color-success-tint: #e4f4ea;
@@ -72,26 +72,28 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-background: #0f1216;
-    --color-surface: #171b21;
-    --color-surface-raised: #1e232b;
-    --color-text: #eef1f5;
-    --color-text-muted: #a6adba;
-    --color-border: #2b323c;
-    --color-border-strong: #3c4552;
+    /* v6 brand alignment: the portal's dark scheme shares the site/viewer near-black greens and
+       reserves the verified green for accent + success — one look across every Kage surface. */
+    --color-background: #121413;
+    --color-surface: #1a1d1b;
+    --color-surface-raised: #212522;
+    --color-text: #edefe9;
+    --color-text-muted: #a4aba1;
+    --color-border: #2c302c;
+    --color-border-strong: #41463f;
 
-    --color-accent: #7ea2ff;
-    --color-accent-contrast: #0f1216;
-    --color-focus: #a9c1ff;
+    --color-accent: #43c98a;
+    --color-accent-contrast: #0e1411;
+    --color-focus: #5fdca0;
 
-    --color-success: #6cd39a;
-    --color-success-tint: #123123;
-    --color-warning: #e6b45a;
-    --color-warning-tint: #33280f;
-    --color-critical: #f19992;
-    --color-critical-tint: #3a1917;
-    --color-neutral: #a6adba;
-    --color-neutral-tint: #232a33;
+    --color-success: #43c98a;
+    --color-success-tint: #14291f;
+    --color-warning: #d9a93f;
+    --color-warning-tint: #2f2712;
+    --color-critical: #e07a8c;
+    --color-critical-tint: #33171d;
+    --color-neutral: #a4aba1;
+    --color-neutral-tint: #212522;
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
@@ -108,9 +110,9 @@
   --color-text-muted: #565c66;
   --color-border: #d5d9e0;
   --color-border-strong: #b4bac4;
-  --color-accent: #2f5bd7;
+  --color-accent: #177a4d;
   --color-accent-contrast: #ffffff;
-  --color-focus: #1f3fae;
+  --color-focus: #0f5c39;
   --color-success: #1f7a45;
   --color-success-tint: #e4f4ea;
   --color-warning: #8a5a00;
@@ -123,22 +125,22 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --color-background: #0f1216;
-  --color-surface: #171b21;
-  --color-surface-raised: #1e232b;
-  --color-text: #eef1f5;
-  --color-text-muted: #a6adba;
-  --color-border: #2b323c;
-  --color-border-strong: #3c4552;
-  --color-accent: #7ea2ff;
-  --color-accent-contrast: #0f1216;
-  --color-focus: #a9c1ff;
-  --color-success: #6cd39a;
-  --color-success-tint: #123123;
-  --color-warning: #e6b45a;
-  --color-warning-tint: #33280f;
-  --color-critical: #f19992;
-  --color-critical-tint: #3a1917;
-  --color-neutral: #a6adba;
-  --color-neutral-tint: #232a33;
+  --color-background: #121413;
+  --color-surface: #1a1d1b;
+  --color-surface-raised: #212522;
+  --color-text: #edefe9;
+  --color-text-muted: #a4aba1;
+  --color-border: #2c302c;
+  --color-border-strong: #41463f;
+  --color-accent: #43c98a;
+  --color-accent-contrast: #0e1411;
+  --color-focus: #5fdca0;
+  --color-success: #43c98a;
+  --color-success-tint: #14291f;
+  --color-warning: #d9a93f;
+  --color-warning-tint: #2f2712;
+  --color-critical: #e07a8c;
+  --color-critical-tint: #33171d;
+  --color-neutral: #a4aba1;
+  --color-neutral-tint: #212522;
 }
