@@ -1,0 +1,271 @@
+import { createHash } from "node:crypto";
+
+import type { EvidenceEvent } from "../protocol/index.js";
+import type { LocalDatabase } from "../storage/database.js";
+import type { EpisodeRecord } from "../repo-model/types.js";
+
+/**
+ * Deterministic episode compiler.
+ *
+ * Groups raw evidence events into work episodes with no model involvement: the boundaries and the
+ * classification are a pure function of the event sequence, so re-running the compiler on the same
+ * events always yields byte-identical episodes (including their ids). This is the honest-by-default
+ * substrate the higher compiler stages consume — every episode is a mechanical fact about what the
+ * agent did, never an inference about what it meant.
+ *
+ * Boundaries (an episode closes when any of these fire):
+ *   - the events belong to a different (repository, task) pair (episodes never span either);
+ *   - a `session_end` event (it terminates the current episode);
+ *   - 30 minutes of inactivity between two consecutive events;
+ *   - a successful verification (exit_code 0) that directly follows a failed one — the fix landed.
+ *
+ * Classification is derived from the event shape only:
+ *   - `debugging`      — a command failed and a later command succeeded (a resolved failure);
+ *   - `incident`       — a command failed and was never resolved;
+ *   - `runbook_execution` — only commands ran (no edits), and they succeeded;
+ *   - `implementation` — files were edited and nothing failed;
+ *   - `review`         — files were opened/read but not edited;
+ *   - `investigation`  — the fallback for prompt-only / exploratory sequences.
+ */
+
+const INACTIVITY_GAP_MS = 30 * 60 * 1000;
+
+export type EpisodeOutcome = "verified_success" | "success" | "failure" | "in_progress";
+
+interface GroupKey {
+  repository_id: string;
+  task_id: string;
+}
+
+/**
+ * Injectively encode a list of arbitrary strings into one string. Each field is length-prefixed
+ * (`<byteLength>:<field>`), so no field value — whatever bytes it contains, including spaces,
+ * colons, or NUL — can make two distinct field lists encode alike. A plain single-delimiter join
+ * is not collision-proof: protocol ids are only required to be non-empty (validate.ts
+ * `requiredString`), so an id may contain the delimiter byte itself and forge a collision.
+ */
+function encodeFields(fields: string[]): string {
+  return fields.map((field) => `${Buffer.byteLength(field, "utf8")}:${field}`).join("");
+}
+
+function groupKeyString(event: EvidenceEvent): string {
+  // task_id is part of episode identity; different tasks in the same repo never share an episode.
+  return encodeFields([event.repository_id, event.task_id]);
+}
+
+function isSubstantive(event: EvidenceEvent): boolean {
+  // A `session_start` / `session_end` on its own carries no work; it never opens an episode.
+  return event.event_type !== "session_start" && event.event_type !== "session_end";
+}
+
+function isCommandResult(event: EvidenceEvent): boolean {
+  return event.event_type === "tool_result" && typeof event.payload.exit_code === "number";
+}
+
+function commandFailed(event: EvidenceEvent): boolean {
+  return isCommandResult(event) && (event.payload.exit_code as number) !== 0;
+}
+
+function commandSucceeded(event: EvidenceEvent): boolean {
+  return isCommandResult(event) && (event.payload.exit_code as number) === 0;
+}
+
+function occurredAtMs(event: EvidenceEvent): number {
+  const ms = Date.parse(event.occurred_at);
+  return Number.isNaN(ms) ? 0 : ms;
+}
+
+function stableEpisodeId(key: GroupKey, events: EvidenceEvent[]): string {
+  const first = events[0];
+  const last = events[events.length - 1];
+  const digest = createHash("sha256")
+    .update(
+      encodeFields([
+        key.repository_id,
+        key.task_id,
+        first.event_id,
+        last.event_id,
+        String(events.length),
+      ]),
+    )
+    .digest("hex")
+    .slice(0, 32);
+  return `episode-${digest}`;
+}
+
+function classify(events: EvidenceEvent[]): { episode_type: string; outcome: EpisodeOutcome } {
+  let sawFailure = false;
+  let sawResolvedFailure = false;
+  let unresolvedFailure = false;
+  let sawSuccess = false;
+  let sawCommand = false;
+  let sawEdit = false;
+  let sawOpen = false;
+
+  for (const event of events) {
+    if (event.event_type === "file_edit") sawEdit = true;
+    if (event.event_type === "file_open") sawOpen = true;
+    if (isCommandResult(event)) sawCommand = true;
+    if (commandFailed(event)) {
+      sawFailure = true;
+      unresolvedFailure = true;
+    }
+    if (commandSucceeded(event)) {
+      sawSuccess = true;
+      if (unresolvedFailure) {
+        sawResolvedFailure = true;
+        unresolvedFailure = false;
+      }
+    }
+  }
+
+  let outcome: EpisodeOutcome;
+  if (sawResolvedFailure && sawSuccess) outcome = "verified_success";
+  else if (unresolvedFailure) outcome = "failure";
+  else if (sawSuccess) outcome = "success";
+  else outcome = "in_progress";
+
+  let episode_type: string;
+  if (sawFailure && sawResolvedFailure) episode_type = "debugging";
+  else if (unresolvedFailure) episode_type = "incident";
+  else if (sawCommand && !sawEdit && sawSuccess) episode_type = "runbook_execution";
+  else if (sawEdit) episode_type = "implementation";
+  else if (sawOpen) episode_type = "review";
+  else episode_type = "investigation";
+
+  return { episode_type, outcome };
+}
+
+function titleFor(episode_type: string, events: EvidenceEvent[]): string {
+  const span = events.length;
+  return `${episode_type} (${span} event${span === 1 ? "" : "s"})`;
+}
+
+function finalizeEpisode(key: GroupKey, buffer: EvidenceEvent[]): EpisodeRecord | null {
+  // Discard buffers that contain no substantive work (e.g. a trailing lone session_end).
+  if (!buffer.some(isSubstantive)) return null;
+
+  const first = buffer[0];
+  const last = buffer[buffer.length - 1];
+  const { episode_type, outcome } = classify(buffer);
+
+  return {
+    episode_id: stableEpisodeId(key, buffer),
+    repository_id: key.repository_id,
+    task_id: key.task_id,
+    episode_type,
+    title: titleFor(episode_type, buffer),
+    started_at: first.occurred_at,
+    ended_at: last.occurred_at,
+    event_ids: buffer.map((e) => e.event_id),
+    outcome,
+  };
+}
+
+/**
+ * Compile evidence events into deterministic work episodes. Pure: no I/O, no clock, no randomness.
+ */
+export function buildEpisodes(events: EvidenceEvent[]): EpisodeRecord[] {
+  const groups = new Map<string, EvidenceEvent[]>();
+  for (const event of events) {
+    const bucket = groups.get(groupKeyString(event));
+    if (bucket) bucket.push(event);
+    else groups.set(groupKeyString(event), [event]);
+  }
+
+  const episodes: EpisodeRecord[] = [];
+  // Iterate groups in first-seen order for a stable output order.
+  for (const bucket of groups.values()) {
+    const key: GroupKey = {
+      repository_id: bucket[0].repository_id,
+      task_id: bucket[0].task_id,
+    };
+    // Chronological order within the group; ties broken by event_id for determinism.
+    const ordered = [...bucket].sort((a, b) => {
+      const delta = occurredAtMs(a) - occurredAtMs(b);
+      return delta !== 0 ? delta : a.event_id.localeCompare(b.event_id);
+    });
+
+    let buffer: EvidenceEvent[] = [];
+    let unresolvedFailureInBuffer = false;
+
+    const flush = () => {
+      const episode = finalizeEpisode(key, buffer);
+      if (episode) episodes.push(episode);
+      buffer = [];
+      unresolvedFailureInBuffer = false;
+    };
+
+    for (let i = 0; i < ordered.length; i += 1) {
+      const event = ordered[i];
+
+      if (buffer.length > 0) {
+        const gap = occurredAtMs(event) - occurredAtMs(buffer[buffer.length - 1]);
+        if (gap >= INACTIVITY_GAP_MS) flush();
+      }
+
+      buffer.push(event);
+      if (commandFailed(event)) unresolvedFailureInBuffer = true;
+
+      const successAfterFailure = commandSucceeded(event) && unresolvedFailureInBuffer;
+      if (successAfterFailure) unresolvedFailureInBuffer = false;
+
+      // session_end terminates the episode; a resolved failure (fix verified) closes it too.
+      if (event.event_type === "session_end" || successAfterFailure) flush();
+    }
+
+    if (buffer.length > 0) flush();
+  }
+
+  return episodes;
+}
+
+export interface PersistEpisodesResult {
+  inserted: number;
+}
+
+/**
+ * Persist episodes idempotently. Episode ids are content-derived, so replaying the same events is a
+ * no-op: `ON CONFLICT(episode_id) DO NOTHING` mirrors the append-only stores (event-store/receipt-store).
+ */
+export function persistEpisodes(db: LocalDatabase, episodes: EpisodeRecord[]): PersistEpisodesResult {
+  const statement = db.prepare(`
+    INSERT INTO episodes (
+      episode_id,
+      repository_id,
+      task_id,
+      episode_type,
+      title,
+      started_at,
+      ended_at,
+      event_ids_json,
+      outcome
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(episode_id) DO NOTHING
+  `);
+
+  let inserted = 0;
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    for (const episode of episodes) {
+      const result = statement.run(
+        episode.episode_id,
+        episode.repository_id,
+        episode.task_id,
+        episode.episode_type,
+        episode.title,
+        episode.started_at,
+        episode.ended_at,
+        JSON.stringify(episode.event_ids),
+        episode.outcome,
+      );
+      if (result.changes !== 0) inserted += 1;
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+
+  return { inserted };
+}

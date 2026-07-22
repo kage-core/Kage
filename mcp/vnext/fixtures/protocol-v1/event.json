@@ -1,0 +1,13 @@
+{
+  "protocol_version": 1,
+  "event_id": "event_1f0b6d3c-2a4e-4c7b-9d81-0a2b3c4d5e6f",
+  "event_type": "prompt",
+  "occurred_at": "2026-07-13T09:14:02.481Z",
+  "repository_id": "repo_0f3a1c9d2b4e5f60718293a4b5c6d7e8",
+  "task_id": "task_5b1d8c7a6e4f30219283a4b5c6d7e8f9",
+  "privacy_class": "local_raw",
+  "source_fingerprint": "4c2a8f1e9b7d6053142c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f708192",
+  "payload": {
+    "text": "how should I make the payment flow idempotent?"
+  }
+}

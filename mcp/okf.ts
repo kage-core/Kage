@@ -72,18 +72,30 @@ export function kageType(display: unknown): MemoryType {
 const STATE_FENCE_OPEN = "```json kage-state";
 const STATE_FENCE_CLOSE = "```";
 
-function extractKageState(content: string): MemoryPacket | null {
-  const open = content.indexOf(STATE_FENCE_OPEN);
+/**
+ * Extract the JSON carried in a labelled fenced code block (e.g. "```json kage-state" or
+ * "```json kage-model-state"). This is the machinery that makes a Kage-authored concept losslessly
+ * round-trippable EVEN THROUGH a foreign OKF consumer: the identifiers ride in the BODY (which OKF
+ * consumers preserve), not only in the `x-kage-*` frontmatter (which a foreign consumer may drop).
+ * Returns the parsed JSON, or null when the block is absent or unparseable. Generic and reusable so
+ * the vNext model exporter shares exactly this block format rather than reinventing it.
+ */
+export function extractFencedJson(content: string, fenceOpen: string): unknown | null {
+  const open = content.indexOf(fenceOpen);
   if (open === -1) return null;
-  const start = open + STATE_FENCE_OPEN.length;
+  const start = open + fenceOpen.length;
   const close = content.indexOf("\n```", start);
   if (close === -1) return null;
   try {
-    const obj = JSON.parse(content.slice(start, close).trim()) as MemoryPacket;
-    if (obj && obj.schema_version === PACKET_SCHEMA_VERSION && obj.id && obj.title) return obj;
+    return JSON.parse(content.slice(start, close).trim());
   } catch {
-    // fall through to best-effort import
+    return null;
   }
+}
+
+function extractKageState(content: string): MemoryPacket | null {
+  const obj = extractFencedJson(content, STATE_FENCE_OPEN) as MemoryPacket | null;
+  if (obj && obj.schema_version === PACKET_SCHEMA_VERSION && obj.id && obj.title) return obj;
   return null;
 }
 

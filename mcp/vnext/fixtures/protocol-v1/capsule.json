@@ -1,0 +1,27 @@
+{
+  "protocol_version": 1,
+  "capsule_id": "capsule_7d2e4a1b9c0f83526174b8c9d0e1f2a3",
+  "task_id": "task_5b1d8c7a6e4f30219283a4b5c6d7e8f9",
+  "repository_id": "repo_0f3a1c9d2b4e5f60718293a4b5c6d7e8",
+  "query": "how should I make the payment flow idempotent?",
+  "sections": [
+    {
+      "kind": "invariant",
+      "title": "Payments must be idempotent via the ledger key",
+      "body": "processPayment must pass the ledger idempotency key so retries dedupe. Verified by: npm test.",
+      "evidence_ids": ["payments-idempotency-ledger-key"],
+      "priority": 1
+    },
+    {
+      "kind": "entry_point",
+      "title": "Start at src/payments/process.ts",
+      "body": "processPayment is the only writer of ledger entries; every retry path funnels through it.",
+      "evidence_ids": ["payments-entry-point"],
+      "priority": 2
+    }
+  ],
+  "token_budget": 2000,
+  "estimated_tokens": 96,
+  "created_at": "2026-07-13T09:14:02.612Z",
+  "expires_at": "2026-07-13T09:19:02.612Z"
+}

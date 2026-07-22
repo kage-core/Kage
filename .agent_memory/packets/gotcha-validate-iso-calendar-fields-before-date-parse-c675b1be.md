@@ -1,0 +1,42 @@
+---
+type: "Gotcha"
+title: "Validate ISO calendar fields before Date.parse"
+description: "Protocol boundary validators must not rely on Date.parse alone for ISO timestamp validity because JavaScript normalizes impossible calendar dates such as 2026 02 30 into March. Validate captured year/month/day and time r"
+resource: "mcp/vnext/protocol/validate.ts"
+tags: ["session-learning", "vnext", "protocol", "validation", "timestamps"]
+timestamp: "2026-07-13T14:26:06.769Z"
+x-kage-id: "repo:kage-vnext-implementation:gotcha:validate-iso-calendar-fields-before-date-parse-1783951445242"
+x-kage-type: "gotcha"
+x-kage-status: "approved"
+x-kage-scope: "repo"
+x-kage-visibility: "team"
+x-kage-verified: "verified"
+x-kage-paths: ["mcp/vnext/protocol/validate.ts", "mcp/vnext/protocol/protocol.test.ts"]
+x-kage-stack: ["TypeScript", "Node.js"]
+---
+
+# Validate ISO calendar fields before Date.parse
+
+> Protocol boundary validators must not rely on Date.parse alone for ISO timestamp validity because JavaScript normaliz…
+
+Protocol boundary validators must not rely on Date.parse alone for ISO timestamp validity because JavaScript normalizes impossible calendar dates such as 2026-02-30 into March. Validate captured year/month/day and time ranges before accepting the parsed timestamp.
+Evidence: The focused protocol test rejected 2026-02-30 only after explicit calendar-range validation; npm test --prefix mcp then passed.
+Verified by: node --test mcp/dist/vnext/protocol/protocol.test.js
+
+## Verification
+
+The focused protocol test rejected 2026-02-30 only after explicit calendar-range validation; npm test --prefix mcp then passed.
+
+# Citations
+
+[1] explicit_capture (2026-07-13T14:04:05.242Z)
+[2] reverification
+[3] reverification
+
+## Kage state
+
+Machine state for lossless round-trip; OKF consumers can ignore it.
+
+```json kage-state
+{"schema_version":2,"id":"repo:kage-vnext-implementation:gotcha:validate-iso-calendar-fields-before-date-parse-1783951445242","title":"Validate ISO calendar fields before Date.parse","summary":"Protocol boundary validators must not rely on Date.parse alone for ISO timestamp validity because JavaScript normalizes impossible calendar dates such as 2026 02 30 into March. Validate captured year/month/day and time r","body":"Protocol boundary validators must not rely on Date.parse alone for ISO timestamp validity because JavaScript normalizes impossible calendar dates such as 2026-02-30 into March. Validate captured year/month/day and time ranges before accepting the parsed timestamp.\nEvidence: The focused protocol test rejected 2026-02-30 only after explicit calendar-range validation; npm test --prefix mcp then passed.\nVerified by: node --test mcp/dist/vnext/protocol/protocol.test.js","type":"gotcha","scope":"repo","visibility":"team","sensitivity":"internal","status":"approved","confidence":0.7,"tags":["session-learning","vnext","protocol","validation","timestamps"],"paths":["mcp/vnext/protocol/validate.ts","mcp/vnext/protocol/protocol.test.ts"],"stack":["TypeScript","Node.js"],"source_refs":[{"kind":"explicit_capture","captured_at":"2026-07-13T14:04:05.242Z"},{"kind":"reverification","at":"2026-07-13T14:20:05.889Z","verified_by":"npm test --prefix mcp","evidence":"Protocol focused tests and npm test --prefix mcp pass after validator trust-boundary projection changes; ISO calendar validation remains covered.","changed_paths":[{"path":"mcp/vnext/protocol/validate.ts","prior_sha256":"b8436431b40064fb81aab8ad28d6064027f2f9fff97d38c5d2714e77068ade63","sha256":"35204b2865d0ad2dc491f20b3e8972ec8d8dfcfd4109b96ba58e20c4fec143d4"},{"path":"mcp/vnext/protocol/protocol.test.ts","prior_sha256":"d9d6683e636a66b6bf2bd98727a779ab6974d545615cfc0bf573146d9c0a3762","sha256":"3c10d24d8d6dbce9cba7c1ed9f6b355358b80da8b731f3c67a42d6084b638df1"}]},{"kind":"reverification","at":"2026-07-13T14:26:06.769Z","verified_by":"npm test --prefix mcp","evidence":"Protocol focused tests and npm test --prefix mcp still cover and pass ISO calendar validation after capability ownership hardening.","changed_paths":[{"path":"mcp/vnext/protocol/validate.ts","prior_sha256":"35204b2865d0ad2dc491f20b3e8972ec8d8dfcfd4109b96ba58e20c4fec143d4","sha256":"8c6b72d088d0b578503ca3213c5dd2c02f480e95a08857fef1d0adf70e82c7f2"},{"path":"mcp/vnext/protocol/protocol.test.ts","prior_sha256":"3c10d24d8d6dbce9cba7c1ed9f6b355358b80da8b731f3c67a42d6084b638df1","sha256":"0352abe59a563ac7c73bd802a7d0491e48731c11eedb431d0c0d27056572d004"}]}],"context":{"fact":"Protocol boundary validators must not rely on Date.parse alone for ISO timestamp validity because JavaScript normalizes impossible calendar dates such as 2026-02-30 into March. Validate captured year/month/day and time ranges before accepting the parsed timestamp.\nEvidence: The focused protocol test rejected 2026-02-30 only after explicit calendar-range validation; npm test --prefix mcp then passed.\nVerified by: node --test mcp/dist/vnext/protocol/protocol.test.js","verification":"The focused protocol test rejected 2026-02-30 only after explicit calendar-range validation; npm test --prefix mcp then passed."},"freshness":{"ttl_days":365,"last_verified_at":"2026-07-13T14:26:06.769Z","path_fingerprints":[{"path":"mcp/vnext/protocol/validate.ts","sha256":"8c6b72d088d0b578503ca3213c5dd2c02f480e95a08857fef1d0adf70e82c7f2","size":8903},{"path":"mcp/vnext/protocol/protocol.test.ts","sha256":"0352abe59a563ac7c73bd802a7d0491e48731c11eedb431d0c0d27056572d004","size":9166}],"path_fingerprint_policy":"source_hash_staleness","verification":"evidence_reverification"},"edges":[],"quality":{"reviewer":"repo-local-agent","votes_up":0,"votes_down":0,"uses_30d":0,"reports_stale":0,"review_boundary":"git_or_pr","promotion_requires_review":true,"discovery_tokens":8000,"discovery_tokens_estimated":true,"score":100,"reasons":["high-value memory type","has source evidence","grounded to repo paths","tagged","concise but substantive","actionable rationale or verification"],"risks":[],"duplicate_candidates":[],"estimated_tokens_saved":117,"reverified_at":"2026-07-13T14:26:06.769Z"},"created_at":"2026-07-13T14:04:05.242Z","updated_at":"2026-07-13T14:26:06.769Z","author_branch":"codex/kage-vnext-implementation"}
+```

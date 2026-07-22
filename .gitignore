@@ -29,6 +29,11 @@ __pycache__/
 *.pyc
 node_modules/
 dist/
+# Knowledge portal (platform/web) build + install output — derived, never tracked.
+# (Covered by the global node_modules/ and dist/ rules above; listed explicitly for clarity.)
+platform/web/node_modules/
+platform/web/dist/
+.worktrees/
 mcp/viewer/graphs/*.json
 docs/assets/viewer-demo-frames*/
 docs/assets/*.mp4
@@ -41,3 +46,8 @@ docs/assets/*.typescript
 # Private keys (e.g. MCP registry DNS-auth ed25519 key) — never commit
 *.pem
 kage-mcp-key.pem
+
+# Self-hosted workspace deployment configuration. env.example is committed; the filled-in .env
+# (database password, backup key, Stripe/GitHub/OIDC secrets) never is.
+deploy/workspace/.env
+*.kbk

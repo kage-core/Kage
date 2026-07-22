@@ -126,3 +126,16 @@ test("full registry covers every tool exactly once", () => {
   assert.equal(new Set(allTools).size, allTools.length, "duplicate tool names");
   assert.ok(allTools.length >= 60, `expected full registry, got ${allTools.length}`);
 });
+
+// The Task 10 cutover shrinks the DEFAULT surface to three verbs, but must not make any tool
+// unreachable: KAGE_TOOLS=legacy still exposes the entire registry (with deprecation notes), so every
+// full-mode tool has a handler reachable by a back-compat config.
+test("default surface is three verbs and legacy mode still covers the whole registry", () => {
+  const prev = process.env.KAGE_TOOLS;
+  delete process.env.KAGE_TOOLS;
+  const defaultNames = listTools().map((t) => t.name);
+  const legacyNames = listTools({ mode: "legacy" }).map((t) => t.name);
+  process.env.KAGE_TOOLS = prev;
+  assert.deepEqual(defaultNames, ["kage_context", "kage_retrieve", "kage_feedback"]);
+  assert.deepEqual([...legacyNames].sort(), [...allTools].sort(), "legacy mode covers the full registry");
+});

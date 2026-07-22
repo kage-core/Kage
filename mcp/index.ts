@@ -5,6 +5,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { retrieveFromProject } from "./vnext/api/retrieve.js";
 import {
   SETUP_AGENTS,
   auditProject,
@@ -130,8 +131,54 @@ export const CORE_TOOLS = new Set([
   "kage_docs_search",
 ]);
 
-export function listTools() {
-  const all = [
+// The v4 DEFAULT MCP surface: the three verbs a vNext agent needs — recall context, retrieve an exact
+// reversible original, and give feedback. As of Phase E Task 10 this is the DEFAULT (the product-surface
+// cutover), not just an opt-in: capture/refresh/review now flow through the ambient proxy + the portal,
+// so the model's default tool list is exactly these three. Ordered on purpose — listTools() returns them
+// in this order so the surface is stable and asserted deterministically.
+export const DEFAULT_V4_TOOLS = ["kage_context", "kage_retrieve", "kage_feedback"] as const;
+// Back-compat alias: the previous name for the default vNext surface.
+export const VNEXT_TOOLS = new Set(DEFAULT_V4_TOOLS);
+
+// The pre-vNext core (12 tools). It is NO LONGER the default surface — it is the body of KAGE_TOOLS=legacy,
+// which keeps every legacy tool reachable for one major version with a deprecation note in each description.
+// KAGE_TOOLS=full remains the complete internal registry (no deprecation notes) for development.
+
+export type ToolSurfaceMode = "default" | "legacy" | "full";
+
+function resolveMode(explicit?: ToolSurfaceMode): ToolSurfaceMode {
+  if (explicit) return explicit;
+  if (process.env.KAGE_TOOLS === "full" || process.env.KAGE_ALL_TOOLS === "1") return "full";
+  if (process.env.KAGE_TOOLS === "legacy") return "legacy";
+  // KAGE_TOOLS=vnext is retained as an explicit spelling of the default surface.
+  return "default";
+}
+
+// One deterministic deprecation prefix on every legacy tool description so `KAGE_TOOLS=legacy` is
+// honestly labeled: the tool still works, but the description says it is deprecated and points at the
+// migration doc. The three survivors keep their normal descriptions.
+const LEGACY_TOOL_DEPRECATION =
+  "Deprecated in v4, removed in v5. Prefer kage_context, kage_retrieve, or kage_feedback; see docs/migration/v4-command-map.md. ";
+
+export function listTools(opts?: { mode?: ToolSurfaceMode }) {
+  const all = allTools();
+  const mode = resolveMode(opts?.mode);
+  if (mode === "full") return all;
+  if (mode === "legacy") {
+    const survivors = new Set<string>(DEFAULT_V4_TOOLS);
+    return all.map((tool) =>
+      survivors.has(tool.name)
+        ? tool
+        : { ...tool, description: LEGACY_TOOL_DEPRECATION + tool.description }
+    );
+  }
+  // default: exactly the three v4 verbs, in their canonical order.
+  const byName = new Map(all.map((tool) => [tool.name, tool]));
+  return DEFAULT_V4_TOOLS.map((name) => byName.get(name)).filter((tool): tool is NonNullable<typeof tool> => Boolean(tool));
+}
+
+function allTools() {
+  return [
     {
       // Combined entry-point tool: validate + recall + code_graph + graph in one call.
       // Agents should load this schema first (one ToolSearch) instead of loading four
@@ -149,6 +196,8 @@ export function listTools() {
           session_id: { type: "string", description: "Optional active agent session id for memory reconciliation" },
           targets: { type: "array", items: { type: "string" }, description: "Optional files the agent may edit or explain; used for risk context" },
           changed_files: { type: "array", items: { type: "string" }, description: "Optional changed files for pre-edit or PR risk context" },
+          json: { type: "boolean", description: "Return the full structured result instead of the rendered context block." },
+          explain: { type: "boolean", description: "Return the full structured result, including why each memory was recalled." },
         },
         required: ["project_dir", "query"],
       },
@@ -517,6 +566,7 @@ export function listTools() {
           project_dir: { type: "string", description: "Workspace root directory to scan for git repos" },
           query: { type: "string", description: "Question or task to recall across repos" },
           limit: { type: "number", description: "Max combined hits to return (default 8)" },
+          json: { type: "boolean", description: "Return the full structured result instead of the rendered context block." },
         },
         required: ["project_dir", "query"],
       },
@@ -1070,6 +1120,21 @@ export function listTools() {
       },
     },
     {
+      name: "kage_retrieve",
+      description:
+        "Retrieve the exact, fingerprint-verified original bytes behind a kage-content:<sha256> reference produced by the Kage vNext gateway when it reversibly compressed a payload. Reads ONLY the local content store for the given task — it never fetches a public or team asset. Use it to recover a tool_result, log, or diff that was compressed in the request so you can inspect the untouched original. Returns the original content plus its SHA-256 fingerprint; refuses content owned by another task and refuses any object whose bytes no longer match their fingerprint.",
+      annotations: { title: "Retrieve an exact reversible original by content reference", readOnlyHint: true },
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_dir: { type: "string", description: "Absolute path to the repository root." },
+          retrieval_id: { type: "string", description: "The kage-content:<sha256> reference embedded next to a compressed payload." },
+          task_id: { type: "string", description: "The task that owns the stored original (the task the transform ran for)." },
+        },
+        required: ["project_dir", "retrieval_id", "task_id"],
+      },
+    },
+    {
       name: "kage_install_policy",
       description:
         "Install or update the repo AGENTS.md policy that tells coding agents to use Kage automatically.",
@@ -1130,15 +1195,44 @@ export function listTools() {
       },
     },
   ];
-  if (process.env.KAGE_TOOLS === "full" || process.env.KAGE_ALL_TOOLS === "1") return all;
-  return all.filter((tool) => CORE_TOOLS.has(tool.name));
 }
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: listTools(),
 }));
 
+// Every tool reads its arguments as `args?.some_key`, so a caller that misnames a parameter
+// gets it silently dropped and the tool runs on the default. That is how a kage_learn call
+// carrying its insight under the wrong key wrote a packet with an empty body: the insight was
+// discarded, no error was raised, and the loss only surfaced later as a soft validation
+// warning. Unknown keys are a caller bug every time — fail loudly instead of writing something
+// useless.
+function unknownToolArgs(name: string, args: Record<string, unknown> | undefined): string[] {
+  if (!args) return [];
+  const tool = allTools().find((candidate) => candidate.name === name);
+  const schema = tool?.inputSchema as { properties?: Record<string, unknown> } | undefined;
+  if (!schema?.properties) return [];
+  const allowed = new Set(Object.keys(schema.properties));
+  return Object.keys(args).filter((key) => !allowed.has(key)).sort();
+}
+
 export async function callTool(name: string, args: Record<string, unknown> | undefined) {
+  const unknown = unknownToolArgs(name, args);
+  if (unknown.length) {
+    const tool = allTools().find((candidate) => candidate.name === name);
+    const allowed = Object.keys((tool?.inputSchema as { properties: Record<string, unknown> }).properties).sort();
+    return {
+      content: [
+        {
+          type: "text",
+          text: `${name} does not accept: ${unknown.join(", ")}.\n`
+            + `Supported parameters: ${allowed.join(", ")}.\n`
+            + "Nothing was written. Re-send the call with the intended parameter name.",
+        },
+      ],
+      isError: true,
+    };
+  }
   await ensureTreeSitterLanguages();
   if (name === "kage_list_domains") {
     return { content: [{ type: "text", text: await kageListPublicDomains() }] };
@@ -1785,6 +1879,32 @@ export async function callTool(name: string, args: Record<string, unknown> | und
         },
       ],
       isError: !result.ok,
+    };
+  }
+
+  if (name === "kage_retrieve") {
+    const result = retrieveFromProject(
+      String(args?.project_dir ?? ""),
+      String(args?.retrieval_id ?? ""),
+      String(args?.task_id ?? ""),
+    );
+    if (result.status === 200 && result.body) {
+      // Return the exact original alongside its fingerprint. content_base64 preserves the bytes
+      // exactly (binary-safe); content is a best-effort UTF-8 view for text payloads.
+      const envelope = {
+        ok: true,
+        retrieval_id: result.headers["x-kage-retrieval-id"],
+        sha256: result.headers["x-kage-sha256"],
+        media_type: result.headers["content-type"],
+        byte_length: result.body.byteLength,
+        content: result.body.toString("utf8"),
+        content_base64: result.body.toString("base64"),
+      };
+      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+    }
+    return {
+      content: [{ type: "text", text: JSON.stringify({ ok: false, status: result.status, error: result.error }, null, 2) }],
+      isError: true,
     };
   }
 

@@ -10,6 +10,17 @@ import { createPublicCandidateBundleManifest, createSignedManifest, generateOrgR
 import { okfConceptToPacket, packetToOkfConcept } from "./okf.js";
 import { averageNumber, codingMrr, codingNdcgAt, codingPrecisionAt, codingRecallAt, countByKey, percentileNumber, roundDecimal, titleCase } from "./metrics-math.js";
 import { isRecord } from "./type-guards.js";
+import {
+  certifySurface,
+  type AgentSurface,
+  type AgentSurfaceCertification,
+  type CertifySurfaceInput,
+} from "./vnext/adapters/capability-matrix.js";
+import {
+  buildMinimalChangeReport,
+  type MinimalChangeReport,
+} from "./vnext/policy/report.js";
+import { readVnextConfig } from "./vnext/runtime/config.js";
 
 export const PACKET_SCHEMA_VERSION = 2;
 
@@ -210,9 +221,29 @@ export interface ValidationResult {
   warnings: string[];
 }
 
+// Corpus-normalized injection decision (W3). Recall scores are match-strength SUMS, not normalized
+// relevance — a 325-packet store's lexical noise outscores a small store's genuine direct match, so
+// an ABSOLUTE score floor is impossible (see the negative_result packet
+// "recall-scores-are-not-corpus-normalized"). What IS decidable is whether the top candidate stands
+// OUT of its own corpus's score distribution: a real answer is a spike above the noise band; topical
+// noise is a flat band with no spike. This decision is computed inside recall (the only place the
+// full candidate distribution exists) and consumed by composeInjection to answer the question an
+// eager injector never asked: "is ANY of this worth the tokens?"
+export interface RecallInjectionDecision {
+  /** Should an automatic injector attach this recall's results? */
+  inject: boolean;
+  /** 0..1 — how far the top candidate stands out of this corpus's own score distribution. */
+  confidence: number;
+  top_score: number | null;
+  /** How many packets scored above zero for this query. */
+  candidate_count: number;
+  why: string;
+}
+
 export interface RecallResult {
   query: string;
   context_block: string;
+  injection: RecallInjectionDecision;
   results: Array<{
     packet: MemoryPacket;
     score: number;
@@ -2234,6 +2265,12 @@ export interface PrCheckResult {
   warnings: string[];
   required_actions: string[];
   memory_reconciliation?: MemoryReconciliationReport;
+  /**
+   * The Minimal Change Guard report (Phase D, Task 10). Present only when vNext policy is enabled.
+   * Advisory by default: it contributes warnings, never errors. Only `enforced` mode with selected
+   * deterministic rules can add to `errors` and fail the check.
+   */
+  minimal_change?: MinimalChangeReport;
 }
 
 export interface MemoryReconciliationItem {
@@ -3199,7 +3236,10 @@ export type ValueEvent =
   | { kind: "recall_served"; tokens_saved: number; replay_tokens?: number }
   | { kind: "stale_withheld"; packet_title: string }
   | { kind: "stale_caught"; packet_title: string }
-  | { kind: "caller_answered" };
+  | { kind: "caller_answered" }
+  // T3: the LIVE injection-gate decision (corpus-normalized) — recorded so `kage report team`
+  // shows real-session injection behaviour, not only the bench.
+  | { kind: "injection_gate"; injected: boolean; confidence: number };
 
 interface ValueLedgerEvent {
   at: string;
@@ -3209,12 +3249,14 @@ interface ValueLedgerEvent {
   // packets minus the compressed cost of re-reading them as context.
   replay_tokens?: number;
   packet_title?: string;
+  injected?: boolean;
+  confidence?: number;
 }
 
 interface ValueLedger {
   schema_version: number;
   // All-time rollups survive the event cap: events get trimmed, totals never lose history.
-  totals: { tokens_saved: number; replay_tokens: number; stale_withheld: number; stale_caught: number; recalls: number; caller_answers: number };
+  totals: { tokens_saved: number; replay_tokens: number; stale_withheld: number; stale_caught: number; recalls: number; caller_answers: number; injection_gates?: number; injections?: number };
   events: ValueLedgerEvent[];
 }
 
@@ -3265,7 +3307,7 @@ function readValueLedger(projectDir: string): ValueLedger {
         return Boolean(candidate)
           && typeof candidate?.at === "string"
           && Number.isFinite(Date.parse(candidate.at))
-          && (candidate.kind === "recall_served" || candidate.kind === "stale_withheld" || candidate.kind === "stale_caught" || candidate.kind === "caller_answered");
+          && (candidate.kind === "recall_served" || candidate.kind === "stale_withheld" || candidate.kind === "stale_caught" || candidate.kind === "caller_answered" || candidate.kind === "injection_gate");
       })
       .slice(-VALUE_LEDGER_EVENT_CAP);
     return {
@@ -3277,6 +3319,8 @@ function readValueLedger(projectDir: string): ValueLedger {
         stale_caught: nonNegativeCount(totals.stale_caught),
         recalls: nonNegativeCount(totals.recalls),
         caller_answers: nonNegativeCount(totals.caller_answers),
+        injection_gates: nonNegativeCount(totals.injection_gates),
+        injections: nonNegativeCount(totals.injections),
       },
       events,
     };
@@ -3304,6 +3348,11 @@ function recordValueEvents(projectDir: string, events: ValueEvent[]): void {
       } else if (event.kind === "stale_caught") {
         record.packet_title = event.packet_title;
         ledger.totals.stale_caught += 1;
+      } else if (event.kind === "injection_gate") {
+        record.injected = event.injected;
+        record.confidence = Number(event.confidence.toFixed(3));
+        ledger.totals.injection_gates = (ledger.totals.injection_gates ?? 0) + 1;
+        if (event.injected) ledger.totals.injections = (ledger.totals.injections ?? 0) + 1;
       } else {
         ledger.totals.caller_answers += 1;
       }
@@ -3324,6 +3373,241 @@ function recordValueEvents(projectDir: string, events: ValueEvent[]): void {
 
 export function recordValueEvent(projectDir: string, event: ValueEvent): void {
   recordValueEvents(projectDir, [event]);
+}
+
+// ---------------------------------------------------------------------------------------------
+// T4 — day-one value. A fresh repo has an empty store, so the first recalls return nothing and the
+// value is invisible exactly when a new user is judging the tool. Bootstrap ONE honest starter
+// runbook from what is already verifiable — the repo's own package.json scripts — so "how do I run
+// the tests?" answers from memory on day one. It is runbook-shaped operational knowledge (the
+// highest-demand class in the store audit: ~1.0-1.4 uses/packet), grounded to package.json, tagged
+// `bootstrap`, and idempotent (a repo that already has a bootstrap packet gets nothing new).
+// ---------------------------------------------------------------------------------------------
+
+export interface BootstrapResult {
+  created: boolean;
+  title: string | null;
+  reason: string;
+}
+
+export function bootstrapStarterMemory(projectDir: string): BootstrapResult {
+  const existing = [...loadApprovedPackets(projectDir), ...loadPendingPackets(projectDir)]
+    .some((packet) => packet.tags.includes("bootstrap"));
+  if (existing) return { created: false, title: null, reason: "bootstrap memory already present" };
+
+  const packageJsonPath = join(projectDir, "package.json");
+  if (!existsSync(packageJsonPath)) {
+    return { created: false, title: null, reason: "no package.json to derive verifiable commands from" };
+  }
+  let scripts: Record<string, string> = {};
+  let name = "";
+  try {
+    const parsed = JSON.parse(readFileSync(packageJsonPath, "utf8")) as { scripts?: Record<string, string>; name?: string };
+    scripts = parsed.scripts ?? {};
+    name = typeof parsed.name === "string" ? parsed.name : "";
+  } catch {
+    return { created: false, title: null, reason: "package.json unreadable" };
+  }
+  const interesting = ["test", "build", "dev", "start", "lint"].filter((key) => typeof scripts[key] === "string");
+  if (!interesting.length) {
+    return { created: false, title: null, reason: "no runnable scripts found in package.json" };
+  }
+
+  const lines = interesting.map((key) => `- \`npm run ${key}\`${key === "test" ? " (run this before committing)" : ""} — \`${scripts[key]}\``);
+  const title = `How to run, build and test ${name || "this repo"}`;
+  const body = [
+    // Lead with the exact question users ask ("how do I run the tests") so the day-one direct match
+    // carries broad term evidence and decisively outranks auto-generated structural packets.
+    interesting.includes("test")
+      ? "To run the tests: \`npm run test\`. Run the tests before committing."
+      : `To run this repo: \`npm run ${interesting[0]}\`.`,
+    "",
+    "Bootstrap runbook derived from package.json scripts at install time — every command below is",
+    "verifiable against that file (re-verify with \`kage check\` after script changes).",
+    "",
+    ...lines,
+  ].join("\n");
+
+  const result = capture({
+    projectDir,
+    type: "runbook",
+    title,
+    summary: `Verified commands from package.json: ${interesting.map((key) => `npm run ${key}`).join(", ")}`,
+    body,
+    paths: ["package.json"],
+    tags: ["bootstrap", "runbook"],
+  });
+  if (!result.ok) {
+    return { created: false, title: null, reason: result.errors?.join("; ") ?? "capture refused the bootstrap packet" };
+  }
+  return { created: true, title, reason: "bootstrapped from package.json scripts" };
+}
+
+// ---------------------------------------------------------------------------------------------
+// T3 — the lead-facing "is this helping?" report. Every number is measured from local ledgers and
+// the real store; anything unmeasured is null/"unavailable", never a fabricated zero. Estimated
+// figures keep their label (tokens_saved is the read-vs-source ESTIMATE, exactly as `kage gains`
+// reports it) and are never mixed with measured counts.
+// ---------------------------------------------------------------------------------------------
+
+export interface TeamValueReport {
+  generated_for: string;
+  value: {
+    recalls_served: number;
+    stale_withheld: number;
+    tokens_saved_estimated: number;
+    replay_tokens_estimated: number;
+  };
+  injection_gate: {
+    available: boolean;
+    gates: number;
+    injected: number;
+    injection_rate: number | null;
+    average_confidence: number | null;
+    note: string;
+    /** IC transparency: the most recent live decisions (what attached and at what confidence). */
+    recent: Array<{ at: string; injected: boolean; confidence: number }>;
+  };
+  composition: {
+    total_packets: number;
+    non_derivable_share: number;
+    derivable_risk_share: number;
+    classes: Array<{ class: string; count: number; uses_30d: number }>;
+  };
+  top_memories: Array<{ title: string; type: MemoryType; uses_30d: number }>;
+  coverage: {
+    areas: number;
+    dark_areas: string[];
+    note: string;
+  };
+  review_health: {
+    pending: number;
+    oldest_pending_days: number | null;
+    contradictions: number;
+  };
+}
+
+// The T1 store-audit classifier, shipped as code so the report and the audit can never drift.
+export function classifyPacketDerivability(packet: MemoryPacket): string {
+  const text = `${packet.title}\n${packet.summary}\n${packet.body}`;
+  if (packet.status === "superseded") return "superseded";
+  if (packet.type === "gotcha" || packet.type === "negative_result") return "non-derivable: gotcha/dead-end";
+  if (packet.type === "decision" && /\b(because|why|instead of|rejected|trade-?off|rationale|deliberately|chose|rather than|the reason)\b/i.test(text)) {
+    return "non-derivable: decision+rationale";
+  }
+  if ((packet.type === "runbook" || packet.type === "workflow") && /\b(verified by|npm test|node --test|to verify|reproduce|deploy|docker|macos|node 18|node 22)\b/i.test(text)) {
+    return "non-derivable: ops/verify recipe";
+  }
+  if (packet.type === "code_explanation") return "derivable-risk: code explanation";
+  if (packet.type === "reference") return "derivable-risk: reference dump";
+  return `other (${packet.type})`;
+}
+
+export function teamValueReport(projectDir: string): TeamValueReport {
+  const approvedAll = loadApprovedPackets(projectDir);
+  const pending = loadPendingPackets(projectDir);
+  const packets: MemoryPacket[] = [...approvedAll, ...pending];
+  const approved = approvedAll.filter((packet: MemoryPacket) => packet.status === "approved");
+  const access = readMemoryAccessEntries(projectDir, packets);
+  const summary = valueSummary(projectDir);
+  const ledger = readValueLedger(projectDir);
+
+  const gates = ledger.totals.injection_gates ?? 0;
+  const injections = ledger.totals.injections ?? 0;
+  const gateEvents = ledger.events.filter((event) => event.kind === "injection_gate" && typeof event.confidence === "number");
+  const avgConfidence = gateEvents.length
+    ? Number((gateEvents.reduce((sum, event) => sum + (event.confidence ?? 0), 0) / gateEvents.length).toFixed(3))
+    : null;
+
+  const classes = new Map<string, { count: number; uses_30d: number }>();
+  for (const packet of packets) {
+    const cls = classifyPacketDerivability(packet);
+    const bucket = classes.get(cls) ?? { count: 0, uses_30d: 0 };
+    bucket.count += 1;
+    bucket.uses_30d += access.get(packet.id)?.uses_30d ?? 0;
+    classes.set(cls, bucket);
+  }
+  const classRows = [...classes.entries()]
+    .map(([cls, bucket]) => ({ class: cls, ...bucket }))
+    .sort((a, b) => b.count - a.count);
+  const nonDerivable = classRows.filter((row) => row.class.startsWith("non-derivable")).reduce((sum, row) => sum + row.count, 0);
+  const derivableRisk = classRows.filter((row) => row.class.startsWith("derivable-risk")).reduce((sum, row) => sum + row.count, 0);
+
+  const topMemories = approved
+    .map((packet) => ({ title: packet.title, type: packet.type, uses_30d: access.get(packet.id)?.uses_30d ?? 0 }))
+    .filter((entry) => entry.uses_30d > 0)
+    .sort((a, b) => b.uses_30d - a.uses_30d || a.title.localeCompare(b.title))
+    .slice(0, 5);
+
+  // Coverage: which top-level repo areas have ZERO memory citing them — where the team flies blind.
+  const citedTop = new Set(
+    approved.flatMap((packet) => packet.paths).map((path) => path.split("/")[0]).filter(Boolean),
+  );
+  let areaNames: string[] = [];
+  try {
+    areaNames = readdirSync(projectDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .filter((name) => !name.startsWith(".") && !["node_modules", "dist", "build", "out", "coverage", "tmp"].includes(name));
+  } catch {
+    areaNames = [];
+  }
+  const darkAreas = areaNames.filter((name) => !citedTop.has(name)).sort();
+
+  const oldestPending = pending.reduce<number | null>((oldest, packet) => {
+    const created = Date.parse(packet.created_at);
+    if (Number.isNaN(created)) return oldest;
+    const ageDays = Math.floor((Date.now() - created) / 86_400_000);
+    return oldest === null || ageDays > oldest ? ageDays : oldest;
+  }, null);
+  const contradictions = packets.reduce(
+    (sum, packet) => sum + (Array.isArray((packet.quality as Record<string, unknown> | undefined)?.contradicts) ? ((packet.quality as Record<string, unknown>).contradicts as unknown[]).length : 0),
+    0,
+  );
+
+  return {
+    generated_for: projectDir,
+    value: {
+      recalls_served: summary.all_time.recalls,
+      stale_withheld: summary.all_time.stale_withheld,
+      tokens_saved_estimated: summary.all_time.tokens_saved,
+      replay_tokens_estimated: summary.all_time.replay_tokens,
+    },
+    injection_gate: {
+      available: gates > 0,
+      gates,
+      injected: injections,
+      injection_rate: gates > 0 ? Number((injections / gates).toFixed(3)) : null,
+      average_confidence: avgConfidence,
+      recent: gateEvents.slice(-10).map((event) => ({
+        at: event.at,
+        injected: event.injected === true,
+        confidence: event.confidence ?? 0,
+      })),
+      note: gates > 0
+        ? "live corpus-normalized gate decisions recorded by the proxy"
+        : "unavailable — no proxy traffic has exercised the injection gate yet",
+    },
+    composition: {
+      total_packets: packets.length,
+      non_derivable_share: packets.length ? Number((nonDerivable / packets.length).toFixed(3)) : 0,
+      derivable_risk_share: packets.length ? Number((derivableRisk / packets.length).toFixed(3)) : 0,
+      classes: classRows,
+    },
+    top_memories: topMemories,
+    coverage: {
+      areas: areaNames.length,
+      dark_areas: darkAreas,
+      note: darkAreas.length
+        ? "top-level areas with no approved memory citing them"
+        : "every top-level area has at least one approved memory citing it",
+    },
+    review_health: {
+      pending: pending.length,
+      oldest_pending_days: oldestPending,
+      contradictions,
+    },
+  };
 }
 
 function estimatedTokenDollars(tokensSaved: number): number {
@@ -3369,6 +3653,74 @@ export function formatTokenCount(tokens: number): string {
   if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
   if (count >= 1_000) return `${Math.round(count / 1_000)}K`;
   return String(count);
+}
+
+// The one-line receipt printed under a `kage recall`. tokens_saved is a per-recall
+// ESTIMATE (read-vs-source / discovery-cost heuristic in recallTokensSaved /
+// replayTokensSaved), so it must be labeled estimated at the point of display and never
+// read as a measured before/after. stale_withheld is a MEASURED COUNT of packets the
+// recall gate actually withheld, so it is presented as counted, distinct from the estimate.
+export function formatRecallValueReceipt(receipt: { tokens_saved: number; stale_withheld: number }): string {
+  return `\n↳ ~${formatTokenCount(receipt.tokens_saved)} tokens saved (estimated, vs re-reading cited source) · ${receipt.stale_withheld} stale withheld (measured)`;
+}
+
+// The full `kage gains` rendering, returned as lines so it is testable without spawning
+// the CLI. HONESTY CONTRACT: the token and dollar figures are ESTIMATES (the per-recall
+// discovery/read-vs-source heuristic accumulated in the value ledger), while stale blocks,
+// stale-caught, recalls and caller answers are MEASURED COUNTS of events that actually
+// fired. The two must stay visibly distinct, and no estimate may be phrased as a measured
+// "saved you N tokens".
+export function formatValueGains(summary: ValueSummary): string[] {
+  const plural = (count: number, singular: string, pluralForm: string): string => (count === 1 ? singular : pluralForm);
+  if (!summary.all_time.recalls && !summary.all_time.stale_withheld && !summary.all_time.stale_caught && !summary.all_time.caller_answers) {
+    return [
+      "No value events recorded yet — this ledger fills up as your agent works.",
+      "Every recall logs the estimated tokens it saved (by not re-reading cited files) and",
+      "counts every stale memory it withheld. Come back after a session for a receipt here.\n",
+      "Start now:",
+      "  kage scan --project .                  a Truth Report on this repo",
+      "  kage scan --project . --scorecard      a shareable scorecard you can post",
+      "  then just work — your agent captures and recalls, verified against this code.",
+    ];
+  }
+  const lines: string[] = [];
+  // Lead with the measured/estimated split so no figure below can be mistaken for the other.
+  lines.push(
+    "Kage value ledger — token and dollar figures are ESTIMATED (per-recall discovery / read-vs-source heuristic); " +
+    "stale blocks, stale-caught, recalls and caller answers are MEASURED counts.",
+  );
+  const windowLine = (label: string, window: ValueWindowSummary): string =>
+    `  ${label} ~${formatTokenCount(window.tokens_saved)} tokens saved (estimated) · ~$${window.estimated_dollars.toFixed(2)} (estimated) · ` +
+    `${window.stale_withheld} stale blocked · ${window.stale_caught} stale caught at change-time · ` +
+    `${window.recalls} ${plural(window.recalls, "recall", "recalls")} · ` +
+    `${window.caller_answers} caller ${plural(window.caller_answers, "answer", "answers")} (measured counts)`;
+  lines.push(windowLine("This week:", summary.last_7d));
+  lines.push(windowLine("Today:    ", summary.today));
+  lines.push(windowLine("All time: ", summary.all_time));
+  if (summary.all_time.caller_answers > 0) {
+    lines.push("  (caller answers: \"who calls this\" code-graph questions answered from the call-edge index)");
+  }
+  if (summary.all_time.replay_tokens > 0) {
+    lines.push(
+      `Knowledge replay value (estimated): ~${formatTokenCount(summary.last_7d.replay_tokens)} tokens this week · ` +
+      `~${formatTokenCount(summary.all_time.replay_tokens)} all time ` +
+      `(estimated discovery cost of served memories vs their compressed read cost)`
+    );
+  }
+  const usdOverridden = Number.isFinite(Number(process.env.KAGE_USD_PER_MTOK)) && Number(process.env.KAGE_USD_PER_MTOK) > 0;
+  lines.push(
+    `\nDollars estimated at $${VALUE_DOLLARS_PER_MILLION_TOKENS}/1M input tokens ` +
+    `(${usdOverridden ? "via KAGE_USD_PER_MTOK" : "Sonnet-class default — set KAGE_USD_PER_MTOK for your model"}). ` +
+    `Ledger: .agent_memory/reports/value.json`
+  );
+  // The counts are your actual cumulative usage; the token/$ savings are an estimate, not a
+  // measured before/after. Point at the two surfaces that carry real measurement.
+  lines.push(
+    "The event counts above are your actual cumulative usage (measured). The token/$ savings are " +
+    "ESTIMATED, not a measured before/after — for the measured injected-cost cross-check run " +
+    "`node benchmarks/reuse-value-kage.mjs --receipts`, and for a reproducible before/after: kage savings.",
+  );
+  return lines;
 }
 
 // Receipt math: tokens an agent would have spent reading the cited source files
@@ -3571,6 +3923,37 @@ function jaccard(a: Set<string>, b: Set<string>): number {
   return intersection / (a.size + b.size - intersection);
 }
 
+function termFrequencies(text: string): Map<string, number> {
+  const frequencies = new Map<string, number>();
+  for (const term of tokenize(text)) {
+    if (term.length <= 2) continue;
+    frequencies.set(term, (frequencies.get(term) ?? 0) + 1);
+  }
+  return frequencies;
+}
+
+// Term-frequency cosine between two texts (W3 dedup). Jaccard on token SETS punishes length
+// mismatch and ignores emphasis: a reworded near-duplicate that shares its core vocabulary but pads
+// different filler drops below a set-overlap threshold while its WEIGHTED overlap stays high. The
+// dedup scorer takes the max of both, so neither view alone can hide a near-duplicate.
+export function tfCosine(textA: string, textB: string): number {
+  const a = termFrequencies(textA);
+  const b = termFrequencies(textB);
+  if (a.size === 0 || b.size === 0) return 0;
+  let dot = 0;
+  const [small, large] = a.size <= b.size ? [a, b] : [b, a];
+  for (const [term, weight] of small) {
+    const other = large.get(term);
+    if (other) dot += weight * other;
+  }
+  if (dot === 0) return 0;
+  let normA = 0;
+  for (const weight of a.values()) normA += weight * weight;
+  let normB = 0;
+  for (const weight of b.values()) normB += weight * weight;
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
 function duplicateCandidates(projectDir: string, packet: MemoryPacket, threshold = 0.58): Array<{ id: string; title: string; score: number; status: string }> {
   return duplicateCandidatesWithContext(packet, memoryQualityContext(projectDir), threshold);
 }
@@ -3608,7 +3991,20 @@ function duplicateCandidatesWithContext(packet: MemoryPacket, context: MemoryQua
   return candidates
     .filter((candidate) => candidate.id !== packet.id)
     .filter((candidate) => !(isGeneratedChangeMemory(packet) && isGeneratedChangeMemory(candidate)))
-    .map((candidate) => ({ packet: candidate, score: jaccard(current, context.tokenSets.get(candidate.id) ?? tokenSet(packetText(candidate))) }))
+    .map((candidate) => {
+      const candidateText = packetText(candidate);
+      const candidateSet = context.tokenSets.get(candidate.id) ?? tokenSet(candidateText);
+      const setScore = jaccard(current, candidateSet);
+      // W3: weighted-overlap view alongside set overlap — a reworded near-duplicate whose padding
+      // differs but whose core vocabulary repeats scores high on TF-cosine while Jaccard dilutes.
+      // Guarded to texts with enough DISTINCT vocabulary: on short notes the vector is dominated by
+      // shared boilerplate ("Verified by: npm test"), and cosine over a dozen terms flags genuinely
+      // different facts as duplicates. Below the floor the set view alone decides, as before.
+      const cosineScore = Math.min(current.size, candidateSet.size) >= 12
+        ? tfCosine(packetText(packet), candidateText)
+        : 0;
+      return { packet: candidate, score: Math.max(setScore, cosineScore) };
+    })
     .filter((entry) => entry.score >= threshold)
     .sort((a, b) => b.score - a.score || a.packet.title.localeCompare(b.packet.title))
     .slice(0, 5)
@@ -4400,6 +4796,41 @@ function evaluateMemoryQuality(projectDir: string, packet: MemoryPacket, context
   };
 }
 
+// What share of the packet body's distinct meaningful terms already appear in its cited files.
+// A high containment with no rationale/trigger language means the body RESTATES the code — the
+// lowest-value memory class (measured: ~0 uses/packet), because an agent can read the code itself.
+// Prefix-lite matching (first 5 chars) absorbs simple morphology ("retries" vs "retry"). Bounded:
+// first 3 cited files, 50 KB each; unreadable files contribute nothing (containment can only drop).
+function citedCodeContainment(projectDir: string, packet: MemoryPacket): number {
+  let corpus = "";
+  for (const relPath of packet.paths.slice(0, 3)) {
+    try {
+      const filePath = join(projectDir, relPath);
+      if (!existsSync(filePath)) continue;
+      corpus += `\n${readFileSync(filePath, "utf8").slice(0, 50_000).toLowerCase()}`;
+    } catch {
+      continue;
+    }
+  }
+  if (!corpus) return 0;
+  const terms = unique(tokenize(packet.body).filter((term) => term.length >= 4));
+  if (terms.length < 6) return 0; // too few terms to judge restatement
+  let contained = 0;
+  for (const term of terms) {
+    // Prefix fallbacks absorb simple morphology ("retries"→"retry", "doubling"→"doubl"). This only
+    // ever runs on trigger-free bodies (the caller gates it), so the looseness cannot penalize
+    // rationale-bearing memory.
+    if (
+      corpus.includes(term) ||
+      (term.length > 5 && corpus.includes(term.slice(0, 5))) ||
+      (term.length > 4 && corpus.includes(term.slice(0, 4)))
+    ) {
+      contained += 1;
+    }
+  }
+  return contained / terms.length;
+}
+
 export function evaluateMemoryAdmission(projectDir: string, packet: MemoryPacket): MemoryAdmissionResult {
   const reasons: string[] = [];
   const risks: string[] = [];
@@ -4449,6 +4880,27 @@ export function evaluateMemoryAdmission(projectDir: string, packet: MemoryPacket
   if (packet.body.length < 80) {
     score -= 10;
     risks.push("too little context");
+  }
+  // T2 — derivability. The live reuse A/B measured memory's value as ~ZERO when the fact is
+  // derivable from code and transformative when it is not; the store audit confirmed it in usage
+  // (reference dumps 0.00 uses/packet, code explanations 0.12, vs rationale/gotcha/ops carrying all
+  // demand). So admission BOOSTS knowledge the code cannot express and PENALIZES a body that merely
+  // restates its cited code.
+  const nonDerivable =
+    packet.type === "gotcha" ||
+    packet.type === "negative_result" ||
+    /\b(instead of|rejected|rather than|dead[- ]?ends?|does not work|external|upstream|rate[- ]?limits?|incident|postmortem|stampede|tribal)\b/i.test(text);
+  if (nonDerivable) {
+    score += 10;
+    reasons.push("non-derivable knowledge the code cannot express");
+  }
+  const hasTriggerLanguage = /(when|after|before|because|requires|must|avoid|prefer|use this|run this|root cause|rationale|decision|convention|gotcha|workaround|fix|policy|issue|hypothesis|unresolved|data flow|invariant|coupling|constraint)/i.test(packet.body);
+  if (!nonDerivable && !hasTriggerLanguage && packet.paths.length) {
+    const containment = citedCodeContainment(projectDir, packet);
+    if (containment >= 0.65) {
+      score -= 30;
+      risks.push(`restates what the cited code already says (derivable; ${Math.round(containment * 100)}% of body terms appear in the cited files — agents read code)`);
+    }
   }
   // Ungrounded conversational chatter (a path-less, repo-reference-free user outburst) is not
   // durable memory regardless of its other signals — keywords like "issue"/"before" can
@@ -5276,6 +5728,59 @@ function gitTree(projectDir: string): string | null {
 function gitMergeBase(projectDir: string): string | null {
   return readGit(projectDir, ["merge-base", "HEAD", "origin/main"])
     || readGit(projectDir, ["merge-base", "HEAD", "origin/master"]);
+}
+
+// The unified diff text for a branch/working-tree change, as ground truth for the Minimal Change Guard.
+// Preference order: an explicit base ref (`base...HEAD`), then the merge-base with the default branch,
+// then the working tree vs HEAD. Returns "" outside a git repo (the guard then finds nothing, honestly).
+function branchDiffText(projectDir: string, base: string | null): string {
+  if (base) {
+    const explicit = readGit(projectDir, ["diff", `${base}...HEAD`]);
+    if (explicit !== null) return explicit;
+  }
+  const mergeBase = gitMergeBase(projectDir);
+  if (mergeBase) {
+    const branchDiff = readGit(projectDir, ["diff", mergeBase, "HEAD"]);
+    if (branchDiff !== null && branchDiff.trim()) return branchDiff;
+  }
+  return readGit(projectDir, ["diff", "HEAD"]) ?? "";
+}
+
+export interface MinimalChangeCheckOptions {
+  /** Diff against `<base>...HEAD` when given; otherwise the merge-base with the default branch. */
+  base?: string | null;
+  repositoryId?: string;
+  declaredComponents?: string[];
+  /** Explicit ISO timestamp for suppression expiry checks. Defaults to now. */
+  now?: string;
+}
+
+/**
+ * Build the Minimal Change Guard report for the current change, or `null` when the guard is disabled
+ * (the default). This is the single seam shared by `pr check`, the `kage minimal-change check` CLI, and
+ * the per-task API route, so all three agree on findings. Runs with a `null` repository model on the
+ * legacy CLI (diff-grounded rules only); model-backed callers pass a live model to the report builder.
+ */
+export function minimalChangeReport(
+  projectDir: string,
+  options: MinimalChangeCheckOptions = {},
+): MinimalChangeReport | null {
+  const config = readVnextConfig(projectDir);
+  const policy = config?.vnext.minimal_change;
+  if (!policy || !policy.enabled || policy.mode === "off") return null;
+  const diffText = branchDiffText(projectDir, options.base ?? null);
+  const repositoryId = options.repositoryId ?? basename(resolve(projectDir)) ?? "repo";
+  return buildMinimalChangeReport({
+    diff_text: diffText,
+    task: {
+      task_id: `pr:${repositoryId}`,
+      repository_id: repositoryId,
+      declared_components: options.declaredComponents ?? [],
+    },
+    model: null,
+    policy,
+    now: options.now ?? new Date().toISOString(),
+  });
 }
 
 function gitProjectPrefix(projectDir: string): string | null {
@@ -11067,6 +11572,20 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
   const result: RecallResult = {
     query,
     context_block: inputs.maxContextTokens ? boundContextBlock(assembledBlock, inputs.maxContextTokens) : assembledBlock,
+    // Corpus-normalized injection decision, computed over the FULL ranked candidate list (the only
+    // place the distribution exists) — automatic injectors gate on this, humans can ignore it.
+    // Corpus-normalized injection decision. Scores drive the tiny-corpus anchors; term-evidence
+    // relevances drive the z-band (freshness/quality boosts inflate every packet in a fresh store —
+    // auto-generated structural packets score 47+ with zero query-term hits — which would flatten
+    // the spike signal). Index 0 of both arrays is the top-SCORED entry: the one that would inject.
+    injection: decideRecallInjection(
+      rankedScored.map((entry) => entry.score),
+      rankedScored.length ? countDistinctTermMatches(expansion.baseTerms, rankedScored[0].packet) : 0,
+      rankedScored.length
+        ? [rankedScored[0].relevance, ...rankedScored.slice(1).map((entry) => entry.relevance).sort((a, b) => b - a)]
+        : [],
+      unique(expansion.baseTerms.filter((term) => term.length >= 3)).length,
+    ),
     results: scored,
     suppressed: suppressed.length ? suppressed : undefined,
     team: teamEntries.length ? teamEntries : undefined,
@@ -11098,6 +11617,142 @@ function recallWithVectorScores(projectDir: string, query: string, limit = 5, ex
     ]);
   }
   return result;
+}
+
+// How far must the top candidate stand out of its corpus's score distribution before an automatic
+// injector may attach it. Tuned against benchmarks/injection-relevance-kage.mjs (the acceptance
+// harness for this decision): content-free and absent-topic queries must fall below it on BOTH the
+// small and large stores, while the genuine small-store direct match and large-store real questions
+// stay above it.
+const INJECTION_CONFIDENCE_FLOOR = 0.5;
+
+function clamp01(value: number): number {
+  return value < 0 ? 0 : value > 1 ? 1 : value;
+}
+
+/**
+ * Decide, from the FULL ranked candidate score list (descending) plus the top candidate's QUERY
+ * EVIDENCE BREADTH, whether this recall is worth injecting at all. Two orthogonal signals, both
+ * required, both deterministic:
+ *
+ *   EVIDENCE BREADTH — how many DISTINCT meaningful query terms the top candidate actually matches.
+ *   A content-free prompt ("Reply with the single word: pong") can spike a packet on ONE term
+ *   ("pong" all over a websocket-heartbeat runbook) with a score as high as a real question's; what
+ *   it cannot do is match several distinct query terms, because it does not contain several. Real
+ *   questions carry their topic in 2+ terms ("websocket gateway heartbeat connections").
+ *
+ *   CORPUS NORMALIZATION — does the top candidate SPIKE above this corpus's own score distribution?
+ *   Scores are un-normalized match sums (a big store's noise band outscores a small store's genuine
+ *   direct match), so no absolute floor exists; the spike-vs-flat-band shape is what generalizes.
+ */
+export function decideRecallInjection(
+  scoresDescending: number[],
+  topDistinctTerms = 2,
+  // Term-evidence relevances (BM25-scale), aligned with scoresDescending: [top-scored entry's
+  // relevance, rest sorted desc]. The z-band branch normalizes over THESE, because final scores
+  // carry freshness/quality boosts that inflate every packet in a fresh store and flatten the
+  // spike signal. The tiny-corpus branch keeps SCORE semantics — its ratio/anchor rules are tuned
+  // on that scale, and BM25 values are too small for absolute anchors.
+  relevancesDescending?: number[],
+  /** How many meaningful (len>=3) terms the query itself carries — the denominator of coverage. */
+  queryTermCount = 0,
+): RecallInjectionDecision {
+  const scores = scoresDescending.filter((score) => Number.isFinite(score) && score > 0);
+  const count = scores.length;
+  if (count === 0) {
+    return { inject: false, confidence: 0, top_score: null, candidate_count: 0, why: "no candidate scored above zero" };
+  }
+  const top = scores[0];
+  const rest = scores.slice(1);
+
+  // Evidence-breadth gate: a top hit carried by a single query term is a lexical accident, not an
+  // answer — regardless of its score. It caps confidence below the floor rather than zeroing it, so
+  // the decision output still ranks "almost" cases above true zeros.
+  if (topDistinctTerms < 2) {
+    const confidence = Math.min(0.4, top >= 8 ? 0.4 : 0.2);
+    return {
+      inject: false,
+      confidence,
+      top_score: top,
+      candidate_count: count,
+      why: `top candidate matches only ${topDistinctTerms} distinct query term(s) — one incidental token is not evidence (score ${top})`,
+    };
+  }
+
+  // QUERY COVERAGE override (any corpus size): when the top candidate matches essentially ALL of
+  // the query's meaningful terms (>=80%, and the query has at least two), it answers what was
+  // asked — inject regardless of corpus shape. Ties with auto-generated structural packets or a
+  // crowded topical band cannot demote a complete direct answer. Content-free and absent-topic
+  // prompts can never reach this bar: their terms are not covered by any one packet.
+  if (queryTermCount >= 2 && topDistinctTerms >= Math.ceil(queryTermCount * 0.8) && top >= 10) {
+    return {
+      inject: true,
+      confidence: 0.75,
+      top_score: top,
+      candidate_count: count,
+      why: `top candidate covers ${topDistinctTerms}/${queryTermCount} meaningful query terms — a complete direct answer`,
+    };
+  }
+
+  // Tiny corpora (a new/small repo) have no distribution to normalize against. Decide by the gap to
+  // the runner-up plus a minimal evidence anchor: a genuine direct match dwarfs its runner-up (or
+  // stands alone with broad evidence); a marginal leader does not.
+  if (rest.length < 4) {
+    const runnerUp = rest[0] ?? 0;
+    const ratio = runnerUp > 0 ? top / runnerUp : Number.POSITIVE_INFINITY;
+    let confidence: number;
+    let why: string;
+    if (rest.length === 0) {
+      // One-term accidents were already refused by the breadth gate above, so a lone candidate here
+      // carries multi-term evidence — a modest anchor suffices.
+      confidence = top >= 12 ? 0.8 : top >= 6 ? 0.55 : 0.25;
+      why = `single candidate (score ${top}, ${topDistinctTerms} distinct terms)`;
+    } else if (ratio >= 2 && top >= 6) {
+      confidence = 0.8;
+      why = `top (${top}) dwarfs runner-up (${runnerUp}) in a ${count}-candidate corpus`;
+    } else if (ratio >= 1.5 && top >= 10) {
+      confidence = 0.6;
+      why = `top (${top}) clearly leads runner-up (${runnerUp})`;
+    } else {
+      confidence = 0.3;
+      why = `top (${top}) does not stand out of ${count} candidates (runner-up ${runnerUp})`;
+    }
+    return { inject: confidence >= INJECTION_CONFIDENCE_FLOOR, confidence, top_score: top, candidate_count: count, why };
+  }
+
+  // Normal corpora: z-score of the top against the rest of the band, blended with the runner-up
+  // ratio — computed over term-evidence RELEVANCES when supplied (boost-free), else the scores.
+  // A spike (high z AND a real lead) injects; a flat band is topical noise at any absolute level.
+  const band = (relevancesDescending && relevancesDescending.length === scoresDescending.length
+    ? relevancesDescending
+    : scoresDescending
+  ).filter((value) => Number.isFinite(value) && value > 0);
+  const bandTop = band[0] ?? top;
+  const bandRest = band.slice(1);
+  const mean = bandRest.length ? bandRest.reduce((sum, value) => sum + value, 0) / bandRest.length : 0;
+  const variance = bandRest.length ? bandRest.reduce((sum, value) => sum + (value - mean) ** 2, 0) / bandRest.length : 0;
+  const sd = Math.sqrt(variance);
+  const z = sd > 0 ? (bandTop - mean) / sd : bandTop > mean ? 4 : 0;
+  const ratio = bandRest[0] > 0 ? bandTop / bandRest[0] : 4;
+  const zComponent = clamp01(z / 4);
+  const ratioComponent = clamp01((ratio - 1) / 1.5);
+  const confidence = clamp01(Math.max(
+    zComponent * 0.7 + ratioComponent * 0.3,
+    ratioComponent * 0.7 + zComponent * 0.3,
+  ));
+  const why = `top ${top} vs band mean ${mean.toFixed(1)}±${sd.toFixed(1)} over ${count} candidates (z=${z.toFixed(2)}, lead ×${ratio.toFixed(2)}, ${topDistinctTerms} distinct terms)`;
+  return { inject: confidence >= INJECTION_CONFIDENCE_FLOOR, confidence: Number(confidence.toFixed(3)), top_score: top, candidate_count: count, why };
+}
+
+/** Count DISTINCT meaningful query terms (length >= 3) present in a packet's searchable text. */
+export function countDistinctTermMatches(terms: string[], packet: MemoryPacket): number {
+  const haystack = packetText(packet).toLowerCase();
+  const seen = new Set<string>();
+  for (const term of terms) {
+    if (!term || term.length < 3 || seen.has(term)) continue;
+    if (haystack.includes(term)) seen.add(term);
+  }
+  return seen.size;
 }
 
 export function recall(projectDir: string, query: string, limit = 5, explain = false, inputs: GraphInputs = {}): RecallResult {
@@ -14036,6 +14691,75 @@ export function kageCapabilityAudit(projectDir: string): CapabilityAuditReport {
   };
 }
 
+// Phase D Task 6 — the three-surface certification release gate.
+//
+// A surface is only counted as an automatic attachment when a transcript-based
+// smoke test proves it (certifySurface). The gate REQUIRES honest certification
+// for three surfaces — Claude Code native hooks, a proxy-compatible agent using
+// the measured gateway, and Cursor session-start injection on a certified
+// version. Codex is visible in the matrix but is NOT required to count as an
+// automatic attachment while it remains MCP fallback; its presence never fails
+// the gate, and its label can never be flipped to automatic by installed config.
+// If a required surface fails certification, the gate stays failed instead of
+// relabeling the surface.
+
+export const REQUIRED_AUTOMATIC_SURFACES: readonly AgentSurface[] = [
+  "claude-code",
+  "anthropic-proxy",
+  "cursor",
+] as const;
+
+export interface AgentSurfaceCertificationGateReport {
+  schema_version: 1;
+  generated_at: string;
+  passed: boolean;
+  required_surfaces: AgentSurface[];
+  certifications: AgentSurfaceCertification[];
+  failures: string[];
+  summary: string;
+}
+
+export function agentSurfaceCertificationGate(
+  inputs: CertifySurfaceInput[],
+  options: { now?: string } = {},
+): AgentSurfaceCertificationGateReport {
+  const now = options.now ?? nowIso();
+  const certifications = inputs.map((input) =>
+    certifySurface({ ...input, certified_at: input.certified_at ?? now }),
+  );
+  const bySurface = new Map<AgentSurface, AgentSurfaceCertification>();
+  for (const cert of certifications) bySurface.set(cert.surface, cert);
+
+  const failures: string[] = [];
+  for (const surface of REQUIRED_AUTOMATIC_SURFACES) {
+    const cert = bySurface.get(surface);
+    if (!cert) {
+      failures.push(`${surface}: no certification fixture provided`);
+      continue;
+    }
+    if (!cert.counts_as_automatic_attachment) {
+      failures.push(
+        `${surface}: not certified as automatic attachment (capture=${cert.capture}, injection=${cert.injection})`,
+      );
+    }
+  }
+
+  const passed = failures.length === 0;
+  const summary = passed
+    ? `All ${REQUIRED_AUTOMATIC_SURFACES.length} required surfaces certified as automatic attachments; Codex remains honest MCP fallback.`
+    : `Agent-surface certification gate FAILED: ${failures.join("; ")}`;
+
+  return {
+    schema_version: 1,
+    generated_at: now,
+    passed,
+    required_surfaces: [...REQUIRED_AUTOMATIC_SURFACES],
+    certifications,
+    failures,
+    summary,
+  };
+}
+
 const DECISION_INTELLIGENCE_TYPES = new Set<MemoryType>([
   "bug_fix",
   "code_explanation",
@@ -16926,6 +17650,25 @@ export function learn(input: LearnInput): LearnResult {
     input.verifiedBy ? `\nVerified by: ${input.verifiedBy.trim()}` : "",
   ].join("").trim();
 
+  // A packet with no content is worse than no packet: it is indexed, recalled, and
+  // occupies the slot of the insight it was supposed to carry, while the loss shows
+  // up only as a soft "body is empty" validation warning much later. Reject the write
+  // at capture time, the same way an uncited learning is rejected below.
+  //
+  // Guard `learning` itself, not just the composed body: evidence/verifiedBy alone make
+  // the body non-empty, so a dropped or misnamed `learning` would still write a packet
+  // whose only content is its own provenance. That is the failure this check exists for.
+  if (!input.learning.trim() || !body) {
+    return {
+      ok: false,
+      errors: [
+        "Empty learning: a memory packet needs content. Pass the insight in `learning` "
+          + "(full sentences: what was learned and why it matters to a future session).",
+      ],
+      warnings: [],
+    };
+  }
+
   // Strict (agent/CLI) repo learnings must be grounded: a learning with no cited
   // paths at all is rejected. Citation-free notes are allowed only in the
   // personal store (`kage learn --personal` / learnPersonal), where recall
@@ -17128,7 +17871,23 @@ export function capture(input: CaptureInput): CaptureResult {
     ...evaluateMemoryQuality(input.projectDir, packet),
     ...(contradictions.length ? { contradicts: contradictions.map((c) => c.packet_id) } : {}),
   };
-  const path = writePacket(input.projectDir, packet, routeToPending ? "pending" : "packets");
+  // T2 — derivability gate on the explicit path. A body that merely RESTATES its cited code is the
+  // measured-lowest-value memory class (~0 uses/packet; the reuse A/B measured ~zero value when the
+  // fact is in code). The deliberate capture is still WRITTEN — never lose a human act — but it
+  // lands in pending review instead of trusted recall, with the why spelled out.
+  let routeToPendingFinal = routeToPending;
+  if (!routeToPendingFinal && packet.paths.length) {
+    const admission = evaluateMemoryAdmission(input.projectDir, packet);
+    const restates = admission.risks.find((risk) => risk.includes("restates what the cited code already says"));
+    if (restates) {
+      routeToPendingFinal = true;
+      packet.status = "pending";
+      warnings.push(
+        `Routed to pending review: ${restates}. Add what the code cannot say — the why, the rejected alternative, the trap — to make this durable memory.`,
+      );
+    }
+  }
+  const path = writePacket(input.projectDir, packet, routeToPendingFinal ? "pending" : "packets");
   recordMemoryAudit(input.projectDir, "capture", [packet], {
     type: packet.type,
     status: packet.status,
@@ -17352,6 +18111,628 @@ ${hookCliPath ? `elif [[ -f "${hookCliPath}" ]] && command -v node >/dev/null 2>
 ` : ""}else
   kage() { npx -y --package=@kage-core/kage-graph-mcp kage "$@"; }
 fi`;
+    // vNext handover. When the local runtime (kaged) is live in "audit" or "assist" mode, the
+    // single vnext adapter hook owns the event: it posts evidence and injects context over the
+    // authenticated loopback API. The legacy script then stands down, or the same event would be
+    // observed and injected twice. Any other mode — and, overwhelmingly, no runtime at all —
+    // leaves the legacy script fully in charge, so existing installs are untouched.
+    //
+    // Trusting status.json on sight is not enough, and getting this wrong disables Kage silently:
+    //   * status.json is removed only on a GRACEFUL close, so SIGKILL, an OOM kill, or a reboot
+    //     leaves it behind. A file-only check then reads mode "audit", every legacy hook stands
+    //     down, the adapter's post is refused — and no path runs at all, forever, while `kage
+    //     doctor` still says healthy. Worse, if any other local process later takes that port, the
+    //     adapter would hand it the raw prompt and the bearer token.
+    //   * status.json and token sit at a repo-relative, checked-out path. A cloned hostile repo can
+    //     ship both and point the harness at a port of its choosing.
+    // So: the files must still look like the runtime's own (0600 in a 0700 dir, owned by us — the
+    // invariants runtime/paths.ts and status.ts enforce when writing them) AND the recorded pid
+    // must still be a live process of ours. Anything unverifiable is "no runtime": when in doubt,
+    // the legacy path runs, because a redundant legacy hook is survivable and silence is not.
+    const hookVnextProbe = `import json, os, stat, subprocess
+
+def dead():
+    raise SystemExit(1)
+
+directory = os.environ.get("KAGE_VNEXT_DIR") or ""
+status_path = os.path.join(directory, "status.json")
+token_path = os.path.join(directory, "token")
+try:
+    uid = os.getuid()
+    entry = os.lstat(directory)
+    if not stat.S_ISDIR(entry.st_mode) or entry.st_uid != uid or (entry.st_mode & 0o077):
+        dead()
+    for path in (status_path, token_path):
+        entry = os.lstat(path)
+        if not stat.S_ISREG(entry.st_mode) or entry.st_uid != uid or (entry.st_mode & 0o077):
+            dead()
+    with open(status_path, "r", encoding="utf-8") as handle:
+        status = json.load(handle)
+    with open(token_path, "r", encoding="utf-8") as handle:
+        token = handle.read().strip()
+except Exception:
+    dead()
+if not isinstance(status, dict) or not token:
+    dead()
+host, port, mode, pid = status.get("host"), status.get("port"), status.get("mode"), status.get("pid")
+if host != "127.0.0.1" or mode not in ("audit", "assist"):
+    dead()
+if not isinstance(port, int) or isinstance(port, bool) or not 0 < port < 65536:
+    dead()
+if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
+    dead()
+try:
+    os.kill(pid, 0)
+except Exception:
+    dead()
+try:
+    proc = subprocess.run(["ps", "-p", str(pid), "-o", "comm="], capture_output=True, timeout=2)
+    comm = os.path.basename(proc.stdout.decode("utf-8", "replace").strip()).lower()
+except Exception:
+    dead()
+if "node" not in comm:
+    dead()
+print("http://127.0.0.1:%d %s" % (port, mode))`;
+    // A legacy script hands its event to the adapter only when BOTH are true: the runtime is
+    // verifiably live, and the adapter actually handles this event. The adapter is wired for six of
+    // the nine events; Stop, PreCompact and SubagentStop have no adapter handler at all, and a
+    // legacy script that stood down for them would take `kage refresh`, `kage pr summarize`, the
+    // reconcile gate and distillation down with it and hand the work to nobody.
+    const hookVnextGuard = `KAGE_VNEXT_ADAPTER_EVENTS=" SessionStart UserPromptSubmit PreToolUse PostToolUse PostToolUseFailure SessionEnd "
+if [[ "$KAGE_VNEXT_ADAPTER_EVENTS" == *" $HOOK_EVENT "* ]] && KAGE_VNEXT_DIR="$CWD/.agent_memory/daemon/vnext" python3 -c '${hookVnextProbe}
+' >/dev/null 2>&1; then
+  exit 0
+fi`;
+    // The vNext adapter: ONE process per hook event, no Kage CLI, no Node start-up. It reads the
+    // hook JSON once, routes it, verifies the runtime is live, posts protocol-v1 evidence, and
+    // prints the daemon's delimited context block when one arrives inside the budget.
+    //
+    // It fails open, always. `set -e` is deliberately NOT used: a dead daemon, a missing python3,
+    // a 401, a hung /v2/context — every one of them must still reach `exit 0`, because a Kage
+    // failure that breaks the user's Claude session is worse than no Kage at all. Every network
+    // call is capped (150 ms for evidence, 500 ms for context), so a stalled daemon costs a small
+    // bounded wait. The raw prompt is never printed, logged, or passed as an argument: it lives in
+    // PAYLOAD and reaches the python child through the environment and the loopback socket only.
+    const vnextAdapterHookScript = `#!/usr/bin/env bash
+# Kage vNext adapter hook — the single fail-open bridge from Claude Code hooks to the local Kage
+# runtime (kaged). Posts protocol-v1 evidence to 127.0.0.1 and injects the runtime's context block.
+# Silent, and exits 0, whenever the runtime is absent, unreachable, slow, or unhappy.
+# kage-hooks-v${KAGE_HOOKS_VERSION}
+set -uo pipefail
+
+PAYLOAD="$(cat || true)"
+
+# Route before doing anything expensive. PreToolUse fires on EVERY tool call — Bash, Grep,
+# TodoWrite — and most of them map to no protocol event, so an unmapped hook must cost one python
+# start-up and nothing else: no git, no probe, no network.
+ROUTE="$(PAYLOAD="$PAYLOAD" python3 -c 'import json, os
+try:
+    d = json.loads(os.environ.get("PAYLOAD") or "{}")
+except Exception:
+    d = {}
+if not isinstance(d, dict):
+    d = {}
+
+def line(value, limit):
+    if not isinstance(value, str):
+        return ""
+    return value.replace("\\r", " ").replace("\\n", " ")[:limit]
+
+print(line(d.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or "", 4096))
+print(line(d.get("hook_event_name") or d.get("event") or "", 64))
+print(line(d.get("tool_name") or d.get("toolName") or "", 128))
+' 2>/dev/null || echo "")"
+CWD=""
+HOOK_EVENT=""
+TOOL=""
+{ read -r CWD; read -r HOOK_EVENT; read -r TOOL; } <<< "$ROUTE"
+
+[[ -n "$CWD" && -d "$CWD/.agent_memory/daemon/vnext" ]] || exit 0
+case "$HOOK_EVENT" in
+  SessionStart|UserPromptSubmit|PostToolUse|PostToolUseFailure|SessionEnd) ;;
+  PreToolUse)
+    case "$TOOL" in
+      Read|NotebookRead|Edit|Write|MultiEdit|NotebookEdit) ;;
+      *) exit 0 ;;
+    esac
+    ;;
+  *) exit 0 ;;
+esac
+
+RUNTIME_DIR="$CWD/.agent_memory/daemon/vnext"
+# The runtime is trusted only while it is verifiably ours and verifiably alive. A status file left
+# behind by a killed daemon is not a runtime: the port it names may since have been taken by any
+# other local process, and this hook would hand that process the raw prompt and the bearer token.
+PROBE="$(KAGE_VNEXT_DIR="$RUNTIME_DIR" python3 -c 'import json, os, stat, subprocess
+
+def dead():
+    raise SystemExit(1)
+
+directory = os.environ.get("KAGE_VNEXT_DIR") or ""
+status_path = os.path.join(directory, "status.json")
+token_path = os.path.join(directory, "token")
+try:
+    uid = os.getuid()
+    entry = os.lstat(directory)
+    if not stat.S_ISDIR(entry.st_mode) or entry.st_uid != uid or (entry.st_mode & 0o077):
+        dead()
+    for path in (status_path, token_path):
+        entry = os.lstat(path)
+        if not stat.S_ISREG(entry.st_mode) or entry.st_uid != uid or (entry.st_mode & 0o077):
+            dead()
+    with open(status_path, "r", encoding="utf-8") as handle:
+        status = json.load(handle)
+    with open(token_path, "r", encoding="utf-8") as handle:
+        token = handle.read().strip()
+except Exception:
+    dead()
+if not isinstance(status, dict) or not token:
+    dead()
+host, port, mode, pid = status.get("host"), status.get("port"), status.get("mode"), status.get("pid")
+if host != "127.0.0.1" or mode not in ("audit", "assist"):
+    dead()
+if not isinstance(port, int) or isinstance(port, bool) or not 0 < port < 65536:
+    dead()
+if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
+    dead()
+try:
+    os.kill(pid, 0)
+except Exception:
+    dead()
+try:
+    proc = subprocess.run(["ps", "-p", str(pid), "-o", "comm="], capture_output=True, timeout=2)
+    comm = os.path.basename(proc.stdout.decode("utf-8", "replace").strip()).lower()
+except Exception:
+    dead()
+if "node" not in comm:
+    dead()
+print("http://127.0.0.1:%d %s" % (port, mode))
+' 2>/dev/null || echo "")"
+CONNECTION=""
+MODE=""
+[[ -n "$PROBE" ]] && read -r CONNECTION MODE <<< "$PROBE"
+[[ -n "$CONNECTION" && -n "$MODE" ]] || { CONNECTION=""; MODE=""; }
+
+TOKEN=""
+if [[ -n "$CONNECTION" ]]; then
+  TOKEN="$(tr -d '\\r\\n' < "$RUNTIME_DIR/token" 2>/dev/null || echo "")"
+  # A runtime we cannot authenticate to is a runtime we cannot reach.
+  [[ -n "$TOKEN" ]] || { CONNECTION=""; MODE=""; }
+fi
+
+# Where a context DELIVERY is recorded. Not an endpoint: the delivery Kage most needs to record is
+# the one where the daemon was unreachable, and there is no posting that to the process that just
+# failed. One 0600 file per delivery, inside the runtime's own 0700 directory, drained into SQLite
+# by the runtime (or by the next \`kage status\` / audit report). It costs no round trip and it cannot
+# fail a session.
+SPOOL="$RUNTIME_DIR/deliveries"
+
+# The runtime is gone. For a hook that WOULD have attached context, that is a failed-open — the one
+# attachment outcome that can never be posted anywhere, and the one an honest audit must still
+# count. Every other hook exits silently, exactly as before.
+if [[ -z "$CONNECTION" ]]; then
+  case "$HOOK_EVENT" in
+    SessionStart|UserPromptSubmit) ;;
+    *) exit 0 ;;
+  esac
+  REMOTE="$(git -C "$CWD" config --get remote.origin.url 2>/dev/null || echo "")"
+  PAYLOAD="$PAYLOAD" KAGE_ROOT="$CWD" KAGE_REMOTE="$REMOTE" KAGE_SPOOL="$SPOOL" python3 -c 'import hashlib, json, os, uuid
+from datetime import datetime, timezone
+
+MAX_SPOOL_FILES = 2000
+
+try:
+    d = json.loads(os.environ.get("PAYLOAD") or "{}")
+except Exception:
+    raise SystemExit(0)
+if not isinstance(d, dict):
+    raise SystemExit(0)
+
+root = os.environ.get("KAGE_ROOT") or ""
+remote = (os.environ.get("KAGE_REMOTE") or "").strip() or None
+spool = os.environ["KAGE_SPOOL"]
+
+def sha(value):
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+session = d.get("session_id") or d.get("sessionId")
+session_id = (session[:256].strip() if isinstance(session, str) else "") or "default"
+repo_id = "repo_" + sha(remote or root)[:32]
+task_id = "task_" + sha(repo_id + "|" + session_id)[:32]
+now = datetime.now(timezone.utc)
+
+# capsule_id is NOT NULL and no capsule was composed: a fixed token says so instead of inventing an
+# id. composition_latency_ms is null for the same reason — a failed round trip is not a composition.
+record = {
+    "delivery_id": "delivery_" + str(uuid.uuid4()),
+    "capsule_id": "capsule_unavailable",
+    "task_id": task_id,
+    "adapter_id": "claude-code-hooks",
+    "injection_location": "none",
+    "delivered_at": now.strftime("%Y-%m-%dT%H:%M:%S.") + ("%03dZ" % (now.microsecond // 1000)),
+    "added_bytes": 0,
+    "added_tokens": None,
+    "measurement_quality": "unavailable",
+    "status": "failed_open",
+    "reason": "unreachable",
+    "composition_latency_ms": None,
+    # provider is null: this hook injects from IDE events and never sees which API the agent calls,
+    # so it cannot know the provider. A guessed "anthropic" would be a fabrication. Only the proxy,
+    # which holds the gateway, records a real provider.
+    "provider": None,
+}
+
+try:
+    os.makedirs(spool, mode=0o700, exist_ok=True)
+    # A dead daemon means a failed-open on every prompt, forever. True, but it must not become an
+    # unbounded directory: past the cap Kage stops recording rather than let measurement eat a disk.
+    if len(os.listdir(spool)) >= MAX_SPOOL_FILES:
+        raise SystemExit(0)
+    name = str(uuid.uuid4())
+    temporary = os.path.join(spool, "." + name + ".tmp")
+    handle = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        os.write(handle, json.dumps(record, separators=(",", ":")).encode("utf-8"))
+    finally:
+        os.close(handle)
+    # Renamed into place, so a reader only ever sees a complete record.
+    os.rename(temporary, os.path.join(spool, name + ".json"))
+except Exception:
+    # A measurement Kage could not record is a gap in a report. Never a broken session.
+    pass
+' 2>/dev/null || true
+  exit 0
+fi
+
+WORK="$(mktemp -d 2>/dev/null || echo "")"
+[[ -n "$WORK" ]] || exit 0
+# EXIT alone is not enough: a hook killed mid-run would leave a temp file holding the raw prompt.
+trap 'rm -rf "$WORK"' EXIT INT TERM HUP
+
+# Repository identity follows the repo, not the checkout: the remote when there is one, else root.
+REMOTE="$(git -C "$CWD" config --get remote.origin.url 2>/dev/null || echo "")"
+BRANCH="$(git -C "$CWD" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
+COMMIT="$(git -C "$CWD" rev-parse HEAD 2>/dev/null || echo "")"
+
+# One python pass turns the hook payload into protocol-v1 request bodies. It writes them to files
+# inside the 0700 temp dir rather than printing them: the raw prompt does live in PAYLOAD and is
+# handed to this child through the environment, but it is never printed, logged, or passed as an
+# argument, and it leaves this machine only over the authenticated loopback socket.
+PAYLOAD="$PAYLOAD" KAGE_ROOT="$CWD" KAGE_REMOTE="$REMOTE" KAGE_BRANCH="$BRANCH" KAGE_COMMIT="$COMMIT" KAGE_MODE="$MODE" KAGE_WORK="$WORK" python3 -c 'import hashlib, json, os, uuid
+from datetime import datetime, timezone
+
+MAX_TEXT = 4000
+MAX_PATH = 1024
+EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
+READ_TOOLS = ("Read", "NotebookRead")
+
+try:
+    d = json.loads(os.environ.get("PAYLOAD") or "{}")
+except Exception:
+    d = {}
+if not isinstance(d, dict):
+    d = {}
+
+root = os.environ.get("KAGE_ROOT") or ""
+remote = (os.environ.get("KAGE_REMOTE") or "").strip() or None
+branch = (os.environ.get("KAGE_BRANCH") or "").strip() or None
+commit = (os.environ.get("KAGE_COMMIT") or "").strip() or None
+mode = os.environ.get("KAGE_MODE") or ""
+work = os.environ["KAGE_WORK"]
+
+def text(value, limit=MAX_TEXT):
+    return value[:limit] if isinstance(value, str) else ""
+
+def sha(value):
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+# Memory is repo-scoped, and a path is team_metadata — the shareable tier. A Read of ~/.ssh/config,
+# or of a different employer checkout, must never put that path into a shareable event.
+def in_repo(path):
+    if not path or not root:
+        return ""
+    absolute = path if os.path.isabs(path) else os.path.join(root, path)
+    real = os.path.realpath(absolute)
+    base = os.path.realpath(root)
+    if real == base or real.startswith(base + os.sep):
+        return path
+    return ""
+
+repo_id = "repo_" + sha(remote or root)[:32]
+session_id = text(d.get("session_id") or d.get("sessionId"), 256).strip() or "default"
+task_id = "task_" + sha(repo_id + "|" + session_id)[:32]
+repository = {"repo_id": repo_id, "root": root, "remote": remote, "branch": branch, "commit": commit, "worktree": root}
+task = {"task_id": task_id, "session_id": session_id, "user_id": None, "agent_surface": "claude-code"}
+
+hook = text(d.get("hook_event_name") or d.get("event"), 64)
+tool = text(d.get("tool_name") or d.get("toolName"), 128)
+tool_input = d.get("tool_input") or d.get("toolInput") or {}
+if not isinstance(tool_input, dict):
+    tool_input = {}
+path = in_repo(text(tool_input.get("file_path") or tool_input.get("path") or tool_input.get("notebook_path"), MAX_PATH))
+prompt = text(d.get("prompt") or d.get("user_prompt") or d.get("message"))
+
+# Claude Code has no PostToolUseFailure event: a failed tool call arrives as an ordinary
+# PostToolUse whose tool_response carries the error. Only the verdict is recorded, never the text.
+response = d.get("tool_response") or d.get("toolResponse")
+outcome = "ok"
+if hook == "PostToolUseFailure":
+    outcome = "error"
+elif isinstance(response, dict):
+    if response.get("is_error") is True or response.get("isError") is True or response.get("success") is False:
+        outcome = "error"
+    elif response.get("error"):
+        outcome = "error"
+
+# Protocol v1 is frozen: a hook with no protocol event type is skipped, never coerced into one.
+if hook == "SessionStart":
+    event_type = "session_start"
+elif hook == "UserPromptSubmit":
+    event_type = "prompt"
+elif hook == "PreToolUse" and tool in READ_TOOLS:
+    event_type = "file_open"
+elif hook == "PreToolUse" and tool in EDIT_TOOLS:
+    event_type = "file_edit"
+elif hook in ("PostToolUse", "PostToolUseFailure"):
+    event_type = "tool_result"
+elif hook == "SessionEnd":
+    event_type = "session_end"
+else:
+    event_type = None
+
+# A file event with no in-repo path, or a prompt with no text, is not evidence — it is noise.
+if event_type in ("file_open", "file_edit") and not path:
+    event_type = None
+if event_type == "prompt" and not prompt:
+    event_type = None
+
+# Only paths and tool names are team_metadata. The prompt and tool outcomes stay local_raw, and
+# file content (old_string / new_string / content) never enters an event at all.
+if event_type == "prompt":
+    body, privacy = {"text": prompt}, "local_raw"
+elif event_type == "tool_result":
+    body, privacy = {"tool": tool, "path": path, "outcome": outcome}, "local_raw"
+elif event_type in ("file_open", "file_edit"):
+    body, privacy = {"tool": tool, "path": path}, "team_metadata"
+elif event_type == "session_start":
+    body, privacy = {"agent_surface": "claude-code"}, "team_metadata"
+elif event_type == "session_end":
+    body, privacy = {"agent_surface": "claude-code", "reason": text(d.get("reason"), 128)}, "team_metadata"
+else:
+    body, privacy = None, None
+
+def write(name, value):
+    with open(os.path.join(work, name), "w", encoding="utf-8") as handle:
+        json.dump(value, handle, separators=(",", ":"))
+
+if event_type:
+    now = datetime.now(timezone.utc)
+    occurred_at = now.strftime("%Y-%m-%dT%H:%M:%S.") + ("%03dZ" % (now.microsecond // 1000))
+    # The store deduplicates on source_fingerprint, so it fingerprints the SIGNAL, not this post:
+    # an event retried after a failed-open post must not double-record. event_id is excluded.
+    fingerprint = hashlib.sha256(
+        json.dumps([repo_id, task_id, event_type, occurred_at, body], separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    write("event.json", {
+        "protocol_version": 1,
+        "event_id": "event_" + str(uuid.uuid4()),
+        "event_type": event_type,
+        "occurred_at": occurred_at,
+        "repository_id": repo_id,
+        "task_id": task_id,
+        "privacy_class": privacy,
+        "source_fingerprint": fingerprint,
+        "payload": body,
+    })
+
+if hook == "SessionStart":
+    write("handshake.json", {
+        "protocol_version": 1,
+        "adapter_id": "claude-code-hooks",
+        "agent_surface": "claude-code",
+        "agent_version": None,
+        "repository": repository,
+        "task": task,
+        "capabilities": [
+            "session_start", "prompt", "file_open", "file_edit", "tool_result", "session_end",
+            "inject_system", "inject_user_turn",
+        ],
+    })
+
+# Audit mode NEVER mutates the prompt. It is the measurement baseline: if the hook injected context
+# in audit, the "original" bytes would already contain Kage context and the exact-versus-partial
+# savings number would be meaningless.
+#
+# But audit still MEASURES. It composes the capsule it would have injected and records the attempt
+# as a SKIP — which is how an audit period gets a real context-composition latency and a real,
+# non-null attachment denominator at all. Composing costs the session nothing (the capsule is
+# thrown away); injecting would cost it the baseline, so only assist injects.
+query = prompt[:1000] if hook == "UserPromptSubmit" else ("orient in this repository" if hook == "SessionStart" else "")
+if query:
+    write("context.json", {
+        "repository": repository,
+        "task": task,
+        "query": query,
+        "targets": [],
+        "changed_files": [],
+        "token_budget": 2000,
+    })
+    write("identity.json", {"repo_id": repo_id, "task_id": task_id})
+    # The location the block WOULD go to. It is recorded as the delivery location only when the
+    # block is actually injected; a skipped capsule went nowhere and says "none".
+    if mode == "assist":
+        with open(os.path.join(work, "inject"), "w", encoding="utf-8") as handle:
+            handle.write("systemMessage" if hook == "SessionStart" else "additionalContext")
+' 2>/dev/null || exit 0
+
+post_evidence() {
+  # Evidence delivery is a background write and gets 150 ms — it must never be felt in the session.
+  # -f turns a 4xx/5xx into a nonzero exit we simply ignore.
+  curl -sf --max-time 0.15 -X POST -H "content-type: application/json" -H "authorization: Bearer $TOKEN" --data-binary "@$2" "$CONNECTION$1" 2>/dev/null
+}
+
+post_context() {
+  # Context composition is allowed 500 ms and NO MORE — a cold code-graph build takes tens of
+  # seconds and this hook will not wait for it: it fails open and the warm cache serves the next
+  # prompt. Waiting would hang the user's agent, which is the one thing Kage must never do.
+  #
+  # The body goes to a file and the status line to stdout, so the round trip is MEASURED by the
+  # HTTP client itself (time_total) instead of being estimated by a second python start-up.
+  curl -s -o "$3" -w '%{http_code} %{time_total}' --max-time 0.5 -X POST -H "content-type: application/json" -H "authorization: Bearer $TOKEN" --data-binary "@$2" "$CONNECTION$1" 2>/dev/null
+}
+
+[[ -f "$WORK/handshake.json" ]] && post_evidence /v2/handshakes "$WORK/handshake.json" >/dev/null 2>&1
+[[ -f "$WORK/event.json" ]] && post_evidence /v2/events "$WORK/event.json" >/dev/null 2>&1
+
+if [[ -f "$WORK/context.json" ]]; then
+  TRANSPORT_STATUS=0
+  METRICS="$(post_context /v2/context "$WORK/context.json" "$WORK/capsule.json")" || TRANSPORT_STATUS=$?
+
+  # One pass decides what the session gets AND records what happened. A capsule that is truncated,
+  # off-protocol, or empty prints nothing at all rather than injecting half a block — and is still
+  # recorded, because "Kage tried and attached nothing" is a fact an audit has to be able to count.
+  KAGE_METRICS="$METRICS" KAGE_TRANSPORT_STATUS="$TRANSPORT_STATUS" KAGE_MODE="$MODE" KAGE_WORK="$WORK" KAGE_SPOOL="$SPOOL" python3 -c 'import json, os, uuid
+from datetime import datetime, timezone
+
+MAX_SPOOL_FILES = 2000
+
+work = os.environ["KAGE_WORK"]
+spool = os.environ["KAGE_SPOOL"]
+mode = os.environ.get("KAGE_MODE") or ""
+
+try:
+    with open(os.path.join(work, "identity.json"), "r", encoding="utf-8") as handle:
+        identity = json.load(handle)
+    task_id = identity["task_id"]
+except Exception:
+    raise SystemExit(0)
+
+try:
+    field = open(os.path.join(work, "inject"), "r", encoding="utf-8").read().strip()
+except Exception:
+    field = ""
+
+http_code, seconds = 0, None
+parts = (os.environ.get("KAGE_METRICS") or "").split()
+if len(parts) == 2:
+    try:
+        http_code, seconds = int(parts[0]), float(parts[1])
+    except Exception:
+        http_code, seconds = 0, None
+
+try:
+    transport_status = int(os.environ.get("KAGE_TRANSPORT_STATUS") or "0")
+except Exception:
+    transport_status = 1
+
+capsule = None
+if transport_status == 0 and http_code == 200:
+    try:
+        with open(os.path.join(work, "capsule.json"), "r", encoding="utf-8") as handle:
+            capsule = json.load(handle)
+    except Exception:
+        capsule = None
+    if not isinstance(capsule, dict) or capsule.get("protocol_version") != 1:
+        capsule = None
+    elif not isinstance(capsule.get("sections"), list):
+        capsule = None
+    elif not isinstance(capsule.get("capsule_id"), str) or not capsule.get("capsule_id"):
+        capsule = None
+
+# Every reason is a fixed token — the same vocabulary the TypeScript adapter uses. Nothing derived
+# from a prompt, a file, or a response body ever enters one, because reasons are stored and printed.
+def failure_reason():
+    if transport_status == 28:
+        return "timeout"
+    if transport_status != 0 or http_code == 0:
+        return "unreachable"
+    if http_code in (401, 403):
+        return "unauthorized"
+    if http_code in (400, 409, 413, 415):
+        return "invalid_protocol"
+    if http_code == 200:
+        return "malformed_response"
+    return "runtime_error"
+
+block = ""
+if capsule is not None:
+    rendered = []
+    for section in capsule["sections"]:
+        if not isinstance(section, dict):
+            rendered = []
+            break
+        title, body, kind = section.get("title"), section.get("body"), section.get("kind")
+        if not isinstance(title, str) or not isinstance(body, str) or not isinstance(kind, str):
+            rendered = []
+            break
+        rendered.append("## %s (%s)\\n%s" % (title, kind, body))
+    if rendered:
+        block = "<<<KAGE_CONTEXT>>>\\n" + "\\n\\n".join(rendered) + "\\n<<<END_KAGE_CONTEXT>>>\\n"
+
+injects = bool(block) and mode == "assist" and field in ("systemMessage", "additionalContext")
+
+if capsule is None:
+    status, reason, location = "failed_open", failure_reason(), "none"
+elif not block:
+    status, reason, location = "skipped", "empty_capsule", "none"
+elif not injects:
+    # Audit composed the capsule and threw it away. A skip is NOT an attachment, and it is recorded
+    # as a skip so no report can ever quietly count it as one.
+    status, reason, location = "skipped", "audit_mode_no_injection", "none"
+else:
+    status = "delivered"
+    reason = "delivered"
+    location = "system" if field == "systemMessage" else "user_turn"
+
+now = datetime.now(timezone.utc)
+record = {
+    "delivery_id": "delivery_" + str(uuid.uuid4()),
+    # No capsule was composed => there is no capsule id. A fixed token, never an invented one.
+    "capsule_id": capsule["capsule_id"] if capsule is not None else "capsule_unavailable",
+    "task_id": task_id,
+    "adapter_id": "claude-code-hooks",
+    "injection_location": location if status == "delivered" else "none",
+    "delivered_at": now.strftime("%Y-%m-%dT%H:%M:%S.") + ("%03dZ" % (now.microsecond // 1000)),
+    # Exactly the bytes this hook put into the session. Zero when it put none.
+    "added_bytes": len(block.encode("utf-8")) if status == "delivered" else 0,
+    # Nobody counted the block TOKENS. bytes/4 would be a fabricated number, so this stays null and
+    # the row says "partial": bytes exact, tokens unmeasured.
+    "added_tokens": None,
+    "measurement_quality": "partial" if status == "delivered" else "unavailable",
+    "status": status,
+    "reason": reason,
+    # The MEASURED composition round trip, in milliseconds. Null when nothing was composed: a
+    # timeout is not a composition time, and putting it in the percentiles would invent one.
+    "composition_latency_ms": (seconds * 1000.0) if (capsule is not None and seconds is not None) else None,
+    # provider is null: this hook injects into the agent turn from IDE events and never sees which
+    # API the agent then calls, so it cannot know the provider (a guessed one would be fabricated).
+    # Only the proxy, which holds the gateway, records a real provider. Kept in lockstep with the
+    # TypeScript adapter (client.ts) so both shipped hooks write an identical row shape.
+    "provider": None,
+}
+
+try:
+    os.makedirs(spool, mode=0o700, exist_ok=True)
+    if len(os.listdir(spool)) < MAX_SPOOL_FILES:
+        name = str(uuid.uuid4())
+        temporary = os.path.join(spool, "." + name + ".tmp")
+        handle = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        try:
+            os.write(handle, json.dumps(record, separators=(",", ":")).encode("utf-8"))
+        finally:
+            os.close(handle)
+        os.rename(temporary, os.path.join(spool, name + ".json"))
+except Exception:
+    # A measurement Kage could not record is a gap in a report. Never a broken session.
+    pass
+
+if injects:
+    print(json.dumps({field: block}))
+' 2>/dev/null || true
+fi
+
+exit 0
+`;
     const hookScript = `#!/usr/bin/env bash
 # Kage SessionStart hook — injects full memory policy as a system message.
 # Silent if Kage is not initialized in the current project.
@@ -17360,6 +18741,8 @@ set -euo pipefail
 CWD="$(cat | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('cwd',''))" 2>/dev/null || echo "")"
 
 [[ -d "$CWD/.agent_memory" ]] || exit 0
+HOOK_EVENT="SessionStart"
+${hookVnextGuard}
 
 # Read the full policy from AGENTS.md (between the markers) if present.
 POLICY=""
@@ -17406,6 +18789,10 @@ PAYLOAD="$(cat || true)"
 CWD="$(printf "%s" "$PAYLOAD" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('cwd',''))" 2>/dev/null || echo "")"
 
 [[ -d "$CWD/.agent_memory" ]] || exit 0
+# Stop has no vNext adapter handler, so this script never hands over — but the guard is kept
+# uniform so the day an adapter handles Stop, one line here is the whole change.
+HOOK_EVENT="Stop"
+${hookVnextGuard}
 ${hookKageResolve}
 command -v kage >/dev/null 2>&1 || exit 0
 
@@ -17463,9 +18850,7 @@ print(d.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or "")
 ' 2>/dev/null || echo "")"
 
 [[ -d "$CWD/.agent_memory" ]] || exit 0
-${hookKageResolve}
-command -v kage >/dev/null 2>&1 || exit 0
-
+# The event decides who owns this hook, so it is read before the stand-down guard, not after.
 EVENT="$(PAYLOAD="$PAYLOAD" python3 -c 'import json, os
 try:
     d = json.loads(os.environ.get("PAYLOAD") or "{}")
@@ -17473,6 +18858,10 @@ except Exception:
     d = {}
 print(d.get("hook_event_name") or d.get("event") or "")
 ' 2>/dev/null || echo "")"
+HOOK_EVENT="$EVENT"
+${hookVnextGuard}
+${hookKageResolve}
+command -v kage >/dev/null 2>&1 || exit 0
 
 SESSION="$(PAYLOAD="$PAYLOAD" python3 -c 'import json, os
 try:
@@ -17621,6 +19010,8 @@ print(d.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or "")
 ' 2>/dev/null || echo "")"
 
 [[ -d "$CWD/.agent_memory" ]] || exit 0
+HOOK_EVENT="PreToolUse"
+${hookVnextGuard}
 ${hookKageResolve}
 command -v kage >/dev/null 2>&1 || exit 0
 
@@ -17681,10 +19072,18 @@ exit 0
       .replace('STATE_DIR="/tmp/kage-read-context"', 'STATE_DIR="/tmp/kage-edit-context"')
       .replace("never block the Read.", "never block the edit.");
     const settingsPath = join(home, ".claude", "settings.json");
+    // The vNext adapter is wired alongside the legacy hooks, not instead of them. Exactly one of
+    // the two runs for any given event: the legacy scripts stand down (hookVnextGuard) when the
+    // runtime is live, and the adapter stands down when it is not. Timeout 5 s is generous — the
+    // adapter's own curl budget caps it near 1.5 s.
+    const vnextAdapter = (timeout: number) => ({
+      matcher: "",
+      hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/kage-vnext-adapter.sh", timeout }],
+    });
     const hookEntry = {
       hooks: {
-        SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/session-start.sh", timeout: 5 }] }],
-        UserPromptSubmit: [{ hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 12 }] }],
+        SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/session-start.sh", timeout: 5 }] }, vnextAdapter(5)],
+        UserPromptSubmit: [{ hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 12 }] }, vnextAdapter(5)],
         PreToolUse: [
           { matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 5 }] },
           // Verified memory at the moment of relevance: short timeout, never blocks the Read.
@@ -17692,19 +19091,21 @@ exit 0
           // Enforcement: recall before an edit. Injects verified memory + withheld-stale
           // for the file the agent is about to change. Never blocks the edit.
           { matcher: "Edit|Write|MultiEdit", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/kage-edit-context.sh", timeout: 6 }] },
+          // Last: the adapter is additive to the legacy matchers, never in front of them.
+          vnextAdapter(5),
         ],
-        PostToolUse: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 5 }] }],
-        PostToolUseFailure: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 5 }] }],
+        PostToolUse: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 5 }] }, vnextAdapter(5)],
+        PostToolUseFailure: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 5 }] }, vnextAdapter(5)],
         PreCompact: [{ hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 20 }] }],
         Stop: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/stop.sh", timeout: 20 }] }],
-        SessionEnd: [{ hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 20 }] }],
+        SessionEnd: [{ hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 20 }] }, vnextAdapter(5)],
         SubagentStop: [{ matcher: "", hooks: [{ type: "command", command: "bash ~/.claude/kage/hooks/observe.sh", timeout: 20 }] }],
       },
     };
     setSnippet(path, JSON.stringify({ mcpServers: { kage: server } }, null, 2), [
       "Add the MCP server to ~/.claude.json, then restart Claude Code.",
       "alwaysLoad: true makes Kage tools immediately visible without requiring ToolSearch.",
-      `Also create ${hookDir}/session-start.sh, observe.sh, kage-read-context.sh, kage-edit-context.sh, and stop.sh with the hook scripts and add SessionStart/UserPromptSubmit/PreToolUse/PostToolUse/PostToolUseFailure/PreCompact/Stop/SessionEnd hooks to ~/.claude/settings.json.`,
+      `Also create ${hookDir}/session-start.sh, observe.sh, kage-read-context.sh, kage-edit-context.sh, stop.sh, and kage-vnext-adapter.sh with the hook scripts and add SessionStart/UserPromptSubmit/PreToolUse/PostToolUse/PostToolUseFailure/PreCompact/Stop/SessionEnd hooks to ~/.claude/settings.json.`,
       "Run `kage init --project <repo>` inside each repo to install the ambient memory policy.",
     ], true);
     if (options.write) {
@@ -17716,6 +19117,7 @@ exit 0
       writeFileSync(join(hookDir, "kage-read-context.sh"), readContextHookScript, { mode: 0o755 });
       writeFileSync(join(hookDir, "kage-edit-context.sh"), editContextHookScript, { mode: 0o755 });
       writeFileSync(join(hookDir, "stop.sh"), stopHookScript, { mode: 0o755 });
+      writeFileSync(join(hookDir, "kage-vnext-adapter.sh"), vnextAdapterHookScript, { mode: 0o755 });
       upsertJsonSettings(settingsPath, hookEntry);
       result.wrote = true;
     }
@@ -17953,7 +19355,14 @@ const CLAUDE_AMBIENT_HOOK_EVENTS = ["SessionStart", "UserPromptSubmit", "PostToo
 // Bump whenever a hook template changes behavior. Installed scripts carry the
 // stamp; doctor/verify report a mismatch so fixes actually reach existing
 // installs instead of only new setups.
-export const KAGE_HOOKS_VERSION = 2;
+// v4: the vNext stand-down guard verifies the runtime is LIVE (a stale status file no longer
+// silences the legacy harness) and only stands down for events the adapter actually handles.
+// A v3 script installed on disk carries the unsafe guard, so it must be reported outdated.
+// v5: the vNext adapter RECORDS every context attempt (delivered / skipped / failed_open) to the
+// delivery spool, and composes the capsule in audit mode too so the attempt can be measured. A v4
+// script on disk records nothing, so an audit run against it produces null attachment and null
+// latency forever — exactly the hole this version closes. It must be reported outdated.
+export const KAGE_HOOKS_VERSION = 5;
 
 function claudeHookEventConfigured(settings: Record<string, unknown>, event: string): boolean {
   const hooks = settings.hooks && typeof settings.hooks === "object" && !Array.isArray(settings.hooks)
@@ -17970,7 +19379,9 @@ function claudeHookEventConfigured(settings: Record<string, unknown>, event: str
 function claudeAmbientHookSummary(homeDir: string): AgentHookSummary {
   const settingsPath = join(homeDir, ".claude", "settings.json");
   const hookDir = join(homeDir, ".claude", "kage", "hooks");
-  const scriptPaths = [join(hookDir, "session-start.sh"), join(hookDir, "observe.sh"), join(hookDir, "kage-read-context.sh"), join(hookDir, "kage-edit-context.sh"), join(hookDir, "stop.sh")];
+  // The vNext adapter is verified like every other script: it is wired into six hook events, so if
+  // it is missing or stale, bash exits 127 on every prompt — and "ready" would be a lie.
+  const scriptPaths = [join(hookDir, "session-start.sh"), join(hookDir, "observe.sh"), join(hookDir, "kage-read-context.sh"), join(hookDir, "kage-edit-context.sh"), join(hookDir, "stop.sh"), join(hookDir, "kage-vnext-adapter.sh")];
   let settings: Record<string, unknown> = {};
   if (existsSync(settingsPath)) {
     const parsed = readJson<unknown>(settingsPath);
@@ -19670,6 +21081,25 @@ export function prCheck(projectDir: string): PrCheckResult {
   if (!memoryPacketChanges.length && overlay.changed_files.some((path) => !path.startsWith(".agent_memory/"))) {
     warnings.push("No repo memory packet changed for this branch. If durable knowledge was learned, run kage propose --from-diff or kage learn.");
   }
+  // The Minimal Change Guard participates only when vNext policy is enabled (default: disabled). It is
+  // advisory by default — findings become warnings, never errors. Only `enforced` mode with selected
+  // deterministic rules can fail the gate; a model-opinion finding can never reach the blocking set.
+  const minimalChange = minimalChangeReport(projectDir);
+  if (minimalChange) {
+    if (!minimalChange.ok) {
+      errors.push(
+        `Minimal Change Guard (enforced): ${minimalChange.blocking.length} blocking finding(s) — ${minimalChange.blocking.map((finding) => finding.kind).join(", ")}.`,
+      );
+      requiredActions.push(
+        "Resolve or justify the blocking minimal-change findings (kage minimal-change check), then re-run.",
+      );
+    } else if (minimalChange.findings.length) {
+      warnings.push(
+        `Minimal Change Guard (${minimalChange.mode}): ${minimalChange.findings.length} advisory finding(s) — review with kage minimal-change check (not blocking).`,
+      );
+    }
+  }
+
   if (!requiredActions.length) requiredActions.push("PR memory and graph checks passed.");
 
   return {
@@ -19687,6 +21117,7 @@ export function prCheck(projectDir: string): PrCheckResult {
     errors,
     warnings,
     required_actions: requiredActions,
+    ...(minimalChange ? { minimal_change: minimalChange } : {}),
   };
 }
 
@@ -19978,10 +21409,14 @@ function recallFromPackets(query: string, packets: MemoryPacket[], limit: number
       return { packet, score, why_matched: why };
     })
     .filter((result) => result.score > 0)
-    .sort((a, b) => b.score - a.score || b.packet.updated_at.localeCompare(a.packet.updated_at))
-    .slice(0, limit);
+    .sort((a, b) => b.score - a.score || b.packet.updated_at.localeCompare(a.packet.updated_at));
+  const injection = decideRecallInjection(
+    scored.map((entry) => entry.score),
+    scored.length ? countDistinctTermMatches(terms, scored[0].packet) : 0,
+  );
+  const limited = scored.slice(0, limit);
 
-  const context = scored.map((result, index) => {
+  const context = limited.map((result, index) => {
     const packet = result.packet;
     return [
       `### ${label} ${index + 1}: ${packet.title}`,
@@ -20000,7 +21435,8 @@ function recallFromPackets(query: string, packets: MemoryPacket[], limit: number
   return {
     query,
     context_block: context.length ? `# Kage ${label} Recall\n\n${context.join("\n\n---\n\n")}` : `No ${label.toLowerCase()} memory found for "${query}".`,
-    results: scored,
+    injection,
+    results: limited,
   };
 }
 

@@ -30,8 +30,230 @@ jobs:
         working-directory: mcp
         run: npm test
 
+      - name: Kage vNext Phase A gate
+        working-directory: mcp
+        run: npm run test:vnext
+
+      # The Phase C portal gate: overview metric honesty, system-map table parity, current-vs-history
+      # separation, review role/version/self-approval boundaries, exact-vs-cohort receipts, and the
+      # identifier-only live feed — all proven in-process (no browser, no network). Node 22 only.
+      - name: Kage vNext Phase C gate
+        working-directory: mcp
+        run: npm run test:phase-c
+
+      # The Phase E / GA technical gate: one real end-to-end run (two workspaces, three users, two
+      # replicas, a GitHub fixture, a billing fixture, a restricted repo) against a real ephemeral
+      # PostgreSQL. This is a HARD gate — cross_tenant_reads/raw_payloads_synced/self_approvals/
+      # duplicate_sync_records/invalid_webhooks_accepted must all be 0 and the fail-open properties true.
+      - name: Kage vNext Phase E / GA technical gate
+        working-directory: mcp
+        run: npm run test:phase-e
+
+      # Packaging and recovery for the team workspace: the migrate-then-listen boot sequence, the
+      # container health probe, and a backup/restore round trip through the SHIPPED shell scripts —
+      # all against a real ephemeral PostgreSQL provisioned in-process. `npm test` already runs this;
+      # it runs again here on its own so a packaging regression is legible in the job list instead of
+      # being buried in a 1300-test log.
+      - name: Kage workspace deployment and recovery
+        working-directory: mcp
+        run: npm run test:deploy
+
+      - name: Kage vNext Phase A audit report
+        run: node scripts/vnext-phase-a-report.mjs --project . --json
+
+      # The GA DECISION report. This is INFORMATIONAL, not a build gate: it exits non-zero by design
+      # until real design-partner pilots run and one accepts paid terms (the commercial gate that no
+      # amount of code can complete). `continue-on-error` keeps the honest NO-GO visible in the job log
+      # without red-flagging every commit — the launch decision is a human gate, the technical gate above
+      # is the machine gate.
+      - name: Kage vNext Phase E / GA decision report (informational)
+        continue-on-error: true
+        run: node scripts/vnext-phase-e-report.mjs --project . --json
+
       - name: Generate Kage code index
         run: node mcp/dist/cli.js code-index --project . --json
 
       - name: Build Kage graph registry manifest
         run: node mcp/dist/cli.js graph-registry --project . --json
+
+  platform-web:
+    name: Knowledge portal build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: platform/web/package-lock.json
+
+      - name: Install
+        working-directory: platform/web
+        run: npm ci
+
+      # The mandated Phase C guarantee is that the backend read-model DTOs and the portal DTOs
+      # cannot drift. `check-types` regenerates the portal types from mcp/vnext/api/types.ts and
+      # fails on any divergence. It runs here explicitly (belt) and is also chained into the
+      # test/build scripts below (suspenders) so no path skips it.
+      - name: DTO drift guard (backend/frontend type-sync)
+        working-directory: platform/web
+        run: npm run check-types
+
+      - name: Test
+        working-directory: platform/web
+        run: npm test
+
+      - name: Build
+        working-directory: platform/web
+        run: npm run build
+
+  portal-e2e:
+    name: Knowledge portal browser journeys (Playwright)
+    runs-on: ubuntu-latest
+    # Browser journeys need a real Chromium AND a live daemon serving the built portal under /app/
+    # backed by a seeded repository model. This job installs the browser and builds the portal; it
+    # runs the journeys only when a seeded portal URL is supplied via KAGE_PORTAL_URL, and otherwise
+    # logs that they were skipped for lack of a live seeded daemon. It NEVER reports a green browser
+    # journey from a run that did not launch a browser.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: platform/web/package-lock.json
+
+      - name: Install
+        working-directory: platform/web
+        run: npm ci
+
+      - name: Build portal
+        working-directory: platform/web
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        working-directory: platform/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser journeys (only against a seeded daemon)
+        working-directory: platform/web
+        env:
+          KAGE_PORTAL_URL: ${{ vars.KAGE_PORTAL_URL }}
+        run: |
+          if [ -z "${KAGE_PORTAL_URL}" ]; then
+            echo "SKIPPED: no KAGE_PORTAL_URL — browser journeys require a live daemon serving the seeded portal under /app/."
+            echo "The e2e specs under platform/web/e2e are compiled and ready; provide KAGE_PORTAL_URL to run them."
+            exit 0
+          fi
+          npm run test:e2e
+
+  workspace-image:
+    name: Workspace image builds and starts
+    runs-on: ubuntu-latest
+    # The deployment tests check the Dockerfile STRUCTURALLY (pinned digests, multi-stage, non-root,
+    # exec-form entrypoint, no baked secrets) because the environment they run in has no Docker daemon.
+    # A structural check is not a build, so the build happens here, where there is one — and the image is
+    # actually started against a real Postgres so "it builds" is not mistaken for "it runs".
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build the workspace image
+        run: docker build -f deploy/workspace/Dockerfile -t kage-workspace:ci .
+
+      - name: Start Postgres
+        run: |
+          docker run -d --name kage-ci-pg \
+            -e POSTGRES_PASSWORD=ci-not-a-secret \
+            -e POSTGRES_USER=kage \
+            -e POSTGRES_DB=kage_workspace \
+            --health-cmd 'pg_isready -U kage -d kage_workspace' \
+            --health-interval 3s --health-retries 20 \
+            postgres@sha256:cc9f4143a8d2fa8cf3749d0cb4d26ecf2d53a77a2ac807e9ebd67ae22426221a
+          for _ in $(seq 1 40); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' kage-ci-pg)" = healthy ] && break
+            sleep 2
+          done
+          docker inspect -f '{{.State.Health.Status}}' kage-ci-pg
+
+      - name: Run the image and prove it migrates before it serves
+        run: |
+          docker run -d --name kage-ci-workspace --link kage-ci-pg:postgres \
+            --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
+            -e KAGE_WORKSPACE_DATABASE_URL='postgres://kage:ci-not-a-secret@postgres:5432/kage_workspace' \
+            -e KAGE_WORKSPACE_PORT=8787 \
+            -p 8787:8787 \
+            kage-workspace:ci
+          for _ in $(seq 1 40); do
+            curl -fsS localhost:8787/v1/health && break
+            sleep 2
+          done
+          # The health body must report a migrated schema, not merely an open port.
+          curl -fsS localhost:8787/v1/health | tee /tmp/health.json
+          node -e 'const h=require("/tmp/health.json"); if(h.status!=="ok"||!(h.database_migration>0)) { console.error("unhealthy", h); process.exit(1); }'
+          # Non-root is a property of the running container, not just of the Dockerfile text.
+          test "$(docker exec kage-ci-workspace id -u)" != "0"
+
+      - name: Container logs (always)
+        if: always()
+        run: docker logs kage-ci-workspace || true
+
+      - name: Tear down
+        if: always()
+        run: docker rm -f kage-ci-workspace kage-ci-pg || true
+
+  legacy-node18:
+    name: Legacy CLI loads on Node 18
+    runs-on: ubuntu-latest
+
+    # The vNext runtime needs node:sqlite (Node 22.5+). Every existing Kage user is on the legacy
+    # CLI, and some of them are on Node 18: an eager `node:sqlite` import anywhere in the module
+    # graph breaks every one of them at evaluation time (it has happened once already). This job
+    # builds on Node 22 and then EVALUATES the built CLI on Node 18, without touching a vNext
+    # command, so that regression can never ship again.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22 (build)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+
+      - name: Install
+        working-directory: mcp
+        run: npm ci
+
+      - name: Build
+        working-directory: mcp
+        run: npm run build
+
+      - name: Setup Node 18 (run)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Confirm this runtime really has no node:sqlite
+        # Without this the smoke below could pass on a runner that quietly has node:sqlite, and the
+        # job would prove nothing.
+        run: |
+          node --version
+          node -e 'try { require("node:sqlite"); console.error("this Node has node:sqlite; the Node 18 smoke would prove nothing"); process.exit(1); } catch { console.log("node:sqlite is unavailable, as expected"); }'
+
+      - name: Legacy CLI loads and runs on Node 18
+        # Evaluation-time proof: if any module in the CLI's graph imports node:sqlite eagerly, these
+        # commands crash before main() runs — which is exactly the regression that once broke every
+        # kage command on Node 18-22.4. No vNext command is invoked here.
+        run: |
+          node mcp/dist/cli.js help
+          node mcp/dist/cli.js help --all
+          node mcp/dist/cli.js validate --project .

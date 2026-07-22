@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, watch, writeFileSync, type FSWatcher } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 import {
@@ -56,6 +57,11 @@ import {
   type ObservationEvent,
   type WorkStage,
 } from "./kernel.js";
+import {
+  startLocalRuntime,
+  type LocalRuntimeHandle,
+  type LocalRuntimeOptions,
+} from "./vnext/runtime/server.js";
 
 export interface DaemonStatus {
   ok: boolean;
@@ -96,6 +102,23 @@ export interface ViewerStatus {
   host: string;
   port: number;
   url: string;
+}
+
+export type VnextRuntimeStarter = (options: LocalRuntimeOptions) => Promise<LocalRuntimeHandle>;
+
+export async function startOptionalVnextRuntime(
+  projectDir: string,
+  enabled: boolean,
+  starter: VnextRuntimeStarter = startLocalRuntime,
+  report: (message: string) => void = (message) => console.error(message),
+): Promise<LocalRuntimeHandle | null> {
+  if (!enabled) return null;
+  try {
+    return await starter({ projectDir, mode: "audit" });
+  } catch (error) {
+    report(`Kage vNext runtime failed to start; legacy daemon remains available: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  }
 }
 
 export type ViewerBenchmarkReport = BenchmarkReport & {
@@ -163,6 +186,28 @@ export function viewerStaticHeaders(filePath: string): Record<string, string> {
 export function viewerRedirectLocation(pathname: string, search: string, fallbackSearch: string): string | null {
   if (pathname !== "/" && pathname !== "/viewer" && pathname !== "/viewer/") return null;
   return `/viewer/index.html${search || fallbackSearch}`;
+}
+
+// Bare `/app` (no trailing slash) redirects to `/app/` so the SPA's relative asset URLs resolve against
+// the right base. Every other path is not a redirect target here.
+export function appRedirectLocation(pathname: string): string | null {
+  return pathname === "/app" ? "/app/" : null;
+}
+
+// Resolve an `/app/...` request to a file inside the built knowledge portal (`platform/web/dist`).
+// Returns null for non-`/app` paths (the caller handles those). Real built assets resolve to
+// themselves; the entry and any client-side deep link (a path with no matching file) fall back to
+// `index.html` so History-API routing works; path traversal outside the build dir is refused by
+// falling back to the entry rather than escaping. The daemon serves the result under the SAME strict
+// `viewerStaticHeaders` CSP as the legacy viewer — self-hosted assets only.
+export function resolveAppAsset(appDir: string, pathname: string): string | null {
+  if (pathname !== "/app" && pathname !== "/app/" && !pathname.startsWith("/app/")) return null;
+  const index = join(appDir, "index.html");
+  if (pathname === "/app" || pathname === "/app/") return index;
+  const candidate = join(appDir, normalize(pathname.replace(/^\/app\//, "")));
+  if (!isInside(appDir, candidate)) return index; // never escape the build dir
+  if (existsSync(candidate) && statSync(candidate).isFile()) return candidate;
+  return index; // SPA fallback for client-side routes
 }
 
 // Every report file the dashboard reads, keyed by its query-string param name.
@@ -655,7 +700,7 @@ export function stopDaemon(projectDir: string): { ok: boolean; message: string; 
   }
 }
 
-export async function startDaemon(projectDir: string, options: { host?: string; restPort?: number; viewerPort?: number } = {}): Promise<void> {
+export async function startDaemon(projectDir: string, options: { host?: string; restPort?: number; viewerPort?: number; vnext?: boolean } = {}): Promise<void> {
   const host = options.host ?? DEFAULT_HOST;
   const restPort = options.restPort ?? DEFAULT_REST_PORT;
   const viewerPort = options.viewerPort ?? DEFAULT_VIEWER_PORT;
@@ -903,6 +948,7 @@ export async function startDaemon(projectDir: string, options: { host?: string; 
   });
 
   await new Promise<void>((resolve) => server.listen(restPort, host, resolve));
+  const vnextRuntime = await startOptionalVnextRuntime(projectDir, options.vnext === true);
   console.log(`Kage daemon listening on http://${host}:${restPort}`);
   console.log(`Project: ${projectDir}`);
   console.log(`Status: ${status.status_path}`);
@@ -910,22 +956,28 @@ export async function startDaemon(projectDir: string, options: { host?: string; 
   process.on("SIGTERM", () => {
     if (watcher) watcher.close();
     if (refreshTimer) clearTimeout(refreshTimer);
-    server.close(() => process.exit(0));
+    void (async () => {
+      try {
+        await vnextRuntime?.close();
+      } finally {
+        server.close(() => process.exit(0));
+      }
+    })();
   });
 }
 
-export async function startViewer(projectDir: string, options: { host?: string; port?: number } = {}): Promise<ViewerStatus> {
-  const host = options.host ?? DEFAULT_HOST;
-  const port = options.port ?? DEFAULT_VIEWER_PORT;
-  const viewerDir = resolve(__dirname, "..", "viewer");
-  const threeDir = resolve(__dirname, "..", "node_modules", "three");
+// Generate every viewer JSON report for a project. On a loaded repository this is MINUTES of
+// synchronous work (xray, capabilities, the benchmark retrieval proof, ...) — which is exactly why
+// startViewer runs it in a SEPARATE PROCESS after the port is bound: generating in-process, even
+// after listen(), blocks the event loop and leaves the bound socket accepting but never answering.
+// The viewer tolerates a not-yet-written report (404 -> empty state, filled on reload).
+// Note: reports.value (the cumulative value ledger written by recall) is served as-is and
+// intentionally never regenerated here.
+export function generateViewerReports(projectDir: string): void {
   const projectRoot = resolve(projectDir);
   const reports = viewerReportPaths(projectRoot);
   const reportsDir = join(projectRoot, ".agent_memory", "reports");
 
-  // Pre-generate lightweight JSON reports so the viewer can load them directly.
-  // Note: reports.value (the cumulative value ledger written by recall) is served
-  // as-is and intentionally never regenerated here.
   try {
     mkdirSync(reportsDir, { recursive: true });
     const metrics = kageMetrics(projectDir);
@@ -963,6 +1015,20 @@ export async function startViewer(projectDir: string, options: { host?: string; 
   } catch {
     // non-fatal: viewer will show 404 for reports if generation fails
   }
+  }
+
+export async function startViewer(projectDir: string, options: { host?: string; port?: number } = {}): Promise<ViewerStatus> {
+  const host = options.host ?? DEFAULT_HOST;
+  const port = options.port ?? DEFAULT_VIEWER_PORT;
+  const viewerDir = resolve(__dirname, "..", "viewer");
+  const threeDir = resolve(__dirname, "..", "node_modules", "three");
+  // The built knowledge portal (Phase C). `__dirname` is mcp/dist at runtime, so the repo root is two
+  // levels up and the portal build lands in platform/web/dist. Served under /app/ with the same CSP.
+  const appDir = resolve(__dirname, "..", "..", "platform", "web", "dist");
+  const projectRoot = resolve(projectDir);
+  const reports = viewerReportPaths(projectRoot);
+  const reportsDir = join(projectRoot, ".agent_memory", "reports");
+
 
   const url = viewerUrl(host, port, projectRoot);
   const liveFeed = startLiveFeed(projectRoot);
@@ -974,6 +1040,24 @@ export async function startViewer(projectDir: string, options: { host?: string; 
       return;
     }
     let filePath: string | null = null;
+    // The Phase C knowledge portal, served under /app/ with the same strict CSP as the legacy viewer.
+    // `kage open` points here; the legacy /viewer/ stays alive during the compatibility release.
+    const appRedirect = appRedirectLocation(requestUrl.pathname);
+    if (appRedirect) {
+      res.writeHead(302, { location: appRedirect });
+      res.end();
+      return;
+    }
+    const appAsset = resolveAppAsset(appDir, requestUrl.pathname);
+    if (appAsset) {
+      if (!existsSync(appAsset)) {
+        json(res, 404, { ok: false, error: "portal_not_built" });
+        return;
+      }
+      res.writeHead(200, viewerStaticHeaders(appAsset));
+      res.end(readFileSync(appAsset));
+      return;
+    }
     const redirectLocation = viewerRedirectLocation(requestUrl.pathname, requestUrl.search, new URL(url).search);
     if (redirectLocation) {
       res.writeHead(302, { location: redirectLocation });
@@ -1007,7 +1091,23 @@ export async function startViewer(projectDir: string, options: { host?: string; 
   });
 
   await new Promise<void>((resolveListen) => server.listen(port, host, resolveListen));
-  console.log(`Kage viewer → http://${host}:${port}/`);
+  // The knowledge portal (Phase C) is the primary surface; the legacy 3D viewer stays available at /
+  // during the compatibility release.
+  console.log(`Kage knowledge portal → http://${host}:${port}/app/`);
+  console.log(`Kage legacy viewer → http://${host}:${port}/`);
+  // Port is live — the minutes-long report grind runs in a CHILD PROCESS so this event loop stays
+  // free to answer requests. stdio ignored; the child exits when done; failure is non-fatal (the
+  // viewer shows empty states until a later run fills the reports).
+  try {
+    const child = spawn(process.execPath, [join(__dirname, "viewer-reports.js"), projectRoot], {
+      stdio: "ignore",
+      detached: false,
+    });
+    child.on("exit", (code) => {
+      if (code === 0) console.log("Viewer reports generated — reload the page for full data.");
+    });
+    child.on("error", () => { /* non-fatal */ });
+  } catch { /* non-fatal */ }
   process.on("SIGTERM", () => {
     liveFeed.close();
     server.close(() => process.exit(0));

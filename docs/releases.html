@@ -3,165 +3,151 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Kage releases: current npm package status, user-impact highlights, and links to npm, GitHub, and the changelog." />
+    <meta name="description" content="Kage releases: the v4 era — one proxy for every agent, verified memory, reversible history digestion, and the team value report — plus the honest history that got here." />
     <title>Kage Releases</title>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="icon" type="image/svg+xml" href="assets/kage-eye.svg" />
+    <link rel="canonical" href="https://kage-core.com/releases.html" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Kage" />
+    <meta property="og:url" content="https://kage-core.com/releases.html" />
+    <meta property="og:title" content="Kage Releases" />
+    <meta property="og:description" content="The v4 era: one proxy for every agent, verified memory, reversible history digestion, the team value report." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..600&display=swap" />
-    <link rel="stylesheet" href="assets/site.css?v=5" />
-    <style>
-      .hero { padding: 48px 0 16px; }
-      .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
-      .badges img { height: 20px; }
-
-      .stats {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 12px;
-        margin-top: 22px;
-      }
-      .stat {
-        padding: 18px;
-        border: 1px solid var(--line);
-        border-radius: var(--r-card);
-        background: var(--paper);
-      }
-      .stat strong { display: block; font: 700 26px/1 var(--sans); }
-      .stat span { display: block; margin-top: 6px; color: var(--muted); font: 400 13px/1.4 var(--sans); }
-
-      .highlights {
-        display: grid;
-        gap: 10px;
-        margin-top: 18px;
-      }
-      .highlight {
-        padding: 14px 16px;
-        border: 1px solid var(--line);
-        border-radius: var(--r-card);
-        background: var(--paper);
-      }
-      .highlight strong { display: block; color: var(--ink); font: 600 14px/1.3 var(--sans); }
-      .highlight span { display: block; margin-top: 4px; color: var(--muted); font: 400 14px/1.55 var(--sans); }
-
-      .links {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 20px;
-      }
-      .links a {
-        padding: 8px 12px;
-        border: 1px solid var(--line);
-        border-radius: var(--r-control);
-        background: var(--paper);
-        color: var(--green-strong);
-        font: 600 13px/1 var(--sans);
-      }
-      .links a:hover { color: var(--green); border-color: var(--line-strong); }
-
-      @media (max-width: 720px) { .stats { grid-template-columns: 1fr; } }
-    </style>
+    <link rel="stylesheet" href="assets/site.css?v=6" />
   </head>
   <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
     <nav class="nav" aria-label="Main navigation">
       <a class="brand" href="./" aria-label="Kage home">
         <img src="assets/kage-eye.svg" alt="" />
         <span>Kage</span>
       </a>
       <div class="nav-links">
-        <a href="./#how">How it works</a>
-        <a href="./#compare">Compare</a>
-        <a href="./#pricing">Pricing</a>
-        <a href="guide.html">Docs</a>
-        <a href="viewer/">Viewer</a>
+        <a href="./">Home</a>
+        <a href="guide.html">Guide</a>
+        <a href="benchmarks.html">Benchmarks</a>
+        <a href="releases.html" aria-current="page">Releases</a>
+        <a href="demo.html">Demo</a>
         <a class="gh-btn" href="https://github.com/kage-core/Kage" target="_blank" rel="noopener" aria-label="Kage on GitHub">
-        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
-        <span>GitHub</span>
-        <span class="gh-sep"></span>
-        <span class="gh-star">★</span>
-        <span id="gh-stars">6</span>
-      </a>
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
+          <span>GitHub</span>
+          <span class="gh-sep"></span>
+          <span class="gh-star">★</span>
+          <span id="gh-stars">6</span>
+        </a>
       </div>
-      <a class="nav-cta" href="demo.html">Book a demo</a>
+      <a class="nav-cta" href="./#quickstart">Get started</a>
     </nav>
 
-    <main>
+    <main id="main">
       <section class="hero">
-        <div class="wrap">
-          <span class="eyebrow">kage://releases</span>
-          <h1>Releases</h1>
-          <p class="lede">Current package status, what changed for users, and the canonical links. Kage ships through npm as <code>@kage-core/kage-graph-mcp</code>.</p>
-          <div class="badges" aria-label="Release badges">
-            <img alt="npm version" src="https://img.shields.io/npm/v/@kage-core/kage-graph-mcp?style=flat-square&color=0f8f57" />
-            <img alt="npm monthly downloads" src="https://img.shields.io/npm/dm/@kage-core/kage-graph-mcp?style=flat-square&color=0f8f57" />
-            <img alt="npm license" src="https://img.shields.io/npm/l/@kage-core/kage-graph-mcp?style=flat-square&color=111614" />
-          </div>
+        <div class="wrap wrap-narrow">
+          <p class="eyebrow">Releases</p>
+          <h1>The <span class="accent">v4</span> era.</h1>
+          <p class="lede">
+            Install from npm: <code class="cmd">npm install -g @kage-core/kage-graph-mcp</code>. The store
+            format is plain OKF markdown in git, and the local sqlite schema is versioned with ordered
+            migrations — upgrades never eat your memory.
+          </p>
         </div>
       </section>
 
       <section class="section">
-        <div class="wrap">
+        <div class="wrap wrap-narrow">
           <div class="section-head">
-            <span class="eyebrow">Current package</span>
-            <h2>v3.3.0</h2>
+            <p class="eyebrow">Current</p>
+            <h2>v4.0.0 — collaborative repository memory, measured end-to-end</h2>
           </div>
-          <div class="stats">
-            <div class="stat"><strong>3.3.0</strong><span>latest on npm + the official MCP registry — July 3, 2026</span></div>
-            <div class="stat"><strong>Fully tested</strong><span>the full suite runs on every release</span></div>
-            <div class="stat"><strong>0</strong><span>accounts or API keys required</span></div>
+          <div class="grid-2">
+            <div class="card">
+              <span class="k">One proxy, every agent</span>
+              <p>
+                Anthropic, OpenAI-compatible, and Gemini wires behind one background proxy — injection,
+                reversible compression, and the same fail-open honesty gates on all three. Audit mode is the
+                default: measurement only, bytes untouched.
+              </p>
+            </div>
+            <div class="card">
+              <span class="k">Reversible history digestion</span>
+              <p>
+                Opt-in: old tool outputs digest to deterministic summaries with exact originals retrievable.
+                Measured on real bodies: −93.33% session request bytes. Single-body compression honestly
+                measures ~0% and is reported as such.
+              </p>
+            </div>
+            <div class="card">
+              <span class="k">Derivability-aware capture</span>
+              <p>
+                Admission boosts what code cannot say (rationale, gotchas, run recipes) and routes
+                restatements of cited code to review — the class the store audit measured at ~0 uses.
+              </p>
+            </div>
+            <div class="card">
+              <span class="k">The team value report</span>
+              <p>
+                <code>kage report team</code>: recalls served, stale withheld, the live injection gate,
+                composition, dark areas, review health. Measured or labelled-estimate, never fabricated.
+              </p>
+            </div>
+            <div class="card">
+              <span class="k">Team workspace (optional)</span>
+              <p>
+                Tenant-isolated PostgreSQL workspace with review authority: approved-only sync, raw prompts
+                never leave the machine, self-approval blocked, idempotent replays, append-only audit —
+                each invariant a passing test against a real database.
+              </p>
+            </div>
+            <div class="card">
+              <span class="k">Local portal + viewer</span>
+              <p>
+                <code>kage open</code>: review queue, receipts, system maps, and the team value panel; the
+                zero-build viewer stays for quick local inspection. Suite: 1474/1474 backend, 109/109 portal.
+              </p>
+            </div>
           </div>
-          <pre style="margin-top: 18px;">npx -y @kage-core/kage-graph-mcp install</pre>
+          <p class="footnote">
+            Honest status: the technical readiness gates pass; no design-partner pilot has run yet and the
+            GA report says so (and exits non-zero) rather than pretending otherwise.
+          </p>
         </div>
       </section>
 
-      <section class="section">
-        <div class="wrap">
+      <section class="section section-alt">
+        <div class="wrap wrap-narrow">
           <div class="section-head">
-            <span class="eyebrow">User-impact highlights</span>
-            <h2>What changed for users</h2>
+            <p class="eyebrow">History</p>
+            <h2>How it got here</h2>
           </div>
-          <div class="highlights">
-            <div class="highlight">
-              <strong>v2.2 — memory that follows you</strong>
-              <span>Personal memory in <code>~/.kage/memory</code> with <code>kage sync</code> over your own git remote; conflicts resolve newest-wins with both versions preserved. Plus the <code>kage merge-packet</code> git driver, a signal gate that keeps junk out of auto-capture, and <code>kage audit-claude-mem</code> — a read-only truth report over an existing claude-mem store.</span>
+          <div class="grid-3">
+            <div class="card">
+              <span class="k">v3 — the verification layer</span>
+              <p>
+                Deterministic claim verification against real code, OKF as the storage format, the trust
+                benchmark, staleness withholding. The core thesis: memory an agent can trust.
+              </p>
             </div>
-            <div class="highlight">
-              <strong>v2.1 — the session loop closes itself</strong>
-              <span>Auto-distill captures sessions the agent forgot to save (drafts, reviewed by you); <code>kage resume</code> opens each session with a "previously…" digest; <code>kage repair</code> fixes broken packets and indexes in one command; <code>&lt;private&gt;…&lt;/private&gt;</code> spans are never stored.</span>
+            <div class="card">
+              <span class="k">v2 — the memory loop</span>
+              <p>
+                Ambient capture and recall for Claude Code: hooks, distillation, the packet store, the
+                first dashboard. Where "memory as plain files in git" started.
+              </p>
             </div>
-            <div class="highlight">
-              <strong>v2.0 — verified knowledge + receipts</strong>
-              <span>The Truth Report (<code>kage scan</code>), the per-repo value ledger behind <code>kage gains</code>, change-time stale-catch in <code>kage pr check</code>, tree-sitter AST extraction for five more languages, and the Gains-first viewer.</span>
-            </div>
-            <div class="highlight">
-              <strong>Receipts got real</strong>
-              <span>Every packet records what it cost to learn (<code>discovery_tokens</code>); recall receipts report measured replay value, never estimates dressed up as facts.</span>
-            </div>
-            <div class="highlight">
-              <strong>Memory at the moment of reading</strong>
-              <span>A PreToolUse hook injects verified packets the instant the agent reads a file they cite — checked against the code first, never blocking.</span>
-            </div>
-            <div class="highlight">
-              <strong>The viewer went live</strong>
-              <span>Packets and value events stream into the viewer in real time over SSE while the agent works.</span>
+            <div class="card">
+              <span class="k">v1 — the graph MCP</span>
+              <p>
+                The original knowledge-graph MCP server that gave the npm package its name.
+              </p>
             </div>
           </div>
-          <div class="links">
-            <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm package</a>
-            <a href="https://github.com/kage-core/Kage/releases">GitHub releases</a>
-            <a href="https://github.com/kage-core/Kage/blob/master/CHANGELOG.md">Changelog</a>
-            <a href="https://github.com/kage-core/Kage">Repository</a>
+          <div class="actions">
+            <a class="button" href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm package</a>
+            <a class="button" href="https://github.com/kage-core/Kage/blob/master/CHANGELOG.md">Full changelog</a>
+            <a class="button primary" href="./#quickstart">Install v4</a>
           </div>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="wrap">
-          <div class="section-head">
-            <span class="eyebrow">Release channels</span>
-            <h2>Where to look</h2>
-          </div>
-          <p class="lede">npm is the source of installable package truth. GitHub releases are human-readable milestones. <a href="https://github.com/kage-core/Kage/blob/master/CHANGELOG.md">CHANGELOG.md</a> records package-level changes across versions.</p>
         </div>
       </section>
     </main>
@@ -170,38 +156,31 @@
       <div class="wrap footer-inner">
         <span>
           <strong style="color:var(--ink);font:700 14px/1 var(--serif)">Kage</strong><br />
-          Git-native memory your team shares.<br />
+          Code-grounded memory for coding agents.<br />
           <span style="color:var(--faint);font-size:12px">© 2026 Kage · GPL-3.0 · no account, no API key</span>
         </span>
         <span>
           <strong style="color:var(--ink)">Product</strong><br />
           <a href="./#how">How it works</a><br />
-          <a href="./#compare">Compare</a><br />
-          <a href="./#pricing">Pricing</a><br />
-          <a href="viewer/">Viewer</a>
+          <a href="./#proxy">The proxy</a><br />
+          <a href="./#gates">Honesty gates</a><br />
+          <a href="./#team">Team workspace</a>
         </span>
         <span>
           <strong style="color:var(--ink)">Learn</strong><br />
-          <a href="guide.html#quickstart">Quickstart</a><br />
-          <a href="guide.html">Docs</a><br />
+          <a href="./#quickstart">Quickstart</a><br />
+          <a href="guide.html">Guide</a><br />
           <a href="benchmarks.html">Benchmarks</a><br />
           <a href="releases.html">Releases</a>
         </span>
         <span>
           <strong style="color:var(--ink)">Company</strong><br />
-          <a class="gh-btn" href="https://github.com/kage-core/Kage" target="_blank" rel="noopener" aria-label="Kage on GitHub">
-        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
-        <span>GitHub</span>
-        <span class="gh-sep"></span>
-        <span class="gh-star">★</span>
-        <span id="gh-stars">6</span>
-      </a><br />
+          <a href="https://github.com/kage-core/Kage">GitHub</a><br />
           <a href="https://www.npmjs.com/package/@kage-core/kage-graph-mcp">npm</a><br />
-          <a href="https://github.com/kage-core/Kage/issues/74">Cloud waitlist</a><br />
           <a href="demo.html">Book a demo</a>
         </span>
       </div>
     </footer>
-      <script src="assets/stars.js" defer></script>
+    <script src="assets/stars.js" defer></script>
   </body>
 </html>

@@ -1,12 +1,39 @@
-/* Kage site shared tokens and primitives — V2 "receipts" theme.
-   Used by docs/index.html, docs/guide.html, docs/releases.html, docs/benchmarks.html.
-   Dark-first product look with editorial serif display type; verified-green is
-   reserved for gains/primary action. One look everywhere, like the product. */
+/* ============================================================================
+   Kage site design system — V6 "measured receipts".
+   Shared by docs/index.html, guide.html, benchmarks.html, releases.html,
+   demo.html. Load as assets/site.css?v=6 from every page.
+
+   Dark-first editorial-technical: near-black green surfaces, verified-green
+   accent, Fraunces display serif + Inter text + JetBrains Mono for code and
+   every number. Measured numbers are presented like receipts: ruled mono
+   blocks carrying a "measured" tag. No gradients-for-decoration, no stock
+   imagery, no emoji.
+
+   ── CLASS CONTRACT (pages build against these; per-page <style> extends) ──
+   Layout      .wrap  .wrap-narrow  .section  .section-alt  .section-head
+   Nav         .skip-link  .nav  .brand  .nav-links  .nav-cta
+               .gh-btn  .gh-sep  .gh-star  (star count span id="gh-stars")
+   Type        h1..h4  .eyebrow  .lede  .accent (green italic inside display)
+   Hero        .hero  .hero-grid (2-col; per-page may override)
+   Grids       .grid-2  .grid-3  .grid-4   (aliases: .cards .cards-2 .cards-4)
+   Cards       .card  (h3 + p inside)
+   Buttons     .actions  .button  .button.primary  .cta (centered CTA panel)
+   Receipt     .receipt  > .r-head  .r-big (b + .unit)  .r-lines  .r-line
+               (span label, span.dots, b value [.gain|.warn])  .r-foot
+   Tags        .measured (green chip)  .estimate (amber chip)  .tag (neutral)
+   Terminal    .term  > .term-head  pre   (.ps1 = "$ " prompt inside pre)
+               aliases kept: .terminal .terminal-head
+   Cmd chip    .cmd  (> .ps1, command span, optional copy <button>)
+   Table       .compare-scroll > .compare  (.is-kage .yes .no)
+   Stats       .stat-strip > .stat-chip (strong + span)
+   Footnote    .footnote  (honest-limits fine print block)
+   Footer      .footer > .wrap.footer-inner (columns of links)
+   ========================================================================== */
 
 :root {
-  color-scheme: dark light;
+  color-scheme: dark;
 
-  /* Surface — dark-first: the product look. Light is the variant. */
+  /* Surfaces — near-black greens */
   --bg: #121413;
   --paper: #1a1d1b;
   --paper-2: #212522;
@@ -18,70 +45,81 @@
   --muted: #a4aba1;
   --faint: #767d74;
 
-  /* Accents — verified green reserved for gains + primary action. */
+  /* Accents — verified green is reserved for proof + primary action */
   --green: #43c98a;
   --green-strong: #5fdca0;
   --green-soft: rgba(67, 201, 138, 0.12);
+  --hairline-green: rgba(67, 201, 138, 0.32);
 
   --code: #6fb4e8;
   --memory: #b095e8;
   --warn: #d9a93f;
   --danger: #e07a8c;
 
-  /* Code — terminals stay dark in both schemes, like a printed receipt. */
+  /* Terminals + receipts stay near-black, like printed paper in negative */
   --code-bg: #0e1110;
   --code-text: #cfe0d4;
 
-  /* Type — editorial contrast: serif display, sans body, mono data.
-     Webfonts (Fraunces / Inter / JetBrains Mono) are loaded per-page;
-     stacks degrade gracefully without them. */
+  /* Type */
   --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
   --serif: "Fraunces", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
     "Times New Roman", serif;
-  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", monospace;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", monospace;
 
-  /* Radius — soft, premium scale (controls < panels < cards < hero artifacts). */
+  /* Radii: controls < panels < cards < hero artifacts */
   --r-control: 10px;
   --r-panel: 14px;
   --r-card: 16px;
   --r-hero: 22px;
 
-  /* Elevation + hairlines */
+  /* Elevation */
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.2), 0 14px 36px rgba(0, 0, 0, 0.3);
   --shadow-pop: 0 24px 60px rgba(0, 0, 0, 0.45);
   --glow-green: 0 10px 28px rgba(67, 201, 138, 0.22);
-  --hairline-green: rgba(67, 201, 138, 0.32);
 }
 
-/* One look, like the product: dark everywhere. (Light tokens retired 2026-06-12.) */
-
+/* ── Base ────────────────────────────────────────────────────────────────── */
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+
+html { scroll-behavior: auto; }
+/* Anchored targets clear the sticky nav */
+[id] { scroll-margin-top: 76px; }
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
 
 body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font: 400 14px/1.55 var(--sans);
-  letter-spacing: 0;
+  font: 400 15px/1.6 var(--sans);
+  -webkit-font-smoothing: antialiased;
 }
 
 a { color: inherit; text-decoration: none; }
 a:hover { color: var(--green); }
 
-h1, h2, h3, h4, p { margin: 0; }
+:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+h1, h2, h3, h4, p, figure { margin: 0; }
 ul { margin: 0; padding-left: 22px; }
 li { color: var(--muted); font: 400 15px/1.7 var(--sans); }
+
+::selection { background: rgba(67, 201, 138, 0.28); }
 
 code {
   padding: 1px 5px;
   border: 1px solid var(--line);
-  border-radius: var(--r-control);
+  border-radius: 6px;
   background: var(--paper-2);
   color: var(--code);
-  font: 500 13px/1.55 var(--mono);
+  font: 500 0.88em/1.55 var(--mono);
 }
 
 pre {
@@ -92,20 +130,28 @@ pre {
   border-radius: var(--r-card);
   background: var(--code-bg);
   color: var(--code-text);
-  font: 400 13px/1.65 var(--mono);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  font: 400 13px/1.7 var(--mono);
 }
 
-pre code {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-}
+pre code { padding: 0; border: 0; background: none; color: inherit; font: inherit; }
 
-/* Nav */
+/* ── Skip link (first element in <body> on every page) ───────────────────── */
+.skip-link {
+  position: absolute;
+  top: -48px;
+  left: 12px;
+  z-index: 100;
+  padding: 10px 16px;
+  border: 1px solid var(--green);
+  border-radius: var(--r-control);
+  background: var(--paper);
+  color: var(--ink);
+  font: 600 13px/1 var(--sans);
+  transition: top 0.15s ease;
+}
+.skip-link:focus { top: 12px; }
+
+/* ── Nav (sticky) ────────────────────────────────────────────────────────── */
 .nav {
   position: sticky;
   top: 0;
@@ -117,9 +163,9 @@ pre code {
   min-height: 60px;
   padding: 0 clamp(18px, 4vw, 56px);
   border-bottom: 1px solid var(--line);
-  background: var(--paper);
-  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
   backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .brand {
@@ -146,9 +192,7 @@ pre code {
   font: 500 14px/1 var(--sans);
 }
 
-.nav-links a[aria-current="page"] {
-  color: var(--ink);
-}
+.nav-links a[aria-current="page"] { color: var(--ink); }
 
 .nav-cta {
   display: inline-flex;
@@ -159,13 +203,12 @@ pre code {
   border: 1px solid var(--green);
   border-radius: var(--r-control);
   background: var(--green);
-  color: var(--paper);
+  color: var(--code-bg);
   font: 600 13px/1 var(--sans);
 }
+.nav-cta:hover { color: var(--code-bg); background: var(--green-strong); }
 
-.nav-cta:hover { color: var(--paper); background: var(--green-strong); }
-
-/* GitHub nav button: octocat + label + live star count (agent-memory.dev style). */
+/* GitHub pill: octocat + label + live star count (assets/stars.js fills #gh-stars) */
 .gh-btn {
   display: inline-flex;
   align-items: center;
@@ -185,252 +228,250 @@ pre code {
 .gh-btn .gh-star { color: #e3b341; }
 .gh-btn #gh-stars { color: var(--ink); font-variant-numeric: tabular-nums; }
 
-/* Wrap */
-.wrap {
-  width: min(1100px, calc(100% - 32px));
-  margin: 0 auto;
-}
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+.wrap { width: min(1100px, calc(100% - 36px)); margin: 0 auto; }
+.wrap-narrow { width: min(880px, calc(100% - 36px)); margin: 0 auto; }
 
-.wrap-narrow {
-  width: min(880px, calc(100% - 32px));
-  margin: 0 auto;
-}
-
-/* Sections */
-.section {
-  padding: 76px 0;
-  border-top: 1px solid var(--line);
-}
-
+.section { padding: clamp(64px, 9vw, 104px) 0; border-top: 1px solid var(--line); }
 .section:first-of-type { border-top: 0; }
 
-.section-head { max-width: 760px; margin-bottom: 24px; }
+/* Full-bleed darker band for a section that should feel like one printed sheet */
+.section-alt { background: var(--code-bg); border-top: 1px solid var(--line); }
 
+.section-head { max-width: 780px; margin-bottom: 34px; }
+
+/* ── Type ────────────────────────────────────────────────────────────────── */
 .eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
-  color: var(--faint);
+  margin-bottom: 14px;
+  color: var(--green);
   font: 600 12px/1 var(--mono);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.14em;
 }
 
 h1 {
-  font: 560 clamp(42px, 6.2vw, 78px) / 1.02 var(--serif);
+  font: 560 clamp(40px, 6vw, 74px) / 1.03 var(--serif);
   font-variation-settings: "opsz" 80;
   letter-spacing: -0.022em;
 }
 
 h2 {
-  font: 560 clamp(27px, 3.6vw, 42px) / 1.1 var(--serif);
+  font: 560 clamp(27px, 3.6vw, 42px) / 1.12 var(--serif);
   font-variation-settings: "opsz" 48;
   letter-spacing: -0.012em;
 }
 
-h3 { font: 600 17px/1.3 var(--sans); }
-h4 { font: 600 14px/1.3 var(--sans); }
+h3 { font: 600 17px/1.35 var(--sans); }
+h4 { font: 600 14px/1.35 var(--sans); }
+
+.accent { color: var(--green); font-style: italic; }
 
 .lede {
   max-width: 720px;
-  margin-top: 14px;
+  margin-top: 16px;
   color: var(--muted);
-  font: 400 17px/1.6 var(--sans);
+  font: 400 17px/1.65 var(--sans);
 }
 
 p { color: var(--muted); font: 400 15px/1.65 var(--sans); }
 
-/* Buttons */
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 22px;
+/* ── Hero ────────────────────────────────────────────────────────────────── */
+.hero { padding: clamp(56px, 9vw, 112px) 0 clamp(44px, 7vw, 80px); }
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.78fr);
+  gap: clamp(32px, 5vw, 64px);
+  align-items: center;
 }
+
+/* ── Grids + cards ───────────────────────────────────────────────────────── */
+.grid-2, .cards-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.grid-3, .cards   { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.grid-4, .cards-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+
+.card {
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--paper);
+  box-shadow: var(--shadow-card);
+}
+.card h3 { font: 600 16px/1.35 var(--sans); }
+.card p { margin-top: 9px; font-size: 14px; }
+.card .k {
+  display: block;
+  margin-bottom: 12px;
+  color: var(--green);
+  font: 600 11px/1 var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
 
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 44px;
-  padding: 0 20px;
+  padding: 0 22px;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
   background: var(--paper);
   color: var(--ink);
   font: 600 14px/1 var(--sans);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease,
+    border-color 0.15s ease, background 0.15s ease;
 }
-
-.button:hover { color: var(--ink); border-color: var(--faint); transform: translateY(-1px); box-shadow: var(--shadow-card); }
+.button:hover {
+  color: var(--ink);
+  border-color: var(--faint);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-card);
+}
 
 .button.primary {
   border-color: var(--green);
   background: var(--green);
-  color: var(--paper);
+  color: var(--code-bg);
   box-shadow: var(--glow-green);
 }
-
-.button.primary:hover { color: var(--paper); background: var(--green-strong); border-color: var(--green-strong); box-shadow: var(--glow-green); }
-
-/* Cards */
-.card {
-  padding: 22px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--paper);
-  box-shadow: var(--shadow-card);
+.button.primary:hover {
+  color: var(--code-bg);
+  background: var(--green-strong);
+  border-color: var(--green-strong);
 }
 
-.card h3 { font: 600 16px/1.3 var(--sans); }
-.card p { margin-top: 8px; }
-
-.cards {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.cards-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-
-.cards-2 {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-/* Terminal */
-.terminal {
-  overflow: hidden;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-card);
-  background: var(--code-bg);
-}
-
-.terminal-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  color: #9aa49c;
-  font: 500 12px/1 var(--mono);
-}
-
-.terminal pre { border: 0; border-radius: 0; }
-
-/* Receipt — the gains proof artifact, shared by index hero and viewer mock. */
-.receipt {
-  overflow: hidden;
+/* Centered call-to-action panel */
+.cta {
+  padding: clamp(32px, 5vw, 56px);
   border: 1px solid var(--hairline-green);
   border-radius: var(--r-hero);
   background: var(--paper);
   box-shadow: var(--shadow-pop);
+  text-align: center;
 }
+.cta h2 { margin: 0 auto; max-width: 620px; }
+.cta .lede { margin: 14px auto 0; max-width: 600px; }
+.cta .actions { justify-content: center; }
+
+/* ── Tags: measured / estimate / neutral ─────────────────────────────────── */
+.measured, .estimate, .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font: 600 10px/1 var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+.measured { border: 1px solid var(--hairline-green); background: var(--green-soft); color: var(--green); }
+.estimate { border: 1px solid rgba(217, 169, 63, 0.4); background: rgba(217, 169, 63, 0.1); color: var(--warn); }
+.tag { border: 1px solid var(--line-strong); background: var(--paper-2); color: var(--muted); }
+
+/* ── Receipt — the signature proof component ─────────────────────────────
+   A ruled mono block: dashed rules between zones, dotted leader lines,
+   tabular numbers, and a .measured tag in the head. Numbers in receipts are
+   real, from this repo's benchmarks — never decorative. */
+.receipt {
+  overflow: hidden;
+  border: 1px solid var(--hairline-green);
+  border-radius: var(--r-hero);
+  background: var(--code-bg);
+  box-shadow: var(--shadow-pop);
+  font-variant-numeric: tabular-nums;
+}
+
 .receipt .r-head {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 20px;
+  padding: 13px 20px;
   border-bottom: 1px dashed var(--line-strong);
   color: var(--faint);
-  font: 600 11px/1 var(--mono);
+  font: 600 11px/1.4 var(--mono);
   text-transform: uppercase;
   letter-spacing: 0.12em;
 }
-.receipt .r-hero { padding: 22px 20px 16px; }
-.receipt .r-hero .big { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.receipt .r-hero .big b { font: 600 44px/0.95 var(--serif); letter-spacing: -0.02em; color: var(--green); font-variant-numeric: tabular-nums; }
-.receipt .r-hero .big .unit { color: var(--muted); font: 500 13px/1.3 var(--sans); }
-.receipt .r-hero .big .dollars { color: var(--ink); font: 600 18px/1 var(--serif); }
-.receipt .r-lines { border-top: 1px dashed var(--line-strong); padding: 12px 20px 14px; }
-.receipt .r-line { display: flex; align-items: baseline; gap: 10px; padding: 4px 0; font: 400 13px/1.5 var(--sans); color: var(--ink); }
-.receipt .r-line .dots { flex: 1; border-bottom: 1px dotted var(--line-strong); transform: translateY(-4px); }
-.receipt .r-line b { font: 600 13px/1 var(--mono); font-variant-numeric: tabular-nums; }
-.receipt .r-line b.warn { color: var(--warn); }
+
+.receipt .r-big { padding: 22px 20px 18px; }
+.receipt .r-big b {
+  display: block;
+  color: var(--green);
+  font: 600 clamp(30px, 3.4vw, 42px) / 1 var(--serif);
+  letter-spacing: -0.02em;
+}
+.receipt .r-big .unit {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font: 500 13px/1.5 var(--sans);
+}
+
+.receipt .r-lines { border-top: 1px dashed var(--line-strong); padding: 13px 20px 15px; }
+.receipt .r-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 0;
+  color: var(--code-text);
+  font: 400 13px/1.5 var(--mono);
+}
+.receipt .r-line .dots {
+  flex: 1;
+  min-width: 24px;
+  border-bottom: 1px dotted var(--line-strong);
+  transform: translateY(-4px);
+}
+.receipt .r-line b { font: 600 13px/1.4 var(--mono); color: var(--ink); white-space: nowrap; }
 .receipt .r-line b.gain { color: var(--green); }
+.receipt .r-line b.warn { color: var(--warn); }
+
 .receipt .r-foot {
   border-top: 1px dashed var(--line-strong);
-  padding: 10px 20px;
+  padding: 11px 20px;
   color: var(--faint);
-  font: 400 10.5px/1.5 var(--mono);
+  font: 400 11px/1.6 var(--mono);
+}
+.receipt .r-foot code { border: 0; background: none; padding: 0; color: var(--muted); font-size: inherit; }
+
+/* ── Terminal — a real prompt, not a screenshot ──────────────────────────── */
+.term, .terminal {
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-card);
+  background: var(--code-bg);
+  box-shadow: var(--shadow-card);
 }
 
-/* Footer */
-.footer {
-  padding: 26px 0 36px;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font: 400 13px/1.5 var(--sans);
-}
-
-.footer-inner {
+.term-head, .terminal-head {
   display: flex;
   justify-content: space-between;
   gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: #9aa49c;
+  font: 500 12px/1.4 var(--mono);
 }
 
-.footer a { color: var(--muted); }
-.footer a:hover { color: var(--ink); }
+.term pre, .terminal pre { border: 0; border-radius: 0; box-shadow: none; }
+.term .ps1, .terminal .ps1, .cmd .ps1 { color: var(--green-strong); user-select: none; }
+.term .dim, .terminal .dim { color: var(--faint); }
 
-/* Demo frame */
-.demo-frame {
-  margin-top: 22px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-card);
-  overflow: hidden;
-  background: var(--code-bg);
-}
-.demo-frame img { display: block; width: 100%; height: auto; }
-.demo-cap { margin-top: 10px; color: var(--faint); font: 400 13px/1.5 var(--sans); text-align: center; }
-
-/* Packet flow pipeline */
-.pflow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  gap: 10px;
-  margin-top: 26px;
-}
-.pnode {
-  flex: 1 1 0;
-  min-width: 150px;
-  padding: 14px 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--paper);
-}
-.pnode .pk {
-  display: block;
-  color: var(--faint);
-  font: 600 10px/1 var(--mono);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: 8px;
-}
-.pnode b { color: var(--ink); font: 600 14px/1.3 var(--sans); }
-.pnode p { margin-top: 6px; color: var(--muted); font: 400 12.5px/1.5 var(--sans); }
-.pnode .out { margin-top: 9px; font: 600 11.5px/1.4 var(--mono); }
-.pnode .out.bad { color: var(--danger); }
-.pnode .out.warn { color: var(--warn); }
-.pnode .out.good { color: var(--green); }
-.pnode.is-store { border-color: var(--line-strong); }
-.parrow {
-  align-self: center;
-  flex: 0 0 auto;
-  color: var(--green);
-  font: 700 16px/1 var(--sans);
-  opacity: 0.7;
-}
-
-/* Install command chip — the hero one-liner. */
+/* Inline command chip (hero one-liner with copy button) */
 .cmd {
   display: flex;
   align-items: center;
   gap: 12px;
   max-width: 560px;
-  margin-top: 18px;
+  margin-top: 20px;
   padding: 13px 18px;
   border: 1px solid var(--hairline-green);
   border-radius: var(--r-panel);
@@ -441,7 +482,6 @@ p { color: var(--muted); font: 400 15px/1.65 var(--sans); }
   overflow-x: auto;
   white-space: nowrap;
 }
-.cmd .ps1 { color: var(--green-strong); user-select: none; }
 .cmd button {
   flex: 0 0 auto;
   margin-left: auto;
@@ -456,7 +496,7 @@ p { color: var(--muted); font: 400 15px/1.65 var(--sans); }
 }
 .cmd button:hover { color: #fff; border-color: rgba(255, 255, 255, 0.4); }
 
-/* Comparison table — Kage column highlighted. */
+/* ── Comparison table ────────────────────────────────────────────────────── */
 .compare-scroll { overflow-x: auto; margin-top: 8px; }
 .compare {
   width: 100%;
@@ -477,31 +517,19 @@ p { color: var(--muted); font: 400 15px/1.65 var(--sans); }
   color: var(--muted);
 }
 .compare tr:last-child th, .compare tr:last-child td { border-bottom: 0; }
-.compare thead th {
-  background: var(--paper-2);
-  color: var(--ink);
-  font: 600 13px/1.3 var(--sans);
-}
-.compare th[scope="row"] {
-  text-align: left;
-  color: var(--ink);
-  font: 500 13.5px/1.45 var(--sans);
-}
-.compare .is-kage {
-  background: var(--green-soft);
-  color: var(--ink);
-  font-weight: 600;
-}
+.compare thead th { background: var(--paper-2); color: var(--ink); font: 600 13px/1.3 var(--sans); }
+.compare th[scope="row"] { text-align: left; color: var(--ink); font: 500 13.5px/1.45 var(--sans); }
+.compare .is-kage { background: var(--green-soft); color: var(--ink); font-weight: 600; }
 .compare thead .is-kage { color: var(--green); font-weight: 700; }
 .compare .yes { color: var(--green); font-weight: 700; }
 .compare .no { color: var(--faint); }
 
-/* Stat strip — quiet proof chips under the hero. */
+/* ── Stat strip ──────────────────────────────────────────────────────────── */
 .stat-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
-  margin-top: 48px;
+  margin-top: 40px;
 }
 .stat-chip {
   padding: 16px 18px;
@@ -510,42 +538,79 @@ p { color: var(--muted); font: 400 15px/1.65 var(--sans); }
   background: var(--paper);
   box-shadow: var(--shadow-card);
 }
-.stat-chip strong { display: block; font: 600 22px/1 var(--serif); color: var(--ink); }
-.stat-chip span { display: block; margin-top: 6px; color: var(--muted); font: 400 12.5px/1.45 var(--sans); }
+.stat-chip strong {
+  display: block;
+  font: 600 22px/1.1 var(--serif);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.stat-chip span { display: block; margin-top: 6px; color: var(--muted); font: 400 12.5px/1.5 var(--sans); }
 
-/* Mobile */
+/* ── Footnote — the honest-limits fine print ─────────────────────────────── */
+.footnote {
+  padding: 20px 24px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-card);
+  background: var(--paper);
+  color: var(--muted);
+  font: 400 13.5px/1.7 var(--sans);
+}
+.footnote strong { color: var(--ink); }
+.footnote a { color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+.footnote a:hover { color: var(--green); }
+
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+.footer {
+  padding: 30px 0 40px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font: 400 13px/1.6 var(--sans);
+}
+.footer-inner { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.footer a { color: var(--muted); }
+.footer a:hover { color: var(--ink); }
+
+/* ── Reduced motion ──────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  .button:hover { transform: none; }
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .grid-4, .cards-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-3, .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 @media (max-width: 820px) {
+  .hero-grid { grid-template-columns: minmax(0, 1fr); }
   .stat-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  /* Keep the GitHub button reachable on mobile; hide only the text links. */
+  /* Keep the GitHub pill reachable; hide only the text links. */
   .nav-links a:not(.gh-btn) { display: none; }
   .nav-links { gap: 10px; }
-  /* Tighten the bar and stop the CTA/GitHub pills from wrapping. */
   .nav { gap: 10px; padding: 0 16px; }
   .nav-cta { white-space: nowrap; padding: 0 12px; }
   .gh-btn { white-space: nowrap; padding: 6px 11px; gap: 6px; }
-  .cards, .cards-2 { grid-template-columns: 1fr; }
-  /* 4-step grid: 2-up on tablet so cards aren't pencil-thin. */
-  .cards-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-2, .cards-2, .grid-3, .cards { grid-template-columns: 1fr; }
   .footer-inner { display: grid; }
-  .pflow { flex-direction: column; }
-  .parrow { transform: rotate(90deg); align-self: center; }
-  /* Scale display type down to phone size. */
-  h1 { font-size: 34px; line-height: 1.06; }
-  h2 { font-size: 25px; line-height: 1.12; }
+  h1 { font-size: 36px; line-height: 1.06; }
+  h2 { font-size: 25px; line-height: 1.14; }
   .section { padding: 52px 0; }
-  /* Let command chips wrap and break long URLs instead of overflowing the screen. */
+  .hero { padding: 40px 0 48px; }
+  /* Command chips wrap instead of overflowing the screen. */
   .cmd { max-width: 100%; white-space: normal; }
   .cmd > span { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
-  /* Wide comparison tables scroll inside their own box. */
-  .compare { display: block; overflow-x: auto; }
 }
 
 @media (max-width: 480px) {
-  /* On narrow phones, drop the "GitHub" word so the bar fits: icon + star + count stays. */
   .gh-btn > span:first-of-type { display: none; }
   .gh-btn .gh-sep { display: none; }
-  h1 { font-size: 30px; }
+  h1 { font-size: 31px; }
   .section { padding: 44px 0; }
-  /* Single column on phones so step text isn't one word per line. */
-  .cards-4 { grid-template-columns: 1fr; }
+  .grid-4, .cards-4 { grid-template-columns: 1fr; }
+  .stat-strip { grid-template-columns: 1fr; }
 }

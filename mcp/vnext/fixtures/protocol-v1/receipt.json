@@ -1,0 +1,20 @@
+{
+  "receipt_id": "receipt_3a9c1e05-7b42-4f6d-8e10-5c2d3b4a6f78",
+  "task_id": "task_5b1d8c7a6e4f30219283a4b5c6d7e8f9",
+  "request_id": "proxy-6f1a2b3c:1",
+  "provider": "anthropic",
+  "model": "claude-opus-4-8",
+  "mode": "audit",
+  "measurement_quality": "exact",
+  "before_input_bytes": 214,
+  "after_input_bytes": 1583,
+  "before_input_tokens": 137,
+  "after_input_tokens": 486,
+  "output_tokens": 7,
+  "kage_processing_cost_usd": null,
+  "provider_input_cost_before_usd": 0.002055,
+  "provider_input_cost_after_usd": null,
+  "latency_ms": 412,
+  "transformations": ["context_append_last_user_turn"],
+  "created_at": "2026-07-13T09:14:03.104Z"
+}

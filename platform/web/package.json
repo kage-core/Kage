@@ -1,0 +1,30 @@
+{
+  "name": "@kage-core/knowledge-portal",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run check-types && tsc -b && vite build",
+    "test": "npm run check-types && vitest run",
+    "test:e2e": "playwright test",
+    "sync-types": "node scripts/sync-types.mjs",
+    "check-types": "node scripts/sync-types.mjs --check"
+  },
+  "dependencies": {
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@playwright/test": "latest",
+    "@testing-library/jest-dom": "latest",
+    "@testing-library/react": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "jsdom": "latest",
+    "typescript": "latest",
+    "vite": "latest",
+    "vitest": "latest"
+  }
+}

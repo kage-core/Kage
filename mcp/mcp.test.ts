@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { callTool, listTools } from "./index.js";
@@ -23,16 +23,32 @@ function textContent(result: Awaited<ReturnType<typeof callTool>>): string {
   return String(first.text);
 }
 
-test("MCP default tool surface is the agent-facing core only", () => {
-  const core = listTools().map((tool) => tool.name).sort();
-  assert.deepEqual(core, [
-    "kage_check", "kage_context", "kage_feedback", "kage_learn", "kage_pr_check",
-    "kage_refresh", "kage_skills", "kage_supersede",
-    "kage_risk", "kage_decisions", "kage_dependency_path", "kage_docs_search",
-  ].sort());
+// Phase E Task 10 cuts the DEFAULT product surface over to the focused vNext verbs. The default MCP
+// surface is now exactly kage_context, kage_retrieve, and kage_feedback — in that canonical order.
+// Capture/refresh/review flow through the ambient proxy and the portal, so they no longer bloat the
+// model's always-loaded tool list. The old core stays reachable under KAGE_TOOLS=legacy (below).
+test("v4 default MCP surface is context retrieve and feedback", () => {
+  const names = listTools().map((tool) => tool.name);
+  assert.deepEqual(names, ["kage_context", "kage_retrieve", "kage_feedback"]);
   // None of the operator/diagnostic tools leak into the default agent surface.
-  assert.equal(core.includes("kage_metrics"), false);
-  assert.equal(core.includes("kage_xray"), false);
+  assert.equal(names.includes("kage_metrics"), false);
+  assert.equal(names.includes("kage_xray"), false);
+  assert.equal(names.includes("kage_learn"), false);
+});
+
+// The cutover is back-compat safe: an agent pinned to the old registry can set KAGE_TOOLS=legacy and
+// still get every legacy tool for one major version, each carrying a deprecation note that names the
+// v5 removal and the migration doc.
+test("legacy mode keeps old tools for one major version with deprecation metadata", () => {
+  const names = listTools({ mode: "legacy" }).map((tool) => tool.name);
+  const timeline = listTools({ mode: "legacy" }).find((tool) => tool.name === "kage_memory_timeline");
+  assert.ok(names.includes("kage_learn"), "legacy mode still exposes kage_learn");
+  assert.ok(timeline, "legacy mode still exposes kage_memory_timeline");
+  assert.ok(timeline!.description.includes("Deprecated"), "legacy tool description is marked Deprecated");
+  assert.ok(timeline!.description.includes("docs/migration/v4-command-map.md"), "legacy tool links the migration doc");
+  // The three survivors keep their normal (undeprecated) descriptions.
+  const context = listTools({ mode: "legacy" }).find((tool) => tool.name === "kage_context");
+  assert.equal(context!.description.startsWith("Deprecated"), false);
 });
 
 test("MCP full mode exposes the complete repo-local memory tool registry", () => {
@@ -99,6 +115,30 @@ test("MCP full mode exposes the complete repo-local memory tool registry", () =>
   assert.equal(names.includes("kage_review_artifact"), true);
   assert.equal(names.includes("kage_validate"), true);
   assert.equal(names.includes("kage_workflow"), true);
+  // Phase D adds reversible retrieval; it is registered (reachable in full mode) but does not
+  // join the default core surface until a major-version migration.
+  assert.equal(names.includes("kage_retrieve"), true);
+});
+
+// KAGE_TOOLS=vnext is retained as an explicit spelling of the (now default) v4 surface, so a config
+// pinned to it keeps behaving identically to the default.
+test("KAGE_TOOLS=vnext exposes exactly kage_context, kage_retrieve, kage_feedback", () => {
+  const prev = process.env.KAGE_TOOLS;
+  process.env.KAGE_TOOLS = "vnext";
+  const names = listTools().map((tool) => tool.name).sort();
+  process.env.KAGE_TOOLS = prev;
+  assert.deepEqual(names, ["kage_context", "kage_feedback", "kage_retrieve"]);
+});
+
+// After the Task 10 cutover, kage_retrieve is now IN the default surface and the default is exactly
+// three tools — the reduction that Phase D staged behind KAGE_TOOLS=vnext is now the default.
+test("kage_retrieve is in the default surface and the default is exactly three tools", () => {
+  const prev = process.env.KAGE_TOOLS;
+  delete process.env.KAGE_TOOLS;
+  const core = listTools().map((tool) => tool.name);
+  process.env.KAGE_TOOLS = prev;
+  assert.equal(core.includes("kage_retrieve"), true);
+  assert.equal(core.length, 3);
 });
 
 test("kage_workflow teaches the loop in its description and returns the same text", async () => {
@@ -793,4 +833,72 @@ test("MCP kage_validate reports project memory health", async () => {
   const result = await callTool("kage_validate", { project_dir: project });
   assert.equal(result.isError, false);
   assert.match(textContent(result), /Validation passed/);
+});
+
+// Regression: a kage_learn call that passed the insight under an unsupported key ("content"
+// instead of "learning") was silently accepted. The unknown key was dropped, `learning`
+// defaulted to "", and a packet with an empty body was written, indexed, and only ever
+// surfaced as a soft "body is empty" validation warning long after the insight was lost.
+test("kage_learn rejects an unknown parameter instead of silently dropping the insight", async () => {
+  const project = tempProject();
+  writeFileSync(join(project, "app.ts"), "export const app = 1;\n", "utf8");
+  const result = await callTool("kage_learn", {
+    project_dir: project,
+    content: "The refund ledger is the source of truth; never recompute balances from events.",
+    paths: ["app.ts"],
+  });
+
+  assert.equal(result.isError, true);
+  assert.match(textContent(result), /content/);
+  const packets = join(project, ".agent_memory", "packets");
+  const written = existsSync(packets) ? readdirSync(packets) : [];
+  assert.deepEqual(written, [], "a rejected call must not write a packet");
+});
+
+test("kage_learn refuses to write a packet with no learning text", async () => {
+  const project = tempProject();
+  writeFileSync(join(project, "app.ts"), "export const app = 1;\n", "utf8");
+  const result = await callTool("kage_learn", {
+    project_dir: project,
+    learning: "   ",
+    paths: ["app.ts"],
+  });
+
+  assert.equal(result.isError, true);
+  const packets = join(project, ".agent_memory", "packets");
+  const written = existsSync(packets) ? readdirSync(packets) : [];
+  assert.deepEqual(written, [], "an empty learning must not produce a packet");
+});
+
+// Evidence and verified_by both feed the packet body, so checking only the composed body lets
+// a dropped `learning` through: the packet is written carrying nothing but its own provenance.
+// This actually happened while capturing memory for this change.
+test("kage_learn refuses a packet whose only content is its own provenance", async () => {
+  const project = tempProject();
+  writeFileSync(join(project, "app.ts"), "export const app = 1;\n", "utf8");
+  const result = await callTool("kage_learn", {
+    project_dir: project,
+    evidence: "Measured against the old path: 1 health probe in 600ms.",
+    verified_by: "npm test --prefix mcp (546/546)",
+    paths: ["app.ts"],
+  });
+
+  assert.equal(result.isError, true);
+  const packets = join(project, ".agent_memory", "packets");
+  const written = existsSync(packets) ? readdirSync(packets) : [];
+  assert.deepEqual(written, [], "evidence alone must not produce a packet");
+});
+
+test("kage_supersede names the unknown parameter instead of failing as self-supersede", async () => {
+  const project = tempProject();
+  const result = await callTool("kage_supersede", {
+    project_dir: project,
+    old_id: "repo:demo:decision:a",
+    new_id: "repo:demo:decision:b",
+  });
+
+  assert.equal(result.isError, true);
+  const text = textContent(result);
+  assert.match(text, /old_id|new_id/);
+  assert.doesNotMatch(text, /cannot supersede itself/i);
 });

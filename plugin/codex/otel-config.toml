@@ -1,0 +1,20 @@
+# Kage Codex OpenTelemetry capture configuration.
+# Codex emits these events; Kage ingests them for AUTOMATIC CAPTURE only.
+# Injection remains MCP fallback (kage_retrieve / kage_context) — Codex
+# plugins do not establish a Kage-owned session injection hook.
+
+[otel]
+enabled = true
+exporter = "otlp"
+
+[otel.events]
+prompt = true
+approval = true
+tool_result = true
+mcp_usage = true
+proxy_decision = true
+
+[kage]
+capture = "automatic"
+injection = "mcp_fallback"
+counts_as_automatic_attachment = false

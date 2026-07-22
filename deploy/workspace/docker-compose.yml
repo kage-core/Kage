@@ -1,0 +1,87 @@
+# Self-hosted Kage workspace: the service plus its PostgreSQL.
+#
+#   cp env.example .env      # fill it in; every secret lives there, none lives here
+#   docker compose -f deploy/workspace/docker-compose.yml up -d
+#
+# WHAT THIS FILE ENCODES, AND WHY:
+#   - The workspace starts only after Postgres reports HEALTHY (`condition: service_healthy`), not merely
+#     after it is created. Without that the first boot races the database, and the container's own
+#     migrate-then-listen sequence has nothing to connect to.
+#   - The workspace container is `read_only`. It writes nothing but /tmp, which is a tmpfs. A service
+#     whose filesystem cannot be modified cannot be persistently backdoored through the application.
+#   - `cap_drop: ALL` plus `no-new-privileges` — the process listens on 8787 as a non-root user and needs
+#     no Linux capability at all.
+#   - Postgres is NOT published to the host. It is reachable only on the compose network. Publishing it
+#     is how a self-hosted database ends up on the public internet with a weak password.
+#   - Both images are pinned by DIGEST. A tag moves; a digest does not.
+#   - NO SECRET APPEARS IN THIS FILE. Both services read `.env`, which is gitignored.
+services:
+  postgres:
+    # postgres:18.1-bookworm
+    image: postgres@sha256:cc9f4143a8d2fa8cf3749d0cb4d26ecf2d53a77a2ac807e9ebd67ae22426221a
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kage_workspace}
+      POSTGRES_USER: ${POSTGRES_USER:-kage}
+    # Reachable on the compose network only. Deliberately no `ports:` mapping.
+    expose:
+      - "5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-kage} -d ${POSTGRES_DB:-kage_workspace}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+
+  workspace:
+    build:
+      # The build context is the repository root: the image builds the MCP package from source.
+      context: ../..
+      dockerfile: deploy/workspace/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      KAGE_WORKSPACE_PORT: "8787"
+      # Bind every interface INSIDE the container. Docker DNATs the published port to the container's
+      # bridge IP, so a service bound to loopback would refuse every published request while still
+      # passing its own 127.0.0.1 healthcheck. Exposure is narrowed at the publish line below, not here.
+      KAGE_WORKSPACE_HOST: "0.0.0.0"
+      # The probe fails a pod that is still migrating or is pointed at a database another build owns.
+      KAGE_WORKSPACE_EXPECTED_MIGRATION: ${KAGE_WORKSPACE_EXPECTED_MIGRATION:-12}
+    # Published on the HOST LOOPBACK by default: the service speaks plain HTTP, so put a TLS terminator in
+    # front of it and have that terminator reach 127.0.0.1. Set KAGE_WORKSPACE_PUBLISH_ADDR=0.0.0.0 only
+    # to deliberately expose plain HTTP on every host interface.
+    ports:
+      - "${KAGE_WORKSPACE_PUBLISH_ADDR:-127.0.0.1}:${KAGE_WORKSPACE_PUBLISH_PORT:-8787}:8787"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "node", "/app/deploy/healthcheck.mjs"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    # SIGTERM goes straight to node (see the Dockerfile's exec-form entrypoint); 30s is the drain window.
+    stop_grace_period: 30s
+
+volumes:
+  pgdata:

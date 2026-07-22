@@ -1,0 +1,37 @@
+# Docker build-context excludes for the workspace image (deploy/workspace/Dockerfile).
+#
+# WHY THIS FILE IS LOAD-BEARING, NOT HOUSEKEEPING.
+# The Dockerfile runs `RUN npm ci` against the committed lockfile and THEN `COPY mcp/ ./`. Without a
+# .dockerignore, that COPY drags the developer's HOST `mcp/node_modules` into the image, overwriting the
+# lockfile-resolved tree — and the runtime stage copies THAT forward. A locally linked, patched, or
+# compromised package would ship to production while the Dockerfile comment still promised "npm ci
+# against the committed lockfile", and the pinned lockfile would guarantee nothing. Excluding the host
+# dependency tree (and host build output) is what makes the lockfile the real source of truth.
+#
+# It also keeps secrets and bulk out of the context that is uploaded to the daemon: .git, .env files,
+# private keys, agent memory, and sibling worktrees must never enter an image build.
+
+# Host dependency trees and build output — the image installs and builds these itself.
+**/node_modules
+**/dist
+
+# Version control and local tooling metadata.
+.git
+.gitignore
+.github
+.agent_memory
+.agents
+.superpowers
+.claude
+.worktrees
+
+# Secrets and credentials — never in a build context.
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+
+# Editor/OS noise and logs.
+**/*.log
+**/.DS_Store
+**/coverage

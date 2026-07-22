@@ -1,0 +1,1102 @@
+/*
+ * Global element + shell styles for the knowledge portal. Semantic HTML/CSS only — no utility
+ * framework, no CDN. Every interactive element gets a visible `:focus-visible` outline so keyboard
+ * users always see where they are.
+ */
+
+@import "./tokens.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: var(--line-height-base);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-background);
+  color: var(--color-text);
+  font-size: var(--font-size-base);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0 0 var(--space-3);
+  line-height: 1.25;
+  font-weight: var(--font-weight-bold);
+}
+
+h1 {
+  font-size: var(--font-size-2xl);
+}
+h2 {
+  font-size: var(--font-size-xl);
+}
+h3 {
+  font-size: var(--font-size-lg);
+}
+
+p {
+  margin: 0 0 var(--space-3);
+}
+
+a {
+  color: var(--color-accent);
+}
+
+/* A single, consistent, always-visible focus ring for keyboard navigation. */
+:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Respect reduced-motion preferences. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ---- App shell layout ---- */
+
+.kage-app {
+  min-height: 100vh;
+}
+
+/* Skip link: visually hidden until focused, then pinned top-left above everything. */
+.skip-link {
+  position: absolute;
+  left: var(--space-2);
+  top: var(--space-2);
+  transform: translateY(-150%);
+  z-index: 100;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  font-weight: var(--font-weight-medium);
+  transition: transform 0.15s ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.shell-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.shell-brand {
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-lg);
+}
+
+.shell-body {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  align-items: start;
+}
+
+@media (max-width: 48rem) {
+  .shell-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.shell-nav {
+  padding: var(--space-4) var(--space-3);
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface);
+  min-height: calc(100vh - 4rem);
+}
+
+.shell-nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.shell-nav a {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  text-decoration: none;
+  font-size: var(--font-size-base);
+}
+
+.shell-nav a:hover {
+  background: var(--color-neutral-tint);
+}
+
+/* Active section: color AND a weight/border change so it is not signaled by color alone. */
+.shell-nav a[aria-current="page"] {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font-weight: var(--font-weight-medium);
+}
+
+.shell-main {
+  padding: var(--space-6);
+  max-width: var(--content-max-width);
+  width: 100%;
+}
+
+/* ---- Repository switcher ---- */
+
+.repo-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.repo-switcher .repo-name {
+  font-weight: var(--font-weight-medium);
+}
+
+.repo-switcher .repo-branch {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-mono);
+}
+
+/* ---- Status badge ---- */
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: 999px;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  border: 1px solid transparent;
+}
+
+.status-badge .status-icon {
+  font-size: 0.75em;
+  line-height: 1;
+}
+
+.status-badge[data-state="healthy"] {
+  background: var(--color-success-tint);
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+.status-badge[data-state="degraded"] {
+  background: var(--color-warning-tint);
+  color: var(--color-warning);
+  border-color: var(--color-warning);
+}
+.status-badge[data-state="passthrough"] {
+  background: var(--color-neutral-tint);
+  color: var(--color-neutral);
+  border-color: var(--color-border-strong);
+}
+.status-badge[data-state="disconnected"] {
+  background: var(--color-critical-tint);
+  color: var(--color-critical);
+  border-color: var(--color-critical);
+}
+
+/* ---- Generic content helpers ---- */
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+}
+
+/* ---- Overview page ---- */
+
+.overview-page > section {
+  margin-bottom: var(--space-8);
+}
+
+.repo-identity h1 {
+  margin-bottom: var(--space-2);
+}
+
+.repo-identity-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin: 0;
+}
+
+.repo-identity-meta div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.repo-identity-meta dt {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.repo-identity-meta dd {
+  margin: 0;
+}
+
+.metric-subheading {
+  margin-top: var(--space-6);
+  color: var(--color-text-muted);
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: var(--space-4);
+}
+
+/* ---- Metric card ---- */
+
+.metric-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.metric-label {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.metric-value {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  margin: 0;
+  line-height: 1.1;
+}
+
+/* An unmeasured value is muted and normal-weight so it never reads as a real, emphasized number. */
+.metric-value[data-unavailable] {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-normal);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.metric-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  flex-wrap: wrap;
+}
+
+.metric-exactness {
+  display: inline-block;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  background: var(--color-neutral-tint);
+  color: var(--color-neutral);
+  border: 1px solid var(--color-border-strong);
+}
+
+.metric-exactness[data-exactness="exact"] {
+  background: var(--color-success-tint);
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.metric-trend {
+  font-size: var(--font-size-sm);
+  font-family: var(--font-mono);
+  color: var(--color-text-muted);
+}
+
+.metric-disclosure-toggle {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.metric-disclosure {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-2);
+}
+
+.metric-disclosure dl {
+  margin: 0 0 var(--space-2);
+}
+
+.metric-disclosure dt {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-1);
+}
+
+.metric-disclosure dd {
+  margin: 0;
+}
+
+.metric-disclosure code {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* ---- Attention queue ---- */
+
+.attention-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.attention-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.attention-severity {
+  flex: none;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-neutral-tint);
+  color: var(--color-neutral);
+}
+
+.attention-severity[data-severity="warning"] {
+  background: var(--color-warning-tint);
+  color: var(--color-warning);
+  border-color: var(--color-warning);
+}
+
+.attention-severity[data-severity="critical"] {
+  background: var(--color-critical-tint);
+  color: var(--color-critical);
+  border-color: var(--color-critical);
+}
+
+/* ---- Integration strip ---- */
+
+.integration-strip {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.integration-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.integration-name {
+  font-weight: var(--font-weight-medium);
+}
+
+/* ---- Onboarding ---- */
+
+.onboarding {
+  max-width: 40rem;
+}
+
+.onboarding ol {
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.mode-callout {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-tint);
+  border: 1px solid var(--color-border-strong);
+  font-weight: var(--font-weight-medium);
+  margin-bottom: var(--space-4);
+}
+
+/* ---- System map ---- */
+
+.system-map-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.system-map-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.system-map-views button {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.system-map-views button[aria-pressed="true"] {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  border-color: var(--color-accent);
+}
+
+.system-map-notice {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-tint);
+  border: 1px solid var(--color-border);
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-accent);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
+.system-map-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 60rem) {
+  .system-map-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.system-map-controls {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.system-map-controls button {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.system-map-viewport {
+  overflow: auto;
+  max-height: 32rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.system-map-edge {
+  stroke: var(--color-border-strong);
+  stroke-width: 1.5;
+}
+
+.system-map-node {
+  cursor: pointer;
+}
+
+.system-map-node rect {
+  fill: var(--color-surface-raised);
+  stroke: var(--color-border-strong);
+  stroke-width: 1.5;
+}
+
+.system-map-node[data-selected="true"] rect {
+  stroke: var(--color-accent);
+  stroke-width: 3;
+}
+
+.system-map-node:focus-visible rect {
+  stroke: var(--color-focus);
+  stroke-width: 3;
+}
+
+.system-map-node-name {
+  fill: var(--color-text);
+  font-size: 0.85rem;
+  font-weight: var(--font-weight-medium);
+}
+
+.system-map-node-meta {
+  fill: var(--color-text-muted);
+  font-size: 0.72rem;
+}
+
+.inspector-panel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  padding: var(--space-4);
+}
+
+.inspector-meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.inspector-relations ul {
+  padding-left: var(--space-5);
+}
+
+.inspector-expand {
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  cursor: pointer;
+}
+
+.health-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-weight: var(--font-weight-medium);
+}
+
+.health-badge[data-health="verified"] { color: var(--color-success); }
+.health-badge[data-health="stale"] { color: var(--color-warning); }
+.health-badge[data-health="disputed"] { color: var(--color-critical); }
+.health-badge[data-health="unverified"] { color: var(--color-text-muted); }
+
+.system-map-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--space-2);
+}
+
+.system-map-table th,
+.system-map-table td {
+  border: 1px solid var(--color-border);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  vertical-align: top;
+}
+
+.system-map-table thead th {
+  background: var(--color-neutral-tint);
+}
+
+.neighbor-list {
+  margin: 0;
+  padding-left: var(--space-4);
+}
+
+/* The windowed-out signal on an empty relation cell — the table's equivalent of the diagram's
+ * "+more". Set apart so a sighted reader parses it as a truncation note, not a relation name. */
+.truncation-note {
+  font-style: italic;
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Knowledge detail pages (feature / component / flow / runbook / decision).
+ *
+ * The visual language reinforces the honesty spine: current-truth sections read as the primary
+ * body, while the history/uncertainty region is set apart with a muted, bordered container so a
+ * reader never confuses a stale or superseded claim for current behaviour. Trust and verification
+ * states are carried by TEXT; the color tints here are redundant reinforcement, never the sole cue.
+ * --------------------------------------------------------------------------------------------- */
+
+.knowledge-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.entity-header .entity-kind {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: var(--font-size-sm, 0.85rem);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.entity-header .entity-slug {
+  color: var(--color-text-muted);
+  margin-top: var(--space-1);
+}
+
+.entity-archived {
+  color: var(--color-warning);
+  font-weight: var(--font-weight-medium);
+}
+
+.current-truth-region {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.entity-summary {
+  font-size: var(--font-size-lg, 1.05rem);
+  line-height: 1.5;
+}
+
+.claim-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.claim-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+}
+
+.claim-content {
+  margin: 0 0 var(--space-2);
+  line-height: 1.5;
+}
+
+.claim-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-sm, 0.85rem);
+}
+
+.claim-trust {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm, 4px);
+  font-weight: var(--font-weight-medium);
+  background: var(--color-neutral-tint);
+  color: var(--color-text);
+}
+
+.claim-trust[data-trust="verified"],
+.claim-trust[data-trust="approved"] {
+  background: var(--color-success-tint);
+  color: var(--color-success);
+}
+
+.claim-trust[data-trust="stale"],
+.claim-trust[data-trust="superseded"],
+.claim-trust[data-trust="archived"] {
+  background: var(--color-warning-tint);
+  color: var(--color-warning);
+}
+
+.claim-trust[data-trust="disputed"] {
+  background: var(--color-critical-tint);
+  color: var(--color-critical);
+}
+
+.claim-kind {
+  color: var(--color-text-muted);
+}
+
+/* The history region is deliberately set apart from current truth. */
+.history-region {
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  background: var(--color-neutral-tint);
+}
+
+.evidence-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.evidence-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm, 0.85rem);
+}
+
+.evidence-verification[data-state="verified"] { color: var(--color-success); }
+.evidence-verification[data-state="failed"] { color: var(--color-critical); }
+.evidence-verification[data-state="unavailable"] { color: var(--color-text-muted); }
+
+.evidence-stance[data-stance="contradicts"] { color: var(--color-critical); }
+
+.knowledge-health-figures {
+  display: flex;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-2);
+}
+
+.knowledge-health-figure {
+  display: flex;
+  flex-direction: column;
+}
+
+.knowledge-health-figure dt {
+  font-size: var(--font-size-sm, 0.85rem);
+  color: var(--color-text-muted);
+}
+
+.knowledge-health-figure dd {
+  margin: 0;
+  font-size: var(--font-size-xl, 1.4rem);
+  font-weight: var(--font-weight-medium);
+}
+
+.knowledge-health-figure[data-tone="verified"] dd { color: var(--color-success); }
+.knowledge-health-figure[data-tone="stale"] dd { color: var(--color-warning); }
+.knowledge-health-figure[data-tone="disputed"] dd { color: var(--color-critical); }
+
+.related-list,
+.supersedes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.related-relation {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm, 0.85rem);
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Review queue — the portal's only write surface. Evidence-first layout; the self-approval notice
+   and server-feedback alert carry meaning as TEXT, with color as redundant reinforcement.
+   --------------------------------------------------------------------------------------------- */
+
+.review-actor {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.review-item {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.review-item-kind {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: var(--font-size-sm, 0.85rem);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.review-item-facts {
+  list-style: none;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--font-size-sm, 0.85rem);
+  color: var(--color-text-muted);
+}
+
+.review-item[data-impact="high"],
+.review-item[data-impact="critical"] {
+  border-left: 4px solid var(--color-warning);
+}
+
+.knowledge-diff {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+@media (max-width: 640px) {
+  .knowledge-diff {
+    grid-template-columns: 1fr;
+  }
+}
+
+.knowledge-diff-panel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  padding: var(--space-3);
+}
+
+.knowledge-diff-panel h4 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-sm, 0.85rem);
+  color: var(--color-text-muted);
+}
+
+.knowledge-diff-panel[data-side="proposed"] {
+  border-color: var(--color-accent, var(--color-success));
+}
+
+.review-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-2);
+}
+
+.review-field textarea,
+.review-field input,
+.review-actor input {
+  font: inherit;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.review-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.review-buttons button {
+  font: inherit;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.review-buttons button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.review-self-approval {
+  border-left: 3px solid var(--color-warning);
+  padding-left: var(--space-2);
+}
+
+.review-item-feedback {
+  border: 1px solid var(--color-critical);
+  border-radius: var(--radius-sm, 6px);
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-critical);
+}
+
+.review-empty {
+  color: var(--color-text-muted);
+}
+
+/* -----------------------------------------------------------------------------------------------
+ * Task + cost receipts (Phase C, Task 8). The two economics sections are visually distinct so the
+ * separation of EXACT request measurements from COHORT outcomes is legible, not just structural.
+ * --------------------------------------------------------------------------------------------- */
+
+.task-receipt-page > section,
+.cost-breakdown > section {
+  margin-top: var(--space-5, 2rem);
+}
+
+.task-receipt-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-2, 0.5rem) var(--space-4, 1.5rem);
+  margin-top: var(--space-3, 1rem);
+}
+
+.task-receipt-meta dt {
+  color: var(--color-text-muted);
+  font-size: 0.85em;
+}
+
+.cost-breakdown {
+  display: grid;
+  gap: var(--space-5, 2rem);
+}
+
+.request-table,
+.task-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--space-3, 1rem);
+  font-size: 0.92em;
+}
+
+.request-table th,
+.request-table td,
+.task-table th,
+.task-table td {
+  text-align: left;
+  padding: var(--space-2, 0.5rem);
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.request-table thead th,
+.task-table thead th {
+  color: var(--color-text-muted);
+  font-weight: 600;
+  border-bottom: 2px solid var(--color-border);
+}
+
+.delivery-list,
+.knowledge-change-list,
+.policy-finding-list,
+.timeline-list {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-3, 1rem) 0 0;
+  display: grid;
+  gap: var(--space-2, 0.5rem);
+}
+
+.delivery-item,
+.knowledge-change-item,
+.policy-finding-item,
+.timeline-item {
+  padding: var(--space-2, 0.5rem) var(--space-3, 1rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+}
+
+.delivery-status,
+.policy-finding-severity {
+  font-weight: 600;
+}
+
+.knowledge-change-trust {
+  color: var(--color-text-muted);
+}
+
+.policy-finding-behavior {
+  color: var(--color-text-muted);
+  font-size: 0.85em;
+}
+
+.timeline-list {
+  counter-reset: none;
+}
+
+.timeline-kind {
+  font-weight: 600;
+}
+
+.timeline-at {
+  color: var(--color-text-muted);
+  font-size: 0.85em;
+}

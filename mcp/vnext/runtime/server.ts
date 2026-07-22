@@ -1,0 +1,867 @@
+import { createHash, timingSafeEqual } from "node:crypto";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import type { AddressInfo, Socket } from "node:net";
+import { TextDecoder } from "node:util";
+import { buildContextCapsule } from "../context/capsule-builder.js";
+import { validateContextRequest, type ContextSource } from "../context/source.js";
+import { WorkerContextSource } from "../context/worker-source.js";
+import { ModelContextSource } from "../context/model-source.js";
+import { ProgressiveContextSource } from "../context/context-comparison.js";
+import { readVnextConfig } from "./config.js";
+import { validateEvidenceEvent, validateHandshake } from "../protocol/index.js";
+import { openVnextDatabase, type LocalDatabase } from "../storage/database.js";
+import { drainDeliverySpool } from "../storage/delivery-spool.js";
+import { EventStore } from "../storage/event-store.js";
+import { migrateLocalDatabase } from "../storage/migrations.js";
+import { ReceiptStore } from "../storage/receipt-store.js";
+import { Repository } from "../repo-model/repository.js";
+import { computeModelLag, latestCompiledAt } from "../compiler/pipeline.js";
+import { CompilerScheduler } from "./compiler-scheduler.js";
+import { acquireRuntimeLock, releaseRuntimeLock, type RuntimeLockLease } from "./lock.js";
+import { assertRuntimeDirectoryLease, contentRoot, ensureRuntimeDirectory, resolveRuntimePaths } from "./paths.js";
+import {
+  removeRuntimeStatus,
+  writeRuntimeStatus,
+  type RuntimeStatusLease,
+  type VnextRuntimeStatus,
+} from "./status.js";
+import { ensureRuntimeToken } from "./token.js";
+import { ContentStore } from "../gateway/content-store.js";
+import { matchContentRoute, retrieve } from "../api/retrieve.js";
+import { matchMinimalChangeRoute, minimalChangeForTask } from "../api/minimal-change.js";
+import { buildTaskReceiptAggregate, buildTaskReceiptsBody } from "../api/task-receipts.js";
+import { findTaskSummary } from "../api/read-models.js";
+import { handlePortalRoute, matchPortalRoute, type PortalRoute } from "../api/router.js";
+import { DeliveryStore } from "../storage/delivery-store.js";
+import { buildLocalSnapshot } from "../sync/snapshot.js";
+import type { TeamMetricsPanelDto } from "../api/types.js";
+import type { WorkspaceLink } from "../sync/workspace-link.js";
+import { createConnectedLink, readWorkspaceConnection, type WorkspaceConnection } from "../sync/workspace-config.js";
+import { handleReviewMutation, REVIEW_ACTIONS, type ReviewAction } from "../api/review.js";
+import { teamValueReport } from "../../kernel.js";
+
+// The portal must render even when the report cannot be assembled (fresh repo, unreadable ledger):
+// null is the honest answer, never a throw that 500s the whole portal.
+function safeTeamReport(projectDir: string): unknown {
+  try {
+    return teamValueReport(projectDir);
+  } catch {
+    return null;
+  }
+}
+import { PortalEventStream, type ClaimUpdatedEvent } from "../api/events.js";
+import { execFileSync } from "node:child_process";
+
+const HOST = "127.0.0.1" as const;
+const DEFAULT_PORT = 3112;
+const MAX_JSON_BYTES = 2 * 1024 * 1024;
+const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
+
+type RouteKind = "health" | "status" | "handshakes" | "events" | "events_stream" | "context" | "receipts" | "task_receipt" | "content" | "minimal_change" | "portal" | "review_mutation";
+
+interface MatchedRoute {
+  kind: RouteKind;
+  method: "GET" | "POST";
+  taskId?: string;
+  sha256?: string;
+  portal?: PortalRoute;
+  reviewItemId?: string;
+  reviewAction?: ReviewAction;
+}
+
+class RequestFailure extends Error {
+  constructor(readonly status: number, readonly code: string) {
+    super(code);
+  }
+}
+
+export interface LocalRuntimeOptions {
+  projectDir: string;
+  port?: number;
+  mode?: "audit" | "assist";
+  contextSource?: ContextSource | null;
+  /**
+   * A workspace link to publish through and read the team panel from. Omitted means "read the
+   * environment"; explicit null means "local only, do not connect" (tests, and any install that has no
+   * workspace). Either way the local runtime is fully functional: the link is only ever used off the
+   * request path, and the portal falls back to "no workspace connected".
+   */
+  workspaceLink?: WorkspaceLink | null;
+  /** Connection details when a link is injected; omitted means read them from the environment. */
+  workspaceConnection?: WorkspaceConnection | null;
+}
+
+export interface LocalRuntimeHandle {
+  url: string;
+  token: string;
+  status: VnextRuntimeStatus;
+  address: AddressInfo;
+  database: LocalDatabase;
+  eventStore: EventStore;
+  store: EventStore;
+  receiptStore: ReceiptStore;
+  // The source the runtime actually resolved. Exposed so a test can assert the shipped default
+  // is off-thread: without it, reverting the default to an on-request-thread source is a silent
+  // one-line regression that every other test still passes.
+  contextSource: ContextSource | null;
+  close(): Promise<void>;
+}
+
+function json(res: ServerResponse, status: number, value: unknown): void {
+  const body = JSON.stringify(value);
+  res.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    "content-length": Buffer.byteLength(body),
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+  });
+  res.end(body);
+}
+
+function error(res: ServerResponse, status: number, code: string): void {
+  json(res, status, { ok: false, error: code });
+}
+
+// Exact stored originals are returned as raw bytes (not re-encoded through JSON) so retrieval is
+// byte-identical to what the pipeline stored. Fingerprint headers travel alongside so the caller can
+// re-verify. cache-control/nosniff mirror the JSON responses.
+function binary(res: ServerResponse, status: number, headers: Record<string, string>, body: Buffer): void {
+  res.writeHead(status, {
+    "content-type": "application/octet-stream",
+    ...headers,
+    "content-length": body.byteLength,
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+  });
+  res.end(body);
+}
+
+function isJsonContentType(req: IncomingMessage): boolean {
+  const value = req.headers["content-type"];
+  if (typeof value !== "string") return false;
+  return value.split(";", 1)[0].trim().toLowerCase() === "application/json";
+}
+
+function declaredLength(req: IncomingMessage): number | undefined {
+  const value = req.headers["content-length"];
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || !/^\d+$/.test(value)) throw new RequestFailure(400, "invalid_json");
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed)) throw new RequestFailure(413, "payload_too_large");
+  return parsed;
+}
+
+async function readJson(req: IncomingMessage): Promise<unknown> {
+  if (!isJsonContentType(req)) throw new RequestFailure(415, "unsupported_media_type");
+  const length = declaredLength(req);
+  if (length !== undefined && length > MAX_JSON_BYTES) {
+    req.resume();
+    throw new RequestFailure(413, "payload_too_large");
+  }
+
+  const chunks = await new Promise<Buffer[]>((resolve, reject) => {
+    const values: Buffer[] = [];
+    let bytes = 0;
+    let settled = false;
+    const cleanup = () => {
+      req.off("data", onData);
+      req.off("end", onEnd);
+      req.off("aborted", onAborted);
+      req.off("error", onError);
+    };
+    const finishReject = (failure: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      req.on("error", () => {});
+      req.resume();
+      reject(failure);
+    };
+    const onData = (chunk: Buffer | string) => {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      bytes += buffer.length;
+      if (bytes > MAX_JSON_BYTES) {
+        finishReject(new RequestFailure(413, "payload_too_large"));
+        return;
+      }
+      values.push(buffer);
+    };
+    const onEnd = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(values);
+    };
+    const onAborted = () => finishReject(new RequestFailure(400, "invalid_json"));
+    const onError = () => finishReject(new RequestFailure(400, "invalid_json"));
+    req.on("data", onData);
+    req.once("end", onEnd);
+    req.once("aborted", onAborted);
+    req.once("error", onError);
+  });
+
+  try {
+    return JSON.parse(UTF8_DECODER.decode(Buffer.concat(chunks))) as unknown;
+  } catch {
+    throw new RequestFailure(400, "invalid_json");
+  }
+}
+
+function isAuthorized(req: IncomingMessage, token: string): boolean {
+  const authorization = req.headers.authorization;
+  if (typeof authorization !== "string") return false;
+  const expected = createHash("sha256").update(`Bearer ${token}`).digest();
+  const actual = createHash("sha256").update(authorization).digest();
+  return timingSafeEqual(expected, actual);
+}
+
+function receiptRoute(pathname: string): MatchedRoute | undefined {
+  const match = /^\/v2\/tasks\/([^/]+)\/receipts$/.exec(pathname);
+  if (!match) return undefined;
+  try {
+    const taskId = decodeURIComponent(match[1]);
+    if (!taskId || taskId.includes("/")) return undefined;
+    return { kind: "receipts", method: "GET", taskId };
+  } catch {
+    return undefined;
+  }
+}
+
+// GET /v2/tasks/:taskId/receipt — the AGGREGATE task receipt (Phase C, Task 8): request economics,
+// cohort outcomes, deliveries, knowledge changes, and policy findings for one task. Distinct from the
+// raw `/receipts` list above; matched before the portal read routes so the sub-path wins.
+function taskReceiptAggregateRoute(pathname: string): MatchedRoute | undefined {
+  const match = /^\/v2\/tasks\/([^/]+)\/receipt$/.exec(pathname);
+  if (!match) return undefined;
+  try {
+    const taskId = decodeURIComponent(match[1]);
+    if (!taskId || taskId.includes("/")) return undefined;
+    return { kind: "task_receipt", method: "GET", taskId };
+  } catch {
+    return undefined;
+  }
+}
+
+// POST /v2/review-items/:id/:action — the authorized review write surface. Matched explicitly (and
+// before the portal read routes) so the more specific mutation path wins over the read listing.
+function reviewMutationRoute(pathname: string): MatchedRoute | undefined {
+  const match = /^\/v2\/review-items\/([^/]+)\/([^/]+)$/.exec(pathname);
+  if (!match) return undefined;
+  try {
+    const reviewItemId = decodeURIComponent(match[1]);
+    if (!reviewItemId || reviewItemId.includes("/")) return undefined;
+    const action = match[2];
+    if (!REVIEW_ACTIONS.has(action)) return undefined;
+    return { kind: "review_mutation", method: "POST", reviewItemId, reviewAction: action as ReviewAction };
+  } catch {
+    return undefined;
+  }
+}
+
+function matchRoute(pathname: string, method: string): MatchedRoute | undefined {
+  if (pathname === "/v2/health") return { kind: "health", method: "GET" };
+  if (pathname === "/v2/status") return { kind: "status", method: "GET" };
+  if (pathname === "/v2/handshakes") return { kind: "handshakes", method: "POST" };
+  // /v2/events is method-multiplexed: POST is the FROZEN evidence-ingestion contract; GET is the
+  // additive authenticated live feed. Neither changes the other's wire behavior.
+  if (pathname === "/v2/events") {
+    return method === "GET"
+      ? { kind: "events_stream", method: "GET" }
+      : { kind: "events", method: "POST" };
+  }
+  if (pathname === "/v2/context") return { kind: "context", method: "POST" };
+  const content = matchContentRoute(pathname);
+  if (content) return { kind: "content", method: "GET", sha256: content.sha256 };
+  const minimalChange = matchMinimalChangeRoute(pathname);
+  if (minimalChange) return { kind: "minimal_change", method: "GET", taskId: minimalChange.taskId };
+  const receipt = receiptRoute(pathname);
+  if (receipt) return receipt;
+  const taskReceiptAggregate = taskReceiptAggregateRoute(pathname);
+  if (taskReceiptAggregate) return taskReceiptAggregate;
+  const reviewMutation = reviewMutationRoute(pathname);
+  if (reviewMutation) return reviewMutation;
+  // The portal read model is matched last so the more specific task sub-routes above (receipts,
+  // minimal-change, review mutations) always win; every portal read route is GET.
+  const portal = matchPortalRoute(pathname);
+  if (portal) return { kind: "portal", method: "GET", portal };
+  return undefined;
+}
+
+// The change under review for a task, as unified-diff text. Best-effort and fail-open: a repo without a
+// merge-base (or without git) degrades to the working-tree diff, then to "" — the guard then finds
+// nothing, which is honest, rather than throwing inside a request handler.
+function taskDiffText(projectDir: string): string {
+  const run = (args: string[]): string | null => {
+    try {
+      return execFileSync("git", args, { cwd: projectDir, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    } catch {
+      return null;
+    }
+  };
+  const mergeBase = run(["merge-base", "HEAD", "origin/main"]) ?? run(["merge-base", "HEAD", "origin/master"]);
+  if (mergeBase) {
+    const branchDiff = run(["diff", mergeBase.trim(), "HEAD"]);
+    if (branchDiff && branchDiff.trim()) return branchDiff;
+  }
+  return run(["diff", "HEAD"]) ?? "";
+}
+
+interface PersistedTaskIdentity {
+  session_id: string;
+  repository_id: string;
+  agent_surface: string;
+  user_id: string | null;
+}
+
+function persistHandshake(
+  db: LocalDatabase,
+  value: ReturnType<typeof validateHandshake> & { ok: true },
+): "accepted" | "conflict" {
+  const handshake = value.value;
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const result = db.prepare(`
+      INSERT INTO tasks (task_id, session_id, repository_id, agent_surface, user_id, started_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(task_id) DO NOTHING
+    `).run(
+      handshake.task.task_id,
+      handshake.task.session_id,
+      handshake.repository.repo_id,
+      handshake.task.agent_surface,
+      handshake.task.user_id,
+      new Date().toISOString(),
+    );
+    let status: "accepted" | "conflict" = "accepted";
+    if (result.changes === 0) {
+      const persisted = db.prepare(`
+        SELECT session_id, repository_id, agent_surface, user_id
+        FROM tasks
+        WHERE task_id = ?
+      `).get(handshake.task.task_id) as PersistedTaskIdentity | undefined;
+      if (!persisted) throw new Error("Persisted Kage vNext task disappeared during handshake comparison.");
+      if (
+        persisted.session_id !== handshake.task.session_id
+        || persisted.repository_id !== handshake.repository.repo_id
+        || persisted.agent_surface !== handshake.task.agent_surface
+        || persisted.user_id !== handshake.task.user_id
+      ) status = "conflict";
+    }
+    db.exec("COMMIT");
+    return status;
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+// Publish identifier-only `claim_updated` events for the claims a review mutation moved. Reads the
+// already-serialized mutation result (which carries only DTO fields, never raw content) and forwards
+// just the claim id, entity slug, and new trust_state onto the feed.
+function emitReviewMutationEvents(eventStream: PortalEventStream, body: unknown): void {
+  if (typeof body !== "object" || body === null) return;
+  const result = body as {
+    review?: { entity_slug?: string | null };
+    accepted?: { claim_id?: string; trust_state?: string };
+    replaced?: { claim_id?: string; trust_state?: string };
+  };
+  const entitySlug = result.review?.entity_slug ?? null;
+  const at = new Date().toISOString();
+  for (const claim of [result.accepted, result.replaced]) {
+    if (!claim?.claim_id || !claim.trust_state) continue;
+    const event: ClaimUpdatedEvent = {
+      kind: "claim_updated",
+      claim_id: claim.claim_id,
+      entity_slug: entitySlug,
+      trust_state: claim.trust_state as ClaimUpdatedEvent["trust_state"],
+      at,
+    };
+    eventStream.emit(event);
+  }
+}
+
+function createRequestHandler(
+  token: string,
+  getStatus: () => VnextRuntimeStatus | undefined,
+  db: LocalDatabase,
+  eventStore: EventStore,
+  receiptStore: ReceiptStore,
+  contextSource: ContextSource | null,
+  projectDir: string,
+  onEventAppended: (repositoryId: string) => void,
+  eventStream: PortalEventStream,
+  // The team panel as of the last successful workspace answer, or null. Read synchronously from
+  // memory: a portal request must never wait on (or fail because of) the workspace.
+  getTeamPanel: () => TeamMetricsPanelDto | null,
+): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
+  return async (req, res) => {
+    try {
+      const url = new URL(req.url ?? "/", `http://${HOST}`);
+      const route = matchRoute(url.pathname, req.method ?? "GET");
+      if (!route) {
+        error(res, 404, "not_found");
+        return;
+      }
+      if (req.method !== route.method) {
+        error(res, 405, "method_not_allowed");
+        return;
+      }
+      if (route.kind === "health") {
+        json(res, 200, { ok: true, protocol_version: 1 });
+        return;
+      }
+      if (!isAuthorized(req, token)) {
+        error(res, 401, "unauthorized");
+        return;
+      }
+
+      if (route.kind === "status") {
+        const status = getStatus();
+        if (!status) {
+          error(res, 503, "runtime_starting");
+          return;
+        }
+        // Recompute compilation freshness live so status reflects the store as it is right now, not a
+        // stale boot-time snapshot. Both figures are measured from the store, never estimated.
+        json(res, 200, {
+          ...status,
+          model_lag_events: computeModelLag(db),
+          last_compiled_at: latestCompiledAt(db),
+        });
+        return;
+      }
+      if (route.kind === "events_stream") {
+        // The authenticated live feed. It streams identifier-only events (never raw prompt text) and
+        // holds the connection open; it must not fall through to the JSON responders below.
+        eventStream.handleRequest(req, res);
+        return;
+      }
+      if (route.kind === "portal") {
+        // A read-only projection over the repository model. The machine token has already proven a
+        // local operator; the portal never mutates and never returns raw event payloads.
+        // teamReport is assembled lazily ONLY for its own route: it reads the packet store + value
+        // ledger from disk, which every other portal route neither needs nor should pay for.
+        const result = handlePortalRoute(
+          route.portal!,
+          {
+            model: new Repository(db),
+            receiptStore,
+            team: getTeamPanel(),
+            teamReport: route.portal!.kind === "team_report" ? safeTeamReport(projectDir) : undefined,
+          },
+          url.searchParams,
+        );
+        json(res, result.status, result.body);
+        return;
+      }
+      if (route.kind === "receipts") {
+        const taskId = route.taskId!;
+        const persisted = db
+          .prepare(`SELECT repository_id FROM tasks WHERE task_id = ?`)
+          .get(taskId) as { repository_id: string } | undefined;
+        const policy = readVnextConfig(projectDir)?.vnext.minimal_change
+          ?? { enabled: false, mode: "off", enforced_rules: [] };
+        // The guard only touches the receipts surface when a repository has explicitly opted in, so the
+        // default (and unknown-task) path stays byte-identical to the receipts-only shape — and never
+        // runs git for the disabled case.
+        const guardActive = policy.enabled && policy.mode !== "off" && !!persisted?.repository_id;
+        json(res, 200, buildTaskReceiptsBody({
+          taskId,
+          receipts: receiptStore.forTask(taskId),
+          repositoryId: persisted?.repository_id ?? null,
+          policy,
+          diffText: guardActive ? taskDiffText(projectDir) : "",
+          model: guardActive ? new Repository(db) : null,
+          now: new Date().toISOString(),
+        }));
+        return;
+      }
+      if (route.kind === "task_receipt") {
+        const taskId = route.taskId!;
+        const model = new Repository(db);
+        const task = findTaskSummary(model, taskId, (id) => receiptStore.forTask(id).length);
+        if (!task) {
+          error(res, 404, "not_found");
+          return;
+        }
+        const policy = readVnextConfig(projectDir)?.vnext.minimal_change
+          ?? { enabled: false, mode: "off", enforced_rules: [] };
+        const guardActive = policy.enabled && policy.mode !== "off";
+        // Reuse the exact receipts-body composition for the Minimal Change Guard section, so the
+        // aggregate's policy findings never drift from the raw `/receipts` surface.
+        const receiptsBody = buildTaskReceiptsBody({
+          taskId,
+          receipts: receiptStore.forTask(taskId),
+          repositoryId: task.repository_id,
+          policy,
+          diffText: guardActive ? taskDiffText(projectDir) : "",
+          model: guardActive ? model : null,
+          now: new Date().toISOString(),
+        });
+        // Phase B links no claim/review to a task_id, so there is no honest task→knowledge join yet;
+        // an empty list is the truthful state (surfaced in the UI as "no knowledge changes recorded"),
+        // never a fabricated set. Populating this awaits a task-attributed knowledge event (Phase E).
+        json(res, 200, buildTaskReceiptAggregate({
+          task,
+          receipts: receiptStore.forTask(taskId),
+          deliveries: new DeliveryStore(db).forTask(taskId),
+          knowledgeChanges: [],
+          policySection: receiptsBody.minimal_change ?? null,
+        }));
+        return;
+      }
+      if (route.kind === "content") {
+        const taskId = url.searchParams.get("task_id") ?? "";
+        const store = new ContentStore({ root: contentRoot(projectDir) });
+        const result = retrieve(`kage-content:${route.sha256}`, { store, task_id: taskId });
+        if (result.status === 200 && result.body) {
+          binary(res, 200, result.headers, result.body);
+        } else {
+          error(res, result.status, result.error ?? "not_found");
+        }
+        return;
+      }
+      if (route.kind === "minimal_change") {
+        const persisted = db
+          .prepare(`SELECT repository_id FROM tasks WHERE task_id = ?`)
+          .get(route.taskId!) as { repository_id: string } | undefined;
+        const policy = readVnextConfig(projectDir)?.vnext.minimal_change
+          ?? { enabled: false, mode: "off", enforced_rules: [] };
+        const result = minimalChangeForTask({
+          taskId: route.taskId!,
+          repositoryId: persisted?.repository_id ?? null,
+          policy,
+          diffText: taskDiffText(projectDir),
+          model: new Repository(db),
+          now: new Date().toISOString(),
+        });
+        if (result.status === 200) json(res, 200, result.body);
+        else error(res, result.status, result.error ?? "not_found");
+        return;
+      }
+
+      const body = await readJson(req);
+      if (route.kind === "review_mutation") {
+        // The single mutating portal surface. The machine token has proven a local operator; the
+        // acting identity + optimistic version + self-approval gates are enforced inside the handler.
+        const result = handleReviewMutation(new Repository(db), route.reviewItemId!, route.reviewAction!, body);
+        // A successful mutation changes a claim's trust state; publish that as an identifier-only
+        // live event so open portals refresh. The raw claim content is deliberately not carried.
+        if (result.status === 200) emitReviewMutationEvents(eventStream, result.body);
+        json(res, result.status, result.body);
+        return;
+      }
+      if (route.kind === "handshakes") {
+        const handshake = validateHandshake(body);
+        if (!handshake.ok) {
+          error(res, 400, "invalid_protocol");
+          return;
+        }
+        if (persistHandshake(db, handshake) === "conflict") {
+          error(res, 409, "task_identity_conflict");
+          return;
+        }
+        json(res, 202, { status: "accepted" });
+        return;
+      }
+      if (route.kind === "events") {
+        const event = validateEvidenceEvent(body);
+        if (!event.ok) {
+          error(res, 400, "invalid_protocol");
+          return;
+        }
+        const result = eventStore.append(event.value);
+        // Schedule compilation off the request path: the response returns immediately and the compiler
+        // catches up on a later tick. Only a genuinely new event dirties the repository.
+        if (result.inserted) onEventAppended(event.value.repository_id);
+        json(res, 202, { status: result.inserted ? "inserted" : "deduplicated" });
+        return;
+      }
+      // Deliveries are spooled as files, not posted: the one Kage most needs to record is the one
+      // where THIS process was unreachable, and there is no endpoint for that. A context request is
+      // the natural moment to drain them — the runtime is alive, it holds the SQLite handle, and
+      // the previous turn's records are exactly one prompt old. It never fails a request.
+      drainDeliverySpool(db, projectDir);
+      const contextRequest = validateContextRequest(body);
+      if (!contextRequest.ok) {
+        error(res, 400, "invalid_protocol");
+        return;
+      }
+      if (!contextSource) {
+        error(res, 503, "context_source_unavailable");
+        return;
+      }
+      try {
+        const capsule = await buildContextCapsule(contextSource, contextRequest.value);
+        json(res, 200, capsule);
+      } catch (failure) {
+        // The client never learns why (no internal paths or messages over the wire), but a
+        // code bug in the source must not vanish: it is a bug, not an availability event.
+        console.error("[kage-vnext] context source failed:", failure);
+        error(res, 503, "context_source_unavailable");
+      }
+    } catch (caught) {
+      if (caught instanceof RequestFailure) {
+        error(res, caught.status, caught.code);
+        return;
+      }
+      error(res, 500, "internal_error");
+    }
+  };
+}
+
+function closeServer(server: Server, sockets: ReadonlySet<Socket>): Promise<void> {
+  if (!server.listening) {
+    for (const socket of sockets) socket.destroy();
+    return Promise.resolve();
+  }
+  const closed = new Promise<void>((resolve, reject) => {
+    server.close((error) => error ? reject(error) : resolve());
+  });
+  for (const socket of sockets) socket.destroy();
+  return closed;
+}
+
+/** The first repository this install has any knowledge for; null on a fresh store. */
+function firstRepositoryId(db: LocalDatabase): string | null {
+  const row = db
+    .prepare(`SELECT repository_id FROM entities ORDER BY repository_id LIMIT 1`)
+    .get() as { repository_id: string } | undefined;
+  if (row) return row.repository_id;
+  const task = db
+    .prepare(`SELECT repository_id FROM tasks ORDER BY started_at, task_id LIMIT 1`)
+    .get() as { repository_id: string } | undefined;
+  return task?.repository_id ?? null;
+}
+
+async function runCleanupSteps(
+  steps: readonly (() => void | Promise<void>)[],
+): Promise<unknown | undefined> {
+  let firstFailure: unknown;
+  for (const step of steps) {
+    try {
+      await step();
+    } catch (error) {
+      firstFailure ??= error;
+    }
+  }
+  return firstFailure;
+}
+
+export async function startLocalRuntime(options: LocalRuntimeOptions): Promise<LocalRuntimeHandle> {
+  const mode = options.mode ?? "audit";
+  const requestedPort = options.port ?? DEFAULT_PORT;
+  if ((mode !== "audit" && mode !== "assist") || !Number.isInteger(requestedPort) || requestedPort < 0 || requestedPort > 65_535) {
+    throw new Error("Invalid Kage vNext local runtime options.");
+  }
+
+  const paths = resolveRuntimePaths(options.projectDir);
+  const directoryLease = ensureRuntimeDirectory(paths.runtimeDirectory);
+  assertRuntimeDirectoryLease(directoryLease);
+  const token = ensureRuntimeToken(paths.tokenPath);
+  // The default legacy source runs the legacy kernel on a worker thread. It must never run on this
+  // thread: its work is synchronous, so it would hold the runtime's single event loop for the
+  // whole analysis and /v2/health, /v2/events and /v2/receipts would go unanswered.
+  //
+  // A caller that passes an explicit contextSource (tests do) gets exactly that source — no
+  // config-driven progression is applied over it. Otherwise the configured progression
+  // (legacy/compare/model) is installed below, once the database is open.
+  const explicitSource = options.contextSource !== undefined;
+  let contextSource: ContextSource | null = explicitSource
+    ? options.contextSource!
+    : new WorkerContextSource({ projectDir: options.projectDir });
+  let server: Server | undefined;
+  let database: LocalDatabase | undefined;
+  let lockLease: RuntimeLockLease | undefined;
+  let statusLease: RuntimeStatusLease | undefined;
+  const sockets = new Set<Socket>();
+
+  try {
+    assertRuntimeDirectoryLease(directoryLease);
+    lockLease = acquireRuntimeLock(paths.lockPath);
+    assertRuntimeDirectoryLease(directoryLease);
+    const openedDatabase = openVnextDatabase(paths.databasePath);
+    database = openedDatabase;
+    assertRuntimeDirectoryLease(directoryLease);
+    migrateLocalDatabase(openedDatabase);
+    assertRuntimeDirectoryLease(directoryLease);
+    // Whatever the adapters recorded while no runtime was alive (every failed-open, above all) is
+    // taken into the store the moment one is.
+    drainDeliverySpool(openedDatabase, options.projectDir);
+    const eventStore = new EventStore(openedDatabase);
+    const receiptStore = new ReceiptStore(openedDatabase);
+    // The repository compiler runs off the request path: appended events dirty a repository, and the
+    // scheduler drains it on a later tick. Context/event requests never wait for compilation.
+    const compilerModel = new Repository(openedDatabase);
+    // Install the configured context-source progression. Default (and any illegible config) is
+    // legacy, so existing behavior is unchanged. `compare` shadows the model behind legacy delivery;
+    // `model` delivers the model source — which can only ever emit verified/approved claims.
+    if (!explicitSource && contextSource) {
+      const configured = readVnextConfig(options.projectDir)?.vnext.context_source ?? "legacy";
+      if (configured !== "legacy") {
+        contextSource = new ProgressiveContextSource(
+          contextSource,
+          new ModelContextSource(compilerModel),
+          configured,
+        );
+      }
+    }
+    const scheduler = new CompilerScheduler(compilerModel, eventStore);
+    // The workspace connection, if this install has one. `undefined` in the options means "read the
+    // environment"; an explicit null means local-only. A local-only runtime never opens a socket to a
+    // workspace and its portal honestly reports no workspace connected.
+    const workspaceConnection =
+      options.workspaceConnection !== undefined
+        ? options.workspaceConnection
+        : readWorkspaceConnection(process.env, options.projectDir);
+    const workspaceLink =
+      options.workspaceLink !== undefined
+        ? options.workspaceLink
+        : workspaceConnection
+          ? createConnectedLink(workspaceConnection)
+          : null;
+    const deliveryStore = new DeliveryStore(openedDatabase);
+    let workspaceTimer: NodeJS.Timeout | undefined;
+    // The authenticated live feed. It is owned by the runtime so its heartbeat and open connections
+    // are torn down on close().
+    const eventStream = new PortalEventStream();
+    let status: VnextRuntimeStatus | undefined;
+    server = createServer(createRequestHandler(
+      token,
+      () => status,
+      openedDatabase,
+      eventStore,
+      receiptStore,
+      contextSource,
+      options.projectDir,
+      (repositoryId) => scheduler.notify(repositoryId),
+      eventStream,
+      () => workspaceLink?.teamPanel() ?? null,
+    ));
+    server.on("connection", (socket) => {
+      sockets.add(socket);
+      socket.once("close", () => sockets.delete(socket));
+    });
+    assertRuntimeDirectoryLease(directoryLease);
+    await new Promise<void>((resolve, reject) => {
+      server!.once("error", reject);
+      server!.listen(requestedPort, HOST, () => {
+        server!.off("error", reject);
+        resolve();
+      });
+    });
+    assertRuntimeDirectoryLease(directoryLease);
+
+    const address = server.address();
+    if (!address || typeof address === "string" || address.address !== HOST || address.family !== "IPv4") {
+      throw new Error("Kage vNext local runtime did not bind to IPv4 loopback.");
+    }
+    status = {
+      protocol_version: 1,
+      pid: process.pid,
+      host: HOST,
+      port: address.port,
+      mode,
+      started_at: new Date().toISOString(),
+      database_path: paths.databasePath,
+      token_path: paths.tokenPath,
+      // Boot-time snapshot; the status route recomputes both live on every read.
+      model_lag_events: computeModelLag(openedDatabase),
+      last_compiled_at: latestCompiledAt(openedDatabase),
+    };
+    assertRuntimeDirectoryLease(directoryLease);
+    statusLease = writeRuntimeStatus(paths.statusPath, status);
+    assertRuntimeDirectoryLease(directoryLease);
+
+    // OFF THE REQUEST PATH, ALWAYS. Publishing and panel refresh run on their own timer; every failure
+    // is swallowed, so a workspace outage costs this runtime nothing but a null team panel. The timer is
+    // unref'd so it can never hold the process open.
+    if (workspaceLink && workspaceConnection) {
+      const publish = async (): Promise<void> => {
+        try {
+          const repositoryId = workspaceConnection.repository_id ?? firstRepositoryId(openedDatabase);
+          if (repositoryId) {
+            await workspaceLink.syncOnce(
+              buildLocalSnapshot({
+                model: compilerModel,
+                database: openedDatabase,
+                receipts: receiptStore,
+                deliveries: deliveryStore,
+                workspaceId: workspaceConnection.workspace_id,
+                repositoryId,
+                actorSalt: workspaceConnection.actor_salt,
+              }),
+            );
+          }
+          await workspaceLink.refreshTeamPanel();
+        } catch {
+          // Fail-open by construction: local context, the portal and export keep working regardless.
+        }
+      };
+      workspaceTimer = setInterval(() => void publish(), workspaceConnection.sync_interval_ms);
+      workspaceTimer.unref?.();
+      void publish();
+    }
+
+    let closePromise: Promise<void> | undefined;
+    const close = (): Promise<void> => {
+      closePromise ??= (async () => {
+        const cleanupFailure = await runCleanupSteps([
+          // Stop workspace publishing BEFORE the database closes, so a background snapshot can never
+          // read a closed handle.
+          () => {
+            if (workspaceTimer) clearInterval(workspaceTimer);
+          },
+          // End every open SSE connection and stop the heartbeat before the socket teardown.
+          () => eventStream.close(),
+          () => closeServer(server!, sockets),
+          // The runtime owns the source's lifetime: the context worker thread would otherwise
+          // keep the process alive after close().
+          () => contextSource?.close?.(),
+          // Stop the compiler and await any in-flight drain BEFORE the database closes, so a
+          // background compile can never touch a closed handle.
+          () => scheduler.stop(),
+          () => openedDatabase.close(),
+          () => {
+            if (!statusLease) return;
+            assertRuntimeDirectoryLease(directoryLease);
+            removeRuntimeStatus(statusLease);
+          },
+          () => {
+            if (lockLease) releaseRuntimeLock(lockLease);
+          },
+        ]);
+        if (cleanupFailure) throw cleanupFailure;
+      })();
+      return closePromise;
+    };
+
+    return {
+      url: `http://${HOST}:${address.port}`,
+      token,
+      status,
+      address,
+      database: openedDatabase,
+      eventStore,
+      store: eventStore,
+      receiptStore,
+      contextSource,
+      close,
+    };
+  } catch (caught) {
+    await runCleanupSteps([
+      () => server ? closeServer(server, sockets) : undefined,
+      () => contextSource?.close?.(),
+      () => database?.close(),
+      () => {
+        if (!statusLease) return;
+        assertRuntimeDirectoryLease(directoryLease);
+        removeRuntimeStatus(statusLease);
+      },
+      () => {
+        if (lockLease) releaseRuntimeLock(lockLease);
+      },
+    ]);
+    throw caught;
+  }
+}

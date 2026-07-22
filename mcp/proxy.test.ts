@@ -1,11 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createServer, request as httpRequest, type Server } from "node:http";
 import { capture, loadObservations } from "./kernel.js";
-import { injectMemory, isCompletionsRequest, resolveRequestProjectDir, startProxy } from "./proxy.js";
+import { injectMemory, isCompletionsRequest, probeAssistStorage, resolveRequestProjectDir, startProxy } from "./proxy.js";
+import { anthropicGateway, defaultGateways, selectGateway } from "./vnext/adapters/gateway.js";
+import { ContentStore, RETRIEVAL_ID_PREFIX } from "./vnext/gateway/content-store.js";
+import { contentRoot } from "./vnext/runtime/paths.js";
+import { auditConfig, writeVnextConfig } from "./vnext/runtime/config.js";
+import { claudeRepositoryIdentity } from "./vnext/adapters/claude.js";
+import type { EvidenceEvent, TransformationReceipt } from "./vnext/protocol/index.js";
+import { openVnextDatabase } from "./vnext/storage/database.js";
+import { resolveRuntimePaths } from "./vnext/runtime/paths.js";
+import { startLocalRuntime } from "./vnext/runtime/server.js";
+import { assertVnextRuntime } from "./vnext/runtime/runtime-version.js";
 
 // The literal shape Claude Code 2.1.202 actually sends (confirmed via a live captured
 // request, not guessed): a multi-block system array with an Environment section naming
@@ -258,6 +268,462 @@ test("proxy observations carry a stable per-process session id, not the literal 
   }
 });
 
+// --- vNext exact-measurement gateway (Phase A, Task 6) -------------------------------------
+// One fake upstream that answers both /v1/messages (with real usage) and the sibling
+// /v1/messages/count_tokens, plus a receipt sink the test can inspect.
+
+function projectWithMemory(): string {
+  const project = tempProject();
+  capture({
+    projectDir: project,
+    title: "Payments must be idempotent via the ledger key",
+    summary: "Retries dedupe on the ledger idempotency key",
+    body: "processPayment must pass the ledger idempotency key so retries dedupe. Verified by: npm test.",
+    type: "decision",
+    allowMissingPaths: true,
+  });
+  return project;
+}
+
+// The provider's usage block, in the shape the Anthropic API actually returns it: `input_tokens`
+// is the UNCACHED REMAINDER, and the cache fields carry the rest of the prompt. An uncached
+// request reports explicit zeros — it does not omit the fields.
+const UNCACHED_USAGE = {
+  input_tokens: 137,
+  cache_creation_input_tokens: 0,
+  cache_read_input_tokens: 0,
+  output_tokens: 5,
+};
+
+// A cached provider: the same deterministic tokenizer as the count_tokens stand-in (1 token per 10
+// bytes of body), but reported the way the real API reports a cached request — a small uncached
+// remainder in `input_tokens` and the rest of the prompt in `cache_read_input_tokens`.
+function cachedUsageFor(body: string): Record<string, number> {
+  const total = Math.ceil(Buffer.byteLength(body) / 10);
+  const uncached = Math.min(20, total);
+  return {
+    input_tokens: uncached,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: total - uncached,
+    output_tokens: 5,
+  };
+}
+
+function measuringUpstream(
+  seen: Array<{ path: string; body: string }>,
+  usageFor: (body: string) => Record<string, number> = () => UNCACHED_USAGE,
+) {
+  return withFakeUpstream((req, res) => {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      seen.push({ path: req.url ?? "", body });
+      res.writeHead(200, { "content-type": "application/json" });
+      if ((req.url ?? "").startsWith("/v1/messages/count_tokens")) {
+        // A real measurement of whatever body was counted: one token per 10 bytes is a
+        // deterministic stand-in for the provider's tokenizer, not an estimate Kage invents.
+        res.end(JSON.stringify({ input_tokens: Math.ceil(Buffer.byteLength(body) / 10) }));
+        return;
+      }
+      res.end(JSON.stringify({ content: [{ type: "text", text: "ok" }], usage: usageFor(body) }));
+    });
+  });
+}
+
+// Receipts are recorded after the client has already been answered (measurement must never sit in
+// the request path), so a test waits for the write instead of racing it.
+function collectingSink() {
+  const receipts: TransformationReceipt[] = [];
+  let notify: (() => void) | null = null;
+  return {
+    receipts,
+    sink: {
+      write(receipt: TransformationReceipt) {
+        receipts.push(receipt);
+        notify?.();
+      },
+    },
+    async waitForReceipt(): Promise<TransformationReceipt> {
+      if (!receipts.length) {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error("no receipt was recorded within 5s")), 5_000);
+          notify = () => { clearTimeout(timer); resolve(); };
+        });
+      }
+      return receipts[0];
+    },
+  };
+}
+
+function proxyRequest(port: number, path: string, requestBody: string): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(
+      { hostname: "127.0.0.1", port, path, method: "POST", headers: { "content-type": "application/json", "content-length": Buffer.byteLength(requestBody) } },
+      (res) => {
+        let body = "";
+        res.on("data", (chunk) => { body += chunk; });
+        res.on("end", () => resolve({ status: res.statusCode ?? 0, body }));
+      },
+    );
+    req.on("error", reject);
+    req.end(requestBody);
+  });
+}
+
+async function listeningPort(server: Server): Promise<number> {
+  await new Promise<void>((resolve) => server.on("listening", resolve));
+  const address = server.address();
+  return typeof address === "object" && address ? address.port : 0;
+}
+
+const QUESTION = JSON.stringify({
+  model: "claude-opus-4-8",
+  system: "You are Claude Code, Anthropic's official CLI for Claude.",
+  messages: [{ role: "user", content: "how should I make the payment flow idempotent?" }],
+});
+
+test("audit mode forwards the exact original bytes even though memory would have been injected", async () => {
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const collector = collectingSink();
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "audit", receiptSink: collector.sink });
+  const port = await listeningPort(proxy);
+
+  try {
+    const response = await proxyRequest(port, "/v1/messages", QUESTION);
+    assert.equal(response.status, 200);
+    assert.equal(seen.length, 1);
+    // THE audit invariant: the bytes on the wire are byte-identical to the client's.
+    assert.equal(seen[0].body, QUESTION);
+    assert.doesNotMatch(seen[0].body, /injected by Kage/);
+
+    const receipt = await collector.waitForReceipt();
+    assert.equal(collector.receipts.length, 1);
+    assert.equal(receipt.mode, "audit");
+    assert.equal(receipt.model, "claude-opus-4-8");
+    assert.equal(receipt.before_input_bytes, Buffer.byteLength(QUESTION));
+    // The candidate (simulated) transformed body is measured in bytes but never forwarded.
+    assert.equal(receipt.after_input_bytes > receipt.before_input_bytes, true);
+    // Only the forwarded body's tokens were measured by the provider.
+    assert.equal(receipt.before_input_tokens, 137);
+    assert.equal(receipt.after_input_tokens, null);
+    assert.equal(receipt.measurement_quality, "partial");
+    assert.equal(receipt.provider_input_cost_after_usd, null);
+    assert.equal(receipt.output_tokens, 5);
+    assert.deepEqual(receipt.transformations, ["context_append_last_user_turn"]);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+test("assist mode forwards the transformed body and records it as the after side", async () => {
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const collector = collectingSink();
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "assist", receiptSink: collector.sink });
+  const port = await listeningPort(proxy);
+
+  try {
+    await proxyRequest(port, "/v1/messages", QUESTION);
+    assert.match(seen[0].body, /injected by Kage/);
+    const receipt = await collector.waitForReceipt();
+    assert.equal(receipt.mode, "assist");
+    assert.equal(receipt.before_input_bytes, Buffer.byteLength(QUESTION));
+    assert.equal(receipt.after_input_bytes, Buffer.byteLength(seen[0].body));
+    assert.equal(receipt.after_input_tokens, 137);
+    assert.equal(receipt.before_input_tokens, null);
+    assert.equal(receipt.measurement_quality, "partial");
+    assert.equal(receipt.provider_input_cost_before_usd, null);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+test("an upstream token count of the unsent body promotes the receipt to exact", async () => {
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const collector = collectingSink();
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "audit", countTokens: true, receiptSink: collector.sink });
+  const port = await listeningPort(proxy);
+
+  try {
+    await proxyRequest(port, "/v1/messages", QUESTION);
+    const receipt = await collector.waitForReceipt();
+    const counted = seen.filter((entry) => entry.path.startsWith("/v1/messages/count_tokens"));
+    assert.equal(counted.length, 1);
+    // The counted body is the candidate, never the one already forwarded.
+    assert.match(counted[0].body, /injected by Kage/);
+    assert.equal(receipt.measurement_quality, "exact");
+    assert.equal(receipt.before_input_tokens, 137);
+    assert.equal(receipt.after_input_tokens, Math.ceil(Buffer.byteLength(counted[0].body) / 10));
+    assert.equal(receipt.provider_input_cost_before_usd, 137 / 1_000_000 * 5);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+// THE regression this hardening pass exists for. On a cached request the provider reports only the
+// UNCACHED REMAINDER in `usage.input_tokens` (20 here) while the real prompt is the whole body.
+// Putting that remainder on one side of the receipt and a count_tokens number (which counts the
+// whole body) on the other manufactures a fake saving — Kage claiming that ADDING context CUT the
+// prompt. The two sides must both be total prompt tokens.
+test("a cached request is measured as the whole prompt, so the receipt cannot claim a fake saving", async () => {
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const collector = collectingSink();
+  const { server: fakeUpstream, url } = await measuringUpstream(seen, cachedUsageFor);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "assist", countTokens: true, receiptSink: collector.sink });
+  const port = await listeningPort(proxy);
+
+  try {
+    await proxyRequest(port, "/v1/messages", QUESTION);
+    const receipt = await collector.waitForReceipt();
+    const forwarded = seen.find((entry) => entry.path === "/v1/messages")!;
+    assert.match(forwarded.body, /injected by Kage/);
+
+    const forwardedTotal = Math.ceil(Buffer.byteLength(forwarded.body) / 10);
+    const originalTotal = Math.ceil(Buffer.byteLength(QUESTION) / 10);
+
+    assert.equal(receipt.measurement_quality, "exact");
+    // The AFTER side is the body that was sent: the WHOLE prompt, not the 20-token remainder.
+    assert.equal(receipt.after_input_tokens, forwardedTotal);
+    assert.notEqual(receipt.after_input_tokens, 20);
+    assert.equal(receipt.before_input_tokens, originalTotal);
+    // Injecting memory made the prompt bigger. A receipt that said otherwise would be a lie.
+    assert.equal(receipt.after_input_tokens! > receipt.before_input_tokens!, true);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+// The count_tokens endpoint accepts model/messages/system/tools (+tool_choice, thinking) and 400s
+// on the rest, so posting the complete Messages body meant the probe always failed — every
+// transformed receipt stayed "partial" forever while still spending a real round trip.
+test("the count_tokens probe body carries only the fields that endpoint accepts", async () => {
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const collector = collectingSink();
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "audit", countTokens: true, receiptSink: collector.sink });
+  const port = await listeningPort(proxy);
+
+  const fullBody = JSON.stringify({
+    model: "claude-opus-4-8",
+    max_tokens: 32_000,
+    stream: false,
+    metadata: { user_id: "u1" },
+    system: "You are Claude Code, Anthropic's official CLI for Claude.",
+    messages: [{ role: "user", content: "how should I make the payment flow idempotent?" }],
+  });
+
+  try {
+    await proxyRequest(port, "/v1/messages", fullBody);
+    await collector.waitForReceipt();
+    const counted = seen.filter((entry) => entry.path.startsWith("/v1/messages/count_tokens"));
+    assert.equal(counted.length, 1);
+    const probe = JSON.parse(counted[0].body) as Record<string, unknown>;
+    assert.deepEqual(Object.keys(probe).sort(), ["messages", "model", "system"]);
+    assert.equal("max_tokens" in probe, false);
+    assert.equal("stream" in probe, false);
+    assert.equal("metadata" in probe, false);
+    // It is still the candidate body being counted — the probe is a measurement, not a stub.
+    assert.match(counted[0].body, /injected by Kage/);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+// A request where nothing was transformed has nothing to measure. Writing an "exact, zero savings"
+// row for it would inflate the exact-coverage metric with rows that were never transformed.
+test("no receipt is written when nothing was transformed", async () => {
+  const project = tempProject(); // memory tree, no packets: nothing to recall, nothing to inject
+  const seen: Array<{ path: string; body: string }> = [];
+  const collector = collectingSink();
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "assist", receiptSink: collector.sink });
+  const port = await listeningPort(proxy);
+
+  const noRecall = JSON.stringify({
+    model: "claude-opus-4-8",
+    messages: [{ role: "user", content: "xyzzy nothing will match this token qwerty" }],
+  });
+
+  try {
+    const response = await proxyRequest(port, "/v1/messages", noRecall);
+    assert.equal(response.status, 200);
+    assert.equal(seen[0].body, noRecall);
+    // Give the (async) receipt path a chance to run before asserting it did nothing.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(collector.receipts.length, 0);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+test("a receipt failure never changes the client response", async () => {
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, {
+    port: 0,
+    upstream: url,
+    mode: "assist",
+    receiptSink: { write: () => { throw new Error("receipt store exploded"); } },
+  });
+  const port = await listeningPort(proxy);
+
+  try {
+    const response = await proxyRequest(port, "/v1/messages", QUESTION);
+    assert.equal(response.status, 200);
+    assert.match(response.body, /"text":"ok"/);
+    // The process must still be serving after the sink blew up mid-measurement.
+    const second = await proxyRequest(port, "/v1/messages", QUESTION);
+    assert.equal(second.status, 200);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+// Measurement is opt-in and costs a provider round trip. It must run AFTER the client has been
+// answered — a hanging count_tokens probe must not hold the client's response open.
+test("a hanging measurement probe never delays the client response", async () => {
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const pending: import("node:http").ServerResponse[] = [];
+
+  const { server: fakeUpstream, url } = await withFakeUpstream((req, res) => {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      seen.push({ path: req.url ?? "", body });
+      if ((req.url ?? "").startsWith("/v1/messages/count_tokens")) {
+        pending.push(res); // never answered while the client is waiting
+        return;
+      }
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ content: [{ type: "text", text: "ok" }], usage: UNCACHED_USAGE }));
+    });
+  });
+
+  const proxy = startProxy(project, {
+    port: 0,
+    upstream: url,
+    mode: "audit",
+    countTokens: true,
+    receiptSink: { write: () => {} },
+  });
+  const port = await listeningPort(proxy);
+
+  try {
+    const startedAt = Date.now();
+    const response = await proxyRequest(port, "/v1/messages", QUESTION);
+    const elapsed = Date.now() - startedAt;
+    assert.equal(response.status, 200);
+    assert.match(response.body, /"text":"ok"/);
+    // The probe is still outstanding — the client was answered anyway, and fast.
+    assert.equal(elapsed < 1_000, true, `client waited ${elapsed}ms on a hanging probe`);
+    // A second request is served while the first probe is still hanging.
+    assert.equal((await proxyRequest(port, "/v1/messages", QUESTION)).status, 200);
+  } finally {
+    for (const res of pending) res.end(JSON.stringify({ input_tokens: 1 }));
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+// The default sink is the repo-local vNext store. It is opened lazily precisely so that a legacy
+// `kage proxy` on Node 18 (no node:sqlite) keeps working and simply records nothing.
+test("the default sink persists receipts into the repo-local vNext store", async (t) => {
+  let vnextRuntime = true;
+  try {
+    assertVnextRuntime();
+  } catch {
+    vnextRuntime = false;
+  }
+  if (!vnextRuntime) {
+    t.skip("node:sqlite is unavailable on this runtime; the proxy records no receipts and still serves traffic");
+    return;
+  }
+
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "audit" });
+  const port = await listeningPort(proxy);
+
+  try {
+    await proxyRequest(port, "/v1/messages", QUESTION);
+    const databasePath = resolveRuntimePaths(project).databasePath;
+    let rows: Array<{ mode: string; measurement_quality: string; before_input_tokens: number | null }> = [];
+    // The write happens after the client was answered, so poll briefly rather than racing it.
+    for (let attempt = 0; attempt < 50 && rows.length === 0; attempt++) {
+      const db = openVnextDatabase(databasePath);
+      try {
+        rows = db.prepare("SELECT mode, measurement_quality, before_input_tokens FROM transformation_receipts").all() as never;
+      } finally {
+        db.close();
+      }
+      if (!rows.length) await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].mode, "audit");
+    assert.equal(rows[0].measurement_quality, "partial");
+    assert.equal(rows[0].before_input_tokens, 137);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+test("a repo with no .agent_memory stays a plain passthrough and gets no memory tree", async () => {
+  const project = mkdtempSync(join(tmpdir(), "kage-proxy-bare-"));
+  const seen: Array<{ path: string; body: string }> = [];
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "audit" });
+  const port = await listeningPort(proxy);
+
+  try {
+    const response = await proxyRequest(port, "/v1/messages", QUESTION);
+    assert.equal(response.status, 200);
+    assert.equal(seen[0].body, QUESTION);
+    // No .agent_memory means no receipts store: the proxy never creates a memory tree the user
+    // did not ask for.
+    assert.equal(existsSync(join(project, ".agent_memory")), false);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+test("count_tokens stays a byte-identical passthrough and produces no receipt", async () => {
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const collector = collectingSink();
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "assist", receiptSink: collector.sink });
+  const port = await listeningPort(proxy);
+
+  try {
+    await proxyRequest(port, "/v1/messages/count_tokens?beta=true", QUESTION);
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].body, QUESTION);
+    assert.equal(collector.receipts.length, 0);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
 test("proxy leaves the request untouched when nothing relevant is recalled", () => {
   const project = tempProject();
   const request = {
@@ -268,4 +734,318 @@ test("proxy leaves the request untouched when nothing relevant is recalled", () 
   assert.equal(injected, 0);
   assert.equal(body.system, "unchanged");
   assert.deepEqual(body.messages, request.messages);
+});
+
+// --- The ProviderGateway seam: the proxy core is provider-neutral, Anthropic is one gateway ---
+
+test("the proxy seam dispatches an eligible POST /v1/messages to the Anthropic gateway, nothing else", () => {
+  // The core routes by asking each registered gateway whether it matches. The Anthropic gateway is
+  // the first (and, for Task 1, only) one, and it matches exactly what isCompletionsRequest matched.
+  assert.equal(selectGateway(defaultGateways, "POST", "/v1/messages", null), anthropicGateway);
+  assert.equal(selectGateway(defaultGateways, "POST", "/v1/messages?beta=true", null), anthropicGateway);
+  // The sibling token-counting endpoint and non-POSTs dispatch to NO gateway — a strict passthrough.
+  assert.equal(selectGateway(defaultGateways, "POST", "/v1/messages/count_tokens?beta=true", null), null);
+  assert.equal(selectGateway(defaultGateways, "GET", "/v1/messages", null), null);
+  assert.equal(selectGateway(defaultGateways, "POST", "/v1/models", null), null);
+  // The gateway names the provider it speaks for — this is what a per-provider report keys on.
+  assert.equal(anthropicGateway.provider, "anthropic");
+  // The seam's matches() is exactly the eligibility the core used to hardcode.
+  assert.equal(anthropicGateway.matches("POST", "/v1/messages", null), isCompletionsRequest("POST", "/v1/messages"));
+  assert.equal(anthropicGateway.matches("POST", "/v1/messages/count_tokens", null), isCompletionsRequest("POST", "/v1/messages/count_tokens"));
+});
+
+test("the Anthropic gateway maps response tool-use blocks to protocol-v1 tool_result evidence", () => {
+  // Capture unification: the provider-specific parse (Anthropic response content blocks) lives in
+  // the gateway; the protocol-v1 event assembly and the source_fingerprint construction are shared.
+  const repository = claudeRepositoryIdentity("/repo");
+  const events = anthropicGateway.captureEvents({
+    repository,
+    sessionId: "session-1",
+    userPrompt: "make the payment flow idempotent",
+    responseBody: JSON.stringify({
+      content: [
+        { type: "text", text: "sure" },
+        { type: "tool_use", id: "tu_1", name: "Bash", input: { command: "rm -rf secrets" } },
+      ],
+      usage: { input_tokens: 1, output_tokens: 1 },
+    }),
+  });
+  const prompt = events.find((event) => event.event_type === "prompt");
+  const tool = events.find((event) => event.event_type === "tool_result");
+  assert.ok(prompt, "a prompt event is captured");
+  assert.equal(prompt.privacy_class, "local_raw");
+  assert.equal(prompt.payload.text, "make the payment flow idempotent");
+  assert.ok(tool, "a tool_result event is captured from the response tool_use block");
+  assert.equal(tool.payload.tool, "Bash");
+  // The fingerprint hashes the SIGNAL, never a random id — a duplicate post deduplicates in the store.
+  assert.match(tool.source_fingerprint, /^[a-f0-9]{64}$/);
+  assert.notEqual(tool.source_fingerprint, tool.event_id);
+  // The tool's arguments are never copied into the event — only that the tool was invoked.
+  assert.ok(!JSON.stringify(events).includes("rm -rf secrets"), "tool arguments never ride along");
+});
+
+// --- Capture unification: the proxy is a first-class protocol-v1 evidence source ------------
+//
+// The proxy already writes receipts + deliveries + a legacy observation. Task 1 Part B makes it
+// ALSO feed the vNext evidence stream via the fail-open adapter client: a `prompt` event per
+// eligible request. This must never sit in the request path and must never break a session — it
+// runs after the client has been answered, inside a catch-all, exactly like recordReceipt.
+
+function skipWithoutVnextRuntime(t: import("node:test").TestContext): boolean {
+  try {
+    assertVnextRuntime();
+    return false;
+  } catch {
+    t.skip("node:sqlite is unavailable on this runtime; the proxy emits no evidence and still serves traffic");
+    return true;
+  }
+}
+
+// A runtime status file pointing at a chosen port, written with the exact ownership and 0600/0700
+// permissions the adapter client demands (see readAdapterConnection). pid is THIS process so the
+// liveness probe passes; the port is the caller's choice — a dead one exercises the fail-open path.
+function writeRuntimeStatusStub(project: string, port: number): void {
+  const paths = resolveRuntimePaths(project);
+  mkdirSync(paths.runtimeDirectory, { recursive: true, mode: 0o700 });
+  chmodSync(paths.runtimeDirectory, 0o700);
+  writeFileSync(paths.statusPath, JSON.stringify({
+    protocol_version: 1,
+    pid: process.pid,
+    host: "127.0.0.1",
+    port,
+    mode: "assist",
+    started_at: new Date().toISOString(),
+    database_path: paths.databasePath,
+    token_path: paths.tokenPath,
+  }), { mode: 0o600 });
+  chmodSync(paths.statusPath, 0o600);
+  writeFileSync(paths.tokenPath, `klt_${"0".repeat(43)}\n`, { mode: 0o600 });
+  chmodSync(paths.tokenPath, 0o600);
+}
+
+test("the proxy emits a protocol-v1 prompt evidence event via the shipped path when a runtime is up", async (t) => {
+  if (skipWithoutVnextRuntime(t)) return;
+
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  // A REAL runtime on the same repo: it writes status.json + token and owns the evidence store the
+  // proxy will POST into. No receiptSink override — this is the fully shipped wiring.
+  const runtime = await startLocalRuntime({ projectDir: project, port: 0, mode: "assist" });
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "assist" });
+  const port = await listeningPort(proxy);
+
+  try {
+    await proxyRequest(port, "/v1/messages", QUESTION);
+    let rows: Array<{ event_type: string; privacy_class: string; payload_json: string }> = [];
+    // The event is emitted AFTER the client was answered, so poll rather than race it. It is read
+    // straight out of the runtime's own SQLite handle — the store the shipped /v2/events wrote to.
+    for (let attempt = 0; attempt < 100 && rows.length === 0; attempt++) {
+      rows = runtime.database.prepare("SELECT event_type, privacy_class, payload_json FROM evidence_events").all() as never;
+      if (!rows.length) await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    const prompt = rows.find((row) => row.event_type === "prompt");
+    assert.ok(prompt, "a prompt evidence event reached the runtime's event store");
+    // A prompt is user text: it is local_raw, the tier that never leaves this machine.
+    assert.equal(prompt.privacy_class, "local_raw");
+    // The signal that was captured is the user's actual prompt, not an invented placeholder.
+    assert.match(prompt.payload_json, /idempotent/);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+    await runtime.close();
+  }
+});
+
+test("the proxy serves traffic normally and never blocks when the evidence runtime is down (fail open)", async (t) => {
+  const project = projectWithMemory();
+  // A status file that names a dead port: readAdapterConnection returns a connection, the POST to
+  // /v2/events cannot land, and the whole thing must be invisible to the client.
+  writeRuntimeStatusStub(project, 1);
+  const seen: Array<{ path: string; body: string }> = [];
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "assist", receiptSink: null });
+  const port = await listeningPort(proxy);
+
+  try {
+    const startedAt = Date.now();
+    const first = await proxyRequest(port, "/v1/messages", QUESTION);
+    const elapsed = Date.now() - startedAt;
+    assert.equal(first.status, 200);
+    assert.match(first.body, /"text":"ok"/);
+    // Evidence emission runs only after the client is answered, so a dead endpoint cannot slow it.
+    assert.equal(elapsed < 1_000, true, `client waited ${elapsed}ms with a dead evidence endpoint`);
+    // The process keeps serving after the failed-open evidence post.
+    const second = await proxyRequest(port, "/v1/messages", QUESTION);
+    assert.equal(second.status, 200);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+test("the proxy resolves the runtime connection at most once per TTL, not once per request", async () => {
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  // Count how often the proxy consults the runtime connection. In the real path this is a `ps`
+  // subprocess that verifies the runtime pid; per-request it would block the proxy's event loop.
+  let resolves = 0;
+  const proxy = startProxy(project, {
+    port: 0, upstream: url, mode: "assist", receiptSink: null,
+    resolveAdapterConnection: () => { resolves += 1; return null; },
+  });
+  const port = await listeningPort(proxy);
+  try {
+    for (let i = 0; i < 5; i++) await proxyRequest(port, "/v1/messages", QUESTION);
+    // Five requests inside the 3s TTL → the connection is resolved once, then served from cache.
+    assert.equal(resolves, 1, `expected 1 connection resolve across 5 requests, got ${resolves}`);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+// --- Phase D Task 5: assist / protect modes + reversible compression pipeline -------------------
+
+// A fake upstream that answers /v1/messages as a Server-Sent-Events STREAM (the real shape a
+// streaming Anthropic completion returns), so a test can prove the client's stream still completes
+// end-to-end through the proxy.
+function streamingUpstream(seen: Array<{ path: string; body: string }>) {
+  return withFakeUpstream((req, res) => {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      seen.push({ path: req.url ?? "", body });
+      res.writeHead(200, { "content-type": "text/event-stream" });
+      res.write("event: message_start\ndata: {\"type\":\"message_start\"}\n\n");
+      res.write("event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"ok\"}}\n\n");
+      res.write("event: message_delta\ndata: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":2}}\n\n");
+      res.end("data: [DONE]\n\n");
+    });
+  });
+}
+
+// A project whose config enables lossy compression, so the Phase D pipeline is allowed to store an
+// exact original and forward a compressed payload. Everything else stays audit-safe.
+function projectWithLossyEnabled(): string {
+  const project = tempProject();
+  const config = auditConfig(["proxy"]);
+  config.vnext.budget.lossy_compression = true;
+  writeVnextConfig(project, config);
+  return project;
+}
+
+// A request whose LAST user turn carries a large, highly repetitive tool_result — exactly the payload
+// the deterministic log compressor folds. Sixty identical INFO lines are ~2.2 KB, well over the
+// 500-token minimum-payload floor.
+function toolHeavyRequest(): { body: string; log: string } {
+  const log = Array.from({ length: 60 }, () => "INFO connection established to db pool worker").join("\n");
+  const body = JSON.stringify({
+    model: "claude-opus-4-8",
+    messages: [
+      { role: "user", content: "summarize the run" },
+      { role: "assistant", content: [{ type: "text", text: "reading logs" }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: log }] },
+    ],
+  });
+  return { body, log };
+}
+
+test("protect passthrough keeps the streamed response intact and forwards the original bytes", async () => {
+  const project = projectWithMemory();
+  const seen: Array<{ path: string; body: string }> = [];
+  const { server: fakeUpstream, url } = await streamingUpstream(seen);
+  // protect + no-inject is the force-passthrough case: nothing is added, nothing is compressed.
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "protect", noInject: true, receiptSink: null });
+  const port = await listeningPort(proxy);
+
+  try {
+    const response = await proxyRequest(port, "/v1/messages", QUESTION);
+    assert.equal(response.status, 200);
+    // The client's whole SSE stream arrived intact through the proxy.
+    assert.match(response.body, /message_start/);
+    assert.match(response.body, /\[DONE\]/);
+    // THE protect+passthrough invariant: the bytes on the wire are byte-identical to the client's.
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].body, QUESTION);
+    assert.doesNotMatch(seen[0].body, /injected by Kage/);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+test("assist compresses a large tool payload in the live zone, stays reversible, and forwards the smaller body", async () => {
+  const project = projectWithLossyEnabled();
+  const seen: Array<{ path: string; body: string }> = [];
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "assist", receiptSink: null });
+  const port = await listeningPort(proxy);
+
+  const { body: request, log } = toolHeavyRequest();
+
+  try {
+    const response = await proxyRequest(port, "/v1/messages", request);
+    assert.equal(response.status, 200);
+    assert.equal(seen.length, 1);
+    // assist forwards the TRANSFORMED body, and the compressed payload is strictly smaller.
+    assert.equal(Buffer.byteLength(seen[0].body) < Buffer.byteLength(request), true);
+    // Every lossy transform embeds a content-addressed retrieval reference to its exact original.
+    const match = seen[0].body.match(/kage-content:([0-9a-f]{64})/);
+    assert.ok(match, "forwarded body must carry a kage-content retrieval reference");
+    // REVERSIBILITY GATE: the exact pre-compression original is fingerprint-verified retrievable.
+    const store = new ContentStore({ root: contentRoot(project) });
+    const original = store.get(`${RETRIEVAL_ID_PREFIX}${match![1]}`);
+    assert.equal(original.body.toString("utf8"), log);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+test("protect measures a compressible payload but forwards the client's original bytes", async () => {
+  const project = projectWithLossyEnabled();
+  const seen: Array<{ path: string; body: string }> = [];
+  const collector = collectingSink();
+  const { server: fakeUpstream, url } = await measuringUpstream(seen);
+  const proxy = startProxy(project, { port: 0, upstream: url, mode: "protect", receiptSink: collector.sink });
+  const port = await listeningPort(proxy);
+
+  const { body: request } = toolHeavyRequest();
+
+  try {
+    await proxyRequest(port, "/v1/messages", request);
+    assert.equal(seen.length, 1);
+    // protect behaves like audit at the wire: the client's exact bytes are forwarded, uncompressed.
+    assert.equal(seen[0].body, request);
+    assert.doesNotMatch(seen[0].body, /kage-content:/);
+
+    const receipt = await collector.waitForReceipt();
+    assert.equal(receipt.mode, "protect");
+    // The candidate (compressed) body is MEASURED — smaller than the original — but never forwarded.
+    assert.equal(receipt.before_input_bytes, Buffer.byteLength(request));
+    assert.equal(receipt.after_input_bytes < receipt.before_input_bytes, true);
+  } finally {
+    proxy.close();
+    fakeUpstream.close();
+  }
+});
+
+test("probeAssistStorage reports healthy reversible + receipt storage on a normal project", () => {
+  const health = probeAssistStorage(tempProject());
+  assert.equal(health.reversible, true);
+  // Receipt storage needs node:sqlite (Node 22.5+); the authoritative suite runs on such a runtime.
+  assert.equal(health.receipts, true);
+  assert.equal(health.healthy, true);
+});
+
+test("probeAssistStorage reports unhealthy when the reversible store cannot be written", () => {
+  const project = tempProject();
+  // Block the content root with a plain file so the store can never create its shard directories.
+  writeFileSync(contentRoot(project), "blocker");
+  const health = probeAssistStorage(project);
+  assert.equal(health.reversible, false);
+  assert.equal(health.healthy, false);
+  assert.match(health.detail, /reversible/);
 });

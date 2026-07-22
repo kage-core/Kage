@@ -54,6 +54,8 @@ import {
   installAgentPolicy,
   kageCleanupCandidates,
   kageCapabilityAudit,
+  agentSurfaceCertificationGate,
+  REQUIRED_AUTOMATIC_SURFACES,
   kageContributors,
   kageContextSlots,
   kageDecisionIntelligence,
@@ -98,6 +100,7 @@ import {
   packetsDir,
   stripPrivateSpans,
   pendingDir,
+  minimalChangeReport,
   prCheck,
   prSummarize,
   proposeFromDiff,
@@ -122,6 +125,8 @@ import {
   formatStaleCatch,
   valueSummary,
   formatTokenCount,
+  formatValueGains,
+  formatRecallValueReceipt,
   recordFeedback,
   refreshProject,
   reverifyMemory,
@@ -149,6 +154,7 @@ import {
   evaluateMemoryAdmission,
   isUngroundedConversationalCapture,
   verifyAgentActivation,
+  KAGE_HOOKS_VERSION,
   validatePacket,
   validateProject,
   writeCodeIndex,
@@ -2412,6 +2418,39 @@ test("setup generates all-agent MCP configuration and writes Codex config idempo
     assert.match(hookText, /--package=@kage-core\/kage-graph-mcp kage/, `${hookName} missing package-runner fallback`);
     assert.match(hookText, /\[\[ -f ".*cli\.js" \]\]/, `${hookName} missing baked cli path fallback`);
   }
+  // The vNext adapter ships with the install: one fail-open script that talks to the local runtime
+  // instead of spawning a Kage CLI per hook. Legacy scripts hand over to it only when kaged is up.
+  const vnextAdapterPath = join(home, ".claude", "kage", "hooks", "kage-vnext-adapter.sh");
+  const vnextAdapter = readFileSync(vnextAdapterPath, "utf8");
+  execFileSync("bash", ["-n", vnextAdapterPath]);
+  // Evidence gets 150 ms, context 500 ms — the two budgets Phase A commits to.
+  assert.match(vnextAdapter, /curl -sf --max-time 0\.15/);
+  // The context call also MEASURES itself (%{time_total}) and keeps the response code, because a
+  // context delivery records the real composition latency and the real failure reason.
+  assert.match(vnextAdapter, /curl -s -o "\$3" -w '%\{http_code\} %\{time_total\}' --max-time 0\.5 /);
+  assert.match(vnextAdapter, /exit 0/);
+  // Every context attempt leaves a delivery record — the evidence that attachment happened at all.
+  assert.match(vnextAdapter, /SPOOL="\$RUNTIME_DIR\/deliveries"/);
+  assert.match(vnextAdapter, /"status": "failed_open"/, "a dead daemon is recorded, not silently dropped");
+  // The adapter is stamped like every other hook, so a stale copy on disk is reported, not run.
+  assert.match(vnextAdapter, new RegExp(`^# kage-hooks-v${KAGE_HOOKS_VERSION}$`, "m"));
+  for (const hookName of ["session-start.sh", "observe.sh", "stop.sh", "kage-read-context.sh", "kage-edit-context.sh"]) {
+    const guarded = readFileSync(join(home, ".claude", "kage", "hooks", hookName), "utf8");
+    assert.match(guarded, /KAGE_VNEXT_DIR="\$CWD\/\.agent_memory\/daemon\/vnext"/, `${hookName} missing the vNext stand-down guard`);
+    // The guard is event-aware: it may only hand over events the adapter actually handles, and it
+    // must verify the runtime is ALIVE (os.kill) rather than trusting a leftover status file.
+    assert.match(guarded, /KAGE_VNEXT_ADAPTER_EVENTS=/, `${hookName} stands down without checking the event`);
+    assert.match(guarded, /os\.kill\(pid, 0\)/, `${hookName} trusts a status file without checking liveness`);
+  }
+  // Stop, PreCompact and SubagentStop have no adapter handler: they must never appear in the
+  // hand-over set, or refresh, pr summarize, the reconcile gate and distillation all die silently.
+  const standDownEvents = vnextAdapter.length && readFileSync(join(home, ".claude", "kage", "hooks", "observe.sh"), "utf8")
+    .match(/KAGE_VNEXT_ADAPTER_EVENTS="([^"]*)"/);
+  assert.ok(standDownEvents);
+  for (const orphan of ["Stop", "PreCompact", "SubagentStop"]) {
+    assert.ok(!standDownEvents[1].includes(` ${orphan} `), `${orphan} has no adapter handler and must not be handed over`);
+  }
+
   // PreToolUse(Read) memory injection: dedicated script + a "Read"-matcher hook entry.
   const readContextHookPath = join(home, ".claude", "kage", "hooks", "kage-read-context.sh");
   const readContextHook = readFileSync(readContextHookPath, "utf8");
@@ -2419,7 +2458,9 @@ test("setup generates all-agent MCP configuration and writes Codex config idempo
   assert.match(readContextHook, /kage file-context --project "\$CWD" --path "\$FILE_PATH"/);
   assert.match(readContextHook, /hookSpecificOutput/);
   assert.match(readContextHook, /additionalContext/);
-  assert.equal(claudeSettings.hooks.PreToolUse.length, 3);
+  // Three legacy entries plus the vNext adapter, which is appended last and never displaces them.
+  assert.equal(claudeSettings.hooks.PreToolUse.length, 4);
+  assert.match(claudeSettings.hooks.PreToolUse[3].hooks[0].command, /kage-vnext-adapter\.sh/);
   assert.equal(claudeSettings.hooks.PreToolUse[1].matcher, "Read");
   assert.match(claudeSettings.hooks.PreToolUse[1].hooks[0].command, /kage-read-context\.sh/);
   // Enforcement: recall before an edit. Dedicated script + an Edit|Write|MultiEdit matcher.
@@ -2484,6 +2525,23 @@ esac
   assert.equal(claudeVerify.checks.ambient_hooks_present, true);
   assert.equal(claudeVerify.checks.ambient_hooks_supported, true);
   assert.equal(claudeVerify.hook_summary?.missing.length, 0);
+  assert.equal(claudeVerify.hook_summary?.ready, true);
+
+  // The adapter is wired into six hook events. If it is missing, bash exits 127 on every prompt;
+  // if it is stale, it runs last release's behavior. Either way "ready" would be a lie, so the
+  // adapter is verified exactly like the five legacy scripts.
+  const adapterPath = join(home, ".claude", "kage", "hooks", "kage-vnext-adapter.sh");
+  assert.ok(claudeVerify.hook_summary?.script_paths.includes(adapterPath), "the adapter is a verified script");
+  const adapterBody = readFileSync(adapterPath, "utf8");
+  writeFileSync(adapterPath, adapterBody.replace(`# kage-hooks-v${KAGE_HOOKS_VERSION}`, "# kage-hooks-v1"), "utf8");
+  const staleAdapter = verifyAgentActivation("claude-code", project, { homeDir: home, serverPath: "/tmp/kage/dist/index.js" });
+  assert.equal(staleAdapter.hook_summary?.outdated.includes("kage-vnext-adapter.sh"), true, "a stale adapter is reported");
+  assert.equal(staleAdapter.hook_summary?.ready, false, "verify-agent never says ready with a stale adapter");
+  unlinkSync(adapterPath);
+  const missingAdapter = verifyAgentActivation("claude-code", project, { homeDir: home, serverPath: "/tmp/kage/dist/index.js" });
+  assert.equal(missingAdapter.hook_summary?.missing.includes("kage-vnext-adapter.sh"), true, "a missing adapter is reported");
+  assert.equal(missingAdapter.hook_summary?.ready, false, "verify-agent never says ready without the adapter");
+  writeFileSync(adapterPath, adapterBody, { mode: 0o755 });
 
   // Cursor has no hook mechanism at all — ambient_hooks_present is vacuously true
   // (nothing was required), but ambient_hooks_supported must say so isn't the same
@@ -4238,6 +4296,95 @@ test("pr check marks graphs stale when source content changes after refresh", ()
   assert.match(check.errors.join("\n"), /graph artifacts/);
 });
 
+// Write a minimal, legible vNext config that enables the Minimal Change Guard for a test project.
+function writeMinimalChangeConfig(
+  project: string,
+  minimal_change: { enabled: boolean; mode: string; enforced_rules?: string[] },
+): void {
+  const dir = join(project, ".agent_memory", "daemon", "vnext");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, "config.json"),
+    JSON.stringify(
+      { vnext: { protocol_version: 1, runtime: "audit", gateway: "audit", adapters: [], minimal_change } },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+}
+
+test("minimal change guard is absent from pr check by default (opt-in only)", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", dependencies: {} }), "utf8");
+  writeFileSync(join(project, "src", "runner.js"), "export function run() { return 'ok'; }\n", "utf8");
+  commitAll(project, "initial");
+  refreshProject(project);
+
+  const check = prCheck(project);
+  // No vNext policy config => the guard does not participate at all.
+  assert.equal(check.minimal_change, undefined);
+  // And the standalone helper returns null when disabled.
+  assert.equal(minimalChangeReport(project), null);
+});
+
+test("minimal change guard surfaces advisory findings as warnings, never errors", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", dependencies: { alpha: "^1.0.0", zeta: "^2.0.0" } }, null, 2), "utf8");
+  writeFileSync(join(project, "src", "runner.js"), "export function run() { return 'ok'; }\n", "utf8");
+  commitAll(project, "initial");
+  refreshProject(project);
+  writeMinimalChangeConfig(project, { enabled: true, mode: "advisory" });
+
+  // Add a brand-new dependency in the working tree — a deterministic new_dependency finding.
+  writeFileSync(
+    join(project, "package.json"),
+    JSON.stringify({ name: "demo", dependencies: { alpha: "^1.0.0", "left-pad": "^1.3.0", zeta: "^2.0.0" } }, null, 2),
+    "utf8",
+  );
+
+  const report = minimalChangeReport(project);
+  assert.ok(report, "expected a report when the guard is enabled");
+  assert.equal(report?.enabled, true);
+  assert.equal(report?.findings.some((finding) => finding.kind === "new_dependency"), true);
+  assert.equal(report?.ok, true); // advisory never fails
+
+  const check = prCheck(project);
+  assert.ok(check.minimal_change, "pr check should attach the report");
+  // Advisory findings contribute a warning, never an error.
+  assert.equal(check.errors.some((error) => error.includes("Minimal Change Guard")), false);
+  assert.equal(check.warnings.some((warning) => warning.includes("Minimal Change Guard")), true);
+});
+
+test("minimal change guard in enforced mode fails pr check for a selected deterministic rule", () => {
+  const project = tempProject();
+  execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
+  mkdirSync(join(project, "src"), { recursive: true });
+  writeFileSync(join(project, "package.json"), JSON.stringify({ name: "demo", dependencies: { alpha: "^1.0.0", zeta: "^2.0.0" } }, null, 2), "utf8");
+  writeFileSync(join(project, "src", "runner.js"), "export function run() { return 'ok'; }\n", "utf8");
+  commitAll(project, "initial");
+  refreshProject(project);
+  writeMinimalChangeConfig(project, { enabled: true, mode: "enforced", enforced_rules: ["new_dependency"] });
+
+  writeFileSync(
+    join(project, "package.json"),
+    JSON.stringify({ name: "demo", dependencies: { alpha: "^1.0.0", "left-pad": "^1.3.0", zeta: "^2.0.0" } }, null, 2),
+    "utf8",
+  );
+
+  const report = minimalChangeReport(project);
+  assert.equal(report?.ok, false);
+  assert.deepEqual(report?.blocking.map((finding) => finding.kind), ["new_dependency"]);
+
+  const check = prCheck(project);
+  assert.equal(check.ok, false);
+  assert.equal(check.errors.some((error) => error.includes("Minimal Change Guard (enforced)")), true);
+});
+
 test("memory reconciliation makes changed linked memory an agent responsibility", () => {
   const project = tempProject();
   execFileSync("git", ["init"], { cwd: project, stdio: "ignore" });
@@ -5335,6 +5482,61 @@ test("recall records value ledger receipts for served and withheld memory", () =
   assert.equal(ledger.events.some((event: { kind: string; packet_title?: string }) => event.kind === "stale_withheld" && event.packet_title === "Gone billing note"), true);
 });
 
+// Honesty guard: the reuse-savings token figure is an ESTIMATE and must be labeled as such
+// at the point of display, while stale_withheld / recalls are MEASURED counts. This test
+// FAILS if either the gains output or the recall receipt prints the estimate as a bare
+// measured "saved you N tokens" — the product's headline "savings" claim must never imply
+// measurement it does not have.
+test("gains output labels the estimated token figure and keeps measured counts distinct", () => {
+  const mkWindow = (tokens_saved: number, stale_withheld: number, stale_caught: number, recalls: number, caller_answers: number, replay_tokens = 0) => ({
+    tokens_saved,
+    replay_tokens,
+    stale_withheld,
+    stale_caught,
+    recalls,
+    caller_answers,
+    estimated_dollars: Number(((tokens_saved / 1_000_000) * VALUE_DOLLARS_PER_MILLION_TOKENS).toFixed(2)),
+  });
+  const summary = {
+    schema_version: 1,
+    project_dir: "/tmp/x",
+    today: mkWindow(1000, 2, 1, 3, 1, 500),
+    last_7d: mkWindow(5000, 4, 2, 6, 1, 2000),
+    all_time: mkWindow(9000, 10, 3, 12, 2, 4000),
+  };
+  const lines = formatValueGains(summary);
+  const out = lines.join("\n");
+
+  // The estimate is labeled estimated, and the measured counts are labeled measured — the
+  // two are visibly different kinds of number.
+  assert.match(out, /estimated/i, "gains must label the token/$ figures as estimated");
+  assert.match(out, /measured/i, "gains must mark the event counts as measured");
+
+  // Regression guard: the old phrasing presented the estimate as a measured fact.
+  assert.ok(!/saved you/i.test(out), `gains must not phrase the estimate as measured "saved you": ${out}`);
+
+  // Every line that prints a "~<count> tokens" savings figure must carry the estimated label.
+  for (const line of lines) {
+    if (/~\S+\s*tokens\b/i.test(line)) {
+      assert.ok(/estimated/i.test(line), `token savings line must be labeled estimated: "${line}"`);
+    }
+  }
+
+  // The measured stale-block COUNT is present and marked as a measured count, not folded into
+  // the token estimate.
+  assert.ok(/\b4\b/.test(out), "measured 7d stale-withheld count (4) must appear");
+});
+
+test("recall value receipt labels the estimated tokens and the measured withheld count", () => {
+  const line = formatRecallValueReceipt({ tokens_saved: 4000, stale_withheld: 2 });
+  assert.match(line, /4K|4000/, "the token figure must be shown");
+  assert.match(line, /estimated/i, "the token figure is an estimate and must say so");
+  assert.match(line, /2 stale/, "the measured withheld count must be shown");
+  assert.match(line, /measured/i, "the withheld count must be marked as measured");
+  // Regression guard against the old measured-sounding phrasing.
+  assert.ok(!/saved ~\S+ tokens vs reading source/i.test(line), `old measured phrasing must be gone: "${line}"`);
+});
+
 test("capture stores discovery_tokens: caller-reported values kept, conservative per-type defaults estimated", () => {
   const project = tempProject();
   mkdirSync(join(project, "src"), { recursive: true });
@@ -5384,7 +5586,9 @@ test("recall receipt uses knowledge replay value when larger, floored at the rea
   const floored = tempProject();
   mkdirSync(join(floored, "src"), { recursive: true });
   writeFileSync(join(floored, "src", "big.ts"), `// big module\n${"export const line = 1;\n".repeat(4000)}`, "utf8");
-  capture({ projectDir: floored, title: "Big module invariant", body: "Big module exports stable line constants from src/big.ts.", type: "reference", paths: ["src/big.ts"], discoveryTokens: 10 });
+  // Body carries WHY (an invariant downstream depends on), so the T2 derivability gate correctly
+  // treats it as durable memory rather than a restatement of the cited file.
+  capture({ projectDir: floored, title: "Big module invariant", body: "Big module must keep exporting stable line constants (src/big.ts) because downstream fixtures depend on the exact export count.", type: "reference", paths: ["src/big.ts"], discoveryTokens: 10 });
   const flooredResult = recall(floored, "big module line constants", 5);
   assert.equal(flooredResult.results.some((entry) => entry.packet.title === "Big module invariant"), true);
   assert.ok(flooredResult.value_receipt);
@@ -6143,6 +6347,85 @@ test("setup supports openclaw, copilot, and hermes platforms", () => {
     assert.equal(result.agent, agent);
     assert.ok(result.config && result.config.includes("kage"), `${agent} emits an MCP config`);
   }
+});
+
+test("agent-surface certification gate passes only when the three required surfaces certify automatic, Codex stays honest fallback", () => {
+  const now = "2026-07-18T00:00:00.000Z";
+  const report = agentSurfaceCertificationGate(
+    [
+      {
+        surface: "claude-code",
+        capture_events: 5,
+        requested_sentinel: "KAGE-CERT-CC",
+        transcript: "<<<KAGE_CONTEXT>>> KAGE-CERT-CC <<<END_KAGE_CONTEXT>>>",
+        health: "healthy",
+      },
+      {
+        surface: "anthropic-proxy",
+        capture_events: 3,
+        requested_sentinel: "KAGE-CERT-PX",
+        transcript: "gateway forwarded KAGE-CERT-PX",
+        health: "healthy",
+      },
+      {
+        surface: "cursor",
+        capture_events: 4,
+        requested_sentinel: "KAGE-CERT-CU",
+        transcript: "cursor sessionStart delivered KAGE-CERT-CU",
+        health: "healthy",
+      },
+      {
+        surface: "codex",
+        capture_events: 4,
+        requested_sentinel: "KAGE-CERT-CX",
+        transcript: "otel events only, no session injection sentinel",
+        health: "healthy",
+      },
+    ],
+    { now },
+  );
+  assert.equal(report.passed, true, JSON.stringify(report.failures));
+  assert.deepEqual([...REQUIRED_AUTOMATIC_SURFACES], ["claude-code", "anthropic-proxy", "cursor"]);
+  const codex = report.certifications.find((c) => c.surface === "codex");
+  assert.ok(codex);
+  assert.equal(codex.capture, "automatic");
+  assert.equal(codex.injection, "mcp_fallback");
+  assert.equal(codex.counts_as_automatic_attachment, false, "Codex is visible but not counted as automatic");
+});
+
+test("agent-surface certification gate stays failed when Cursor injection is not proven — the label is never flipped", () => {
+  const report = agentSurfaceCertificationGate(
+    [
+      {
+        surface: "claude-code",
+        capture_events: 5,
+        requested_sentinel: "KAGE-CERT-CC",
+        transcript: "KAGE-CERT-CC",
+        health: "healthy",
+      },
+      {
+        surface: "anthropic-proxy",
+        capture_events: 3,
+        requested_sentinel: "KAGE-CERT-PX",
+        transcript: "KAGE-CERT-PX",
+        health: "healthy",
+      },
+      {
+        surface: "cursor",
+        capture_events: 4,
+        requested_sentinel: "KAGE-CERT-CU",
+        transcript: "cursor session ran but the context marker never appeared",
+        health: "healthy",
+      },
+    ],
+    { now: "2026-07-18T00:00:00.000Z" },
+  );
+  assert.equal(report.passed, false);
+  assert.ok(report.failures.some((f) => f.startsWith("cursor:")), JSON.stringify(report.failures));
+  const cursor = report.certifications.find((c) => c.surface === "cursor");
+  assert.ok(cursor);
+  assert.notEqual(cursor.injection, "automatic_session");
+  assert.equal(cursor.counts_as_automatic_attachment, false);
 });
 
 test("kageLayers buckets memory into L0 observations, L1 reviewed, L2 synthesis", () => {
