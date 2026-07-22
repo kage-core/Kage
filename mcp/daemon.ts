@@ -194,6 +194,24 @@ export function appRedirectLocation(pathname: string): string | null {
   return pathname === "/app" ? "/app/" : null;
 }
 
+// Where the built knowledge portal lives, resolved from the daemon's own directory (`__dirname`,
+// i.e. mcp/dist at runtime). It ships INSIDE the npm package at `dist/app` (bundled from
+// platform/web/dist at publish time); a source checkout has no such bundle and serves straight from
+// the monorepo build two levels up. Prefer whichever actually has an index.html; when neither does
+// (portal never built), return the bundled path so `/app/` yields a coherent portal_not_built 404
+// rather than pointing at a stray directory.
+//
+// This exists because 4.0.0 shipped only the monorepo path — which does not exist in an installed
+// package — so `/app/` 404'd for every npm user while working from source. Bundled-first fixes that.
+export function resolvePortalDir(baseDir: string): string {
+  const bundled = resolve(baseDir, "app");
+  const monorepo = resolve(baseDir, "..", "..", "platform", "web", "dist");
+  for (const candidate of [bundled, monorepo]) {
+    if (existsSync(join(candidate, "index.html"))) return candidate;
+  }
+  return bundled;
+}
+
 // Resolve an `/app/...` request to a file inside the built knowledge portal (`platform/web/dist`).
 // Returns null for non-`/app` paths (the caller handles those). Real built assets resolve to
 // themselves; the entry and any client-side deep link (a path with no matching file) fall back to
@@ -1022,9 +1040,9 @@ export async function startViewer(projectDir: string, options: { host?: string; 
   const port = options.port ?? DEFAULT_VIEWER_PORT;
   const viewerDir = resolve(__dirname, "..", "viewer");
   const threeDir = resolve(__dirname, "..", "node_modules", "three");
-  // The built knowledge portal (Phase C). `__dirname` is mcp/dist at runtime, so the repo root is two
-  // levels up and the portal build lands in platform/web/dist. Served under /app/ with the same CSP.
-  const appDir = resolve(__dirname, "..", "..", "platform", "web", "dist");
+  // The built knowledge portal (Phase C), bundled in the package at dist/app and falling back to the
+  // monorepo build for a source checkout. Served under /app/ with the same CSP. See resolvePortalDir.
+  const appDir = resolvePortalDir(__dirname);
   const projectRoot = resolve(projectDir);
   const reports = viewerReportPaths(projectRoot);
   const reportsDir = join(projectRoot, ".agent_memory", "reports");
