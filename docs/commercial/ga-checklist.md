@@ -34,7 +34,8 @@ proves Kage does not increase exact measured context cost over the enabled cohor
 documented [no-overhead credit](./no-overhead-pilot.md).
 
 - Run the [design-partner pilot protocol](./design-partner-pilot.md) for each partner.
-- Record results in `docs/commercial/pilot-cohort.json` (shape documented in the protocol).
+- Record results in a `pilot-cohort.json` file, created under `docs/commercial/` when the first
+  pilot completes (shape documented in the protocol). It does not exist yet, by design — see below.
 - The gate is **met** only with ≥3 completed pilots, ≥1 paid conversion, and a measured exact-cost
   non-increase (or credit) — asserted with data, never derived by a script.
 

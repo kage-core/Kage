@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { constants as osConstants } from "node:os";
 import { join, resolve } from "node:path";
+import { sessionAttachState, renderAttachState, type SessionAttachState } from "./attach-status.js";
 import type { TransformationReceipt } from "../protocol/index.js";
 import type { StoredContextDelivery } from "../storage/delivery-store.js";
 import {
@@ -971,6 +972,12 @@ export interface VnextStatusReport {
   runtime: RuntimeHealth;
   /** The background proxy, verified — see ProxyDaemonStatusReport. */
   proxy: ProxyDaemonStatusReport;
+  /**
+   * Whether an agent started IN THIS DIRECTORY is actually routed through the proxy. A healthy
+   * proxy proves nothing on its own: attach is per-directory (.claude/settings.local.json), so
+   * wiring a worktree while running the agent from the parent repo attaches nothing, silently.
+   */
+  attach: SessionAttachState;
   receipts: { available: boolean; reason: string | null; total: number | null; tasks: number | null };
   /**
    * Three counts, never one percentage: a single "measured %" would hide the unavailable slice,
@@ -1017,6 +1024,7 @@ export async function vnextStatus(
   const config = readVnextConfig(projectDir);
   const runtime = await client.health();
   const proxy = proxyDaemonReport(await (options.probe_daemon ?? proxyDaemonState)(projectDir));
+  const attach = sessionAttachState(projectDir, proxy.port ?? 8788);
   const query = await client.receipts();
   const receipts = query.available ? query.receipts : [];
   const unreadable = query.available ? null : (query.reason ?? "receipts_unavailable");
@@ -1036,6 +1044,7 @@ export async function vnextStatus(
     adapters: config?.vnext.adapters ?? [],
     runtime,
     proxy,
+    attach,
     receipts: {
       available: query.available,
       reason: query.reason,
@@ -1156,6 +1165,7 @@ export function renderStatus(report: VnextStatusReport): string {
     report.proxy.running
       ? `  proxy:         running in the background (pid ${report.proxy.pid}, port ${report.proxy.port}, mode ${report.proxy.mode}) — log: ${report.proxy.log_path}; stop with \`kage down\``
       : `  proxy:         not running (${report.proxy.reason}) — start it once with \`kage up\``,
+    renderAttachState(report.attach),
   ];
 
   if (!report.receipts.available) {

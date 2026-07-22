@@ -72,6 +72,26 @@ say after a crash — is cleaned up and started fresh. To be honest about the on
 reboot stops the proxy (there is no system service), so run `kage up` once afterwards. Prefer the
 old behavior? `kage up --foreground` keeps the proxy in your terminal, where Ctrl-C stops it.
 
+**Auto-attach — so you do not have to remember `kage run`.** `kage setup claude-code --project . --write`
+records `env.ANTHROPIC_BASE_URL` in that repo's `.claude/settings.local.json`, so an agent **launched
+from that directory** routes through Kage on its own. Your existing settings are preserved and any
+value you set yourself wins.
+
+Two honest limits, both of which `kage status` now reports instead of leaving you to guess:
+
+- It is **per-directory**. The agent reads the settings of the directory it was launched in, so
+  wiring a git worktree while running the agent from the parent repo attaches nothing.
+- Some hosts **resolve their own endpoint and never read project settings** — notably the Claude
+  **desktop app**, which sets `ANTHROPIC_BASE_URL` itself. No amount of restarting attaches it. For
+  proxy coverage there, launch the agent from a terminal (`claude`) or use `kage run -- <agent>`.
+  Memory still reaches the desktop app through the Claude hooks; it is the proxy's byte-level
+  measurement and injection you lose.
+
+```
+attach:  NOT attached in THIS session — settings are wired to http://localhost:8788, but the
+         running host (claude-desktop) resolved https://api.anthropic.com itself ...
+```
+
 `kage up` defaults to **audit mode**: measurement only — your bytes are forwarded unchanged and
 nothing is injected. When you want verified memory injected into prompts, run
 `kage up --mode assist`. See what it measured with `kage status --project .`.
@@ -239,15 +259,22 @@ above has a reproducible harness in this repo; claims without one don't ship.
 ## Daily commands
 
 ```bash
-kage recall "how do I run tests" --project .
+kage context "how do I run tests" --project .
 kage verify --project .        # check citations against current code
 kage pr check --project .      # stale-catch + graph freshness gate
-kage gains --project .         # what Kage saved you
+kage report team --project .   # the lead-facing "is this helping?" report
 kage viewer --project .        # local dashboard
 kage okf migrate --project .   # render memory as a Google OKF bundle
 ```
 
-Full CLI and MCP reference: [docs](https://kage-core.com/guide.html).
+**📖 [Using Kage](docs/USING_KAGE.md)** — the practical manual: setup, the proxy, daily use, team
+workflow, troubleshooting, and a command map by intent. Kage has ~136 commands; you need about six.
+
+**⚙️ [How it works](docs/HOW_IT_WORKS.md)** — the mechanism end to end: the two delivery channels,
+proxy modes and cache safety, what gets stored and what gets refused, the trust model, and how
+recall ranks.
+
+Full CLI reference: `kage help --all`. Web docs: [kage-core.com/guide.html](https://kage-core.com/guide.html).
 
 ## Storage
 

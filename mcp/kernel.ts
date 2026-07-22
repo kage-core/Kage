@@ -18741,6 +18741,32 @@ set -euo pipefail
 CWD="$(cat | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('cwd',''))" 2>/dev/null || echo "")"
 
 [[ -d "$CWD/.agent_memory" ]] || exit 0
+
+# Proxy ensure-up (auto-attach): this repo may route sessions through the kage proxy via
+# ANTHROPIC_BASE_URL in .claude/settings.local.json. If nothing is listening yet (fresh boot),
+# start the background proxy now — idempotent, ~1s bind, the last-used mode is reused from the
+# daemon state (audit-safe default). Fully guarded: this block can never fail the hook.
+if grep -qs "ANTHROPIC_BASE_URL" "$CWD/.claude/settings.local.json" 2>/dev/null; then
+  if ! nc -z 127.0.0.1 8788 >/dev/null 2>&1; then
+    # The pipeline must NEVER trip the hook's set -euo pipefail: proxy.json is absent after a clean
+    # \`kage down\` or on first run, and a failing command substitution in an assignment is fatal
+    # under set -e — so the whole substitution is || true'd and the default applied after.
+    KAGE_UP_MODE="$(sed -n 's/.*"mode": *"\\([a-z]*\\)".*/\\1/p' "$CWD/.agent_memory/daemon/proxy.json" 2>/dev/null | head -1 || true)"
+    [[ -n "$KAGE_UP_MODE" ]] || KAGE_UP_MODE="audit"
+    # Repo-local CLI first (a stale global \`kage\` on PATH may predate \`kage up\`), then PATH,
+    # then the package runner — the same never-silently-die chain the other hooks use.
+    if [[ -f "$CWD/node_modules/@kage-core/kage-graph-mcp/dist/cli.js" ]] && command -v node >/dev/null 2>&1; then
+      (node "$CWD/node_modules/@kage-core/kage-graph-mcp/dist/cli.js" up --project "$CWD" --mode "$KAGE_UP_MODE" >/dev/null 2>&1 &) || true
+    elif [[ -f "$CWD/mcp/dist/cli.js" ]] && command -v node >/dev/null 2>&1; then
+      (node "$CWD/mcp/dist/cli.js" up --project "$CWD" --mode "$KAGE_UP_MODE" >/dev/null 2>&1 &) || true
+    elif command -v kage >/dev/null 2>&1; then
+      (kage up --project "$CWD" --mode "$KAGE_UP_MODE" >/dev/null 2>&1 &) || true
+    else
+      (npx -y --package=@kage-core/kage-graph-mcp kage up --project "$CWD" --mode "$KAGE_UP_MODE" >/dev/null 2>&1 &) || true
+    fi
+  fi
+fi
+
 HOOK_EVENT="SessionStart"
 ${hookVnextGuard}
 
@@ -19119,6 +19145,15 @@ exit 0
       writeFileSync(join(hookDir, "stop.sh"), stopHookScript, { mode: 0o755 });
       writeFileSync(join(hookDir, "kage-vnext-adapter.sh"), vnextAdapterHookScript, { mode: 0o755 });
       upsertJsonSettings(settingsPath, hookEntry);
+      // AUTO-ATTACH (proxy-primary UX): every Claude Code session started in this repo flows
+      // through the kage proxy with no `kage run` and no export — ANTHROPIC_BASE_URL is wired
+      // into the project's PERSONAL settings (.claude/settings.local.json, uncommitted, this
+      // machine only). An existing user-set value is never clobbered (env merge: user wins).
+      // The session-start hook's ensure-up block keeps this safe: a session that starts while
+      // the proxy is down (fresh boot) restarts it instead of failing to reach the API.
+      upsertJsonSettings(join(projectDir, ".claude", "settings.local.json"), {
+        env: { ANTHROPIC_BASE_URL: "http://localhost:8788" },
+      });
       result.wrote = true;
     }
     return result;
@@ -19275,6 +19310,19 @@ function upsertJsonSettings(path: string, patch: Record<string, unknown>): void 
       !Array.isArray(config.hooks)
     ) {
       config.hooks = { ...(config.hooks as Record<string, unknown>), ...(value as Record<string, unknown>) };
+    } else if (
+      key === "env" &&
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      config.env &&
+      typeof config.env === "object" &&
+      !Array.isArray(config.env)
+    ) {
+      // env merges the other way round from hooks: the USER's existing values always win, ours
+      // only fill gaps — a custom ANTHROPIC_BASE_URL (corporate gateway, another proxy) must
+      // never be clobbered by kage setup. Removing the key detaches; re-running setup re-adds it.
+      config.env = { ...(value as Record<string, unknown>), ...(config.env as Record<string, unknown>) };
     } else if (!(key in config)) {
       config[key] = value;
     }
