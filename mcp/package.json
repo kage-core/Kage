@@ -1,12 +1,13 @@
 {
   "name": "@kage-core/kage-graph-mcp",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "Agent memory on Google's Open Knowledge Format (OKF). Kage maintains your coding agents' OKF memory bundle in git and verifies every concept against your code, deterministically. The verification and freshness layer OKF leaves out. MCP server, no account, no API key.",
   "main": "dist/index.js",
   "files": [
     "dist/**/*.js",
     "!dist/**/*.test.js",
     "!dist/release.js",
+    "dist/app/**/*",
     "viewer/**/*",
     "!viewer/graphs/*.json",
     "README.md"
@@ -20,6 +21,10 @@
   },
   "scripts": {
     "build": "tsc",
+    "postbuild": "node scripts/bundle-portal.mjs",
+    "build:portal": "npm --prefix ../platform/web run build",
+    "bundle:portal": "node scripts/bundle-portal.mjs",
+    "prepublishOnly": "npm run build:portal && npm run build && node scripts/bundle-portal.mjs --require",
     "start": "node dist/index.js",
     "dev": "ts-node index.ts",
     "test": "npm run build && node --test 'dist/**/*.test.js' && npm run test:deploy && npm run test:dogfood",
