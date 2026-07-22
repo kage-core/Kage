@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, watch, writeFileSync, type FSWatcher } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 import {
@@ -965,21 +966,18 @@ export async function startDaemon(projectDir: string, options: { host?: string; 
   });
 }
 
-export async function startViewer(projectDir: string, options: { host?: string; port?: number } = {}): Promise<ViewerStatus> {
-  const host = options.host ?? DEFAULT_HOST;
-  const port = options.port ?? DEFAULT_VIEWER_PORT;
-  const viewerDir = resolve(__dirname, "..", "viewer");
-  const threeDir = resolve(__dirname, "..", "node_modules", "three");
-  // The built knowledge portal (Phase C). `__dirname` is mcp/dist at runtime, so the repo root is two
-  // levels up and the portal build lands in platform/web/dist. Served under /app/ with the same CSP.
-  const appDir = resolve(__dirname, "..", "..", "platform", "web", "dist");
+// Generate every viewer JSON report for a project. On a loaded repository this is MINUTES of
+// synchronous work (xray, capabilities, the benchmark retrieval proof, ...) — which is exactly why
+// startViewer runs it in a SEPARATE PROCESS after the port is bound: generating in-process, even
+// after listen(), blocks the event loop and leaves the bound socket accepting but never answering.
+// The viewer tolerates a not-yet-written report (404 -> empty state, filled on reload).
+// Note: reports.value (the cumulative value ledger written by recall) is served as-is and
+// intentionally never regenerated here.
+export function generateViewerReports(projectDir: string): void {
   const projectRoot = resolve(projectDir);
   const reports = viewerReportPaths(projectRoot);
   const reportsDir = join(projectRoot, ".agent_memory", "reports");
 
-  // Pre-generate lightweight JSON reports so the viewer can load them directly.
-  // Note: reports.value (the cumulative value ledger written by recall) is served
-  // as-is and intentionally never regenerated here.
   try {
     mkdirSync(reportsDir, { recursive: true });
     const metrics = kageMetrics(projectDir);
@@ -1017,6 +1015,20 @@ export async function startViewer(projectDir: string, options: { host?: string; 
   } catch {
     // non-fatal: viewer will show 404 for reports if generation fails
   }
+  }
+
+export async function startViewer(projectDir: string, options: { host?: string; port?: number } = {}): Promise<ViewerStatus> {
+  const host = options.host ?? DEFAULT_HOST;
+  const port = options.port ?? DEFAULT_VIEWER_PORT;
+  const viewerDir = resolve(__dirname, "..", "viewer");
+  const threeDir = resolve(__dirname, "..", "node_modules", "three");
+  // The built knowledge portal (Phase C). `__dirname` is mcp/dist at runtime, so the repo root is two
+  // levels up and the portal build lands in platform/web/dist. Served under /app/ with the same CSP.
+  const appDir = resolve(__dirname, "..", "..", "platform", "web", "dist");
+  const projectRoot = resolve(projectDir);
+  const reports = viewerReportPaths(projectRoot);
+  const reportsDir = join(projectRoot, ".agent_memory", "reports");
+
 
   const url = viewerUrl(host, port, projectRoot);
   const liveFeed = startLiveFeed(projectRoot);
@@ -1083,6 +1095,19 @@ export async function startViewer(projectDir: string, options: { host?: string; 
   // during the compatibility release.
   console.log(`Kage knowledge portal → http://${host}:${port}/app/`);
   console.log(`Kage legacy viewer → http://${host}:${port}/`);
+  // Port is live — the minutes-long report grind runs in a CHILD PROCESS so this event loop stays
+  // free to answer requests. stdio ignored; the child exits when done; failure is non-fatal (the
+  // viewer shows empty states until a later run fills the reports).
+  try {
+    const child = spawn(process.execPath, [join(__dirname, "viewer-reports.js"), projectRoot], {
+      stdio: "ignore",
+      detached: false,
+    });
+    child.on("exit", (code) => {
+      if (code === 0) console.log("Viewer reports generated — reload the page for full data.");
+    });
+    child.on("error", () => { /* non-fatal */ });
+  } catch { /* non-fatal */ }
   process.on("SIGTERM", () => {
     liveFeed.close();
     server.close(() => process.exit(0));
