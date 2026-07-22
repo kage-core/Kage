@@ -5,22 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Kage is code-grounded memory for coding agents: every memory is verified against your real repository before it is injected, stale memory is withheld with a stated reason, and every number is measured, never estimated. One proxy fronts the Anthropic, OpenAI-compatible, and Gemini wire formats — Claude Code, Codex CLI, Cursor, aider, Gemini CLI — with zero per-agent plugins. Memory lives as OKF markdown in git."
+      content="Google shipped OKF, a standard for agent memory as plain markdown in your repo. Kage is the framework that keeps it true: every memory is checked against your real code, deterministically, so stale claims get caught before they mislead an agent — and one proxy brings that verified memory to every coding agent. One command to install, no account, no API key."
     />
-    <title>Kage — memory for coding agents, checked against your code</title>
+    <title>Kage — the verification layer for Google's OKF agent memory</title>
     <link rel="icon" type="image/svg+xml" href="assets/kage-eye.svg" />
     <link rel="canonical" href="https://kage-core.com/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Kage" />
     <meta property="og:url" content="https://kage-core.com/" />
-    <meta property="og:title" content="Kage — memory for coding agents, checked against your code" />
-    <meta property="og:description" content="Code-grounded memory for coding agents. Verified against the repo before injection, stale memory withheld with a reason, receipts for every number. One proxy fronts Anthropic, OpenAI-compatible, and Gemini wires — zero per-agent plugins." />
+    <meta property="og:title" content="Kage: the verification layer for Google's OKF agent memory" />
+    <meta property="og:description" content="Google shipped OKF for agent memory. Kage is the framework that keeps it true: every memory checked against your real code, deterministically — and served to every coding agent through one proxy. No account, no API key." />
     <meta property="og:image" content="https://kage-core.com/assets/kage-cover.png" />
     <meta property="og:image:width" content="1000" />
     <meta property="og:image:height" content="420" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Kage — memory for coding agents, checked against your code" />
-    <meta name="twitter:description" content="Code-grounded memory for coding agents. Verified against the repo before injection, stale memory withheld with a reason, receipts for every number. One proxy, three wire formats, zero per-agent plugins." />
+    <meta name="twitter:title" content="Kage: the verification layer for Google's OKF agent memory" />
+    <meta name="twitter:description" content="Google shipped OKF for agent memory. Kage keeps it true: every memory checked against your real code, deterministically, through one proxy for every agent. No account, no API key." />
     <meta name="twitter:image" content="https://kage-core.com/assets/kage-cover.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -116,11 +116,13 @@
       <section class="hero">
         <div class="wrap hero-grid">
           <div>
-            <h1>Memory for coding agents, <span class="accent">checked</span> against your code.</h1>
+            <p class="eyebrow">The verification layer for Google's OKF</p>
+            <h1>Google gave agents a memory standard. Kage keeps it <span class="accent">true</span>.</h1>
             <p class="hero-copy">
-              Kage captures what your agents learn as plain markdown in git — then verifies every
-              claim against the real repository before it is ever injected. <strong>Stale memory is
-              withheld, with the reason stated.</strong> Every number below is measured, never estimated.
+              OKF stores what your agents learn as plain markdown in your repo. Kage is the framework
+              that makes that memory trustworthy: every claim is <strong>checked against your real
+              code, deterministically</strong>, before any agent sees it — and stale memory is
+              withheld, with the reason stated. One proxy brings it to every agent you run.
             </p>
             <div class="cmd">
               <span class="ps1">$</span>
@@ -151,6 +153,51 @@
             </div>
             <div class="r-foot">real agent through the real proxy, this repo. Memory pays where knowledge is tribal — when the code already says it, we measure no difference, and we say so.</div>
           </figure>
+        </div>
+      </section>
+
+      <!-- ——————————————— WHY OKF / WHY KAGE ——————————————— -->
+      <section class="section section-alt" id="okf" aria-labelledby="okf-h">
+        <div class="wrap">
+          <div class="section-head">
+            <span class="eyebrow">Why now</span>
+            <h2 id="okf-h">An open standard finally exists. It needs a <span class="accent">trust layer</span>.</h2>
+            <p class="lede">
+              <a href="https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf" target="_blank" rel="noopener" style="text-decoration:underline;text-underline-offset:3px">OKF — the Open Knowledge Format</a>
+              — is Google's answer to agent memory: concept files as plain markdown, living in your
+              repository, readable by any tool. That solves where memory lives. It does not solve
+              whether memory is still <em>true</em>.
+            </p>
+          </div>
+          <div class="grid-3">
+            <div class="card">
+              <span class="k">The standard</span>
+              <h3>Memory as files in git, not a vendor silo</h3>
+              <p>
+                OKF packets travel with the repo: clone it and your agents inherit the team's memory.
+                Kage reads and writes standard OKF — anything else that speaks OKF can read the same
+                store, with zero lock-in.
+              </p>
+            </div>
+            <div class="card">
+              <span class="k">The missing piece</span>
+              <h3>A standard can't tell you what's stale</h3>
+              <p>
+                Code moves; written memory doesn't. Kage adds the layer OKF leaves open: deterministic
+                verification of every claim against the real code, freshness tracking, and withholding
+                — so yesterday's truth never misleads today's agent.
+              </p>
+            </div>
+            <div class="card">
+              <span class="k">The reach</span>
+              <h3>One layer, every agent</h3>
+              <p>
+                Verified OKF memory is only useful if your agents actually get it. Kage's proxy fronts
+                the Anthropic, OpenAI-compatible, and Gemini wire formats, so Claude Code, Codex CLI,
+                Cursor, aider, and Gemini CLI all read the same verified store — no per-agent plugins.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
