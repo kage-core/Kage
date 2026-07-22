@@ -61,17 +61,29 @@ verification metadata in `x-kage-*` frontmatter, readable by any OKF consumer wi
 - **Cache-safe.** The stable prefix survives byte-for-byte; history digests are deterministic, so
   the digested prefix is itself cache-stable (one miss, then re-keys).
 
-## 4. Current measured state (2026-07-21)
+## 4. Current measured state (2026-07-22, v4.0.0)
 
-- Backend `npm test --prefix mcp`: **1463/1463** aggregate (main + deploy 36 + dogfood 12).
+- Backend `npm test --prefix mcp`: **1474/1474** aggregate (main + deploy 36 + dogfood 12).
 - Workspace suite vs **real embedded PostgreSQL 18**: 176/176; technical GA gate green.
-- Frontend portal Vitest: 105/105 with a generated DTO drift guard in test+build+CI.
+- Frontend portal Vitest: 109/109 with a generated DTO drift guard in test+build+CI.
 - Phase gates: A, B, C (6/6), D (3/3), E (technical) all passing; the commercial GA report exits
   non-zero with `partners_completed 0/3` — honestly NOT RUN, never fabricated.
 - Reuse A/B (live agent runs): memory takes an agent **0/3→3/3 correct, −41% cost** when the fact is
   NOT in code; ~zero effect when it is — memory's value is conditional, and measured as such.
 - Compression: single-body ~0% (real bodies); **history digestion ~93%** (12-turn real-body session).
 - Injection: false injection **0**, absent-topic injection **0**, precision 0.636, recall held 1.0.
+- **What we store is empirically ranked** (367-packet production-store audit): ops/verify runbooks are
+  the most-recalled class (~1.0–1.4 uses/packet); reference dumps measure 0.00. Admission boosts what
+  code cannot say and routes restatements-of-cited-code to review (`mcp/derivability.test.ts`).
+- **Day-one value is measured, not hoped**: `kage install` bootstraps one verifiable runbook from
+  `package.json`; a fresh repo's first recall hits it at rank 1 and clears the injection gate
+  (`mcp/bootstrap.test.ts`).
+- **The lead question has one command**: `kage report team` — recalls served / stale withheld
+  (measured), the LIVE injection gate (every proxy decision recorded, including "injected nothing"),
+  derivability composition, dark areas, review health; also served in the portal with an IC
+  transparency view (`mcp/team-report.test.ts`).
+- Web surfaces (site, viewer, portal) share the v6 design system; every number on the site traces to
+  a bench on this page's table.
 
 ## 5. What is deliberately NOT claimed
 
