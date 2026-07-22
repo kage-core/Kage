@@ -240,6 +240,7 @@ Usage:
   kage gains --project <dir> [--json]
   kage savings --project <dir> [--queries <n>] [--json]   deterministic token-reduction receipt (no LLM on the measurement path)
   kage team --project <dir> [--json]   team memory health: contributors, pending review, stale-withheld, contradictions
+  kage report team --project <dir> [--json]   the lead-facing "is this helping?" report: measured value, or unavailable — estimates keep an _estimated suffix and never masquerade as measured
   kage proxy --project <dir> [--port 8788] [--upstream <url>] [--workspace <dir>] [--mode audit|assist|protect] [--count-tokens] [--no-receipts] [--no-inject] [--verbose]   drop-in proxy: inject memory outbound, capture exchanges inbound, record measured transformation receipts (--mode audit forwards your exact bytes and only measures; --mode protect forwards the original but measures a defensive transform; assist refuses to start on unhealthy reversible/receipt storage)
   kage up [--project <dir>] [--port 8788] [--mode audit|assist] [--foreground] [--no-runtime] [--json]   one command: connect (audit-only config) + vNext runtime + BACKGROUND proxy on --port — detached, survives this terminal (a machine reboot stops it: run kage up once afterwards; no system service), stopped with kage down; --mode governs the proxy process alone and defaults to audit = measurement only (deliberately unlike bare \`kage proxy\`, which keeps assist as its back-compat default); re-running reuses a VERIFIED live proxy (pid + port checked, never the state file alone) and exits 0, cleaning a stale record first; --foreground keeps the proxy in this terminal with no daemon state (kage down does not manage it); --no-runtime skips the vNext runtime daemon
   kage down [--project <dir>] [--json]   stop what kage up started: SIGTERM the verified background proxy (SIGKILL after a bounded grace), remove its state file, and stop the runtime daemon; per-component honest output (stopped / was not running / stale state cleaned); exits 0 when the end state is nothing-running; a foreground proxy is stopped with Ctrl-C instead
@@ -253,7 +254,7 @@ Usage:
   kage handoff --project <dir> [--json]
   kage layers --project <dir> [--json]
   kage lifecycle --project <dir> [--json]
-  kage reverify --project <dir> --packet <id> [--json]
+  kage reverify --project <dir> --packet <id> [--evidence <text>] [--verified-by <text>] [--json]   re-ground a stale packet; changed code requires --evidence (a bare re-stamp is refused)
   kage reconcile --project <dir> [--session <id>] [--json]
   kage timeline --project <dir> [--days <n>] [--json]
   kage lineage --project <dir> [--json]
@@ -341,6 +342,19 @@ Usage:
   kage migrate apply --project <dir> --plan <path> [--json]   apply a migration plan; imports only packets whose fingerprint still matches (nothing becomes injectable)
   kage export --project <dir> --format okf --out <dir>   export the repository model as an OKF concept bundle (identifiers round-trip through foreign OKF consumers)
   kage model export-fixture --project <dir> --out <path> [--repository <id>]   deterministic repository-model v1 fixture (sorted by id; no timestamps/paths) for cross-phase compatibility tests
+  kage okf view [--project <dir>] [--pending]   view your memory as a self-contained OKF page (no server)
+  kage okf migrate [--project <dir>] [--pending]   packets → OKF bundle under .agent_memory/okf
+  kage okf lint [<dir|file>] [--project <dir>]   check OKF conformance (defaults to this repo's bundle)
+  kage okf import [<dir>] [--project <dir>] [--json]   read an OKF bundle back into packets
+
+Maintainer tools:
+  kage gen-plugin-hooks [--plugin-dir <dir>] [--json]   regenerate plugin/hooks/* from the claude-code setup templates so the plugin and npm install paths ship identical hooks
+
+Back-compat aliases (identical behavior to the modern verb, kept for older scripts):
+  kage audit-log → memory-audit · kage capability-audit , kage readiness → capabilities
+  kage context-slots → slots · kage memory-handoff → handoff · kage memory-layers → layers
+  kage memory-lifecycle → lifecycle · kage memory-lineage → lineage · kage session-replay → replay
+  kage memory-reconcile , kage memory-reconciliation → reconcile · kage skills-build → skills
 
 Types:
   ${MEMORY_TYPES.join(", ")}`;

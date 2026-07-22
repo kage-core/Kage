@@ -259,15 +259,22 @@ above has a reproducible harness in this repo; claims without one don't ship.
 ## Daily commands
 
 ```bash
-kage recall "how do I run tests" --project .
+kage context "how do I run tests" --project .
 kage verify --project .        # check citations against current code
 kage pr check --project .      # stale-catch + graph freshness gate
-kage gains --project .         # what Kage saved you
+kage report team --project .   # the lead-facing "is this helping?" report
 kage viewer --project .        # local dashboard
 kage okf migrate --project .   # render memory as a Google OKF bundle
 ```
 
-Full CLI and MCP reference: [docs](https://kage-core.com/guide.html).
+**📖 [Using Kage](docs/USING_KAGE.md)** — the practical manual: setup, the proxy, daily use, team
+workflow, troubleshooting, and a command map by intent. Kage has ~136 commands; you need about six.
+
+**⚙️ [How it works](docs/HOW_IT_WORKS.md)** — the mechanism end to end: the two delivery channels,
+proxy modes and cache safety, what gets stored and what gets refused, the trust model, and how
+recall ranks.
+
+Full CLI reference: `kage help --all`. Web docs: [kage-core.com/guide.html](https://kage-core.com/guide.html).
 
 ## Storage
 

@@ -24,7 +24,7 @@ kage setup codex --project . --write
 # or: kage setup claude-code --project . --write
 # restart the agent once
 kage setup verify-agent --agent codex --project .
-kage recall "how do I run tests" --project .
+kage context "how do I run tests" --project .
 ```
 
 Other supported targets: Cursor, Windsurf, Gemini CLI, OpenCode, Cline, Goose,
@@ -82,7 +82,7 @@ No hosted service, external database, or API key is required.
 ## Common commands
 
 ```bash
-kage recall "how do I run tests" --project .
+kage context "how do I run tests" --project .   # validate + recall + code graph in one call
 kage code-graph "auth routes tests" --project .
 kage risk --project . --targets src/auth.ts --json
 kage profile --project . --json
@@ -108,6 +108,14 @@ kage pr check --project .
 kage viewer --project .
 ```
 
+Full CLI surface: `kage help --all`. Two guides cover the rest:
+
+- **[Using Kage](https://github.com/kage-core/Kage/blob/master/docs/USING_KAGE.md)** — the practical
+  manual: setup, the proxy, daily use, team workflow, troubleshooting, and a command map by intent.
+- **[How it works](https://github.com/kage-core/Kage/blob/master/docs/HOW_IT_WORKS.md)** — the
+  mechanism: delivery channels, proxy modes and cache safety, what is stored and what is refused,
+  the trust model, and how recall ranks.
+
 MCP agents should start with `kage_context`. When the query or target list
 mentions file paths, it also includes risk and dependency-path context.
 
@@ -117,7 +125,9 @@ then run `kage embeddings build --project .`. The default lexical layer is
 Unicode-aware and adds CJK bigrams for memory written without spaces. Dense
 embeddings write an optional rebuildable
 `.agent_memory/indexes/embeddings-local.json` artifact, and
-`kage recall "query" --project . --embeddings --explain` uses it.
+`kage recall "query" --project . --embeddings --explain` uses it. (`recall` is
+deprecated in favour of `context`, but still owns `--embeddings` and `--explain`, which
+`context` does not accept.)
 
 For stale or wrong memory:
 
