@@ -108,7 +108,7 @@
           <span id="gh-stars">6</span>
         </a>
       </div>
-      <a class="nav-cta" href="#quickstart">Get started</a>
+      <a class="nav-cta" href="demo.html">Book a demo</a>
     </nav>
 
     <main id="main">
@@ -116,13 +116,15 @@
       <section class="hero">
         <div class="wrap hero-grid">
           <div>
-            <p class="eyebrow">The verification layer for Google's OKF</p>
-            <h1>Google gave agents a memory standard. Kage keeps it <span class="accent">true</span>.</h1>
+            <a class="tag" href="https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:18px;text-decoration:none">
+              Built on Open Knowledge Format · Google Cloud ↗
+            </a>
+            <h1>Google shipped OKF. Kage keeps it <span class="accent">true</span>.</h1>
             <p class="hero-copy">
-              OKF stores what your agents learn as plain markdown in your repo. Kage is the framework
-              that makes that memory trustworthy: every claim is <strong>checked against your real
-              code, deterministically</strong>, before any agent sees it — and stale memory is
-              withheld, with the reason stated. One proxy brings it to every agent you run.
+              Google OKF made agent memory an open standard — Markdown in your repo with no lock-in —
+              but left out the part that keeps it honest. Kage is that part: <strong>every memory is
+              checked against your code</strong>, so your agent never acts on a stale fact. And one
+              proxy brings that verified memory to every agent you run.
             </p>
             <div class="cmd">
               <span class="ps1">$</span>
@@ -132,11 +134,12 @@
             <p class="hero-sub">
               One proxy fronts the Anthropic, OpenAI-compatible, and Gemini wire formats —
               Claude Code, Codex CLI, Cursor, aider, Gemini CLI — with zero per-agent plugins.
-              No account, no API key, memory as <a href="https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf" target="_blank" rel="noopener" style="text-decoration:underline;text-underline-offset:3px">OKF markdown</a> in your repo.
+              No account, no API key. Or try it before installing anything:
+              <code>npx -y @kage-core/kage-graph-mcp scan --project .</code>
             </p>
             <div class="actions">
-              <a class="button primary" href="#quickstart">Install in two commands</a>
-              <a class="button" href="benchmarks.html">See the receipts</a>
+              <a class="button primary" href="#quickstart">Install in 60s</a>
+              <a class="button" href="guide.html">Read the docs</a>
             </div>
           </div>
 
@@ -160,43 +163,52 @@
       <section class="section section-alt" id="okf" aria-labelledby="okf-h">
         <div class="wrap">
           <div class="section-head">
-            <span class="eyebrow">Why now</span>
-            <h2 id="okf-h">An open standard finally exists. It needs a <span class="accent">trust layer</span>.</h2>
+            <span class="eyebrow">Open Knowledge Format · Google Cloud</span>
+            <h2 id="okf-h">Open Knowledge Format is now <span class="accent">the standard</span>.</h2>
             <p class="lede">
-              <a href="https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf" target="_blank" rel="noopener" style="text-decoration:underline;text-underline-offset:3px">OKF — the Open Knowledge Format</a>
-              — is Google's answer to agent memory: concept files as plain markdown, living in your
-              repository, readable by any tool. That solves where memory lives. It does not solve
-              whether memory is still <em>true</em>.
+              Kage always kept agent memory as plain files in your repo — no cloud, no lock-in — while
+              everyone else built memory clouds. In June 2026, Google Cloud shipped
+              <a href="https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf" target="_blank" rel="noopener" style="text-decoration:underline;text-underline-offset:3px">OKF</a>:
+              the same idea, now an open standard. We adopted it on day one — and added the
+              verification layer it's missing.
             </p>
           </div>
-          <div class="grid-3">
-            <div class="card">
-              <span class="k">The standard</span>
-              <h3>Memory as files in git, not a vendor silo</h3>
-              <p>
-                OKF packets travel with the repo: clone it and your agents inherit the team's memory.
-                Kage reads and writes standard OKF — anything else that speaks OKF can read the same
-                store, with zero lock-in.
+          <div class="feature">
+            <div class="feature-copy">
+              <div class="grid-2" style="grid-template-columns:1fr;gap:10px">
+                <div class="card">
+                  <span class="k">1 · Verification</span>
+                  <p>Every concept is checked against your real code; hallucinated citations are refused on write.</p>
+                </div>
+                <div class="card">
+                  <span class="k">2 · Freshness</span>
+                  <p>OKF has no notion of staleness. Kage catches drift the moment code changes and withholds it.</p>
+                </div>
+                <div class="card">
+                  <span class="k">3 · Code-grounding</span>
+                  <p>A code graph anchors each concept to the exact symbols it describes.</p>
+                </div>
+              </div>
+              <p class="lede" style="font-size:14.5px;margin-top:16px">
+                OKF standardizes the store. Kage is the verification layer Google left out — carried in
+                OKF-legal <code>x-kage-*</code> fields, so a Kage bundle stays 100% conformant and
+                readable by any OKF consumer.
               </p>
             </div>
-            <div class="card">
-              <span class="k">The missing piece</span>
-              <h3>A standard can't tell you what's stale</h3>
-              <p>
-                Code moves; written memory doesn't. Kage adds the layer OKF leaves open: deterministic
-                verification of every claim against the real code, freshness tracking, and withholding
-                — so yesterday's truth never misleads today's agent.
-              </p>
-            </div>
-            <div class="card">
-              <span class="k">The reach</span>
-              <h3>One layer, every agent</h3>
-              <p>
-                Verified OKF memory is only useful if your agents actually get it. Kage's proxy fronts
-                the Anthropic, OpenAI-compatible, and Gemini wire formats, so Claude Code, Codex CLI,
-                Cursor, aider, and Gemini CLI all read the same verified store — no per-agent plugins.
-              </p>
-            </div>
+            <figure class="term" aria-label="A Kage memory as an OKF concept file">
+              <div class="term-head">orders.md — a Kage memory, as an OKF concept · <span style="color:var(--green)">verified ✓</span></div>
+              <pre><span class="dim"># OKF fields — readable by any OKF consumer</span>
+type: Decision
+title: Auth uses jose, not jsonwebtoken
+resource: src/auth/session.ts
+tags: [auth, security]
+<span class="dim"># Kage's verification layer (OKF-legal extension)</span>
+x-kage-verified: fresh
+x-kage-anchors: [src/auth/session.ts@9f3c1a…]
+x-kage-freshness: { ttl_days: 365, policy: source_hash }
+---
+<span class="dim"># … prose + citations, kept true to the code.</span></pre>
+            </figure>
           </div>
         </div>
       </section>
@@ -295,6 +307,43 @@
         </div>
       </section>
 
+      <!-- ——————————————— COMPARE ——————————————— -->
+      <section class="section" id="compare" aria-labelledby="compare-h">
+        <div class="wrap">
+          <div class="section-head">
+            <span class="eyebrow">Compare</span>
+            <h2 id="compare-h">Remembering is solved. <span class="accent">Trusting</span> isn't.</h2>
+            <p class="lede">
+              Capture-everything memory solves <em>remembering</em>. Kage solves <em>trusting</em>
+              what's remembered — it re-checks every claim against your code.
+            </p>
+          </div>
+          <div class="compare-scroll">
+            <table class="compare">
+              <thead>
+                <tr><th scope="col"></th><th scope="col" class="is-kage">Kage</th><th scope="col">claude-mem</th><th scope="col">mem0 / Zep</th></tr>
+              </thead>
+              <tbody>
+                <tr><th scope="row">Automatic capture + session-start recall</th><td class="is-kage yes">✓</td><td class="yes">✓</td><td>via SDK</td></tr>
+                <tr><th scope="row">Hallucinated citations rejected at write time</th><td class="is-kage yes">✓</td><td class="no">—</td><td class="no">—</td></tr>
+                <tr><th scope="row">Stale memory withheld at recall</th><td class="is-kage yes">✓</td><td class="no">—</td><td class="no">—</td></tr>
+                <tr><th scope="row">Diff-time stale-catch before the PR lands</th><td class="is-kage yes">✓</td><td class="no">—</td><td class="no">—</td></tr>
+                <tr><th scope="row">Memory reviewed in git, same PR as the code</th><td class="is-kage yes">✓ plain files</td><td>SQLite + cloud</td><td>hosted API</td></tr>
+                <tr><th scope="row">Works with every agent through one proxy</th><td class="is-kage yes">✓ 3 wire formats</td><td class="no">Claude only</td><td>per-SDK</td></tr>
+                <tr><th scope="row">Savings receipts (measured, never estimated)</th><td class="is-kage yes">✓</td><td>per-recall token index</td><td class="no">—</td></tr>
+                <tr><th scope="row">Cross-machine sync</th><td class="is-kage yes">your own git remote</td><td>their cloud</td><td>their cloud</td></tr>
+                <tr><th scope="row">Account / API key required</th><td class="is-kage yes">none</td><td>cloud optional</td><td>yes</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="footnote">
+            Already running claude-mem? Audit your existing store — read-only, no account:
+            <code>npx -y @kage-core/kage-graph-mcp audit-claude-mem</code> classifies every observation
+            as verified, drifted, gone, or uncited.
+          </p>
+        </div>
+      </section>
+
       <!-- ——————————————— HISTORY DIGESTION ——————————————— -->
       <section class="section" id="digestion" aria-labelledby="digestion-h">
         <div class="wrap feature">
@@ -370,6 +419,46 @@
       </section>
 
       <!-- ——————————————— QUICKSTART ——————————————— -->
+      <!-- ——————————————— PRICING ——————————————— -->
+      <section class="section section-alt" id="pricing" aria-labelledby="pricing-h">
+        <div class="wrap">
+          <div class="section-head">
+            <span class="eyebrow">Pricing</span>
+            <h2 id="pricing-h">Free where it matters. <span class="accent">Verified</span> everywhere.</h2>
+            <p class="lede">
+              The open-source core is complete on its own — verification, receipts, the all-agent
+              proxy, sync over your own git remote. Local-first, private by default.
+            </p>
+          </div>
+          <div class="grid-3">
+            <div class="card">
+              <span class="k">Open source · $0 forever</span>
+              <p>
+                Everything on this page: verified OKF memory, the injection gate, history digestion,
+                receipts, the team report, viewer + portal, and sync over your own private git remote.
+                No account, no API key.
+              </p>
+            </div>
+            <div class="card">
+              <span class="k">Team workspace · self-host today</span>
+              <p>
+                The review-gated team server — tenant-isolated Postgres, approved-only sync, audit
+                log — is code-complete and self-hostable now (Docker + backup/restore in the repo).
+                Raw prompts never leave your machines.
+              </p>
+            </div>
+            <div class="card">
+              <span class="k">Managed team · in pilot readiness</span>
+              <p>
+                The same workspace, run for you. Honest status: the technical gates pass, but no
+                design-partner pilot has completed yet — that is the bar we hold before charging
+                anyone. <a href="demo.html" style="text-decoration:underline;text-underline-offset:3px">Book a demo</a> to be an early partner.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="section" id="quickstart" aria-labelledby="quickstart-h">
         <div class="wrap-narrow">
           <div class="section-head">
@@ -417,6 +506,21 @@
           </div>
         </div>
       </section>
+
+      <!-- ——————————————— CLOSING CTA ——————————————— -->
+      <section class="section" id="start" aria-labelledby="start-h">
+        <div class="wrap">
+          <div class="cta">
+            <h2 id="start-h">Stop letting your agent <span class="accent">forget</span>.</h2>
+            <p>The open-source core installs in 60 seconds. Demos are 30 minutes, your repo, live.</p>
+            <div class="actions">
+              <a class="button primary" href="#quickstart">Install the open-source core</a>
+              <a class="button" href="demo.html">Book a demo</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
     </main>
 
     <footer class="footer">
