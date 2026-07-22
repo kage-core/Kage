@@ -6,6 +6,32 @@ set -euo pipefail
 CWD="$(cat | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('cwd',''))" 2>/dev/null || echo "")"
 
 [[ -d "$CWD/.agent_memory" ]] || exit 0
+
+# Proxy ensure-up (auto-attach): this repo may route sessions through the kage proxy via
+# ANTHROPIC_BASE_URL in .claude/settings.local.json. If nothing is listening yet (fresh boot),
+# start the background proxy now — idempotent, ~1s bind, the last-used mode is reused from the
+# daemon state (audit-safe default). Fully guarded: this block can never fail the hook.
+if grep -qs "ANTHROPIC_BASE_URL" "$CWD/.claude/settings.local.json" 2>/dev/null; then
+  if ! nc -z 127.0.0.1 8788 >/dev/null 2>&1; then
+    # The pipeline must NEVER trip the hook's set -euo pipefail: proxy.json is absent after a clean
+    # `kage down` or on first run, and a failing command substitution in an assignment is fatal
+    # under set -e — so the whole substitution is || true'd and the default applied after.
+    KAGE_UP_MODE="$(sed -n 's/.*"mode": *"\([a-z]*\)".*/\1/p' "$CWD/.agent_memory/daemon/proxy.json" 2>/dev/null | head -1 || true)"
+    [[ -n "$KAGE_UP_MODE" ]] || KAGE_UP_MODE="audit"
+    # Repo-local CLI first (a stale global `kage` on PATH may predate `kage up`), then PATH,
+    # then the package runner — the same never-silently-die chain the other hooks use.
+    if [[ -f "$CWD/node_modules/@kage-core/kage-graph-mcp/dist/cli.js" ]] && command -v node >/dev/null 2>&1; then
+      (node "$CWD/node_modules/@kage-core/kage-graph-mcp/dist/cli.js" up --project "$CWD" --mode "$KAGE_UP_MODE" >/dev/null 2>&1 &) || true
+    elif [[ -f "$CWD/mcp/dist/cli.js" ]] && command -v node >/dev/null 2>&1; then
+      (node "$CWD/mcp/dist/cli.js" up --project "$CWD" --mode "$KAGE_UP_MODE" >/dev/null 2>&1 &) || true
+    elif command -v kage >/dev/null 2>&1; then
+      (kage up --project "$CWD" --mode "$KAGE_UP_MODE" >/dev/null 2>&1 &) || true
+    else
+      (npx -y --package=@kage-core/kage-graph-mcp kage up --project "$CWD" --mode "$KAGE_UP_MODE" >/dev/null 2>&1 &) || true
+    fi
+  fi
+fi
+
 HOOK_EVENT="SessionStart"
 KAGE_VNEXT_ADAPTER_EVENTS=" SessionStart UserPromptSubmit PreToolUse PostToolUse PostToolUseFailure SessionEnd "
 if [[ "$KAGE_VNEXT_ADAPTER_EVENTS" == *" $HOOK_EVENT "* ]] && KAGE_VNEXT_DIR="$CWD/.agent_memory/daemon/vnext" python3 -c 'import json, os, stat, subprocess
