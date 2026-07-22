@@ -72,6 +72,26 @@ say after a crash — is cleaned up and started fresh. To be honest about the on
 reboot stops the proxy (there is no system service), so run `kage up` once afterwards. Prefer the
 old behavior? `kage up --foreground` keeps the proxy in your terminal, where Ctrl-C stops it.
 
+**Auto-attach — so you do not have to remember `kage run`.** `kage setup claude-code --project . --write`
+records `env.ANTHROPIC_BASE_URL` in that repo's `.claude/settings.local.json`, so an agent **launched
+from that directory** routes through Kage on its own. Your existing settings are preserved and any
+value you set yourself wins.
+
+Two honest limits, both of which `kage status` now reports instead of leaving you to guess:
+
+- It is **per-directory**. The agent reads the settings of the directory it was launched in, so
+  wiring a git worktree while running the agent from the parent repo attaches nothing.
+- Some hosts **resolve their own endpoint and never read project settings** — notably the Claude
+  **desktop app**, which sets `ANTHROPIC_BASE_URL` itself. No amount of restarting attaches it. For
+  proxy coverage there, launch the agent from a terminal (`claude`) or use `kage run -- <agent>`.
+  Memory still reaches the desktop app through the Claude hooks; it is the proxy's byte-level
+  measurement and injection you lose.
+
+```
+attach:  NOT attached in THIS session — settings are wired to http://localhost:8788, but the
+         running host (claude-desktop) resolved https://api.anthropic.com itself ...
+```
+
 `kage up` defaults to **audit mode**: measurement only — your bytes are forwarded unchanged and
 nothing is injected. When you want verified memory injected into prompts, run
 `kage up --mode assist`. See what it measured with `kage status --project .`.

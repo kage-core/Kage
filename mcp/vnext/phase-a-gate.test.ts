@@ -232,6 +232,12 @@ test("Gate A: evidence, context, and an audited receipt with no MCP call and no 
       url: runtime.url,
       token: runtime.token,
       handshake: claudeHandshake(repository, "gate-session"),
+      // Same reasoning as the capsule call below: the adapter's real session budget is 150 ms, and
+      // failing open past it is CORRECT product behavior — a slow runtime must never stall an agent.
+      // That contract is asserted with explicit budgets in adapters/adapter.test.ts. Leaving it
+      // implicit here made the gate depend on wall-clock luck: under full-suite load the handshake
+      // blew 150 ms and the gate reported `failed_open`, failing a run in which nothing was broken.
+      timeout_ms: 60_000,
     });
     operations.push({ name: "handshake", transport: "http" });
     assert.equal(handshake.status, "accepted");
@@ -243,7 +249,7 @@ test("Gate A: evidence, context, and an audited receipt with no MCP call and no 
       repository,
     );
     assert.ok(event);
-    const delivered = await sendAdapterEvent({ url: runtime.url, token: runtime.token, event });
+    const delivered = await sendAdapterEvent({ url: runtime.url, token: runtime.token, event, timeout_ms: 60_000 });
     operations.push({ name: "event", transport: "http" });
     assert.equal(delivered.status, "accepted");
     const storedEvents = runtime.eventStore.forTask(event.task_id);
