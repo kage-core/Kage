@@ -71,25 +71,9 @@ jobs:
         run: |
           git config user.name "kage-bot"
           git config user.email "kage-bot@users.noreply.github.com"
-          git add .agent_memory/
-          if git diff --cached --quiet; then
-            echo "No memory changes to commit"; exit 0
-          fi
-          git commit -m "chore: kage sync — rebuild graphs and update memory [skip ci]"
-          # Push is race-prone: this job runs on every push, so when commits land
-          # back-to-back another push can win the ref first ("fetch first"). Re-base
-          # our regenerated .agent_memory/ onto the latest master and retry instead
-          # of failing the run. Only .agent_memory/ is re-staged, so this can never
-          # conflict with concurrent source commits.
-          for attempt in 1 2 3 4 5; do
-            if git push; then exit 0; fi
-            echo "push rejected (concurrent push) — reconciling, retry ${attempt}/5"
-            git fetch origin "${GITHUB_REF_NAME}"
-            git reset --soft "origin/${GITHUB_REF_NAME}"
-            git add .agent_memory/
-            if git diff --cached --quiet; then echo "already up to date"; exit 0; fi
-            git commit -m "chore: kage sync — rebuild graphs and update memory [skip ci]"
-            sleep $((attempt * 2))
-          done
-          echo "::warning::kage sync could not push after 5 retries; the next sync run will reconcile"
-          exit 0
+          # Commit + push with race-safe reconciliation. This job runs on EVERY push, so its own push
+          # routinely loses the race to a concurrent commit (a `kage learn` memory write, a PR merge).
+          # The reconciliation must never delete a packet that concurrent commit added — the old inline
+          # version did, silently eating freshly-captured memory. The logic lives in a tested script
+          # (scripts/kage-sync-commit.test.mjs reproduces the exact race and asserts survival).
+          bash scripts/kage-sync-commit.sh "${GITHUB_REF_NAME}"
