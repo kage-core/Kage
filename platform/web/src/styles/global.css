@@ -1100,3 +1100,152 @@ a {
   color: var(--color-text-muted);
   font-size: 0.85em;
 }
+
+/* ============================================================================================
+   Overview redesign — lead with measured value. Uses only existing tokens (tokens.css), so it
+   inherits both the light and dark themes with no new palette.
+   ============================================================================================ */
+
+/* Identity header: repo name left, branch/commit chips right. */
+.ov-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.ov-head h1 {
+  margin: 0;
+}
+.ov-sub {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.ov-chips {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.ov-chip {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  background: var(--color-neutral-tint);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+}
+.ov-chip b {
+  color: var(--color-text);
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Value hero: the honest, measured lead. */
+.value-hero {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-accent);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+}
+.value-hero-lede {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-lg);
+  line-height: 1.5;
+  color: var(--color-text);
+}
+.value-hero-lede strong {
+  color: var(--color-accent);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--space-3);
+}
+.stat-tile {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+.stat-tile-value {
+  margin: 0;
+  font-size: 2.25rem;
+  line-height: 1;
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-accent);
+}
+.stat-tile[data-tone="plain"] .stat-tile-value {
+  color: var(--color-text);
+}
+.stat-tile-label {
+  margin: var(--space-2) 0 0;
+  font-weight: var(--font-weight-medium);
+}
+.stat-tile-note {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.section-lede {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-4);
+  font-size: var(--font-size-sm);
+}
+
+/* Unlock hint on an unmeasured metric — a next step, not a dead end. */
+.metric-unlock {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+/* Ledger detail cards. */
+.ledger-detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--space-4);
+}
+.ledger-detail .card h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-base);
+}
+.ledger-detail .card p {
+  margin: 0 0 var(--space-2);
+}
+.top-memories {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.top-memories li {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: var(--space-2);
+  align-items: baseline;
+  font-size: var(--font-size-sm);
+}
+.tm-uses {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-accent);
+}
+.tm-type {
+  color: var(--color-text-muted);
+  text-transform: lowercase;
+}
+.tm-title {
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
