@@ -1,67 +1,31 @@
-import type { MetricDto, MetricId, OverviewDto, TeamMetricsPanelDto } from "../api/types";
+import type { MetricDto, MetricId, OverviewDto, TeamMetricsPanelDto, TeamReportDto } from "../api/types";
 import { AttentionQueue } from "../components/AttentionQueue";
 import { IntegrationStrip } from "../components/IntegrationStrip";
 import { MetricCard } from "../components/MetricCard";
 
-// The repository value overview. Top to bottom:
-//   1. Repository / branch / commit identity, so the reader knows exactly what they are looking at.
-//   2. Four PRIMARY metrics — net context cost, verified reuse, time to verified change,
-//      understanding coverage — each carrying its own exactness label and provenance.
-//   3. Four SECONDARY metrics — attach reliability, open contradictions, stale critical claims,
-//      runbook health.
-//   4. The TEAM panel — aggregated workspace metrics when a workspace is connected, and an explicit
-//      "no workspace connected" when it is not (an absent team is never drawn as an idle team).
-//   5. The attention queue (what needs a human) and integration health.
-//
-// Honesty invariants (enforced by MetricCard + the page tests): an unmeasured metric renders
-// "Unavailable", never a fabricated `$0.00`; exact dollar economics and cohort time outcomes are
-// shown as separate cards with their own exactness labels and are NEVER fused into one ROI number.
+// The repository value overview. It LEADS with the value Kage has actually measured for this repo —
+// recalls served, stale claims caught, knowledge captured — because that is the honest, provable
+// story and it is the reason a lead keeps the tool. The provider-cost metrics (net context cost,
+// verified reuse) come AFTER, and an unmeasured one shows the concrete step that unlocks it rather
+// than a dead "Unavailable". Nothing here is fabricated: measured numbers are measured, estimates are
+// labelled, and an absent measurement says how to produce it.
 
 interface OverviewPageProps {
   overview: OverviewDto;
+  // The value ledger for this repo, or null when it could not be assembled. Supplied by the caller so
+  // the page stays a pure render. Optional (defaults null) so the page still renders its overview
+  // sections when the ledger is absent.
+  report?: TeamReportDto | null;
 }
 
-// The four headline metrics, in fixed display order. Everything else is a secondary metric.
-const PRIMARY_ORDER: MetricId[] = [
-  "net_context_cost",
-  "verified_reuse",
-  "time_to_verified_change",
-  "understanding_coverage",
-];
-
-const SECONDARY_ORDER: MetricId[] = [
-  "attach_reliability",
-  "open_contradictions",
-  "stale_critical",
-  "runbook_health",
-];
-
-// Partition the backend metrics into (primary, secondary) using the fixed orders above, preserving
-// that order. Any metric the backend adds that is not in either list falls through to the secondary
-// group rather than being silently dropped.
-function partition(metrics: MetricDto[]): { primary: MetricDto[]; secondary: MetricDto[] } {
-  const byId = new Map(metrics.map((m) => [m.id, m]));
-  const primary = PRIMARY_ORDER.map((id) => byId.get(id)).filter(
-    (m): m is MetricDto => m !== undefined,
-  );
-  const secondaryFromOrder = SECONDARY_ORDER.map((id) => byId.get(id)).filter(
-    (m): m is MetricDto => m !== undefined,
-  );
-  const known = new Set<MetricId>([...PRIMARY_ORDER, ...SECONDARY_ORDER]);
-  const extras = metrics.filter((m) => !known.has(m.id));
-  return { primary, secondary: [...secondaryFromOrder, ...extras] };
-}
-
-// The team panel. Three honesty rules are visible here:
-//   - a null `team` says "no workspace connected"; it never renders zeros for a team that does not exist;
-//   - the panel states its scope (tasks / repositories / agents) so a reader knows what population the
-//     numbers describe;
-//   - the caveats the backend attached travel with the numbers instead of being dropped on the floor.
+// The workspace team panel — aggregated cross-repo metrics, present ONLY when a workspace is connected.
+// A local install has none, and an absent team is stated plainly, never drawn as a team that did
+// nothing. Distinct from the value ledger (report), which is this repo's own measured value.
 function TeamPanel({ team }: { team: TeamMetricsPanelDto | null }): React.ReactElement {
   if (!team) {
     return (
       <p className="muted">
-        No workspace connected. Team metrics appear once this repository is linked to a Kage workspace.
+        No workspace connected. Link a workspace to see team-wide metrics across every repository.
       </p>
     );
   }
@@ -79,7 +43,11 @@ function TeamPanel({ team }: { team: TeamMetricsPanelDto | null }): React.ReactE
           Cohort trends are withheld for this window: <code>{team.suppression_reason}</code>
         </p>
       )}
-      <MetricGrid metrics={team.metrics} />
+      <div className="metric-grid">
+        {team.metrics.map((metric) => (
+          <MetricCard key={metric.id} metric={metric} />
+        ))}
+      </div>
       {team.caveats.length > 0 && (
         <ul className="team-caveats">
           {team.caveats.map((caveat) => (
@@ -91,67 +59,231 @@ function TeamPanel({ team }: { team: TeamMetricsPanelDto | null }): React.ReactE
   );
 }
 
+function compactNumber(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}k`;
+  return `${value}`;
+}
+
+// One big stat in the value hero. `tone` colours the number; `note` is the one-line provenance so the
+// tile never floats a number without saying what it is.
+function StatTile({
+  label,
+  value,
+  note,
+  tone = "accent",
+}: {
+  label: string;
+  value: string;
+  note: string;
+  tone?: "accent" | "plain";
+}): React.ReactElement {
+  return (
+    <div className="stat-tile" data-tone={tone}>
+      <p className="stat-tile-value">{value}</p>
+      <p className="stat-tile-label">{label}</p>
+      <p className="stat-tile-note">{note}</p>
+    </div>
+  );
+}
+
+// The headline: what Kage has measurably done for this repository. Built only from real ledger data;
+// estimates are shown separately and explicitly labelled.
+function ValueHero({ report }: { report: TeamReportDto }): React.ReactElement {
+  const { value, composition } = report;
+  const tokensSaved = value.tokens_saved_estimated + value.replay_tokens_estimated;
+  return (
+    <section className="value-hero" aria-label="Measured value">
+      <p className="value-hero-lede">
+        Kage served <strong>{value.recalls_served.toLocaleString()}</strong> recalls and withheld{" "}
+        <strong>{value.stale_withheld.toLocaleString()}</strong> stale claims across{" "}
+        <strong>{composition.total_packets.toLocaleString()}</strong> captured memories.
+      </p>
+      <div className="stat-tiles">
+        <StatTile
+          label="Recalls served"
+          value={compactNumber(value.recalls_served)}
+          note="Measured — memory the agents reused instead of rediscovering"
+        />
+        <StatTile
+          label="Stale claims caught"
+          value={compactNumber(value.stale_withheld)}
+          note="Measured — memory withheld because its cited code moved"
+        />
+        <StatTile
+          label="Knowledge captured"
+          value={compactNumber(composition.total_packets)}
+          note={`${Math.round(composition.non_derivable_share * 100)}% is what code cannot say`}
+        />
+        <StatTile
+          label="Tokens saved"
+          value={`~${compactNumber(tokensSaved)}`}
+          note="Estimated — read-vs-source + knowledge replay, never counted as measured"
+          tone="plain"
+        />
+      </div>
+    </section>
+  );
+}
+
+// The concrete step that turns an Unavailable provider-cost metric into a real number. Honest, not a
+// sales line: each names the input the metric needs. Only used when a metric is genuinely unmeasured.
+const UNLOCK_HINTS: Partial<Record<MetricId, string>> = {
+  net_context_cost: "Run `kage up --mode assist` — cost is measured per request once memory is injected.",
+  verified_reuse: "Approve claims in the Review Queue — reuse counts only verified memory.",
+  time_to_verified_change: "Lands once the first change is verified against its cited code.",
+  understanding_coverage: "Grows as features gain owner and test-surface relations.",
+  attach_reliability: "Measured from attach telemetry once sessions run through the proxy.",
+  runbook_health: "Rises as runbook claims are verified in review.",
+};
+
+const PRIMARY_ORDER: MetricId[] = [
+  "net_context_cost",
+  "verified_reuse",
+  "time_to_verified_change",
+  "understanding_coverage",
+];
+const SECONDARY_ORDER: MetricId[] = [
+  "attach_reliability",
+  "open_contradictions",
+  "stale_critical",
+  "runbook_health",
+];
+
+function ordered(metrics: MetricDto[], order: MetricId[]): MetricDto[] {
+  const byId = new Map(metrics.map((m) => [m.id, m]));
+  return order.map((id) => byId.get(id)).filter((m): m is MetricDto => m !== undefined);
+}
+
 function MetricGrid({ metrics }: { metrics: MetricDto[] }): React.ReactElement {
   return (
     <div className="metric-grid">
       {metrics.map((metric) => (
-        <MetricCard key={metric.id} metric={metric} />
+        <MetricCard key={metric.id} metric={metric} unlockHint={UNLOCK_HINTS[metric.id]} />
       ))}
     </div>
   );
 }
 
-export function OverviewPage({ overview }: OverviewPageProps): React.ReactElement {
+// The live injection gate + what's been most useful. Kept from the ledger; the headline counts moved
+// into the hero, so this is the depth beneath it.
+function LedgerDetail({ report }: { report: TeamReportDto }): React.ReactElement {
+  const gate = report.injection_gate;
+  return (
+    <div className="ledger-detail">
+      <div className="card">
+        <h3>Injection gate (live)</h3>
+        {gate.available ? (
+          <p>
+            <strong>
+              {gate.injected}/{gate.gates}
+            </strong>{" "}
+            requests injected (rate {gate.injection_rate}), average confidence {gate.average_confidence}.
+          </p>
+        ) : (
+          <p className="muted">{gate.note}</p>
+        )}
+      </div>
+      {report.top_memories.length > 0 && (
+        <div className="card">
+          <h3>Most-used memory (30d)</h3>
+          <ul className="top-memories">
+            {report.top_memories.slice(0, 5).map((m, i) => (
+              <li key={`${m.title}-${i}`}>
+                <span className="tm-uses">{m.uses_30d}×</span>
+                <span className="tm-type">{m.type}</span>
+                <span className="tm-title">{m.title}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div className="card">
+        <h3>Review &amp; coverage</h3>
+        <p>
+          {report.review_health.pending} pending review
+          {report.review_health.oldest_pending_days !== null
+            ? ` (oldest ${report.review_health.oldest_pending_days}d)`
+            : ""}
+          , {report.review_health.contradictions} contradiction link(s).
+        </p>
+        {report.coverage.dark_areas.length > 0 && (
+          <p className="muted">No approved memory yet in: {report.coverage.dark_areas.join(", ")}.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function OverviewPage({ overview, report = null }: OverviewPageProps): React.ReactElement {
   const { repository, metrics, attention, integrations, team } = overview;
-  const { primary, secondary } = partition(metrics);
+  const primary = ordered(metrics, PRIMARY_ORDER);
+  const secondary = ordered(metrics, SECONDARY_ORDER);
 
   return (
     <div className="overview-page">
-      <section className="repo-identity" aria-label="Repository identity">
-        <h1>{repository.name}</h1>
-        <dl className="repo-identity-meta">
-          <div>
-            <dt>Branch</dt>
-            <dd className="mono">{repository.branch ?? "unknown"}</dd>
-          </div>
-          <div>
-            <dt>Commit</dt>
-            <dd className="mono">{repository.commit ?? "unknown"}</dd>
-          </div>
-        </dl>
+      <section className="ov-head" aria-label="Repository identity">
+        <div>
+          <h1>{repository.name}</h1>
+          <p className="ov-sub">Repository knowledge</p>
+        </div>
+        <div className="ov-chips">
+          <span className="ov-chip">
+            branch <b>{repository.branch ?? "—"}</b>
+          </span>
+          <span className="ov-chip">
+            commit <b>{repository.commit ? repository.commit.slice(0, 10) : "—"}</b>
+          </span>
+        </div>
       </section>
 
-      <section aria-label="Value metrics">
-        <h2>Repository value</h2>
-        {primary.length > 0 ? (
-          <MetricGrid metrics={primary} />
-        ) : (
-          <p className="muted">
-            No metrics have been measured yet. They appear once the daemon records its first receipts.
+      {report ? (
+        <ValueHero report={report} />
+      ) : (
+        <p className="muted">The value ledger could not be assembled for this repository.</p>
+      )}
+
+      {(primary.length > 0 || secondary.length > 0) && (
+        <section aria-label="Provider-cost metrics">
+          <h2>Cost &amp; trust</h2>
+          <p className="section-lede muted">
+            Measured against your provider traffic. An unmeasured metric shows what unlocks it.
           </p>
-        )}
-        {secondary.length > 0 && (
-          <>
-            <h3 className="metric-subheading">Reliability and hygiene</h3>
-            <MetricGrid metrics={secondary} />
-          </>
-        )}
-      </section>
+          {primary.length > 0 && <MetricGrid metrics={primary} />}
+          {secondary.length > 0 && (
+            <>
+              <h3 className="metric-subheading">Reliability and hygiene</h3>
+              <MetricGrid metrics={secondary} />
+            </>
+          )}
+        </section>
+      )}
+
+      {report && (
+        <section aria-label="Ledger detail">
+          <h2>What's being used</h2>
+          <LedgerDetail report={report} />
+        </section>
+      )}
 
       <section aria-label="Team">
         <h2>Team</h2>
         <TeamPanel team={team} />
       </section>
 
-      <section aria-label="Needs attention">
-        <h2>Needs attention</h2>
-        <AttentionQueue items={attention} />
-      </section>
+      {attention.length > 0 && (
+        <section aria-label="Needs attention">
+          <h2>Needs attention</h2>
+          <AttentionQueue items={attention} />
+        </section>
+      )}
 
-      <section aria-label="Integrations">
-        <h2>Integrations</h2>
-        <IntegrationStrip integrations={integrations} />
-      </section>
+      {integrations.length > 0 && (
+        <section aria-label="Integrations">
+          <h2>Integrations</h2>
+          <IntegrationStrip integrations={integrations} />
+        </section>
+      )}
     </div>
   );
 }

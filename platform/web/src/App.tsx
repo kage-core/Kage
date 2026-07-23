@@ -23,7 +23,6 @@ import { FeaturePage } from "./pages/FeaturePage";
 import { IntegrationsPage } from "./pages/IntegrationsPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { OverviewPage } from "./pages/OverviewPage";
-import { TeamValuePanel } from "./components/TeamValuePanel";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ReviewQueuePage, type ReviewDecisionInput, type ReviewMutationFeedback } from "./pages/ReviewQueuePage";
 import { RunbookPage } from "./pages/RunbookPage";
@@ -73,7 +72,12 @@ function NotFoundPage({ path }: { path: string }): React.ReactElement {
 // T5 — lazy team-value loader (lead dashboard + IC injection transparency). Fetched only when the
 // overview is open, never on the context-delivery critical path; a fetch failure renders the
 // panel's honest unavailable state (null), never a fake healthy report.
-function TeamValueContainer({ api }: { api: KageApiClient }): React.ReactElement {
+// The Overview route. It needs BOTH the overview DTO (already loaded by App) and the value ledger
+// (fetched here), because the redesigned page leads with the measured ledger value and shows the
+// overview's provider-cost metrics beneath it. The ledger is fetched lazily and the page renders as
+// soon as the overview is present; a null ledger renders an honest "could not assemble" line, never a
+// blank hero.
+function OverviewContainer({ api, overview }: { api: KageApiClient; overview: OverviewDto }): React.ReactElement {
   const [report, setReport] = useState<TeamReportDto | null | undefined>(undefined);
   useEffect(() => {
     let cancelled = false;
@@ -89,14 +93,8 @@ function TeamValueContainer({ api }: { api: KageApiClient }): React.ReactElement
       cancelled = true;
     };
   }, [api]);
-  if (report === undefined) {
-    return (
-      <p role="status" aria-live="polite">
-        Loading team value…
-      </p>
-    );
-  }
-  return <TeamValuePanel report={report} />;
+  // `undefined` = still loading the ledger; render the page with report=null only once we know.
+  return <OverviewPage overview={overview} report={report === undefined ? null : report} />;
 }
 
 function SystemMapContainer({
@@ -430,12 +428,7 @@ function RoutedPage({
       if (needsOnboarding(overview)) {
         return <OnboardingPage detectedRepository={overview.repository} />;
       }
-      return (
-        <>
-          <OverviewPage overview={overview} />
-          <TeamValueContainer api={api} />
-        </>
-      );
+      return <OverviewContainer api={api} overview={overview} />;
     case "system-map":
       return <SystemMapContainer api={api} view={(route.view as SystemMapView) ?? "feature"} />;
     case "features":

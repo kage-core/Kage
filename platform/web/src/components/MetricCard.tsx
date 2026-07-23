@@ -14,6 +14,9 @@ import type { MetricDto, MetricExactness } from "../api/types";
 
 interface MetricCardProps {
   metric: MetricDto;
+  // For a genuinely unmeasured metric, the concrete step that produces it — shown in place of a dead
+  // "Unavailable". Never shown for a measured or withheld metric.
+  unlockHint?: string;
 }
 
 // Distinct, human-readable exactness labels. Unavailable is intentionally absent: unavailable
@@ -60,11 +63,14 @@ function formatTrend(metric: MetricDto): string | null {
   return `${sign}${rendered}`;
 }
 
-export function MetricCard({ metric }: MetricCardProps): React.ReactElement {
+export function MetricCard({ metric, unlockHint }: MetricCardProps): React.ReactElement {
   const [open, setOpen] = useState(false);
   const detailsId = useId();
   const unavailable = metric.value === null;
   const trend = formatTrend(metric);
+  // Only a genuinely unmeasured (not withheld) metric gets an unlock hint — a withheld value was
+  // measured and is being protected, so "how to produce it" would be wrong.
+  const showHint = unavailable && !isWithheld(metric) && Boolean(unlockHint);
 
   return (
     <article className="metric-card" aria-labelledby={`${detailsId}-label`}>
@@ -81,6 +87,8 @@ export function MetricCard({ metric }: MetricCardProps): React.ReactElement {
           Withheld for privacy: <code>{metric.suppression_reason}</code>
         </p>
       )}
+
+      {showHint && <p className="metric-unlock">{unlockHint}</p>}
 
       <p className="metric-meta">
         {!unavailable && (

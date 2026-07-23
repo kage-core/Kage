@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { spawn } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, watch, writeFileSync, type FSWatcher } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 import {
@@ -228,6 +228,29 @@ export function resolveAppAsset(appDir: string, pathname: string): string | null
   return index; // SPA fallback for client-side routes
 }
 
+// Fill an overview response's repository branch/commit from the working tree's live git position when
+// the model left them null. Best-effort and silent: not a git repo, or git unavailable, leaves them
+// null (the header then shows "—") — never throws, never blocks the response.
+function patchGitIdentity(body: unknown, projectDir: string): void {
+  if (!body || typeof body !== "object") return;
+  const repo = (body as { repository?: { branch: string | null; commit: string | null } }).repository;
+  if (!repo) return;
+  const git = (args: string[]): string | null => {
+    try {
+      const out = execFileSync("git", args, {
+        cwd: projectDir,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim();
+      return out || null;
+    } catch {
+      return null;
+    }
+  };
+  if (!repo.branch) repo.branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
+  if (!repo.commit) repo.commit = git(["rev-parse", "--short", "HEAD"]);
+}
+
 // Serve one knowledge-portal read route (`/v2/...`) from the LOCAL repository model, same-origin with
 // the SPA. Fire-and-forget from the request handler: it ALWAYS ends `res` and never rejects, so a bad
 // route or a Node build without node:sqlite degrades to an honest JSON error instead of crashing the
@@ -265,6 +288,10 @@ export async function servePortalApi(projectDir: string, url: URL, res: ServerRe
         { model: opened.model, receiptStore, team: null, teamReport },
         url.searchParams,
       );
+      // The repository model does not track the working-tree's live git position, so the overview
+      // header shows "unknown" for a local checkout. Fill branch/commit from git HERE (a daemon-level
+      // concern, kept out of the pure read-model) so the reader knows exactly what they are looking at.
+      if (route.kind === "overview") patchGitIdentity(result.body, projectDir);
       json(res, result.status, result.body);
     } finally {
       opened.close();
