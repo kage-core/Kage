@@ -3,6 +3,7 @@ import type { KageApiClient } from "./api/client";
 import type { TeamReportDto,
   DecisionDetailDto,
   EntityDetailDto,
+  EntityListDto,
   IntegrationDto,
   OverviewDto,
   ReviewItemDto,
@@ -17,6 +18,7 @@ import { AdminDiagnosticsPage } from "./pages/AdminDiagnosticsPage";
 import { AgentTasksPage } from "./pages/AgentTasksPage";
 import { BillingPage } from "./pages/BillingPage";
 import { DecisionPage } from "./pages/DecisionPage";
+import { EntityListPage } from "./pages/EntityListPage";
 import { FeaturePage } from "./pages/FeaturePage";
 import { IntegrationsPage } from "./pages/IntegrationsPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
@@ -48,17 +50,6 @@ export interface AppProps {
 // operator through local onboarding rather than showing an empty overview that implies success.
 function needsOnboarding(overview: OverviewDto): boolean {
   return overview.metrics.length === 0 && overview.integrations.length === 0;
-}
-
-function PagePlaceholder({ title }: { title: string }): React.ReactElement {
-  return (
-    <section aria-label={title}>
-      <h1>{title}</h1>
-      <p className="muted">
-        This section is part of the knowledge portal and arrives in a later Phase C task.
-      </p>
-    </section>
-  );
 }
 
 function NotFoundPage({ path }: { path: string }): React.ReactElement {
@@ -337,6 +328,56 @@ function AgentTasksContainer({ api }: { api: KageApiClient }): React.ReactElemen
   return <AgentTasksPage tasks={state.tasks.tasks} />;
 }
 
+// Loads a browse-list of one entity kind (Components, Flows, Runbooks, Decisions, Features) and renders
+// it. Fetched lazily when its tab opens. `load` picks the right client method; `section` is the URL
+// segment its cards link to. These replace the former "arrives in a later Phase C task" placeholders.
+function EntityListContainer({
+  api,
+  title,
+  section,
+  load,
+}: {
+  api: KageApiClient;
+  title: string;
+  section: string;
+  load: (api: KageApiClient) => Promise<EntityListDto>;
+}): React.ReactElement {
+  const [state, setState] = useState<
+    { status: "loading" } | { status: "ready"; list: EntityListDto } | { status: "error"; message: string }
+  >({ status: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+    load(api)
+      .then((list) => {
+        if (!cancelled) setState({ status: "ready", list });
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setState({ status: "error", message: error instanceof Error ? error.message : "Unknown error" });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+    // `load` is derived from the stable `api` + `section`; keying on section re-fetches on tab change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api, section]);
+
+  if (state.status === "loading") {
+    return (
+      <p role="status" aria-live="polite">
+        Loading {title.toLowerCase()}…
+      </p>
+    );
+  }
+  if (state.status === "error") {
+    return <p role="alert">{title} are unavailable: {state.message}</p>;
+  }
+  return <EntityListPage title={title} section={section} list={state.list} />;
+}
+
 // Loads live integration health. Fetched lazily (only when the Integrations section is open) so it
 // never sits on the context-delivery critical path.
 function IntegrationsContainer({ api }: { api: KageApiClient }): React.ReactElement {
@@ -398,7 +439,14 @@ function RoutedPage({
     case "system-map":
       return <SystemMapContainer api={api} view={(route.view as SystemMapView) ?? "feature"} />;
     case "features":
-      return <PagePlaceholder title="Features" />;
+      return (
+        <EntityListContainer
+          api={api}
+          title="Features"
+          section="features"
+          load={(a) => a.features().then((f) => ({ kind: "feature", entities: f.features }))}
+        />
+      );
     case "feature":
       return (
         <DetailContainer<EntityDetailDto>
@@ -409,7 +457,9 @@ function RoutedPage({
         />
       );
     case "components":
-      return <PagePlaceholder title="Components" />;
+      return (
+        <EntityListContainer api={api} title="Components" section="components" load={(a) => a.components()} />
+      );
     case "component":
       return (
         <DetailContainer<EntityDetailDto>
@@ -420,7 +470,7 @@ function RoutedPage({
         />
       );
     case "flows":
-      return <PagePlaceholder title="Flows" />;
+      return <EntityListContainer api={api} title="Flows" section="flows" load={(a) => a.flows()} />;
     case "flow":
       return (
         <DetailContainer<EntityDetailDto>
@@ -431,7 +481,7 @@ function RoutedPage({
         />
       );
     case "runbooks":
-      return <PagePlaceholder title="Runbooks" />;
+      return <EntityListContainer api={api} title="Runbooks" section="runbooks" load={(a) => a.runbooks()} />;
     case "runbook":
       return (
         <DetailContainer<RunbookDetailDto>
@@ -442,7 +492,7 @@ function RoutedPage({
         />
       );
     case "decisions":
-      return <PagePlaceholder title="Decisions" />;
+      return <EntityListContainer api={api} title="Decisions" section="decisions" load={(a) => a.decisions()} />;
     case "decision":
       return (
         <DetailContainer<DecisionDetailDto>

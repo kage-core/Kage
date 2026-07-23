@@ -5,6 +5,7 @@
 
 import type { TeamReportDto,
   EntityDetailDto,
+  EntityListDto,
   FeatureListDto,
   IntegrationsDto,
   OverviewDto,
@@ -43,6 +44,10 @@ export interface KageApiClient {
   overview(): Promise<OverviewDto>;
   systemMap(view?: SystemMapView, focus?: string | null): Promise<SystemMapDto>;
   features(): Promise<FeatureListDto>;
+  components(): Promise<EntityListDto>;
+  flows(): Promise<EntityListDto>;
+  runbooks(): Promise<EntityListDto>;
+  decisions(): Promise<EntityListDto>;
   feature(slug: string): Promise<EntityDetailDto>;
   component(slug: string): Promise<EntityDetailDto>;
   flow(slug: string): Promise<EntityDetailDto>;
@@ -97,6 +102,22 @@ export class KageApi implements KageApiClient {
 
   features(): Promise<FeatureListDto> {
     return this.get<FeatureListDto>("/v2/features");
+  }
+
+  components(): Promise<EntityListDto> {
+    return this.get<EntityListDto>("/v2/components");
+  }
+
+  flows(): Promise<EntityListDto> {
+    return this.get<EntityListDto>("/v2/flows");
+  }
+
+  runbooks(): Promise<EntityListDto> {
+    return this.get<EntityListDto>("/v2/runbooks");
+  }
+
+  decisions(): Promise<EntityListDto> {
+    return this.get<EntityListDto>("/v2/decisions");
   }
 
   feature(slug: string): Promise<EntityDetailDto> {

@@ -1,6 +1,6 @@
 {
   "name": "@kage-core/kage-graph-mcp",
-  "version": "4.0.3",
+  "version": "4.0.4",
   "description": "Agent memory on Google's Open Knowledge Format (OKF). Kage maintains your coding agents' OKF memory bundle in git and verifies every concept against your code, deterministically. The verification and freshness layer OKF leaves out. MCP server, no account, no API key.",
   "main": "dist/index.js",
   "files": [
