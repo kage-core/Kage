@@ -258,6 +258,13 @@ export interface FeatureListDto {
   features: EntityCardDto[];
 }
 
+// The generic browse-list for one entity kind (components, flows, runbooks, decisions). `kind` echoes
+// which kind the list is for so the portal can label and route it without a second lookup.
+export interface EntityListDto {
+  kind: EntityKind;
+  entities: EntityCardDto[];
+}
+
 export interface ReviewItemDto {
   review_item_id: string;
   claim_id: string;

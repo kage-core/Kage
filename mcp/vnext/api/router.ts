@@ -13,6 +13,7 @@ import {
   buildOverview,
   decisionDetail,
   entityDetail,
+  entityList,
   featureList,
   findTaskSummary,
   listTaskSummaries,
@@ -24,6 +25,7 @@ export type PortalRouteKind =
   | "overview"
   | "system_map"
   | "features"
+  | "entity_list"
   | "feature"
   | "component"
   | "flow"
@@ -39,6 +41,8 @@ export interface PortalRoute {
   kind: PortalRouteKind;
   slug?: string;
   taskId?: string;
+  /** For "entity_list": which kind of entity to list (components, flows, runbooks, decisions). */
+  entityKind?: EntityKind;
 }
 
 // Every portal read route is GET. `undefined` means "not a portal route" — server.ts falls through to
@@ -47,6 +51,12 @@ export function matchPortalRoute(pathname: string): PortalRoute | undefined {
   if (pathname === "/v2/overview") return { kind: "overview" };
   if (pathname === "/v2/system-map") return { kind: "system_map" };
   if (pathname === "/v2/features") return { kind: "features" };
+  // Browse-list tabs for the other kinds. Bare path only — the `/v2/<kind>/<slug>` detail routes are
+  // matched by the regex below, so these never collide.
+  if (pathname === "/v2/components") return { kind: "entity_list", entityKind: "component" };
+  if (pathname === "/v2/flows") return { kind: "entity_list", entityKind: "flow" };
+  if (pathname === "/v2/runbooks") return { kind: "entity_list", entityKind: "runbook" };
+  if (pathname === "/v2/decisions") return { kind: "entity_list", entityKind: "decision" };
   if (pathname === "/v2/review-items") return { kind: "review_items" };
   if (pathname === "/v2/tasks") return { kind: "tasks" };
   if (pathname === "/v2/integrations") return { kind: "integrations" };
@@ -169,6 +179,11 @@ export function handlePortalRoute(
 
     case "features":
       return { status: 200, body: repoId ? featureList(model, repoId) : { features: [] } };
+
+    case "entity_list": {
+      const kind = route.entityKind!;
+      return { status: 200, body: repoId ? entityList(model, repoId, kind) : { kind, entities: [] } };
+    }
 
     case "feature":
     case "component":
