@@ -228,6 +228,58 @@ export function resolveAppAsset(appDir: string, pathname: string): string | null
   return index; // SPA fallback for client-side routes
 }
 
+// Serve one knowledge-portal read route (`/v2/...`) from the LOCAL repository model, same-origin with
+// the SPA. Fire-and-forget from the request handler: it ALWAYS ends `res` and never rejects, so a bad
+// route or a Node build without node:sqlite degrades to an honest JSON error instead of crashing the
+// viewer. The model is opened per request and closed immediately — it never takes the runtime's writer
+// lock (openRepositoryModel just opens + migrates), so these reads run alongside a live `kage up`
+// runtime under SQLite WAL without contending for it.
+export async function servePortalApi(projectDir: string, url: URL, res: ServerResponse): Promise<void> {
+  try {
+    const { matchPortalRoute, handlePortalRoute } = await import("./vnext/api/router.js");
+    const route = matchPortalRoute(url.pathname);
+    if (!route) {
+      // A `/v2/...` path the portal API does not define — an honest 404, not a stray file.
+      json(res, 404, { ok: false, error: "not_found" });
+      return;
+    }
+    const { openRepositoryModel } = await import("./vnext/migration/model-store.js");
+    const { ReceiptStore } = await import("./vnext/storage/receipt-store.js");
+    const opened = openRepositoryModel(projectDir);
+    try {
+      const receiptStore = new ReceiptStore(opened.model.database);
+      // teamReport is assembled ONLY for its own route (it reads the packet store + value ledger); every
+      // other route ignores it. team is null — a local viewer has no workspace panel, and the honesty
+      // contract renders that as "no workspace connected", never a zeroed panel.
+      let teamReport: unknown;
+      if (route.kind === "team_report") {
+        try {
+          const { teamValueReport } = await import("./kernel.js");
+          teamReport = teamValueReport(projectDir);
+        } catch {
+          teamReport = null;
+        }
+      }
+      const result = handlePortalRoute(
+        route,
+        { model: opened.model, receiptStore, team: null, teamReport },
+        url.searchParams,
+      );
+      json(res, result.status, result.body);
+    } finally {
+      opened.close();
+    }
+  } catch (error) {
+    // Most often a Node build without node:sqlite (the model store needs it). Say so plainly; the SPA
+    // renders this string under "Repository knowledge is unavailable", so it must read as a real cause.
+    const message =
+      error instanceof Error && /sqlite/i.test(error.message)
+        ? "the knowledge portal API needs a Node build with node:sqlite (Node 22.5+); memory, recall, and the legacy viewer still work"
+        : "the repository model could not be opened";
+    json(res, 503, { ok: false, error: "portal_api_unavailable", message });
+  }
+}
+
 // Every report file the dashboard reads, keyed by its query-string param name.
 // `value` points at the cumulative value ledger written by recall — it is read-only
 // here and must never be regenerated, or the all-time savings history is lost.
@@ -1055,6 +1107,14 @@ export async function startViewer(projectDir: string, options: { host?: string; 
     const requestUrl = new URL(req.url ?? "/", `http://${host}:${port}`);
     if (req.method === "GET" && requestUrl.pathname === "/kage/events") {
       liveFeed.handleRequest(req, res);
+      return;
+    }
+    // The knowledge portal's read API. The SPA served under /app/ fetches `/v2/...` SAME-ORIGIN
+    // (main.tsx: `new KageApi("", token)`), so the daemon that serves the portal must also answer its
+    // API — otherwise the shell loads and every panel shows "Kage API 404" (the 4.0.1 shell fix
+    // exposed exactly this). Reads only, localhost, no token: same trust boundary as /kage/* reports.
+    if (req.method === "GET" && requestUrl.pathname.startsWith("/v2/")) {
+      void servePortalApi(projectRoot, requestUrl, res);
       return;
     }
     let filePath: string | null = null;
