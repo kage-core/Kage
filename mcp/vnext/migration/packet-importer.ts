@@ -143,7 +143,14 @@ function isJunk(packet: MemoryPacket): boolean {
   const body = (packet.body ?? "").trim();
   const summary = (packet.summary ?? "").trim();
   // Nothing to make a claim from: no title, or no content at all.
-  return title.length === 0 || (body.length === 0 && summary.length === 0);
+  if (title.length === 0 || (body.length === 0 && summary.length === 0)) return true;
+  // Kage's OWN auto-generated branch bookkeeping — a `workflow` packet titled "Change memory: <ref>"
+  // that kage_propose_from_diff writes on every branch, in every repo. It carries no repository
+  // knowledge (it is a per-commit changelog of Kage's internal store), so importing it into the model
+  // shows a buyer a "flow: Change memory: master" node that reads as noise. Excluded from the model;
+  // the packet itself is untouched and still recallable. This is universal, not a dogfood artifact.
+  if (packet.type === "workflow" && /^change memory:/i.test(title)) return true;
+  return false;
 }
 
 // Trust an imported packet is allowed to carry. Legacy trust is never laundered into an injectable

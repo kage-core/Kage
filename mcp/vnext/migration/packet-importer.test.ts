@@ -139,6 +139,29 @@ test("classifyPacket is a pure dry run that never writes", () => {
   assert.equal(model.listEntities("repository:local").length, 0);
 });
 
+test("Kage's own 'Change memory:' branch bookkeeping is excluded from the model as junk", () => {
+  // A workflow packet titled "Change memory: <ref>" is auto-generated on every branch in every repo
+  // (kage_propose_from_diff). It carries no repository knowledge, so importing it shows a buyer a
+  // "flow: Change memory: master" node that reads as noise. It must classify as rejected_junk.
+  const model = fixtureModel();
+  const changelog = classifyPacket(
+    fixturePacket({ type: "workflow", title: "Change memory: master", body: "Repo-local context for 39 changed paths." }),
+    model,
+  );
+  assert.equal(changelog.disposition, "rejected_junk");
+});
+
+test("a genuine workflow packet is NOT mistaken for change-memory bookkeeping", () => {
+  // Only the "Change memory:" title pattern is excluded — a real workflow/process packet still imports.
+  const model = fixtureModel();
+  const realFlow = classifyPacket(
+    fixturePacket({ type: "workflow", title: "Release flow: cut, tag, publish", paths: ["scripts/release.ts"] }),
+    model,
+  );
+  assert.notEqual(realFlow.disposition, "rejected_junk");
+  assert.equal(realFlow.entity_kind, "flow");
+});
+
 test("packet fingerprint is stable for identical content and changes with the body", () => {
   const a = fixturePacket();
   const b = fixturePacket();

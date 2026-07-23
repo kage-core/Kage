@@ -1168,11 +1168,27 @@ export async function startViewer(projectDir: string, options: { host?: string; 
     res.end(readFileSync(filePath));
   });
 
+  // Populate the portal's repository model from existing memory the first time it is opened, so a repo
+  // with packets but no compiled model never shows a blank dashboard. Gated on an empty model, so it
+  // is a one-time bootstrap; lazy import keeps node:sqlite off the daemon's module top level; failure
+  // is non-fatal (the portal serves its honest empty state). See bootstrapPortalModelIfEmpty.
+  try {
+    const { bootstrapPortalModelIfEmpty } = await import("./vnext/migration/bootstrap.js");
+    const boot = bootstrapPortalModelIfEmpty(projectRoot);
+    if (boot.bootstrapped) {
+      console.log(
+        `Kage portal: populated the repository model from ${boot.imported} memory packet(s) — review and refine in the portal's Review Queue.`,
+      );
+    }
+  } catch {
+    /* never block the viewer from starting */
+  }
+
   await new Promise<void>((resolveListen) => server.listen(port, host, resolveListen));
-  // The knowledge portal (Phase C) is the primary surface; the legacy 3D viewer stays available at /
-  // during the compatibility release.
+  // The knowledge portal is THE surface. The legacy dashboard stays reachable at / for now but is not
+  // advertised as a co-equal — one product face, not two.
   console.log(`Kage knowledge portal → http://${host}:${port}/app/`);
-  console.log(`Kage legacy viewer → http://${host}:${port}/`);
+  console.log(`  (legacy dashboard still at http://${host}:${port}/ during the transition)`);
   // Port is live — the minutes-long report grind runs in a CHILD PROCESS so this event loop stays
   // free to answer requests. stdio ignored; the child exits when done; failure is non-fatal (the
   // viewer shows empty states until a later run fills the reports).
